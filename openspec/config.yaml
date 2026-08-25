@@ -1,0 +1,58 @@
+schema: spec-driven
+
+context: |
+  Project: WhatsApp reminder assistant
+  Stack: Node.js 22 (ESM), Express 4, Supabase JS SDK v2, dotenv 16
+  AI: MiniMax chat completion (https://api.minimax.chat/v1/text/chatcompletion_pro, model `MiniMax-Text-01`)
+  WhatsApp: Kapso Cloud API (Graph v21.0), phone_number_id from env
+  DB: Supabase Postgres (single `reminders` table, status/send_at indexed)
+  Scheduler: in-process Node sleep loop in src/scheduler.js (NOT pg_cron, despite README claim)
+  Webhook: POST /webhook receives Kapso payloads; no signature verification yet
+  Architecture: layered — src/{webhook,ai/router,handlers,db,utils}
+  No git repo, no tests, no CI, no linter, no formatter
+  Delivery: single-pr, review budget 400 lines
+
+testing:
+  strict_tdd: false
+  reason: "No test runner installed; user wants velocity on a small change — do not block init on adding tests."
+  detected: 2026-06-19
+  runner: none
+  layers:
+    unit: false
+    integration: false
+    e2e: false
+  coverage:
+    available: false
+  quality:
+    linter: false
+    type_checker: false
+    formatter: false
+  recommendation: "Vitest is the natural fit for ESM Node — add only when test-worthy surface appears; do not retrofit now."
+
+rules:
+  proposal:
+    - Include rollback plan for any DB or scheduler change
+    - Call out README vs code inconsistencies (pg_cron claim vs Node sleep loop)
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Document any switch from sleep loop to pg_cron with rationale and rollout
+    - Address webhook signature verification if a security-bearing change is proposed
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Stay under the 400-line review budget
+  apply:
+    tdd: false
+    test_command: ""
+    pattern_rules:
+      - "Follow existing ESM import style and `dotenv/config` bootstrap"
+      - "Use Supabase JS SDK v2; never raw SQL strings outside src/db/schema.sql"
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+    smoke_check: "node --check src/index.js && node -e \"import('./src/index.js')\" must boot without throwing"
+  archive:
+    - Warn before merging destructive schema deltas
