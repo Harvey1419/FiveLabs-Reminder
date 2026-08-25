@@ -6,11 +6,12 @@ Analyze the following conversation turn between User and Assistant.
 
 Extract durable facts, personal preferences, commercial/project decisions, or relationship information that will be useful weeks or months from now.
 
-DO NOT EXTRACT:
+DO NOT EXTRACT (CRITICAL):
+- Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
+- Explicit alarms/reminders (these belong exclusively in the reminders table).
 - Greetings or conversational filler (e.g. "hola", "cómo estás", "gracias")
 - Temporary questions or short-term acknowledgments (e.g. "qué hora es", "ok", "listo")
 - Temporary states (e.g. "tengo hambre", "estoy cansado hoy")
-- Explicit alarms/reminders (these are stored in the reminders table)
 
 CATEGORIES:
 - "fact": stable truth about user, family, job, contacts (e.g. "El contador del usuario se llama Carlos")

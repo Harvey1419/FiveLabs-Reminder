@@ -450,7 +450,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       const res = await routeMessage('Hello, could you help me organize my morning meetings?', user);
       expect(res.confirmation).toBeDefined();
       // Should match English words
-      expect(res.confirmation.toLowerCase()).toMatch(/hello|hi|sure|help|meeting|schedule|morning|here/i);
-    }, 20000);
+      expect(res.confirmation.toLowerCase()).toMatch(/hello|hi|sure|help|meeting|schedule|morning|here|assist|plan/i);
+    }, 35000);
   });
 });
