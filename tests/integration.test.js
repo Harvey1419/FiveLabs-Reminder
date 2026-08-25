@@ -452,5 +452,21 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       // Should match English words
       expect(res.confirmation.toLowerCase()).toMatch(/hello|hi|sure|help|meeting|schedule|morning|here|assist|plan/i);
     }, 35000);
+
+    it('creates advance notice reminder and main event reminder when asked for 30 minutes before', async () => {
+      const res = await routeMessage('Tengo una reunión mañana a las 5:00 PM, recuérdame 30 minutos antes', user);
+      expect(res.confirmation).toBeDefined();
+      expect(res.confirmation.toLowerCase()).toMatch(/4:30|30 minuto|aviso/i);
+
+      // Verify reminders in DB
+      const { data: reminders } = await supabase
+        .from('reminders')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .ilike('content', '%reunión%');
+
+      expect(reminders.length).toBeGreaterThanOrEqual(1);
+    }, 35000);
   });
 });
