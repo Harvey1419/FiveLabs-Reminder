@@ -66,7 +66,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       });
       expect(saved).toBeDefined();
       expect(saved.is_active).toBe(true);
-      expect(saved.category).toBe('fact'); // Safely normalized to fact
+      expect(saved.category).toBe('project'); // Project category is now supported
 
       // Query with synonym / question words not in the text
       const results = await searchMemories({

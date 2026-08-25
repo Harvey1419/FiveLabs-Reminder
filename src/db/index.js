@@ -26,6 +26,7 @@ export async function saveReminder({
   nudgeIntervalMinutes = 15,
   maxNudges = 5,
 }) {
+  const isPersistent = Boolean(requiresConfirmation);
   const insertPayload = {
     phone_number: phoneNumber,
     content,
@@ -33,9 +34,9 @@ export async function saveReminder({
     recurrence_rule: recurrenceRule || null,
     status: 'pending',
     task_id: taskId || null,
-    requires_confirmation: Boolean(requiresConfirmation),
-    nudge_interval_minutes: Number(nudgeIntervalMinutes) || 15,
-    max_nudges: maxNudges !== undefined ? Number(maxNudges) : 5,
+    requires_confirmation: isPersistent,
+    nudge_interval_minutes: isPersistent ? (Number(nudgeIntervalMinutes) || 15) : null,
+    max_nudges: isPersistent ? (maxNudges !== undefined ? Number(maxNudges) : 5) : null,
     nudge_count: 0,
   };
 
@@ -43,8 +44,9 @@ export async function saveReminder({
     insertPayload.user_id = userId;
   }
 
-  // Deduplication guard: Check if an identical pending reminder already exists for this phone/user
+  // Deduplication / Supersede guard:
   try {
+    // 1. If an identical pending reminder already exists with exact same time, return it
     let checkQ = supabase
       .from('reminders')
       .select('*')
@@ -59,6 +61,21 @@ export async function saveReminder({
     if (existing) {
       console.log(`[reminders] Identical pending reminder already exists (${existing.id}), returning existing.`);
       return existing;
+    }
+
+    // 2. If creating a persistent reminder, cancel/supersede any older active unacknowledged nudge loop for the same content
+    if (isPersistent) {
+      let activeQ = supabase
+        .from('reminders')
+        .update({ status: 'cancelled', acknowledged_at: new Date().toISOString() })
+        .eq('requires_confirmation', true)
+        .is('acknowledged_at', null)
+        .ilike('content', content.trim());
+
+      if (userId) activeQ = activeQ.eq('user_id', userId);
+      else activeQ = activeQ.eq('phone_number', phoneNumber);
+
+      await activeQ;
     }
   } catch (err) {
     console.warn('[reminders] duplicate check warning:', err.message);
