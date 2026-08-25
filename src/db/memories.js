@@ -14,7 +14,7 @@ import { generateEmbedding } from '../services/embeddingService.js';
  * @param {string|Date} [params.validUntil]
  * @returns {Promise<object|null>}
  */
-const VALID_MEM_CATEGORIES = new Set(['fact', 'preference', 'decision', 'episode', 'observation']);
+const VALID_MEM_CATEGORIES = new Set(['fact', 'preference', 'decision', 'episode', 'observation', 'project']);
 
 export async function saveMemory({
   userId,
