@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS memories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   topic_key TEXT,
-  category TEXT NOT NULL CHECK (category IN ('fact', 'preference', 'decision', 'episode', 'observation')),
+  category TEXT NOT NULL CHECK (category IN ('fact', 'preference', 'decision', 'episode', 'observation', 'project')),
   content TEXT NOT NULL,
   confidence FLOAT DEFAULT 1.0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
