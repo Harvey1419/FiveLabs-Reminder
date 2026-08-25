@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { formatLocalDateTime } from '../utils/time.js';
 
+const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseSecret = process.env.SUPABASE_SECRET || 'placeholder-secret';
+
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET,
+  supabaseUrl,
+  supabaseSecret,
   {
     auth: {
       persistSession: false,

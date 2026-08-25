@@ -6,6 +6,14 @@ import { startMorningBriefingWorker } from './workers/morningBriefing.js';
 
 const app = express();
 
+// Validate critical environment variables on boot
+const requiredEnvs = ['SUPABASE_URL', 'SUPABASE_SECRET', 'KAPSO_API_KEY', 'GEMINI_API_KEY'];
+const missingEnvs = requiredEnvs.filter(key => !process.env[key]);
+if (missingEnvs.length > 0) {
+  console.warn(`\n⚠️  [CONFIG WARNING] Missing required environment variables: ${missingEnvs.join(', ')}`);
+  console.warn(`👉 Please configure them in your Railway Dashboard -> "Variables" tab.\n`);
+}
+
 // Parse json with rawBody preserved for HMAC-SHA256 signature validation
 app.use(express.json({
   limit: '10mb',
