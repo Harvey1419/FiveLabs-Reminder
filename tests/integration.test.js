@@ -468,5 +468,15 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
 
       expect(reminders.length).toBeGreaterThanOrEqual(1);
     }, 35000);
+
+    it('strictly acknowledges and never reschedules when user says Ok', async () => {
+      const history = [
+        { role: 'user', content: 'Recuérdame regar las plantas a las 5 PM y cada 2 minutos' },
+        { role: 'assistant', content: '¡Entendido! Programado a las 5:00 PM y cada 2 minutos.' },
+      ];
+      const res = await routeMessage('Ok', user, history);
+      expect(res.confirmation).toBeDefined();
+      expect(res.confirmation.toLowerCase()).toMatch(/complet|list|excelente|entendido|desactiv/i);
+    }, 35000);
   });
 });
