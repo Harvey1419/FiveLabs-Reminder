@@ -64,7 +64,10 @@ export async function checkAndDispatchNudges() {
     for (const reminder of dueForNudge) {
       const nextCount = (reminder.nudge_count || 0) + 1;
       const cleanText = stripReminderPrefix(reminder.content);
-      const nudgeMessage = `🔔 *Recordatorio pendiente:* ${cleanText} (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando lo hayas completado.`;
+      const isTask = Boolean(reminder.task_id);
+      const nudgeMessage = isTask
+        ? `🔔 ¿Pudiste completar la tarea: *${cleanText}*? (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando termines.`
+        : `🔔 *Recordatorio pendiente:* ${cleanText} (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando lo hayas completado.`;
 
       await sendReminderConfirmation(reminder.phone_number, nudgeMessage);
       await incrementReminderNudge(reminder.id, nextCount);

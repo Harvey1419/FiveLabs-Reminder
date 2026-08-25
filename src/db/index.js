@@ -142,6 +142,20 @@ export async function acknowledgeReminders({ userId, phoneNumber, contentQuery =
     if (updateErr && updateErr.message?.includes('column') && updateErr.message?.includes('schema cache')) {
       await supabase.from('reminders').update({ status: 'sent' }).in('id', ids);
     }
+
+    // Auto-complete any linked tasks in tasks table
+    const taskIds = candidates.filter(r => r.task_id).map(r => r.task_id);
+    if (taskIds.length > 0) {
+      await supabase
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_at: ackTime,
+          updated_at: ackTime,
+        })
+        .in('id', taskIds);
+      console.log(`[tasks] Auto-completed ${taskIds.length} linked task(s) on reminder acknowledgement.`);
+    }
   } catch (err) {
     console.warn('[reminders] acknowledge update error:', err);
   }

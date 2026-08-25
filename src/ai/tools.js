@@ -289,6 +289,19 @@ export async function executeTool(toolName, params, user) {
                 entityId,
               });
 
+              // If task has a scheduled date/time, auto-create linked reminder with 5-min follow-up check-in
+              if (parsedDueDate && task?.id) {
+                await saveReminder({
+                  userId: user.id,
+                  phoneNumber: user.phone_number,
+                  content: item.title,
+                  sendAt: parsedDueDate.toISOString(),
+                  requiresConfirmation: true,
+                  nudgeIntervalMinutes: 5,
+                  taskId: task.id,
+                }).catch(err => console.warn('[tools] auto-link reminder error:', err.message));
+              }
+
               return {
                 id: task?.id,
                 title: item.title,
