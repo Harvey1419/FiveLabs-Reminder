@@ -131,20 +131,36 @@ async function handleRecurrence(reminder) {
     let nextSendAt = new Date(currentSendAt);
     const rule = reminder.recurrence_rule.toLowerCase().trim();
 
-    if (rule === 'daily') {
-      nextSendAt.setDate(nextSendAt.getDate() + 1);
-    } else if (rule === 'weekly' || rule.startsWith('weekly:')) {
-      nextSendAt.setDate(nextSendAt.getDate() + 7);
-    } else if (rule === 'monthly') {
-      nextSendAt.setMonth(nextSendAt.getMonth() + 1);
-    } else if (rule === 'weekdays') {
-      // Add 1 day, skip Saturday/Sunday
-      nextSendAt.setDate(nextSendAt.getDate() + 1);
-      if (nextSendAt.getDay() === 6) nextSendAt.setDate(nextSendAt.getDate() + 2);
-      else if (nextSendAt.getDay() === 0) nextSendAt.setDate(nextSendAt.getDate() + 1);
-    } else {
-      // Default 1 day
-      nextSendAt.setDate(nextSendAt.getDate() + 1);
+    // Advance until nextSendAt is strictly in the future (avoids day-by-day cascade of stale reminders)
+    while (nextSendAt.getTime() <= Date.now()) {
+      if (rule === 'daily') {
+        nextSendAt.setDate(nextSendAt.getDate() + 1);
+      } else if (rule === 'weekly' || rule.startsWith('weekly:')) {
+        nextSendAt.setDate(nextSendAt.getDate() + 7);
+      } else if (rule === 'monthly') {
+        nextSendAt.setMonth(nextSendAt.getMonth() + 1);
+      } else if (rule === 'weekdays') {
+        nextSendAt.setDate(nextSendAt.getDate() + 1);
+        if (nextSendAt.getDay() === 6) nextSendAt.setDate(nextSendAt.getDate() + 2);
+        else if (nextSendAt.getDay() === 0) nextSendAt.setDate(nextSendAt.getDate() + 1);
+      } else {
+        nextSendAt.setDate(nextSendAt.getDate() + 1);
+      }
+    }
+
+    // Deduplication check: Do not insert if an identical pending recurrence is already scheduled
+    const { data: existing } = await supabase
+      .from('reminders')
+      .select('id')
+      .eq('phone_number', reminder.phone_number)
+      .eq('status', 'pending')
+      .eq('content', reminder.content)
+      .eq('send_at', nextSendAt.toISOString())
+      .maybeSingle();
+
+    if (existing) {
+      console.log(`[scheduler] recurring reminder already scheduled (${existing.id}), skipping duplicate.`);
+      return;
     }
 
     await saveReminder({

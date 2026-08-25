@@ -103,13 +103,26 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
   const s = String(str).trim();
   const offset = computeOffsetMinutes(timezone);
 
-  // Already has explicit offset (Z or ±HH:mm)?
+  // 1. Time-only format (e.g. "08:00", "08:00:00")
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
+    const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
+    const d = new Date(`${todayStr}T${s}${s.length <= 5 ? ':00' : ''}${offset}`);
+    if (!isNaN(d.getTime())) {
+      // If the hour already passed today, target tomorrow
+      if (d.getTime() <= Date.now()) {
+        d.setDate(d.getDate() + 1);
+      }
+      return d;
+    }
+  }
+
+  // 2. Already has explicit offset (Z or ±HH:mm)?
   if (/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) {
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // Naive — treat as user's local timezone.
+  // 3. Naive — treat as user's local timezone.
   const d = new Date(s + offset);
   return isNaN(d.getTime()) ? null : d;
 }

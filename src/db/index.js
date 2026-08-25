@@ -43,6 +43,27 @@ export async function saveReminder({
     insertPayload.user_id = userId;
   }
 
+  // Deduplication guard: Check if an identical pending reminder already exists for this phone/user
+  try {
+    let checkQ = supabase
+      .from('reminders')
+      .select('*')
+      .eq('status', 'pending')
+      .eq('content', content)
+      .eq('send_at', sendAt);
+
+    if (userId) checkQ = checkQ.eq('user_id', userId);
+    else checkQ = checkQ.eq('phone_number', phoneNumber);
+
+    const { data: existing } = await checkQ.maybeSingle();
+    if (existing) {
+      console.log(`[reminders] Identical pending reminder already exists (${existing.id}), returning existing.`);
+      return existing;
+    }
+  } catch (err) {
+    console.warn('[reminders] duplicate check warning:', err.message);
+  }
+
   const { data, error } = await supabase
     .from('reminders')
     .insert(insertPayload)
