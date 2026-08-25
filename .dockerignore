@@ -1,0 +1,13 @@
+node_modules
+.env
+.env*.local
+.git
+.gitignore
+.dockerignore
+tests/
+scripts/
+openspec/
+.atl/
+*.md
+coverage/
+.DS_Store
