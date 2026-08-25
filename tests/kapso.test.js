@@ -127,31 +127,52 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
       ).rejects.toThrow(KapsoValidationError);
     });
 
-    it('correctly uses to for phone numbers and recipient exclusively for BSUIDs in live API', async () => {
-      // Live test with BSUID (recipient field)
-      const resBsuid = await sendWhatsAppText({
-        phoneNumberId: '1248246475047194',
-        phoneNumber: null,
-        bsuid: 'CO.1552339023039755',
-        text: '🧪 Verificación automatizada de entrega BSUID.',
-      });
+    it('correctly uses to for phone numbers and recipient exclusively for BSUIDs', async () => {
+      const originalFetch = global.fetch;
+      const capturedPayloads = [];
 
-      expect(resBsuid.success).toBe(true);
-      expect(resBsuid.recipientType).toBe('bsuid');
-      expect(resBsuid.messageId).toBeDefined();
+      global.fetch = async (url, options) => {
+        const body = JSON.parse(options.body);
+        capturedPayloads.push({ url, body });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            messages: [{ id: 'wamid.MOCK_TEST_123' }],
+          }),
+        };
+      };
 
-      // Live test with Phone number (to field)
-      const resPhone = await sendWhatsAppText({
-        phoneNumberId: '1248246475047194',
-        phoneNumber: '573046154163',
-        bsuid: null,
-        text: '🧪 Verificación automatizada de entrega Phone.',
-      });
+      try {
+        // Test with BSUID (recipient field)
+        const resBsuid = await sendWhatsAppText({
+          phoneNumberId: '1248246475047194',
+          phoneNumber: null,
+          bsuid: 'CO.1552339023039755',
+          text: 'Verificación mock entrega BSUID.',
+        });
 
-      expect(resPhone.success).toBe(true);
-      expect(resPhone.recipientType).toBe('phone');
-      expect(resPhone.messageId).toBeDefined();
-    }, 20000);
+        expect(resBsuid.success).toBe(true);
+        expect(resBsuid.recipientType).toBe('bsuid');
+        expect(capturedPayloads[0].body.recipient).toBe('CO.1552339023039755');
+        expect(capturedPayloads[0].body.to).toBeUndefined();
+
+        // Test with Phone number (to field)
+        const resPhone = await sendWhatsAppText({
+          phoneNumberId: '1248246475047194',
+          phoneNumber: '573046154163',
+          bsuid: null,
+          text: 'Verificación mock entrega Phone.',
+        });
+
+        expect(resPhone.success).toBe(true);
+        expect(resPhone.recipientType).toBe('phone');
+        expect(capturedPayloads[1].body.to).toBe('573046154163');
+        expect(capturedPayloads[1].body.recipient).toBeUndefined();
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
   });
 
   describe('5. Reminder Prefix Idempotency & Stripping', () => {
