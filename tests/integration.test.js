@@ -62,10 +62,11 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
         userId: user.id,
         topicKey: 'profile/location',
         content: 'El usuario se mudó a la ciudad de Barranquilla',
-        category: 'fact',
+        category: 'project', // Intentionally non-standard category
       });
       expect(saved).toBeDefined();
       expect(saved.is_active).toBe(true);
+      expect(saved.category).toBe('fact'); // Safely normalized to fact
 
       // Query with synonym / question words not in the text
       const results = await searchMemories({

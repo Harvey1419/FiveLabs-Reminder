@@ -14,6 +14,8 @@ import { generateEmbedding } from '../services/embeddingService.js';
  * @param {string|Date} [params.validUntil]
  * @returns {Promise<object|null>}
  */
+const VALID_MEM_CATEGORIES = new Set(['fact', 'preference', 'decision', 'episode', 'observation']);
+
 export async function saveMemory({
   userId,
   topicKey = null,
@@ -25,6 +27,10 @@ export async function saveMemory({
   if (!userId || !content) return null;
   const cleanContent = String(content).trim();
   const cleanTopic = topicKey ? String(topicKey).trim().toLowerCase() : null;
+
+  // Ensure category satisfies SQL constraint (fact, preference, decision, episode, observation)
+  const rawCat = String(category || 'fact').trim().toLowerCase();
+  const safeCategory = VALID_MEM_CATEGORIES.has(rawCat) ? rawCat : 'fact';
 
   try {
     let oldMemoryId = null;
@@ -51,7 +57,7 @@ export async function saveMemory({
     const insertPayload = {
       user_id: userId,
       topic_key: cleanTopic,
-      category,
+      category: safeCategory,
       content: cleanContent,
       confidence,
       is_active: true,
