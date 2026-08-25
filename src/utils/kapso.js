@@ -83,13 +83,12 @@ export async function sendWhatsAppText({
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
   }
 
-  const activePhoneId = String(phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID).trim();
+  let activePhoneId = String(phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID).trim();
 
-  // Guard against deprecated sandbox
+  // Guard: Auto-route legacy sandbox ID to production phone ID
   if (activePhoneId === DEPRECATED_SANDBOX_ID) {
-    throw new KapsoConfigurationError(
-      `Detected deprecated sandbox ID ${DEPRECATED_SANDBOX_ID}. You must use production phone_number_id ${PRODUCTION_PHONE_NUMBER_ID}.`
-    );
+    console.warn(`[kapso] Notice: Detected legacy sandbox ID ${DEPRECATED_SANDBOX_ID}. Automatically routing to production phone ID ${PRODUCTION_PHONE_NUMBER_ID}.`);
+    activePhoneId = PRODUCTION_PHONE_NUMBER_ID;
   }
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {

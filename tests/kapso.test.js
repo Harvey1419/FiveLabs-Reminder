@@ -96,14 +96,29 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
   });
 
   describe('4. Kapso WhatsApp Sender Function (sendWhatsAppText)', () => {
-    it('throws KapsoConfigurationError if legacy sandbox ID 597907523413541 is used', async () => {
-      await expect(
-        sendWhatsAppText({
+    it('auto-routes legacy sandbox ID 597907523413541 to production phone ID 1248246475047194', async () => {
+      const originalFetch = global.fetch;
+      let requestedUrl = '';
+      global.fetch = async (url) => {
+        requestedUrl = url;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.TEST_SANDBOX_REDIRECT' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppText({
           phoneNumberId: '597907523413541',
           phoneNumber: '573118588249',
-          text: 'Prueba',
-        })
-      ).rejects.toThrow(KapsoConfigurationError);
+          text: 'Prueba redirección sandbox',
+        });
+        expect(res.success).toBe(true);
+        expect(requestedUrl).toContain('1248246475047194/messages');
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
 
     it('throws KapsoValidationError if text is empty', async () => {

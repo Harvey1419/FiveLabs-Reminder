@@ -155,7 +155,11 @@ export async function handleWebhook(req, res) {
     }
 
     const recipientIdentifier = phoneNumber || bsuid;
-    const phoneNumberId = body.phone_number_id || body.conversation?.phone_number_id || process.env.KAPSO_PHONE_NUMBER_ID || '1248246475047194';
+    const configuredPhoneId = process.env.KAPSO_PHONE_NUMBER_ID || '1248246475047194';
+    // Always use configured production phone ID, ignoring incoming sandbox tags
+    const phoneNumberId = (body.phone_number_id === '597907523413541' || body.conversation?.phone_number_id === '597907523413541')
+      ? configuredPhoneId
+      : (process.env.KAPSO_PHONE_NUMBER_ID || body.phone_number_id || '1248246475047194');
 
     let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
     const caption = message.caption || message.image?.caption || message.document?.caption || '';
