@@ -9,6 +9,7 @@ Extract durable facts, personal preferences, commercial/project decisions, or re
 STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
 - Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
 - Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
+- Assistant agenda echoes or query responses: When the user asks what they have pending or scheduled, NEVER extract new memories from the assistant listing or reading back existing tasks.
 - Explicit alarms, reminders, scheduled notifications, or delivery times (these belong exclusively in the reminders table).
 - Bot capabilities, system limitations, or assistant self-descriptions (e.g. "El asistente no puede enviar mensajes a terceros").
 - Greetings, conversational pleasantries, or short acknowledgments (e.g. "hola", "cómo estás", "gracias", "de nada", "ok", "listo", "dale").
@@ -95,9 +96,15 @@ export function canonicalizeTopicKey(rawTopicKey, entityName = null, category = 
 export async function extractAndSaveMemories({ userId, userText, assistantReply }) {
   if (!userId || !userText) return [];
 
-  // Quick filter: skip single-word messages or pure greetings
+  // Quick filter: skip single-word messages, pure greetings, or agenda queries
   const trimmed = userText.trim().toLowerCase();
   if (trimmed.length < 5 || trimmed === 'hola' || trimmed === 'ok' || trimmed === 'gracias') {
+    return [];
+  }
+
+  // Pure query turns (asking what tasks or reminders exist) do not generate new facts
+  const isQueryTurn = /\b(qu[eé]\s+(?:tengo|hay|tareas|recordatorios|pendientes|citas)|cu[aá]l\s+es\s+la\s+m[aá]s\s+pr[oó]xima|a\s+qu[eé]\s+hora|cu[aá]ndo\s+tengo|agenda|mis\s+pendientes|mis\s+recordatorios|what\s+(?:tasks|reminders|do\s+i\s+have))\b/i.test(trimmed);
+  if (isQueryTurn) {
     return [];
   }
 

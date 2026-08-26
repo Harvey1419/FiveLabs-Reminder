@@ -159,6 +159,17 @@ function heuristicPlanner(input) {
 
   const t = text.toLowerCase().trim();
 
+  // 0. Acknowledgment & Closure of Reminders ("Ok", "Listo", "OK", "Hecho", "Ya", "Terminado", "Done", "Got it")
+  if (t === 'ok' || t === 'listo' || t === 'hecho' || t === 'ya' || t === 'terminado' || t === 'done' || t === 'got it' || t === 'listo gracias' || t === 'ok gracias') {
+    return JSON.stringify({
+      type: 'tool_call',
+      tool: 'manage_reminder',
+      params: { action: 'acknowledge' },
+      intent: 'reminder',
+      reply: '¡Excelente! Recordatorio completado y desactivados los avisos pendientes. 👍',
+    });
+  }
+
   // 1. Deletion / Cancellation of Reminders or Tasks
   if (t.includes('elimina') || t.includes('borra') || t.includes('cancela') || t.includes('quitar') || t.includes('eliminar') || t.includes('borrar') || t.includes('cancelar')) {
     if (t.includes('recordatorio') || t.includes('recordatorios') || t.includes('alarmas') || t.includes('aviso')) {
