@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { routeMessage } from './ai/router.js';
 import { sendWhatsAppText, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from './utils/kapso.js';
 import { saveMessage, getRecentMessages } from './db/messages.js';
-import { getOrCreateUserByPhone, updateUserTimezone } from './db/users.js';
+import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from './db/users.js';
 import { extractMemoryInBackground } from './workers/memoryExtractor.js';
 import { transcribeAudio } from './services/transcriptionService.js';
 import { processDocumentOrImage } from './services/documentService.js';
@@ -276,13 +276,14 @@ export async function handleWebhook(req, res) {
       }
     }
 
-    // Save user message in background
+    // Save user message and update last_user_message_at window in background
     saveMessage({
       userId: user.id,
       phoneNumber: recipientIdentifier,
       role: 'user',
       content: messageText,
     }).catch(err => console.error('saveMessage(user) failed:', err));
+    touchUserLastActive(user.id, recipientIdentifier);
 
     // Route to AI with full batch & natural reply generation
     const routeStart = Date.now();

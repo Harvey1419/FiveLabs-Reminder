@@ -106,12 +106,34 @@ export async function executeTool(toolName, params, user) {
                 item.nudgeIntervalMinutes ?? item.nudge_interval_minutes ?? params.nudgeIntervalMinutes ?? params.nudge_interval_minutes ?? 15
               );
               const maxNudges = Number(item.maxNudges ?? item.max_nudges ?? params.maxNudges ?? params.max_nudges ?? 5);
+              let fullContent = String(item.content || 'Recordatorio').trim();
+              let primaryTaskId = null;
+              const rawTasks = item.tasks || item.subtasks || item.checklist;
+              if (Array.isArray(rawTasks) && rawTasks.length > 0) {
+                const cleanTasks = rawTasks.map(t => String(t).trim()).filter(Boolean);
+                if (cleanTasks.length > 0) {
+                  const insertedTasks = await Promise.all(
+                    cleanTasks.map(title =>
+                      createTask({
+                        userId: user.id,
+                        title,
+                        dueDate: sendAt.toISOString(),
+                        status: 'pending',
+                      }).catch(() => null)
+                    )
+                  );
+                  primaryTaskId = insertedTasks.find(t => t?.id)?.id || null;
+                  const checklist = cleanTasks.map(t => `• [ ] ${t}`).join('\n');
+                  fullContent = `${fullContent}\n\n📋 *Tareas asociadas:*\n${checklist}`;
+                }
+              }
 
               const reminder = await saveReminder({
                 userId: user.id,
                 phoneNumber: user.phone_number,
-                content: String(item.content || 'Recordatorio').trim(),
+                content: fullContent,
                 sendAt: sendAt.toISOString(),
+                taskId: primaryTaskId,
                 recurrenceRule,
                 requiresConfirmation,
                 nudgeIntervalMinutes,

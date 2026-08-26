@@ -1,5 +1,5 @@
 import { supabase, getDailyOverview } from '../db/index.js';
-import { sendReminderConfirmation } from '../utils/kapso.js';
+import { sendReminderConfirmation, isWithin24HourWindow } from '../utils/kapso.js';
 import { callChatCompletion } from '../ai/client.js';
 
 const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
@@ -46,6 +46,13 @@ async function checkAndDispatchBriefings() {
         if (lastDateStr === todayStr) {
           continue; // Already sent today
         }
+      }
+
+      // Cost & Anti-Spam Guard: Only dispatch morning briefing if user is active in 24h window
+      const isUserActive = await isWithin24HourWindow(user.phone_number);
+      if (!isUserActive) {
+        console.log(`[morningBriefing] Skipping briefing for ${user.phone_number}: outside active 24h window.`);
+        continue;
       }
 
       await dispatchBriefingForUser(user, todayStr, tz);

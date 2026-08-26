@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS users (
   morning_briefing_enabled BOOLEAN DEFAULT TRUE,
   morning_briefing_time TEXT DEFAULT '06:00',
   last_briefing_at TIMESTAMPTZ,
+  last_user_message_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
+CREATE INDEX IF NOT EXISTS idx_users_last_message ON users(last_user_message_at);
 
 -- 2. Entities table (People, Companies, Projects, Assets, Places)
 CREATE TABLE IF NOT EXISTS entities (

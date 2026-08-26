@@ -69,7 +69,7 @@ export async function checkAndDispatchNudges() {
         ? `🔔 ¿Pudiste completar la tarea: *${cleanText}*? (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando termines.`
         : `🔔 *Recordatorio pendiente:* ${cleanText} (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando lo hayas completado.`;
 
-      await sendReminderConfirmation(reminder.phone_number, nudgeMessage);
+      await sendReminderMessage(reminder.phone_number, nudgeMessage);
       await incrementReminderNudge(reminder.id, nextCount);
       console.log(`[scheduler] Nudge #${nextCount} sent for reminder ${reminder.id} ("${reminder.content}") to ${reminder.phone_number}`);
     }

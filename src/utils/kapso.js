@@ -1,4 +1,6 @@
 import { markAsProcessed } from '../webhook.js';
+import { supabase } from '../db/index.js';
+import { userCache } from '../db/users.js';
 
 const KAPSO_API_BASE = 'https://api.kapso.ai/meta/whatsapp/v24.0';
 const DEPRECATED_SANDBOX_ID = '597907523413541';
@@ -247,10 +249,221 @@ export function stripReminderPrefix(text) {
   return s;
 }
 
-export async function sendReminderMessage(recipient, content) {
+/**
+ * Check if the recipient has sent an inbound message in the last 23.5 hours.
+ * @param {string} phoneNumber
+ * @returns {Promise<boolean>}
+ */
+export async function isWithin24HourWindow(phoneNumber) {
+  if (!phoneNumber) return false;
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  if (!cleanPhone) return false;
+
+  // 1. Ultra-fast RAM lookup: Check in-memory userCache (0ms CPU operation)
+  const cached = userCache.get(cleanPhone);
+  if (cached?.user?.last_user_message_at) {
+    const lastActiveMs = new Date(cached.user.last_user_message_at).getTime();
+    if (!isNaN(lastActiveMs)) {
+      const elapsed = Date.now() - lastActiveMs;
+      if (elapsed < 23.5 * 60 * 60 * 1000) {
+        return true; // Window is definitely OPEN
+      }
+      if (elapsed > 24.5 * 60 * 60 * 1000) {
+        return false; // Window is definitely CLOSED
+      }
+    }
+  }
+
+  // 2. Database verification fallback
+  try {
+    const threshold = new Date(Date.now() - 23.5 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('created_at')
+      .eq('phone_number', cleanPhone)
+      .eq('role', 'user')
+      .gt('created_at', threshold)
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[kapso] isWithin24HourWindow check failed:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Send a pre-approved Meta WhatsApp Template message (for business-initiated messages outside the 24h window).
+ * Supports any number of positional parameters (parameters: ['param1', 'param2', ...]).
+ *
+ * @param {Object} params
+ * @param {string|null} [params.phoneNumberId]
+ * @param {string|null} [params.phoneNumber]
+ * @param {string|null} [params.bsuid]
+ * @param {string} [params.templateName='reminder_task_one_reminder']
+ * @param {string} [params.languageCode='es']
+ * @param {Array<string>} [params.parameters=[]]
+ * @returns {Promise<{success: boolean, messageId?: string, recipientType?: 'phone'|'bsuid', data?: any, error?: string}>}
+ */
+export async function sendWhatsAppTemplate({
+  phoneNumberId = null,
+  phoneNumber = null,
+  bsuid = null,
+  templateName = 'reminder_task_one_reminder',
+  languageCode = 'es',
+  parameters = [],
+}) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
+  }
+
+  let activePhoneId = String(phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID).trim();
+  if (activePhoneId === DEPRECATED_SANDBOX_ID) {
+    activePhoneId = PRODUCTION_PHONE_NUMBER_ID;
+  }
+
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
+
+  if (!cleanPhone && !cleanBsuid) {
+    throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
+  }
+
+  let recipientType;
+  let targetDisplay;
+  let payload;
+
+  const templateObj = {
+    name: templateName,
+    language: { code: languageCode },
+    components: parameters.length > 0 ? [
+      {
+        type: 'body',
+        parameters: parameters.map(p => ({
+          type: 'text',
+          text: String(p ?? ''),
+        })),
+      },
+    ] : [],
+  };
+
+  if (cleanPhone) {
+    recipientType = 'phone';
+    targetDisplay = cleanPhone;
+    payload = {
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'template',
+      template: templateObj,
+    };
+  } else {
+    recipientType = 'bsuid';
+    targetDisplay = cleanBsuid;
+    payload = {
+      messaging_product: 'whatsapp',
+      recipient: cleanBsuid,
+      type: 'template',
+      template: templateObj,
+    };
+  }
+
+  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
+  const maxRetries = 2;
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    try {
+      console.log(`[kapso] sending template "${templateName}" (${recipientType}) to ${targetDisplay} (attempt ${attempt + 1})`);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const messageId = data.messages?.[0]?.id || 'unknown';
+        if (messageId && messageId !== 'unknown') {
+          markAsProcessed(messageId);
+        }
+        console.log(`[kapso] template sent ok to=${targetDisplay} (${recipientType}) messageId=${messageId}`);
+        return {
+          success: true,
+          messageId,
+          recipientType,
+          data,
+        };
+      }
+
+      const errText = await response.text();
+      const status = response.status;
+
+      if (status === 401) {
+        throw new KapsoAuthError('Invalid or unauthorized KAPSO_API_KEY.', status);
+      }
+
+      console.warn(`[kapso] template dispatch HTTP ${status}:`, errText.slice(0, 150));
+      return { success: false, status, error: errText };
+
+    } catch (err) {
+      if (err instanceof KapsoError) throw err;
+      if (attempt < maxRetries) {
+        attempt++;
+        await new Promise((res) => setTimeout(res, 1000));
+        continue;
+      }
+      console.error('[kapso] sendWhatsAppTemplate error:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+}
+
+/**
+ * Send a scheduled reminder to a recipient.
+ * Intelligently checks 24-hour window:
+ * - Inside 24h: sends freeform text.
+ * - Outside 24h (or fallback on error): sends approved template (reminder_task_one_reminder).
+ */
+export async function sendReminderMessage(recipient, content, {
+  templateName = process.env.REMINDER_TEMPLATE_NAME || 'reminder_task_one_reminder',
+  forceTemplate = false,
+} = {}) {
   const cleanContent = stripReminderPrefix(content);
-  const reminderText = `⏰ Recordatorio: ${cleanContent}`;
-  return sendReminderConfirmation(recipient, reminderText);
+  const str = String(recipient).trim();
+  const isBsuid = str.includes('.') || str.startsWith('CO.') || str.startsWith('US.') || str.startsWith('AR.');
+
+  // 1. Check if recipient is within 24h window
+  const isInsideWindow = forceTemplate ? false : await isWithin24HourWindow(str);
+
+  if (isInsideWindow) {
+    const reminderText = `⏰ Recordatorio: ${cleanContent}`;
+    const textRes = await sendReminderConfirmation(recipient, reminderText);
+
+    // If freeform text succeeded, return immediately
+    if (textRes?.success) return textRes;
+
+    console.log(`[kapso] Freeform text failed (${textRes?.error || 'window closed'}). Auto-recovering via template "${templateName}"...`);
+  } else {
+    console.log(`[kapso] Recipient ${str} is outside 24h window. Dispatching via approved template "${templateName}"...`);
+  }
+
+  // 2. Dispatch via pre-approved Meta Template (e.g. reminder_task_one_reminder)
+  return await sendWhatsAppTemplate({
+    phoneNumber: isBsuid ? null : str,
+    bsuid: isBsuid ? str : null,
+    templateName,
+    languageCode: 'es',
+    parameters: [cleanContent],
+  });
 }
 
 /**

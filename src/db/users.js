@@ -2,7 +2,7 @@ import { supabase } from './index.js';
 import { detectTimezoneFromPhone } from '../utils/time.js';
 
 // High-speed in-memory cache for user profiles (TTL: 10 minutes)
-const userCache = new Map();
+export const userCache = new Map();
 const USER_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export function normalizeUserPhone(phone) {
@@ -118,3 +118,43 @@ export async function updateUserTimezone(userId, timezone) {
   if (!userId || !timezone) return null;
   return updateUserPreferences(userId, { timezone });
 }
+
+/**
+ * Update the user's last inbound message timestamp to maintain 24-hour window status.
+ * Updates both Postgres and in-memory userCache.
+ *
+ * @param {string} userId
+ * @param {string} phoneNumber
+ * @returns {Promise<void>}
+ */
+export async function touchUserLastActive(userId, phoneNumber) {
+  const nowIso = new Date().toISOString();
+  const cleanPhone = normalizeUserPhone(phoneNumber);
+
+  // Update in-memory cache immediately for 0ms lookup
+  if (cleanPhone) {
+    const cached = userCache.get(cleanPhone);
+    if (cached?.user) {
+      cached.user.last_user_message_at = nowIso;
+      cached.timestamp = Date.now();
+    }
+  }
+
+  // Update Postgres asynchronously (non-blocking)
+  if (userId) {
+    supabase
+      .from('users')
+      .update({ last_user_message_at: nowIso, updated_at: nowIso })
+      .eq('id', userId)
+      .then(() => {})
+      .catch((err) => console.warn('[users] touchUserLastActive failed:', err.message));
+  } else if (cleanPhone) {
+    supabase
+      .from('users')
+      .update({ last_user_message_at: nowIso, updated_at: nowIso })
+      .eq('phone_number', cleanPhone)
+      .then(() => {})
+      .catch((err) => console.warn('[users] touchUserLastActive failed:', err.message));
+  }
+}
+

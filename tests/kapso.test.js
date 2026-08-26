@@ -203,4 +203,67 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
       expect(stripReminderPrefix(null)).toBe('');
     });
   });
+
+  describe('6. WhatsApp Template Sending & 24h Window Fallback', () => {
+    it('structures template payload with components and parameters correctly', async () => {
+      const { sendWhatsAppTemplate } = await import('../src/utils/kapso.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.TEMPLATE_TEST_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppTemplate({
+          phoneNumber: '573046154163',
+          templateName: 'reminder_task_one_reminder',
+          languageCode: 'es',
+          parameters: ['Preguntar si todavía está lloviendo 🌧️'],
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayload.type).toBe('template');
+        expect(capturedPayload.template.name).toBe('reminder_task_one_reminder');
+        expect(capturedPayload.template.language.code).toBe('es');
+        expect(capturedPayload.template.components[0].parameters).toHaveLength(1);
+        expect(capturedPayload.template.components[0].parameters[0].text).toBe('Preguntar si todavía está lloviendo 🌧️');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('falls back to template when sendReminderMessage forces template or window is closed', async () => {
+      const { sendReminderMessage } = await import('../src/utils/kapso.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.REMINDER_TEMPLATE_DISPATCH' }] }),
+        };
+      };
+
+      try {
+        const res = await sendReminderMessage('573046154163', '⏰ Recordatorio: Tomar agüita 💧', {
+          forceTemplate: true,
+          templateName: 'reminder_task_one_reminder',
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayload.type).toBe('template');
+        expect(capturedPayload.template.components[0].parameters[0].text).toBe('Tomar agüita 💧');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });
