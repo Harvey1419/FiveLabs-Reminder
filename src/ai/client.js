@@ -7,8 +7,8 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
-  const primaryModel = process.env.AI_MODEL || (groqKey ? 'qwen/qwen3.8-27b' : 'gemini-2.5-flash');
-  const fallbackModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const primaryModel = process.env.AI_MODEL || (groqKey ? 'qwen/qwen3.8-27b' : 'gemini-3.1-flash-lite');
+  const fallbackModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
   // Determine if primary target is a Groq-hosted model
   const isGroqPrimary = Boolean(
@@ -89,7 +89,7 @@ async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, 
 }
 
 async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 6000 } = {}) {
-  const candidateModels = [model, 'gemini-2.5-flash', 'gemini-3.1-flash-lite'].filter(Boolean);
+  const candidateModels = [model, 'gemini-3.1-flash-lite', 'gemini-2.5-flash'].filter(Boolean);
   const tried = new Set();
 
   for (const targetModel of candidateModels) {

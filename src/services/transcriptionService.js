@@ -64,7 +64,7 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
       const base64Data = Buffer.from(audioBuffer).toString('base64');
       const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
 
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-2.5-flash'];
       for (const model of modelsToTry) {
         try {
           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
