@@ -60,7 +60,6 @@ async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, 
       messages,
       temperature,
       max_tokens: Math.max(max_tokens, 1500),
-      response_format: { type: 'json_object' },
       ...(isReasoningModel ? { reasoning_effort: 'low' } : {}),
     };
 
@@ -141,6 +140,13 @@ async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens
     console.warn(`[ai-client] Gemini (${model}) failed:`, err.message);
   }
   return null;
+}
+
+export async function callGeminiDirect(messages, { temperature = 0.1, max_tokens = 800, timeoutMs = 5000 } = {}) {
+  const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
+  const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  if (!geminiKey) return null;
+  return callGeminiChat(messages, model, geminiKey, { temperature, max_tokens, timeoutMs });
 }
 
 function heuristicPlanner(text) {

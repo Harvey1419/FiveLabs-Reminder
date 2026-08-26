@@ -87,8 +87,8 @@ ${memoryHints || '(Sin memorias registradas)'}
 ### [Agenda Viva]:
 ${JSON.stringify(overview, null, 2)}
 
-## 4. ESQUEMA JSON DE RESPUESTA
-Analiza el mensaje y devuelve ÚNICAMENTE un JSON válido:
+## 4. ESQUEMA JSON DE RESPUESTA (ESTRICTO)
+Analiza el mensaje y devuelve SIEMPRE un único objeto JSON válido (sin texto previo ni bloques markdown). Empieza directamente con { y termina con }:
 {
   "type": "tool_call" | "chat",
   "tool": ${toolEnumSchema},

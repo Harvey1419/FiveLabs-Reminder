@@ -1,5 +1,5 @@
 import { saveMemory, searchMemories, getOrCreateEntity } from '../db/index.js';
-import { callChatCompletion } from '../ai/client.js';
+import { callChatCompletion, callGeminiDirect } from '../ai/client.js';
 
 const MEMORY_EXTRACTION_PROMPT = `You are the memory extraction engine of a personal assistant.
 Analyze the following conversation turn between User and Assistant.
@@ -71,7 +71,8 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
       },
     ];
 
-    const rawResponse = await callChatCompletion(messages, { temperature: 0.1 });
+    const rawResponse = (await callGeminiDirect(messages, { temperature: 0.1, max_tokens: 800 }))
+      || (await callChatCompletion(messages, { temperature: 0.1 }));
     const candidates = parseJsonArray(rawResponse);
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
