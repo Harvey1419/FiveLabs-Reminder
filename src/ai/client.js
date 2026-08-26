@@ -27,7 +27,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
 
     // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
     if (geminiKey) {
-      console.log(`[ai-client] Groq primary (${primaryModel}) unavailable/rate-limited, executing fallback to Gemini (${fallbackModel})...`);
+      console.log(`[ai-client] Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
       const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 5000 });
       if (geminiRes) return geminiRes;
     }
@@ -54,12 +54,14 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
 
 async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 4000 } = {}) {
   try {
+    const isReasoningModel = model.includes('gpt-oss') || model.includes('r1');
     const payload = {
       model,
       messages,
       temperature,
-      max_tokens,
+      max_tokens: Math.max(max_tokens, 1500),
       response_format: { type: 'json_object' },
+      ...(isReasoningModel ? { reasoning_effort: 'low' } : {}),
     };
 
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
