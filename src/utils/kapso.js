@@ -300,33 +300,38 @@ export async function sendTypingIndicator(messageId, phoneNumberId = null) {
 /**
  * Download media (audio, voice notes, documents) from Kapso / Meta Cloud API.
  */
-export async function downloadMedia(mediaId, phoneNumberId = null) {
-  if (!mediaId || !process.env.KAPSO_API_KEY) return null;
+export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = null) {
+  if ((!mediaId && !directUrl) || !process.env.KAPSO_API_KEY) return null;
   const phoneId = phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID;
 
   const tStart = Date.now();
   try {
-    const metaRes = await fetch(
-      `${KAPSO_API_BASE}/${mediaId}?phone_number_id=${phoneId}`,
-      {
-        headers: {
-          'X-API-Key': process.env.KAPSO_API_KEY,
-        },
-        signal: AbortSignal.timeout(10000),
+    let downloadUrl = directUrl;
+    let tMeta = 0;
+
+    if (!downloadUrl && mediaId) {
+      const metaRes = await fetch(
+        `${KAPSO_API_BASE}/${mediaId}?phone_number_id=${phoneId}`,
+        {
+          headers: {
+            'X-API-Key': process.env.KAPSO_API_KEY,
+          },
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+
+      if (!metaRes.ok) {
+        console.error('[kapso] get media metadata failed:', await metaRes.text());
+        return null;
       }
-    );
 
-    if (!metaRes.ok) {
-      console.error('[kapso] get media metadata failed:', await metaRes.text());
-      return null;
-    }
-
-    const metaData = await metaRes.json();
-    const tMeta = Date.now() - tStart;
-    const downloadUrl = metaData.download_url || metaData.url;
-    if (!downloadUrl) {
-      console.error('[kapso] No download URL returned for mediaId:', mediaId);
-      return null;
+      const metaData = await metaRes.json();
+      tMeta = Date.now() - tStart;
+      downloadUrl = metaData.download_url || metaData.url;
+      if (!downloadUrl) {
+        console.error('[kapso] No download URL returned for mediaId:', mediaId);
+        return null;
+      }
     }
 
     const tBinStart = Date.now();
@@ -346,7 +351,7 @@ export async function downloadMedia(mediaId, phoneNumberId = null) {
 
     const buffer = await binRes.arrayBuffer();
     const tBin = Date.now() - tBinStart;
-    console.log(`[kapso] Downloaded media ${mediaId} (${buffer.byteLength} bytes) in ${Date.now() - tStart}ms (meta: ${tMeta}ms, bin: ${tBin}ms)`);
+    console.log(`[kapso] Downloaded media ${mediaId || 'direct'} (${buffer.byteLength} bytes) in ${Date.now() - tStart}ms (meta: ${tMeta}ms, bin: ${tBin}ms)`);
     return buffer;
   } catch (err) {
     console.error('[kapso] downloadMedia error:', err.message);

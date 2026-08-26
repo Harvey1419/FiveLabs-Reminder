@@ -178,7 +178,8 @@ export async function handleWebhook(req, res) {
     }
 
     // 6. Handle Multimodal Media (Audio, Images, PDFs, Documents, Location)
-    const isAudio = message.type === 'audio' || Boolean(message.audio);
+    const audioObj = message.audio || body.message?.audio;
+    const isAudio = message.type === 'audio' || Boolean(audioObj);
     const isImage = message.type === 'image' || Boolean(message.image);
     const isDocument = message.type === 'document' || Boolean(message.document);
     const isLocation = message.type === 'location' || Boolean(message.location);
@@ -191,16 +192,17 @@ export async function handleWebhook(req, res) {
       const locName = loc.name || loc.address || '';
       locationTz = detectTimezoneFromCoordinates(lat, lon) || detectTimezoneFromLocationText(locName);
       messageText = `[Ubicación compartida: ${locName ? `${locName} ` : ''}(lat ${lat}, lon ${lon})]`;
-    } else if (isAudio && (message.audio?.id || message.id)) {
-      const mediaId = message.audio?.id || message.id;
-      console.log(`[webhook] Downloading voice note mediaId=${mediaId}...`);
-      const audioBuffer = await downloadMedia(mediaId, phoneNumberId);
+    } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url)) {
+      const mediaId = audioObj?.id || message.id;
+      const directMediaUrl = audioObj?.media_url || audioObj?.url || audioObj?.link || null;
+      console.log(`[webhook] Downloading voice note mediaId=${mediaId} directUrl=${Boolean(directMediaUrl)}...`);
+      const audioBuffer = await downloadMedia(mediaId, phoneNumberId, directMediaUrl);
       if (audioBuffer) {
-        const mimeType = message.audio?.mime_type || 'audio/ogg';
+        const mimeType = audioObj?.mime_type || 'audio/ogg';
         const transcribed = await transcribeAudio(audioBuffer, mimeType);
         if (transcribed) {
           messageText = transcribed;
-          console.log(`[webhook] Audio transcribed: "${messageText}"`);
+          console.log(`[webhook] Audio transcribed via Whisper: "${messageText}"`);
         }
       }
     } else if (isImage && (message.image?.id || message.id)) {
