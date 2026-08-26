@@ -306,8 +306,13 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
 
   const tStart = Date.now();
   try {
-    let downloadUrl = directUrl;
+    let downloadUrl = null;
     let tMeta = 0;
+
+    // Only use directUrl if it is a Kapso-hosted URL (api.kapso.ai). Raw Meta CDN (lookaside.fbsbx.com) returns 401.
+    if (directUrl && directUrl.includes('kapso.ai')) {
+      downloadUrl = directUrl;
+    }
 
     if (!downloadUrl && mediaId) {
       const metaRes = await fetch(
@@ -335,17 +340,16 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
     }
 
     const tBinStart = Date.now();
-    const binHeaders = downloadUrl.includes('kapso.ai')
-      ? { 'X-API-Key': process.env.KAPSO_API_KEY }
-      : {};
-
     const binRes = await fetch(downloadUrl, {
-      headers: binHeaders,
+      headers: {
+        'X-API-Key': process.env.KAPSO_API_KEY,
+      },
       signal: AbortSignal.timeout(15000),
     });
 
     if (!binRes.ok) {
-      console.error('[kapso] download binary failed:', binRes.status);
+      const errText = await binRes.text().catch(() => '');
+      console.error('[kapso] download binary failed:', binRes.status, errText.slice(0, 80));
       return null;
     }
 
