@@ -1,19 +1,95 @@
 /**
  * High-Speed Multi-Provider AI Client.
- * Uses unified AI_MODEL (default: gemini-3.1-flash-lite) with resilient fallbacks.
+ * Routes dynamically based on AI_MODEL (Groq LPUs vs Gemini Native) with seamless fallback.
  */
-
-const REQUEST_TIMEOUT_MS = 20000;
 
 export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 1200 } = {}) {
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
-  const unifiedModel = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  const primaryModel = process.env.AI_MODEL || 'openai/gpt-oss-20b';
+  const fallbackModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
-  // 1. PRIMARY: Google Gemini Native generateContent (~1.2s - 2.0s, high quota)
-  if (geminiKey) {
-    // Format messages for native Gemini REST API
+  // Determine if primary target is a Groq-hosted model
+  const isGroqPrimary = Boolean(
+    groqKey && (
+      primaryModel.includes('/') ||
+      primaryModel.includes('gpt-oss') ||
+      primaryModel.includes('llama') ||
+      primaryModel.includes('qwen')
+    )
+  );
+
+  if (isGroqPrimary) {
+    // 1. PRIMARY: Groq Ultra-Fast LPUs (~1.0s - 1.5s)
+    const groqRes = await callGroqChat(messages, primaryModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
+    if (groqRes) return groqRes;
+
+    // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
+    if (geminiKey) {
+      console.log(`[ai-client] Groq primary (${primaryModel}) unavailable/rate-limited, executing fallback to Gemini (${fallbackModel})...`);
+      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 5000 });
+      if (geminiRes) return geminiRes;
+    }
+  } else {
+    // 1. PRIMARY: Google Gemini Native API
+    if (geminiKey) {
+      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 4000 });
+      if (geminiRes) return geminiRes;
+    }
+
+    // 2. RESILIENT FALLBACK: Groq LPUs
+    if (groqKey) {
+      console.log(`[ai-client] Gemini primary (${primaryModel}) unavailable, executing fallback to Groq...`);
+      const backupGroqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
+      if (groqRes) return groqRes;
+    }
+  }
+
+  // 3. FINAL RESILIENT NLP FALLBACK (0ms)
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || '';
+  return heuristicPlanner(lastUserMsg);
+}
+
+async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 4000 } = {}) {
+  try {
+    const payload = {
+      model,
+      messages,
+      temperature,
+      max_tokens,
+      response_format: { type: 'json_object' },
+    };
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.choices?.[0]?.message?.content;
+      if (raw) {
+        return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+      }
+    } else {
+      const errBody = await res.text().catch(() => '');
+      console.warn(`[ai-client] Groq (${model}) returned ${res.status}:`, errBody.slice(0, 90));
+    }
+  } catch (err) {
+    console.warn(`[ai-client] Groq (${model}) failed:`, err.message);
+  }
+  return null;
+}
+
+async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 5000 } = {}) {
+  try {
     let systemInstruction = null;
     const contents = [];
 
@@ -31,82 +107,38 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
       contents.push({ role: 'user', parts: [{ text: 'Hola' }] });
     }
 
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${unifiedModel}:generateContent?key=${geminiKey}`;
-      const payload = {
-        ...(systemInstruction ? { systemInstruction } : {}),
-        contents,
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature,
-          maxOutputTokens: max_tokens,
-        },
-      };
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const payload = {
+      ...(systemInstruction ? { systemInstruction } : {}),
+      contents,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature,
+        maxOutputTokens: max_tokens,
+      },
+    };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(4000),
-      });
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
 
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (raw) {
-          return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
-        }
-      } else {
-        const errBody = await res.text();
-        console.warn(`[ai-client] Gemini (${unifiedModel}) returned ${res.status}:`, errBody.slice(0, 100));
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (raw) {
+        return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
       }
-    } catch (err) {
-      console.warn(`[ai-client] Gemini (${unifiedModel}) failed:`, err.message);
+    } else {
+      const errBody = await res.text().catch(() => '');
+      console.warn(`[ai-client] Gemini (${model}) returned ${res.status}:`, errBody.slice(0, 100));
     }
+  } catch (err) {
+    console.warn(`[ai-client] Gemini (${model}) failed:`, err.message);
   }
-
-  // 2. BACKUP: Groq LPUs
-  if (groqKey) {
-    const groqModels = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
-    for (const model of groqModels) {
-      try {
-        const payload = {
-          model,
-          messages,
-          temperature,
-          max_tokens,
-          response_format: { type: 'json_object' },
-        };
-
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${groqKey}`,
-          },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(5000),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const raw = data.choices?.[0]?.message?.content;
-          if (raw) {
-            return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
-          }
-        } else {
-          const errBody = await res.text();
-          console.warn(`[ai-client] Groq (${model}) returned ${res.status}:`, errBody.slice(0, 80));
-        }
-      } catch (err) {
-        console.warn(`[ai-client] Groq (${model}) failed:`, err.message);
-      }
-    }
-  }
-
-  // 3. FINAL RESILIENT NLP FALLBACK (0ms)
-  const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || '';
-  return heuristicPlanner(lastUserMsg);
+  return null;
 }
 
 function heuristicPlanner(text) {
