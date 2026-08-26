@@ -399,6 +399,18 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
 
   const formatItem = (item, isDone = false) => {
     const rawDate = item.send_at || item.due_date || item.sent_at || item.completed_at;
+    if (!rawDate) {
+      return {
+        id: item.id,
+        content: item.content || item.title,
+        localDate: null,
+        localTime: null,
+        localFormatted: '(Sin fecha límite)',
+        recurrenceRule: item.recurrence_rule || null,
+        status: item.status,
+      };
+    }
+
     const dateObj = new Date(rawDate);
     const localFormatted = formatLocalDateTime(dateObj, timezone, 'es-CO');
 
