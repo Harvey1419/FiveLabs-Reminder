@@ -11,13 +11,8 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
 
   const unifiedModel = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
-  // 1. PRIMARY: Google Gemini Native generateContent (~1.2s - 2.0s, high quota, no 429)
+  // 1. PRIMARY: Google Gemini Native generateContent (~1.2s - 2.0s, high quota)
   if (geminiKey) {
-    const modelsToTry = [unifiedModel];
-    if (unifiedModel !== 'gemini-2.5-flash') {
-      modelsToTry.push('gemini-2.5-flash');
-    }
-
     // Format messages for native Gemini REST API
     let systemInstruction = null;
     const contents = [];
@@ -36,39 +31,37 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
       contents.push({ role: 'user', parts: [{ text: 'Hola' }] });
     }
 
-    for (const model of modelsToTry) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-        const payload = {
-          ...(systemInstruction ? { systemInstruction } : {}),
-          contents,
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature,
-            maxOutputTokens: max_tokens,
-          },
-        };
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${unifiedModel}:generateContent?key=${geminiKey}`;
+      const payload = {
+        ...(systemInstruction ? { systemInstruction } : {}),
+        contents,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature,
+          maxOutputTokens: max_tokens,
+        },
+      };
 
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(6000),
-        });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(4000),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (raw) {
-            return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
-          }
-        } else {
-          const errBody = await res.text();
-          console.warn(`[ai-client] Gemini (${model}) returned ${res.status}:`, errBody.slice(0, 100));
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (raw) {
+          return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
         }
-      } catch (err) {
-        console.warn(`[ai-client] Gemini (${model}) failed:`, err.message);
+      } else {
+        const errBody = await res.text();
+        console.warn(`[ai-client] Gemini (${unifiedModel}) returned ${res.status}:`, errBody.slice(0, 100));
       }
+    } catch (err) {
+      console.warn(`[ai-client] Gemini (${unifiedModel}) failed:`, err.message);
     }
   }
 

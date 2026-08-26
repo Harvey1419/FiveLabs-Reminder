@@ -30,7 +30,9 @@ describe('Security & Multi-Tenant Isolation Test Suite', () => {
     // 1. Create two separate tenants and one admin tenant
     userA = await getOrCreateUserByPhone('+573991110001', 'America/Bogota', 'es-CO', 'Tenant A');
     userB = await getOrCreateUserByPhone('+573992220002', 'America/Bogota', 'es-CO', 'Tenant B');
-    adminUser = await getOrCreateUserByPhone('573046154163', 'America/Bogota', 'es-CO', 'Admin User');
+    adminUser = await getOrCreateUserByPhone('+573993330003', 'America/Bogota', 'es-CO', 'Admin User');
+    adminUser.is_admin = true;
+    await supabase.from('users').update({ is_admin: true }).eq('id', adminUser.id);
 
     // Clean any previous test data
     for (const u of [userA, userB, adminUser]) {
