@@ -274,64 +274,81 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
     }
 
     if (!source || maxScore < 0.60) {
-      return { success: false, error: `Entity "${cleanOld}" not found` };
+      source = null;
     }
 
     // 2. Check if an entity with newName already exists
     let target = null;
-    for (const ent of entities) {
-      if (ent.id === source.id) continue;
-      if (category && ent.category !== category) continue;
-      if (normalizeEntityName(ent.name) === normalizeEntityName(cleanNew)) {
-        target = ent;
-        break;
+    if (entities) {
+      for (const ent of entities) {
+        if (source && ent.id === source.id) continue;
+        if (category && ent.category !== category) continue;
+        if (normalizeEntityName(ent.name) === normalizeEntityName(cleanNew)) {
+          target = ent;
+          break;
+        }
       }
     }
 
-    if (target) {
+    let updatedEntity = null;
+
+    if (source && target) {
       // Merge source into target
-      return await mergeEntities({ userId, sourceName: source.name, targetName: target.name, category });
-    }
+      const mergeRes = await mergeEntities({ userId, sourceName: source.name, targetName: target.name, category });
+      updatedEntity = mergeRes.targetEntity || target;
+    } else if (source) {
+      // Rename source
+      const { data: updated, error: updateErr } = await supabase
+        .from('entities')
+        .update({
+          name: cleanNew,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', source.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
 
-    // 3. Perform rename
-    const { data: updated, error: updateErr } = await supabase
-      .from('entities')
-      .update({
+      if (!updateErr && updated) {
+        updatedEntity = updated;
+      }
+    } else {
+      // Source wasn't pre-registered in entities table; ensure target entity exists
+      updatedEntity = await findOrCreateEntityFuzzy({
+        userId,
         name: cleanNew,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', source.id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-
-    if (updateErr) {
-      console.error('[entities] renameEntity update failed:', updateErr);
-      return { success: false, error: updateErr.message };
+        category: category || 'other',
+      });
     }
 
-    // 4. Cascade rename across pending reminders, active tasks, and active memories
+    // 4. Universal cascade rename across pending reminders, active tasks, and active memories
+    let remindersUpdated = 0;
+    let tasksUpdated = 0;
+    let memoriesUpdated = 0;
+
     try {
-      const nameRegex = new RegExp(`\\b${cleanOld}\\b`, 'gi');
+      const escapedOld = cleanOld.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const nameRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
 
       // Cascade to pending reminders
       const { data: userReminders } = await supabase
         .from('reminders')
         .select('id, content')
         .eq('user_id', userId)
-        .eq('status', 'pending');
+        .in('status', ['pending', 'processing']);
 
       for (const rem of (userReminders || [])) {
         if (nameRegex.test(rem.content)) {
           const newContent = rem.content.replace(nameRegex, cleanNew);
           await supabase.from('reminders').update({ content: newContent }).eq('id', rem.id);
+          remindersUpdated++;
         }
       }
 
       // Cascade to active tasks
       const { data: userTasks } = await supabase
         .from('tasks')
-        .select('id, title, description')
+        .select('id, title, description, entity_id')
         .eq('user_id', userId)
         .in('status', ['pending', 'in_progress']);
 
@@ -346,35 +363,54 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
           updates.description = t.description.replace(nameRegex, cleanNew);
           changed = true;
         }
+        if (updatedEntity?.id && (!t.entity_id || (source && t.entity_id === source.id))) {
+          if (changed) {
+            updates.entity_id = updatedEntity.id;
+          }
+        }
         if (changed) {
           await supabase.from('tasks').update(updates).eq('id', t.id);
+          tasksUpdated++;
         }
       }
 
-      // Cascade to memories
+      // Cascade to active memories
       const { data: userMemories } = await supabase
         .from('memories')
-        .select('id, content')
+        .select('id, content, topic_key')
         .eq('user_id', userId)
         .eq('is_active', true);
 
       for (const mem of (userMemories || [])) {
+        let changed = false;
+        const updates = {};
         if (nameRegex.test(mem.content)) {
-          const newContent = mem.content.replace(nameRegex, cleanNew);
-          await supabase.from('memories').update({ content: newContent }).eq('id', mem.id);
+          updates.content = mem.content.replace(nameRegex, cleanNew);
+          changed = true;
+        }
+        if (nameRegex.test(mem.topic_key)) {
+          updates.topic_key = mem.topic_key.replace(nameRegex, cleanNew.toLowerCase());
+          changed = true;
+        }
+        if (changed) {
+          await supabase.from('memories').update(updates).eq('id', mem.id);
+          memoriesUpdated++;
         }
       }
     } catch (cascadeErr) {
       console.warn('[entities] renameEntity cascade warning:', cascadeErr.message);
     }
 
-    console.log(`[entities] Renamed entity "${cleanOld}" (id: ${source.id}) -> "${cleanNew}" with cascade`);
+    console.log(`[entities] Renamed "${cleanOld}" -> "${cleanNew}" with cascade (tasks: ${tasksUpdated}, reminders: ${remindersUpdated}, memories: ${memoriesUpdated})`);
     return {
       success: true,
       action: 'renamed',
-      entity: updated,
+      entity: updatedEntity,
       oldName: cleanOld,
       newName: cleanNew,
+      tasksUpdated,
+      remindersUpdated,
+      memoriesUpdated,
     };
   } catch (err) {
     console.error('[entities] renameEntity error:', err);

@@ -74,16 +74,19 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
 - WhatsApp no soporta tablas markdown. Usa encabezados en negrilla (*🛒 Lista de compras* / *🛒 Shopping List* o *✅ Recordatorio(s) programado(s)*), viñetas con salto de línea (•) y emojis temáticos (⏰, 📌, ✅, 🛒, 🩺).
 - Estilo: respuestas ejecutivas, cálidas, naturales y bien estructuradas en tarjetas limpias. NUNCA respuestas secas o vacías.
 
-## 2. HERRAMIENTAS
+## 2. HERRAMIENTAS Y LÓGICA DE CORRECCIÓN
 1. **manage_reminder**:
    - create: items=[{content, targetTime (ISO), recurrence, requiresConfirmation, nudgeIntervalMinutes}]. Lead-time ("30 min antes a las 2 PM" / "30 min before at 2 PM") genera 2 items (aviso previo informativo y evento principal).
    - ack (palabras de cierre "Ok", "Listo", "Hecho", "Done", "Got it"): ejecuta STRICTAMENTE action='acknowledge'. NUNCA vuelvas a crear o reprogramar al recibir "Ok"/"Done".
    - cancel: action='cancel', content o cancelAll=true.
+   - 🔄 Modificación de horario/fecha: Si el usuario corrige la hora o fecha de un evento reciente (ej. *"no es a las 3 sino a las 4"*, *"cámbiame la cita a las 5 PM"*), interpreta que es una corrección: cancela el recordatorio anterior y programa el nuevo. NUNCA dejes recordatorios duplicados con horarios contradictorios.
 2. **manage_task**:
    - create: items=[{title, dueDate, priority, entityName, entityCategory}]. dueDate=null si no hay fecha explícita.
    - 🧵 Hilo y Listas: Si en el historial reciente se trata una lista o proyecto (ej: "Lista de compras" / "Shopping list", "Proyecto Yax"), adiciones conversacionales ("también X y agrega Y" / "also add X and Y") DEBEN heredar la lista/proyecto activo y dividirse en ítems limpios: [{title: "X", entityName: "..."}, {title: "Y", entityName: "..."}]. NUNCA dejes la frase cruda entera.
    - complete: action='complete', title o entityName o completeAll=true.
-3. **manage_entity**: action='create' | 'rename' | 'merge'.
+3. **manage_entity**:
+   - action='create' | 'rename' | 'merge'.
+   - 🔄 Corrección de Nombres en Cascada (action='rename', oldName='...', newName='...'): Si el usuario hace una aclaración de nombres o corrige un término mal interpretado (ej. *"no era X, se llama Y"*, *"el nombre es Y, no X"*, *"cámbiale el nombre a X por Y"*), ejecuta action='rename'. Esto actualizará en cascada en tiempo real todas las tareas, recordatorios, memorias y entidades en la base de datos.
 4. **manage_memory**: action='forget'.${adminSection}
 ${isAdmin ? '6.' : '5.'} null: para responder preguntas, saludar o consultar agenda.
 

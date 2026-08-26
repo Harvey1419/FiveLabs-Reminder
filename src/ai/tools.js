@@ -202,7 +202,7 @@ export async function executeTool(toolName, params, user) {
             action: 'renamed_entity',
             data: result,
             rawSummary: result.success
-              ? `Entidad renombrada de "${result.oldName || oldName}" a "${result.newName || newName}".`
+              ? `Entidad renombrada de "${result.oldName || oldName}" a "${result.newName || newName}". Actualizados: ${result.tasksUpdated || 0} tareas, ${result.remindersUpdated || 0} recordatorios, ${result.memoriesUpdated || 0} memorias.`
               : `Error al renombrar: ${result.error}`,
           };
         }
