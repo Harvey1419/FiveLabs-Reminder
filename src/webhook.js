@@ -143,6 +143,19 @@ export async function handleWebhook(req, res) {
 
     const messageId = message.id || body.id || body.data?.id;
 
+    // Log ingress arrival vs original message creation timestamp
+    const rawMsgTs = message.timestamp || body.message?.timestamp || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.timestamp || null;
+    let msgIso = 'N/A';
+    let transitLagMs = null;
+    if (rawMsgTs) {
+      const msgEpochMs = String(rawMsgTs).length <= 10 ? Number(rawMsgTs) * 1000 : Number(rawMsgTs);
+      if (!isNaN(msgEpochMs)) {
+        msgIso = new Date(msgEpochMs).toISOString();
+        transitLagMs = Date.now() - msgEpochMs;
+      }
+    }
+    console.log(`[webhook-ingress] Webhook recibido: ${new Date().toISOString()} | Message timestamp: ${rawMsgTs} (${msgIso}) | Transit lag: ${transitLagMs !== null ? `${transitLagMs}ms` : 'unknown'}`);
+
     // Idempotency: Ignore duplicate message IDs
     if (isDuplicate(messageId)) {
       return;
