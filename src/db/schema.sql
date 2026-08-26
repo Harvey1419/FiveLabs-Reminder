@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(user_id, due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_fts ON tasks USING gin(to_tsvector('spanish', title));
 
 -- 4. Reminders table (with Recurrence & Persistent Nudge Escalation Support)
 CREATE TABLE IF NOT EXISTS reminders (

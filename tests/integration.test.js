@@ -79,6 +79,25 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       expect(results[0].content).toContain('Barranquilla');
     }, 20000);
 
+    it('retrieves memory via Full-Text Search with Spanish Porter/Snowball stemming', async () => {
+      await saveMemory({
+        userId: user.id,
+        topicKey: 'finances/rent',
+        content: 'El inquilino estuvo pagando la cuota del arriendo puntualmente',
+        category: 'fact',
+      });
+
+      // Stem query: "pagar arriendos" should match "pagando" and "arriendo" via Spanish FTS stemmer
+      const results = await searchMemories({
+        userId: user.id,
+        query: 'pagar arriendos',
+        limit: 3,
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.some(r => r.content.includes('pagando'))).toBe(true);
+    }, 20000);
+
     it('supersedes previous active memory on same topicKey', async () => {
       // Save updated location
       const updated = await saveMemory({

@@ -1,23 +1,35 @@
-import { saveMemory, searchMemories, getOrCreateEntity } from '../db/index.js';
+import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../db/index.js';
 import { callChatCompletion, callGeminiDirect } from '../ai/client.js';
 
-const MEMORY_EXTRACTION_PROMPT = `You are the memory extraction engine of a personal assistant.
+const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
 Analyze the following conversation turn between User and Assistant.
 
-Extract durable facts, personal preferences, commercial/project decisions, or relationship information that will be useful weeks or months from now.
+Extract durable facts, personal preferences, commercial/project decisions, or relationship context that will be useful weeks or months from now.
 
-DO NOT EXTRACT (CRITICAL):
+STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
+- Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
 - Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
-- Explicit alarms/reminders (these belong exclusively in the reminders table).
-- Greetings or conversational filler (e.g. "hola", "cómo estás", "gracias")
-- Temporary questions or short-term acknowledgments (e.g. "qué hora es", "ok", "listo")
-- Temporary states (e.g. "tengo hambre", "estoy cansado hoy")
+- Explicit alarms, reminders, scheduled notifications, or delivery times (these belong exclusively in the reminders table).
+- Bot capabilities, system limitations, or assistant self-descriptions (e.g. "El asistente no puede enviar mensajes a terceros").
+- Greetings, conversational pleasantries, or short acknowledgments (e.g. "hola", "cómo estás", "gracias", "de nada", "ok", "listo", "dale").
+- Temporary states or ephemeral remarks (e.g. "tengo hambre", "estoy cansado hoy", "qué hora es").
+
+TOPIC KEY HIERARCHY (MANDATORY FORMAT):
+Always structure topicKey as a clean, lowercase hierarchical path: <category_or_entity_type>/<entity_slug>/<aspect>
+Examples:
+- "person/juan_zapata/relation" (or "person/juan_zapata/status")
+- "person/monica_acosta/location" (or "person/monica_acosta/contact")
+- "company/ceramica_italia/location" (or "company/ceramica_italia/project")
+- "project/yax/scope" (or "project/yax/presentation")
+- "place/barranquilla/activities"
+- "profile/residence" (or "profile/identity")
+- "preference/communication" (or "preference/notifications")
 
 CATEGORIES:
-- "fact": stable truth about user, family, job, contacts (e.g. "El contador del usuario se llama Carlos")
-- "decision": agreed choice, offer, or negotiation state (e.g. "Oferta de venta del carro a Juan por 51M")
-- "preference": how the user likes things done (e.g. "Prefiere correos breves")
-- "episode": notable past event or project milestone
+- "fact": stable truth about user, family, job, contacts, or entities (e.g. "El contador del usuario se llama Carlos")
+- "decision": agreed choice, offer, commercial agreement, or negotiation state (e.g. "Oferta de venta del carro a Juan por 51M")
+- "preference": how the user likes things done (e.g. "Prefiere correos breves y directos")
+- "episode": notable past event or project milestone (e.g. "Medición de cocina realizada en Florencia")
 
 ENTITY CATEGORIES (entityCategory):
 - "person": personas, familiares, socios, doctores, contactos
@@ -29,20 +41,47 @@ ENTITY CATEGORIES (entityCategory):
 - "other": cualquier otra entidad
 
 ENTITY NAME CANONICALIZATION (entityName):
-- Emite el nombre canónico LIMPIO sin prefijos de ruido (ej: "Reminder", NO "Proyecto Reminder"; "Barranquilla", NO "Ciudad de Barranquilla"; "Barón", NO "El perro Barón").
+- Emite el nombre canónico LIMPIO sin prefijos de ruido (ej: "Reminder", NO "Proyecto Reminder"; "Barranquilla", NO "Ciudad de Barranquilla"; "Barón", NO "El perro Barón"; "Yax", NO "Proyecto Yax").
+
+SYNTHESIS RULE:
+Combine related points into a single, cohesive, high-signal standalone sentence rather than generating multiple fragmented micro-memories for the same entity.
 
 Respond with ONLY a JSON array:
 [
   {
-    "topicKey": "topic_name",
+    "topicKey": "category_or_type/canonical_slug/aspect",
     "category": "fact" | "decision" | "preference" | "episode",
-    "content": "Clear, standalone sentence in Spanish describing the fact",
+    "content": "Clear, standalone sentence in Spanish describing the durable fact",
     "entityName": "Canonical name without prefix noise, or null",
     "entityCategory": "person" | "company" | "project" | "place" | "pet" | "asset" | "other" | null
   }
 ]
 
 If nothing durable is worth saving, respond with: []`;
+
+/**
+ * Clean and canonicalize topic keys to guarantee deterministic superseding across turns.
+ */
+export function canonicalizeTopicKey(rawTopicKey, entityName = null, category = 'fact') {
+  if (!rawTopicKey) {
+    if (entityName) {
+      const slug = entityName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      return `entity/${slug}/general`;
+    }
+    return `profile/${category}`;
+  }
+
+  let clean = String(rawTopicKey).toLowerCase().trim();
+  clean = clean
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9/_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/\/+/g, '/')
+    .replace(/^[/_]+|[/_]+$/g, '');
+
+  return clean || `profile/${category}`;
+}
 
 /**
  * Extract durable memories from a conversation turn and persist them.
@@ -83,25 +122,39 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
     for (const item of candidates) {
       if (!item.content) continue;
 
+      let canonicalName = item.entityName ? String(item.entityName).trim() : null;
+      let matchedEntity = null;
+
+      // 1. If an entity was named, resolve or register with fuzzy deduplication
+      if (canonicalName) {
+        try {
+          matchedEntity = await findOrCreateEntityFuzzy({
+            userId,
+            name: canonicalName,
+            category: item.entityCategory || 'other',
+          });
+          if (matchedEntity?.name) {
+            canonicalName = matchedEntity.name;
+          }
+        } catch (entErr) {
+          console.warn('[memoryService] entity fuzzy match error:', entErr.message);
+        }
+      }
+
+      // 2. Canonicalize topicKey to guarantee deterministic superseding
+      const safeTopicKey = canonicalizeTopicKey(item.topicKey, canonicalName, item.category);
+
+      // 3. Save memory (superseding any previous active memory with identical topicKey)
       const mem = await saveMemory({
         userId,
-        topicKey: item.topicKey || null,
+        topicKey: safeTopicKey,
         category: item.category || 'fact',
         content: item.content,
       });
 
       if (mem) {
         saved.push(mem);
-        console.log(`[memoryService] SAVED MEMORY (${item.topicKey || 'general'}): "${item.content}"`);
-
-        // If an entity was named, register/update it
-        if (item.entityName) {
-          await getOrCreateEntity({
-            userId,
-            name: item.entityName,
-            category: item.entityCategory || 'other',
-          }).catch(err => console.warn('[memoryService] entity auto-link error:', err.message));
-        }
+        console.log(`[memoryService] SAVED MEMORY (${safeTopicKey}): "${item.content}"`);
       }
     }
 

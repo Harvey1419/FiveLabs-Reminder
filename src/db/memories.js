@@ -95,8 +95,8 @@ export async function saveMemory({
 }
 
 /**
- * Hybrid Semantic + Keyword Memory Search:
- * Uses pgvector cosine similarity search combined with keyword matching.
+ * Hybrid Semantic (pgvector) + Full-Text Search (tsvector with Spanish Snowball/Porter stemming) Memory Search:
+ * Combines dense vector similarity with sparse stemmed keyword matching.
  *
  * @param {object} params
  * @param {string} params.userId
@@ -118,6 +118,8 @@ export async function searchMemories({
 
   try {
     let vectorResults = [];
+    let ftsResults = [];
+    let topicResults = [];
 
     // 1. Semantic Vector Search via pgvector
     if (query) {
@@ -136,49 +138,93 @@ export async function searchMemories({
       }
     }
 
-    // 2. Keyword & Topic search
-    let q = supabase
-      .from('memories')
-      .select('id, topic_key, category, content, confidence, created_at')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .limit(safeLimit);
-
-    if (topicKey) {
-      q = q.ilike('topic_key', `%${topicKey.trim()}%`);
-    }
-
-    if (category) {
-      q = q.eq('category', category);
-    }
-
+    // 2. Full-Text Search (tsvector + Spanish Porter/Snowball stemming via PostgREST textSearch)
     if (query) {
-      const cleanWords = query
-        .toLowerCase()
-        .replace(/[¿?¡!.,:;()]/g, '')
-        .split(/\s+/)
-        .filter(w => w.length >= 3 && !['cómo', 'como', 'cuándo', 'cuando', 'dónde', 'donde', 'quién', 'quien', 'para', 'este', 'esta', 'sobre', 'todo'].includes(w));
+      const cleanFtsQuery = String(query)
+        .replace(/[¿?¡!.,:;()]/g, ' ')
+        .trim();
 
-      if (cleanWords.length > 0) {
-        const orClauses = cleanWords.flatMap(w => [
-          `content.ilike.%${w}%`,
-          `topic_key.ilike.%${w}%`,
-        ]).join(',');
-        q = q.or(orClauses);
+      if (cleanFtsQuery.length > 0) {
+        let ftsQ = supabase
+          .from('memories')
+          .select('id, topic_key, category, content, confidence, created_at')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .textSearch('content', cleanFtsQuery, {
+            config: 'spanish',
+            type: 'websearch',
+          })
+          .order('last_accessed_at', { ascending: false })
+          .limit(safeLimit);
+
+        if (category) {
+          ftsQ = ftsQ.eq('category', category);
+        }
+
+        const { data: ftsData, error: ftsErr } = await ftsQ;
+        if (!ftsErr && ftsData) {
+          ftsResults = ftsData;
+        }
       }
     }
 
-    q = q.order('last_accessed_at', { ascending: false });
-    const { data: keywordResults } = await q;
+    // 3. Topic Key match
+    if (topicKey) {
+      let tQ = supabase
+        .from('memories')
+        .select('id, topic_key, category, content, confidence, created_at')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .ilike('topic_key', `%${topicKey.trim()}%`)
+        .order('last_accessed_at', { ascending: false })
+        .limit(safeLimit);
 
-    // 3. Deduplicate and merge results (vector results take precedence for relevance)
+      if (category) {
+        tQ = tQ.eq('category', category);
+      }
+
+      const { data: tData } = await tQ;
+      if (tData) {
+        topicResults = tData;
+      }
+    }
+
+    // 4. Merge results with rank fusion / deduplication:
+    // Priority: Vector matches (semantic) -> FTS matches (stemmed keyword) -> Topic matches
     const combinedMap = new Map();
     for (const item of vectorResults) {
       combinedMap.set(item.id, item);
     }
-    for (const item of (keywordResults || [])) {
+    for (const item of ftsResults) {
       if (!combinedMap.has(item.id)) {
         combinedMap.set(item.id, item);
+      }
+    }
+    for (const item of topicResults) {
+      if (!combinedMap.has(item.id)) {
+        combinedMap.set(item.id, item);
+      }
+    }
+
+    // Fallback: If no query and no topicKey, return recent active memories
+    if (!query && !topicKey && combinedMap.size === 0) {
+      let recentQ = supabase
+        .from('memories')
+        .select('id, topic_key, category, content, confidence, created_at')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_accessed_at', { ascending: false })
+        .limit(safeLimit);
+
+      if (category) {
+        recentQ = recentQ.eq('category', category);
+      }
+
+      const { data: recent } = await recentQ;
+      for (const item of (recent || [])) {
+        if (!combinedMap.has(item.id)) {
+          combinedMap.set(item.id, item);
+        }
       }
     }
 
@@ -226,28 +272,34 @@ export async function forgetMemories({ userId, topicKey = null, query = null }) 
       if (data) candidates.push(...data);
     }
 
-    // 2. Keyword & semantic search for target memories to delete
+    // 2. FTS & semantic search for target memories to delete
     if (query) {
-      const cleanWords = query
-        .toLowerCase()
-        .replace(/[¿?¡!.,:;()]/g, '')
+      const cleanFtsQuery = String(query)
+        .replace(/[¿?¡!.,:;()]/g, ' ')
         .replace(/^olvida(?:r)?\s+(?:todo\s+sobre\s+|que\s+|de\s+|lo\s+de\s+|la\s+|el\s+)?/i, '')
-        .split(/\s+/)
-        .filter(w => w.length >= 3 && !['todo', 'sobre', 'este', 'esta', 'para', 'doctora', 'doctor'].includes(w));
+        .trim();
 
-      if (cleanWords.length > 0) {
-        const orClauses = cleanWords.flatMap(w => [
-          `content.ilike.%${w}%`,
-          `topic_key.ilike.%${w}%`,
-        ]).join(',');
-
-        const { data: kwMatches } = await supabase
+      if (cleanFtsQuery.length > 0) {
+        // FTS textSearch with spanish stemming
+        const { data: ftsMatches } = await supabase
           .from('memories')
           .select('id, content, topic_key')
           .eq('user_id', userId)
-          .or(orClauses);
+          .textSearch('content', cleanFtsQuery, {
+            config: 'spanish',
+            type: 'websearch',
+          });
 
-        if (kwMatches) candidates.push(...kwMatches);
+        if (ftsMatches) candidates.push(...ftsMatches);
+
+        // Fallback ilike on topic_key
+        const { data: topicMatches } = await supabase
+          .from('memories')
+          .select('id, content, topic_key')
+          .eq('user_id', userId)
+          .ilike('topic_key', `%${cleanFtsQuery}%`);
+
+        if (topicMatches) candidates.push(...topicMatches);
       }
 
       // Also vector search

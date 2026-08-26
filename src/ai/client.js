@@ -7,7 +7,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
-  const primaryModel = process.env.AI_MODEL || 'openai/gpt-oss-20b';
+  const primaryModel = process.env.AI_MODEL || 'qwen/qwen3.8-27b';
   const fallbackModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
   // Determine if primary target is a Groq-hosted model
@@ -21,35 +21,34 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   );
 
   if (isGroqPrimary) {
-    // 1. PRIMARY: Groq Ultra-Fast LPUs (~1.0s - 1.5s)
+    // 1. PRIMARY: Groq Ultra-Fast LPUs (~0.5s - 1.0s)
     const groqRes = await callGroqChat(messages, primaryModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
     if (groqRes) return groqRes;
 
     // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
     if (geminiKey) {
       console.log(`[ai-client] Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
-      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 5000 });
+      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 8000 });
       if (geminiRes) return geminiRes;
     }
   } else {
     // 1. PRIMARY: Google Gemini Native API
     if (geminiKey) {
-      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 4000 });
+      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 8000 });
       if (geminiRes) return geminiRes;
     }
 
     // 2. RESILIENT FALLBACK: Groq LPUs
     if (groqKey) {
       console.log(`[ai-client] Gemini primary (${primaryModel}) unavailable, executing fallback to Groq...`);
-      const backupGroqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+      const backupGroqModel = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
       const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
       if (groqRes) return groqRes;
     }
   }
 
   // 3. FINAL RESILIENT NLP FALLBACK (0ms)
-  const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || '';
-  return heuristicPlanner(lastUserMsg);
+  return heuristicPlanner(messages);
 }
 
 async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 4000 } = {}) {
@@ -149,7 +148,15 @@ export async function callGeminiDirect(messages, { temperature = 0.1, max_tokens
   return callGeminiChat(messages, model, geminiKey, { temperature, max_tokens, timeoutMs });
 }
 
-function heuristicPlanner(text) {
+function heuristicPlanner(input) {
+  const text = Array.isArray(input)
+    ? input.filter(m => m.role === 'user').pop()?.content || ''
+    : String(input || '');
+
+  const recentHistory = Array.isArray(input) ? input.slice(-6) : [];
+  const historyText = recentHistory.map(m => m.content).join(' ').toLowerCase();
+  const isShoppingContext = historyText.includes('compras') || historyText.includes('mercado') || historyText.includes('supermercado');
+
   const t = text.toLowerCase().trim();
 
   // 1. Deletion / Cancellation of Reminders or Tasks
@@ -203,29 +210,38 @@ function heuristicPlanner(text) {
     });
   }
 
-  // 3. Task creation
-  const taskMatch = t.match(/(?:añade|agrega|crea|nueva tarea)\s+(?:la tarea\s+)?(?:de\s+)?(.+)/i);
-  if (taskMatch) {
-    let title = taskMatch[1].trim();
-    let entityName = null;
+  // 3. Task / List item creation
+  const taskMatch = t.match(/(?:añade|agrega|crea|nueva tarea|también|adem[aá]s)\s+(?:la tarea\s+)?(?:de\s+)?(.+)/i);
+  if (taskMatch || isShoppingContext) {
+    let rawItemsText = taskMatch ? taskMatch[1].trim() : text;
+    let entityName = isShoppingContext ? 'Lista de compras' : null;
 
-    if (title.includes(' con ')) {
-      const parts = title.split(' con ');
-      title = parts[0];
+    if (rawItemsText.includes(' con ') && !isShoppingContext) {
+      const parts = rawItemsText.split(' con ');
+      rawItemsText = parts[0];
       entityName = parts[1]?.trim();
     }
+
+    // Split multiple items if separated by "y", "y también", commas
+    const rawTokens = rawItemsText.split(/,|\by\s+(?:tambi[eé]n\s+)?(?:agrega\s+)?/i).map(s => s.trim()).filter(Boolean);
+    const items = rawTokens.map(title => ({
+      title: title.replace(/^(?:tambi[eé]n|agrega|y|adem[aá]s)\s+/i, '').trim(),
+      entityName,
+      entityCategory: isShoppingContext ? 'compras' : 'general',
+    })).filter(it => it.title.length > 0);
+
+    const formattedTitles = items.map(it => `• ${it.title}`).join('\n');
+    const entityLabel = entityName ? ` a tu ${entityName}` : '';
 
     return JSON.stringify({
       type: 'tool_call',
       tool: 'manage_task',
       params: {
         action: 'create',
-        title,
-        entityName,
-        entityCategory: 'person',
+        items: items.length > 0 ? items : [{ title: rawItemsText, entityName }],
       },
       intent: 'task',
-      reply: `¡Anotado! Creé la tarea: "${title}" 📋`,
+      reply: `¡Anotado! Añadido${entityLabel}:\n\n${formattedTitles || rawItemsText} 📋`,
     });
   }
 

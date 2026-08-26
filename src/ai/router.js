@@ -52,7 +52,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     isAdmin,
   });
 
-  const pastTurns = history.slice(-4);
+  const pastTurns = history.slice(-8);
   const messages = [
     { role: 'system', content: prompt },
     ...pastTurns,
