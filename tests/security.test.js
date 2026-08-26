@@ -175,15 +175,17 @@ describe('Security & Multi-Tenant Isolation Test Suite', () => {
     });
 
     it('normalizes phone numbers and avoids duplicate users across format variations', async () => {
-      const u1 = await getOrCreateUserByPhone('+57 (304) 615-4163');
-      const u2 = await getOrCreateUserByPhone('573046154163');
-      const u3 = await getOrCreateUserByPhone('+57 304 615 4163');
+      const u1 = await getOrCreateUserByPhone('+57 (399) 777-8899');
+      const u2 = await getOrCreateUserByPhone('573997778899');
+      const u3 = await getOrCreateUserByPhone('+57 399 777 8899');
 
-      expect(u1.phone_number).toBe('573046154163');
-      expect(u2.phone_number).toBe('573046154163');
-      expect(u3.phone_number).toBe('573046154163');
+      expect(u1.phone_number).toBe('573997778899');
+      expect(u2.phone_number).toBe('573997778899');
+      expect(u3.phone_number).toBe('573997778899');
       expect(u1.id).toBe(u2.id);
       expect(u2.id).toBe(u3.id);
+
+      await supabase.from('users').delete().eq('id', u1.id);
     });
   });
 
