@@ -5,7 +5,7 @@
 
 const REQUEST_TIMEOUT_MS = 20000;
 
-export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 800 } = {}) {
+export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 1200 } = {}) {
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
@@ -67,7 +67,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
 
   // 2. BACKUP: Groq LPUs
   if (groqKey) {
-    const groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+    const groqModels = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
     for (const model of groqModels) {
       try {
         const payload = {
