@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   locale TEXT NOT NULL DEFAULT 'es-CO',
   is_admin BOOLEAN DEFAULT FALSE,
   morning_briefing_enabled BOOLEAN DEFAULT TRUE,
-  morning_briefing_time TEXT DEFAULT '07:30',
+  morning_briefing_time TEXT DEFAULT '06:00',
   last_briefing_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
