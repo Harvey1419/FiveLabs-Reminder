@@ -102,8 +102,8 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
     return [];
   }
 
-  // Pure query turns (asking what tasks or reminders exist) do not generate new facts
-  const isQueryTurn = /\b(qu[eé]\s+(?:tengo|hay|tareas|recordatorios|pendientes|citas)|cu[aá]l\s+es\s+la\s+m[aá]s\s+pr[oó]xima|a\s+qu[eé]\s+hora|cu[aá]ndo\s+tengo|agenda|mis\s+pendientes|mis\s+recordatorios|what\s+(?:tasks|reminders|do\s+i\s+have))\b/i.test(trimmed);
+  // Pure query turns (asking what tasks or reminders exist), confirmations, or polite closures do not generate new facts
+  const isQueryTurn = /\b(qu[eé]\s+(?:tengo|hay|tareas|recordatorios|pendientes|citas)|cu[aá]l\s+es\s+(?:la\s+m[aá]s\s+pr[oó]xima|el\s+pr[oó]ximo)|a\s+qu[eé]\s+hora|cu[aá]ndo\s+tengo|agenda|mis\s+pendientes|mis\s+recordatorios|what\s+(?:tasks|reminders|do\s+i\s+have)|no\s+(?:tenemos|tengo|hay)\s+(?:nada|ning[uú]n|m[aá]s)|no\s+necesito\s+nada|eso\s+es\s+todo|gracias\s+por\s+(?:recordar|avisar|la\s+informaci[oó]n)|verdad\?|cierto\?)\b/i.test(trimmed);
   if (isQueryTurn) {
     return [];
   }

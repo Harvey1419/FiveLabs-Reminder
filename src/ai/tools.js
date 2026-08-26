@@ -49,6 +49,22 @@ export async function executeTool(toolName, params, user) {
         const items = params.items || params.reminders || (params.content ? [params] : []);
 
         if (action === 'create' && items.length > 0) {
+          // 0. Compound operation: Cancel requested items or criteria before creating new ones
+          let cancelledSummary = '';
+          const cancelQuery = params.cancelContent || params.cancelCriteria?.content || params.cancelPrevious;
+          if (cancelQuery || params.cancelAll || params.cancelCriteria?.cancelAll) {
+            const cancelRes = await cancelReminders({
+              userId: user.id,
+              phoneNumber: user.phone_number,
+              contentQuery: typeof cancelQuery === 'string' || Array.isArray(cancelQuery) ? cancelQuery : null,
+              cancelAll: Boolean(params.cancelAll || params.cancelCriteria?.cancelAll),
+            });
+            if (cancelRes.cancelledCount > 0) {
+              cancelledSummary = ` (Se cancelaron ${cancelRes.cancelledCount} previos)`;
+              console.log(`[manage_reminder] Compound cancellation executed: ${cancelRes.cancelledCount} reminder(s) cancelled.`);
+            }
+          }
+
           const savedReminders = await Promise.all(
             items.map(async (item) => {
               let sendAt = parseTargetTime(item.targetTime, timezone);
@@ -143,7 +159,7 @@ export async function executeTool(toolName, params, user) {
           const result = await cancelReminders({
             userId: user.id,
             phoneNumber: user.phone_number,
-            contentQuery: params.content,
+            contentQuery: params.content || params.cancelContent || params.query || (Array.isArray(params.items) ? params.items.map(it => it.content || it) : null),
             cancelAll: Boolean(params.cancelAll),
             keepLatest: Boolean(params.keepLatest),
           });
