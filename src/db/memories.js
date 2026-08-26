@@ -121,72 +121,99 @@ export async function searchMemories({
     let ftsResults = [];
     let topicResults = [];
 
+    // Execute Vector Search, Full-Text Search, and Topic Search in parallel
+    const searchTasks = [];
+
     // 1. Semantic Vector Search via pgvector
     if (query) {
-      const queryEmbedding = await generateEmbedding(query);
-      if (queryEmbedding) {
-        const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {
-          p_user_id: userId,
-          p_query_embedding: queryEmbedding,
-          p_match_threshold: 0.60,
-          p_match_count: safeLimit,
-        });
-
-        if (!rpcErr && matched) {
-          vectorResults = matched;
-        }
-      }
+      searchTasks.push(
+        (async () => {
+          try {
+            const queryEmbedding = await generateEmbedding(query);
+            if (queryEmbedding) {
+              const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {
+                p_user_id: userId,
+                p_query_embedding: queryEmbedding,
+                p_match_threshold: 0.60,
+                p_match_count: safeLimit,
+              });
+              if (!rpcErr && matched) return { type: 'vector', data: matched };
+            }
+          } catch (err) {
+            console.warn('[memories] vector search err:', err.message);
+          }
+          return { type: 'vector', data: [] };
+        })()
+      );
     }
 
     // 2. Full-Text Search (tsvector + Spanish Porter/Snowball stemming via PostgREST textSearch)
     if (query) {
-      const cleanFtsQuery = String(query)
-        .replace(/[¿?¡!.,:;()]/g, ' ')
-        .trim();
+      searchTasks.push(
+        (async () => {
+          try {
+            const cleanFtsQuery = String(query).replace(/[¿?¡!.,:;()]/g, ' ').trim();
+            if (cleanFtsQuery.length > 0) {
+              let ftsQ = supabase
+                .from('memories')
+                .select('id, topic_key, category, content, confidence, created_at')
+                .eq('user_id', userId)
+                .eq('is_active', true)
+                .textSearch('content', cleanFtsQuery, {
+                  config: 'spanish',
+                  type: 'websearch',
+                })
+                .order('last_accessed_at', { ascending: false })
+                .limit(safeLimit);
 
-      if (cleanFtsQuery.length > 0) {
-        let ftsQ = supabase
-          .from('memories')
-          .select('id, topic_key, category, content, confidence, created_at')
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .textSearch('content', cleanFtsQuery, {
-            config: 'spanish',
-            type: 'websearch',
-          })
-          .order('last_accessed_at', { ascending: false })
-          .limit(safeLimit);
+              if (category) {
+                ftsQ = ftsQ.eq('category', category);
+              }
 
-        if (category) {
-          ftsQ = ftsQ.eq('category', category);
-        }
-
-        const { data: ftsData, error: ftsErr } = await ftsQ;
-        if (!ftsErr && ftsData) {
-          ftsResults = ftsData;
-        }
-      }
+              const { data: ftsData, error: ftsErr } = await ftsQ;
+              if (!ftsErr && ftsData) return { type: 'fts', data: ftsData };
+            }
+          } catch (err) {
+            console.warn('[memories] FTS search err:', err.message);
+          }
+          return { type: 'fts', data: [] };
+        })()
+      );
     }
 
     // 3. Topic Key match
     if (topicKey) {
-      let tQ = supabase
-        .from('memories')
-        .select('id, topic_key, category, content, confidence, created_at')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .ilike('topic_key', `%${topicKey.trim()}%`)
-        .order('last_accessed_at', { ascending: false })
-        .limit(safeLimit);
+      searchTasks.push(
+        (async () => {
+          try {
+            let tQ = supabase
+              .from('memories')
+              .select('id, topic_key, category, content, confidence, created_at')
+              .eq('user_id', userId)
+              .eq('is_active', true)
+              .ilike('topic_key', `%${topicKey.trim()}%`)
+              .order('last_accessed_at', { ascending: false })
+              .limit(safeLimit);
 
-      if (category) {
-        tQ = tQ.eq('category', category);
-      }
+            if (category) {
+              tQ = tQ.eq('category', category);
+            }
 
-      const { data: tData } = await tQ;
-      if (tData) {
-        topicResults = tData;
-      }
+            const { data: tData } = await tQ;
+            if (tData) return { type: 'topic', data: tData };
+          } catch (err) {
+            console.warn('[memories] topic search err:', err.message);
+          }
+          return { type: 'topic', data: [] };
+        })()
+      );
+    }
+
+    const taskResults = await Promise.all(searchTasks);
+    for (const res of taskResults) {
+      if (res.type === 'vector') vectorResults = res.data;
+      else if (res.type === 'fts') ftsResults = res.data;
+      else if (res.type === 'topic') topicResults = res.data;
     }
 
     // 4. Merge results with rank fusion / deduplication:

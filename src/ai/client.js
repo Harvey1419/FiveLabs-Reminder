@@ -7,8 +7,8 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
-  const primaryModel = process.env.AI_MODEL || 'qwen/qwen3.8-27b';
-  const fallbackModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  const primaryModel = process.env.AI_MODEL || (groqKey ? 'qwen/qwen3.8-27b' : 'gemini-2.5-flash');
+  const fallbackModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   // Determine if primary target is a Groq-hosted model
   const isGroqPrimary = Boolean(
@@ -21,28 +21,28 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   );
 
   if (isGroqPrimary) {
-    // 1. PRIMARY: Groq Ultra-Fast LPUs (~0.5s - 1.0s)
-    const groqRes = await callGroqChat(messages, primaryModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
+    // 1. PRIMARY: Groq Ultra-Fast LPUs (~0.4s - 0.8s)
+    const groqRes = await callGroqChat(messages, primaryModel, groqKey, { temperature, max_tokens, timeoutMs: 3500 });
     if (groqRes) return groqRes;
 
     // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
     if (geminiKey) {
       console.log(`[ai-client] Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
-      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 8000 });
+      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 4500 });
       if (geminiRes) return geminiRes;
     }
   } else {
     // 1. PRIMARY: Google Gemini Native API
     if (geminiKey) {
-      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 8000 });
+      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 4500 });
       if (geminiRes) return geminiRes;
     }
 
     // 2. RESILIENT FALLBACK: Groq LPUs
     if (groqKey) {
       console.log(`[ai-client] Gemini primary (${primaryModel}) unavailable, executing fallback to Groq...`);
-      const backupGroqModel = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
-      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 4000 });
+      const backupGroqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 3500 });
       if (groqRes) return groqRes;
     }
   }
@@ -88,55 +88,63 @@ async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, 
   return null;
 }
 
-async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 5000 } = {}) {
-  try {
-    let systemInstruction = null;
-    const contents = [];
+async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 6000 } = {}) {
+  const candidateModels = [model, 'gemini-2.5-flash', 'gemini-3.1-flash-lite'].filter(Boolean);
+  const tried = new Set();
 
-    for (const m of messages) {
-      if (m.role === 'system') {
-        systemInstruction = { parts: [{ text: m.content }] };
-      } else if (m.role === 'user') {
-        contents.push({ role: 'user', parts: [{ text: m.content }] });
-      } else if (m.role === 'assistant') {
-        contents.push({ role: 'model', parts: [{ text: m.content }] });
+  for (const targetModel of candidateModels) {
+    if (tried.has(targetModel)) continue;
+    tried.add(targetModel);
+
+    try {
+      let systemInstruction = null;
+      const contents = [];
+
+      for (const m of messages) {
+        if (m.role === 'system') {
+          systemInstruction = { parts: [{ text: m.content }] };
+        } else if (m.role === 'user') {
+          contents.push({ role: 'user', parts: [{ text: m.content }] });
+        } else if (m.role === 'assistant') {
+          contents.push({ role: 'model', parts: [{ text: m.content }] });
+        }
       }
-    }
 
-    if (contents.length === 0) {
-      contents.push({ role: 'user', parts: [{ text: 'Hola' }] });
-    }
-
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const payload = {
-      ...(systemInstruction ? { systemInstruction } : {}),
-      contents,
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature,
-        maxOutputTokens: max_tokens,
-      },
-    };
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (raw) {
-        return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+      if (contents.length === 0) {
+        contents.push({ role: 'user', parts: [{ text: 'Hola' }] });
       }
-    } else {
-      const errBody = await res.text().catch(() => '');
-      console.warn(`[ai-client] Gemini (${model}) returned ${res.status}:`, errBody.slice(0, 100));
+
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+      const payload = {
+        ...(systemInstruction ? { systemInstruction } : {}),
+        contents,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature,
+          maxOutputTokens: max_tokens,
+        },
+      };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (raw) {
+          return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+        }
+      } else {
+        const errBody = await res.text().catch(() => '');
+        console.warn(`[ai-client] Gemini (${targetModel}) returned ${res.status}:`, errBody.slice(0, 100));
+      }
+    } catch (err) {
+      console.warn(`[ai-client] Gemini (${targetModel}) failed:`, err.message);
     }
-  } catch (err) {
-    console.warn(`[ai-client] Gemini (${model}) failed:`, err.message);
   }
   return null;
 }

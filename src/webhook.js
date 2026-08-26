@@ -185,6 +185,7 @@ export async function handleWebhook(req, res) {
     const isLocation = message.type === 'location' || Boolean(message.location);
 
     let locationTz = null;
+    let audioElapsedMs = 0;
     if (isLocation) {
       const loc = message.location || {};
       const lat = loc.latitude;
@@ -193,6 +194,7 @@ export async function handleWebhook(req, res) {
       locationTz = detectTimezoneFromCoordinates(lat, lon) || detectTimezoneFromLocationText(locName);
       messageText = `[Ubicación compartida: ${locName ? `${locName} ` : ''}(lat ${lat}, lon ${lon})]`;
     } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url)) {
+      const audioStart = Date.now();
       const mediaId = audioObj?.id || message.id;
       const directMediaUrl = audioObj?.media_url || audioObj?.url || audioObj?.link || null;
       console.log(`[webhook] Downloading voice note mediaId=${mediaId} directUrl=${Boolean(directMediaUrl)}...`);
@@ -205,6 +207,7 @@ export async function handleWebhook(req, res) {
           console.log(`[webhook] Audio transcribed via Whisper: "${messageText}"`);
         }
       }
+      audioElapsedMs = Date.now() - audioStart;
     } else if (isImage && (message.image?.id || message.id)) {
       const mediaId = message.image?.id || message.id;
       console.log(`[webhook] Downloading image mediaId=${mediaId}...`);
@@ -269,20 +272,25 @@ export async function handleWebhook(req, res) {
     }).catch(err => console.error('saveMessage(user) failed:', err));
 
     // Route to AI with full batch & natural reply generation
+    const routeStart = Date.now();
     const result = await routeMessage(messageText, user, history);
+    const routeElapsedMs = Date.now() - routeStart;
 
     // Send confirmation to user via Kapso WhatsApp API
+    let sendElapsedMs = 0;
     if (result.confirmation) {
+      const sendStart = Date.now();
       await sendWhatsAppText({
         phoneNumberId,
         phoneNumber,
         bsuid,
         text: result.confirmation,
       });
+      sendElapsedMs = Date.now() - sendStart;
     }
 
     const totalElapsed = Date.now() - startTime;
-    console.log(`[webhook] Turn completed & delivered to WhatsApp in ${totalElapsed}ms`);
+    console.log(`[webhook] Turn delivered in ${totalElapsed}ms (audio: ${audioElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
 
     // Persist assistant message in background
     saveMessage({
