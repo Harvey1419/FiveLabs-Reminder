@@ -120,11 +120,16 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
  * @param {number} [params.limit=4]
  * @returns {Promise<Array<object>>}
  */
+const CONVERSATIONAL_SKIP_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|qu[eé]\s+puedes\s+hacer|qui[eé]n\s+eres|ayuda)$/i;
+
 export async function retrieveRelevantMemories({ userId, queryText, limit = 4 }) {
   if (!userId || !queryText) return [];
 
-  // Filter out short greetings from triggering search
-  if (queryText.trim().length < 3) return [];
+  const clean = queryText.trim().toLowerCase().replace(/[.,!?:;¿¡]/g, '');
+  // Skip embedding vector search on pure greetings, pleasantries, and short conversational turns
+  if (clean.length < 3 || CONVERSATIONAL_SKIP_REGEX.test(clean)) {
+    return [];
+  }
 
   return searchMemories({
     userId,

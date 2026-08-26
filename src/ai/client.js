@@ -5,13 +5,13 @@
 
 const REQUEST_TIMEOUT_MS = 20000;
 
-export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 2500 } = {}) {
+export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 800 } = {}) {
   const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
   const unifiedModel = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
-  // 1. PRIMARY: Google Gemini Native generateContent (~750ms - 1.5s, no OpenAI wrapper timeouts)
+  // 1. PRIMARY: Google Gemini Native generateContent (~1.2s - 2.0s, high quota, no 429)
   if (geminiKey) {
     const modelsToTry = [unifiedModel];
     if (unifiedModel !== 'gemini-2.5-flash') {
@@ -53,7 +53,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(6000),
         });
 
         if (res.ok) {
@@ -72,9 +72,9 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
     }
   }
 
-  // 2. BACKUP: Groq LPUs (~400-500ms)
+  // 2. BACKUP: Groq LPUs
   if (groqKey) {
-    const groqModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+    const groqModels = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
     for (const model of groqModels) {
       try {
         const payload = {
@@ -92,7 +92,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
             'Authorization': `Bearer ${groqKey}`,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.timeout(5000),
         });
 
         if (res.ok) {

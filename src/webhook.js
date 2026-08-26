@@ -161,6 +161,12 @@ export async function handleWebhook(req, res) {
       ? configuredPhoneId
       : (process.env.KAPSO_PHONE_NUMBER_ID || body.phone_number_id || '1248246475047194');
 
+    // Concurrently pre-fetch user profile & conversation history while media is downloading & transcribing
+    const userAndHistoryPromise = Promise.all([
+      getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName),
+      getRecentMessages(recipientIdentifier, 10),
+    ]);
+
     let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
     const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
@@ -234,11 +240,8 @@ export async function handleWebhook(req, res) {
     const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
     console.log(`[webhook] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
 
-    // Parallel fetch: User Profile + Conversation History
-    const [user, history] = await Promise.all([
-      getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName),
-      getRecentMessages(recipientIdentifier, 10),
-    ]);
+    // Await pre-fetched User Profile + Conversation History (resolved concurrently during media download)
+    const [user, history] = await userAndHistoryPromise;
 
     // Dynamic Timezone Resolution: WhatsApp Location Pin or Conversational Travel Text
     if (locationTz && user.timezone !== locationTz) {
