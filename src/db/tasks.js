@@ -24,9 +24,25 @@ export async function createTask({
   if (!userId || !title) return null;
 
   try {
+    const cleanTitle = String(title).trim();
+
+    // Deduplication check: return existing pending task with matching title
+    const { data: existing } = await supabase
+      .from('tasks')
+      .select('*, entities:entity_id(name, category)')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .ilike('title', cleanTitle)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      console.log(`[tasks] Duplicate pending task prevented for "${cleanTitle}", reusing id=${existing[0].id}`);
+      return existing[0];
+    }
+
     const payload = {
       user_id: userId,
-      title: String(title).trim(),
+      title: cleanTitle,
       description: description ? String(description).trim() : null,
       priority,
       status: 'pending',

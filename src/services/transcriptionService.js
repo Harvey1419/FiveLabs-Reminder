@@ -12,20 +12,15 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
     return '';
   }
 
-  const apiKey = process.env.AI_API_KEY
-    || process.env.GROQ_API_KEY
-    || process.env.GEMINI_API_KEY
-    || process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    console.warn('[transcription] No AI_API_KEY found for audio transcription.');
-    return '';
-  }
+  const groqKey = process.env.GROQ_API_KEY
+    || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
+  const geminiKey = process.env.GEMINI_API_KEY
+    || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
 
   const startMs = Date.now();
 
-  // 1. Groq Whisper (Ultra-fast LPUs ~150ms)
-  if (apiKey.startsWith('gsk_') || process.env.AI_BASE_URL?.includes('groq.com')) {
+  // 1. PRIMARY: Groq Whisper Turbo (Ultra-fast LPUs ~150-200ms)
+  if (groqKey) {
     try {
       const endpoint = 'https://api.groq.com/openai/v1/audio/transcriptions';
       const formData = new FormData();
@@ -39,9 +34,10 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${groqKey}`,
         },
         body: formData,
+        signal: AbortSignal.timeout(10000),
       });
 
       if (res.ok) {
@@ -53,23 +49,23 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
         }
       } else {
         const errText = await res.text();
-        console.warn('[transcription] Groq Whisper error:', errText);
+        console.warn('[transcription] Groq Whisper returned non-200, attempting fallback:', errText);
       }
     } catch (err) {
-      console.error('[transcription] Groq Whisper failed:', err);
+      console.warn('[transcription] Groq Whisper failed, activating fallback:', err.message);
     }
   }
 
-  // 2. Google Gemini Native Multimodal Audio
-  if (apiKey.startsWith('AIza')) {
+  // 2. FALLBACK: Google Gemini Native Multimodal Audio (gemini-3.1-flash-lite)
+  if (geminiKey) {
     try {
       const base64Data = Buffer.from(audioBuffer).toString('base64');
       const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
 
-      const modelsToTry = ['gemini-2.5-flash-lite', 'gemini-3.6-flash'];
+      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-2.5-flash'];
       for (const model of modelsToTry) {
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
           const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -84,28 +80,29 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
                       },
                     },
                     {
-                      text: 'Transcribe exactamente todo lo que se dice en este audio en español. Devuelve ÚNICAMENTE el texto transcrito.',
+                      text: 'Transcribe exactamente todo lo que se dice en este audio en español. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni etiquetas adicionales.',
                     },
                   ],
                 },
               ],
             }),
+            signal: AbortSignal.timeout(12000),
           });
 
           if (res.ok) {
             const data = await res.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
             if (text) {
-              console.log(`[transcription] Audio transcribed via Gemini in ${Date.now() - startMs}ms: "${text}"`);
+              console.log(`[transcription] Audio transcribed via Gemini (${model}) in ${Date.now() - startMs}ms: "${text}"`);
               return text;
             }
           }
         } catch (err) {
-          console.warn(`[transcription] ${model} attempt failed:`, err.message);
+          console.warn(`[transcription] Gemini ${model} fallback failed:`, err.message);
         }
       }
     } catch (err) {
-      console.error('[transcription] Gemini audio failed:', err);
+      console.error('[transcription] Gemini audio fallback threw:', err);
     }
   }
 

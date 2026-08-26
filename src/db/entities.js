@@ -310,7 +310,65 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
       return { success: false, error: updateErr.message };
     }
 
-    console.log(`[entities] Renamed entity "${cleanOld}" (id: ${source.id}) -> "${cleanNew}"`);
+    // 4. Cascade rename across pending reminders, active tasks, and active memories
+    try {
+      const nameRegex = new RegExp(`\\b${cleanOld}\\b`, 'gi');
+
+      // Cascade to pending reminders
+      const { data: userReminders } = await supabase
+        .from('reminders')
+        .select('id, content')
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+      for (const rem of (userReminders || [])) {
+        if (nameRegex.test(rem.content)) {
+          const newContent = rem.content.replace(nameRegex, cleanNew);
+          await supabase.from('reminders').update({ content: newContent }).eq('id', rem.id);
+        }
+      }
+
+      // Cascade to active tasks
+      const { data: userTasks } = await supabase
+        .from('tasks')
+        .select('id, title, description')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'in_progress']);
+
+      for (const t of (userTasks || [])) {
+        let changed = false;
+        const updates = {};
+        if (t.title && nameRegex.test(t.title)) {
+          updates.title = t.title.replace(nameRegex, cleanNew);
+          changed = true;
+        }
+        if (t.description && nameRegex.test(t.description)) {
+          updates.description = t.description.replace(nameRegex, cleanNew);
+          changed = true;
+        }
+        if (changed) {
+          await supabase.from('tasks').update(updates).eq('id', t.id);
+        }
+      }
+
+      // Cascade to memories
+      const { data: userMemories } = await supabase
+        .from('memories')
+        .select('id, content')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      for (const mem of (userMemories || [])) {
+        if (nameRegex.test(mem.content)) {
+          const newContent = mem.content.replace(nameRegex, cleanNew);
+          await supabase.from('memories').update({ content: newContent }).eq('id', mem.id);
+        }
+      }
+    } catch (cascadeErr) {
+      console.warn('[entities] renameEntity cascade warning:', cascadeErr.message);
+    }
+
+    console.log(`[entities] Renamed entity "${cleanOld}" (id: ${source.id}) -> "${cleanNew}" with cascade`);
     return {
       success: true,
       action: 'renamed',
