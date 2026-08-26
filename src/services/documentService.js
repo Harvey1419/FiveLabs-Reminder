@@ -7,7 +7,7 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY
   || process.env.AI_API_KEY;
 
 export async function processDocumentOrImage(buffer, mimeType = 'image/jpeg', caption = '') {
-  if (!buffer || buffer.byteLength === 0) return '';
+  if (!buffer) return '';
 
   const apiKey = GEMINI_KEY && GEMINI_KEY.startsWith('AIza')
     ? GEMINI_KEY
@@ -19,7 +19,9 @@ export async function processDocumentOrImage(buffer, mimeType = 'image/jpeg', ca
   }
 
   const cleanMime = mimeType.split(';')[0].trim() || 'image/jpeg';
-  const base64Data = Buffer.from(buffer).toString('base64');
+  const arrayBuffer = (buffer instanceof Blob) ? await buffer.arrayBuffer() : buffer;
+  if (!arrayBuffer || arrayBuffer.byteLength === 0) return '';
+  const base64Data = Buffer.from(arrayBuffer).toString('base64');
 
   const systemInstruction = `Eres un extractor de información visual y documental para un asistente personal en WhatsApp.
 Analiza la imagen o documento adjunto y extrae de forma estructurada y detallada en español:

@@ -6,9 +6,16 @@
  * 3. OpenAI / Generic Whisper API
  */
 
-export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
-  if (!audioBuffer || audioBuffer.byteLength === 0) {
-    console.warn('[transcription] Empty audio buffer received.');
+export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
+  if (!audioInput) {
+    console.warn('[transcription] Empty audio input received.');
+    return '';
+  }
+
+  const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
+  const blob = (audioInput instanceof Blob) ? audioInput : new Blob([audioInput], { type: cleanMime });
+  if (blob.size === 0) {
+    console.warn('[transcription] Empty audio blob received.');
     return '';
   }
 
@@ -26,8 +33,6 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
     try {
       const endpoint = 'https://api.groq.com/openai/v1/audio/transcriptions';
       const formData = new FormData();
-      const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
-      const blob = new Blob([audioBuffer], { type: cleanMime });
       formData.append('file', blob, 'audio.ogg');
       formData.append('model', process.env.AI_AUDIO_MODEL || 'whisper-large-v3-turbo');
       formData.append('language', 'es');
@@ -58,10 +63,11 @@ export async function transcribeAudio(audioBuffer, mimeType = 'audio/ogg') {
     }
   }
 
-  // 2. FALLBACK: Google Gemini Native Multimodal Audio (gemini-2.5-flash / gemini-3.1-flash-lite)
+  // 2. FALLBACK: Google Gemini Native Multimodal Audio (gemini-3.1-flash-lite / gemini-2.5-flash)
   if (geminiKey) {
     try {
-      const base64Data = Buffer.from(audioBuffer).toString('base64');
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64Data = Buffer.from(arrayBuffer).toString('base64');
       const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
 
       const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-2.5-flash'];

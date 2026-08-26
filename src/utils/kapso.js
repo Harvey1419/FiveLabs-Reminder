@@ -299,6 +299,7 @@ export async function sendTypingIndicator(messageId, phoneNumberId = null) {
 
 /**
  * Download media (audio, voice notes, documents) from Kapso / Meta Cloud API.
+ * Uses direct stream download to Blob, skipping metadata lookup if directUrl is present.
  */
 export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = null) {
   if ((!mediaId && !directUrl) || !process.env.KAPSO_API_KEY) return null;
@@ -306,22 +307,19 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
 
   const tStart = Date.now();
   try {
-    let downloadUrl = null;
+    let downloadUrl = directUrl || null;
     let tMeta = 0;
 
-    // Only use directUrl if it is a Kapso-hosted URL (api.kapso.ai). Raw Meta CDN (lookaside.fbsbx.com) returns 401.
-    if (directUrl && directUrl.includes('kapso.ai')) {
-      downloadUrl = directUrl;
-    }
-
+    // If directUrl is not provided, fetch download_url metadata from Kapso API
     if (!downloadUrl && mediaId) {
+      const metaStart = Date.now();
       const metaRes = await fetch(
         `${KAPSO_API_BASE}/${mediaId}?phone_number_id=${phoneId}`,
         {
           headers: {
             'X-API-Key': process.env.KAPSO_API_KEY,
           },
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(6000),
         }
       );
 
@@ -331,8 +329,8 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
       }
 
       const metaData = await metaRes.json();
-      tMeta = Date.now() - tStart;
-      downloadUrl = metaData.download_url || metaData.url;
+      tMeta = Date.now() - metaStart;
+      downloadUrl = metaData.download_url || metaData.url || metaData.link;
       if (!downloadUrl) {
         console.error('[kapso] No download URL returned for mediaId:', mediaId);
         return null;
@@ -344,7 +342,7 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
       headers: {
         'X-API-Key': process.env.KAPSO_API_KEY,
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!binRes.ok) {
@@ -353,10 +351,11 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
       return null;
     }
 
-    const buffer = await binRes.arrayBuffer();
+    // Direct stream to Blob with zero intermediate byte copies
+    const blob = await binRes.blob();
     const tBin = Date.now() - tBinStart;
-    console.log(`[kapso] Downloaded media ${mediaId || 'direct'} (${buffer.byteLength} bytes) in ${Date.now() - tStart}ms (meta: ${tMeta}ms, bin: ${tBin}ms)`);
-    return buffer;
+    console.log(`[kapso] Downloaded media ${mediaId || 'direct'} (${blob.size} bytes) in ${Date.now() - tStart}ms (meta: ${tMeta}ms, stream: ${tBin}ms)`);
+    return blob;
   } catch (err) {
     console.error('[kapso] downloadMedia error:', err.message);
     return null;
