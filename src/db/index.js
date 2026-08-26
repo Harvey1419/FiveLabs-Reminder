@@ -128,6 +128,10 @@ export async function saveReminder({
  * Acknowledge pending confirmation reminders when user completes a task (e.g. "Listo", "OK").
  */
 export async function acknowledgeReminders({ userId, phoneNumber, contentQuery = null }) {
+  if (!userId && !phoneNumber) {
+    return { acknowledgedCount: 0, acknowledgedReminders: [] };
+  }
+
   let q = supabase
     .from('reminders')
     .select('*');
@@ -305,6 +309,10 @@ export async function markReminderAsMissed(id) {
  * Cancel pending reminders by criteria (all, keepLatest, content matching).
  */
 export async function cancelReminders({ userId, phoneNumber, contentQuery = null, cancelAll = false, keepLatest = false }) {
+  if (!userId && !phoneNumber) {
+    return { cancelledCount: 0, cancelledReminders: [], remainingCount: 0 };
+  }
+
   let q = supabase
     .from('reminders')
     .select('id, content, send_at, status')
@@ -360,6 +368,17 @@ export async function cancelReminders({ userId, phoneNumber, contentQuery = null
  * Fetch rich daily overview formatted directly in the User's local timezone.
  */
 export async function getDailyOverview({ userId, phoneNumber, timezone = 'America/Bogota' }) {
+  if (!userId && !phoneNumber) {
+    return {
+      todayDate: '',
+      tomorrowDate: '',
+      doneToday: [],
+      pendingToday: [],
+      tomorrow: [],
+      upcoming: [],
+    };
+  }
+
   let userRemindersQ = supabase.from('reminders').select('*');
   let userTasksQ = supabase.from('tasks').select('*');
 
@@ -455,6 +474,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
 }
 
 export async function getRecentRemindersForPhone(phoneNumber, limit = 10) {
+  if (!phoneNumber) return [];
   const safeLimit = Math.min(Math.max(1, Number(limit) || 10), 50);
 
   const { data, error } = await supabase

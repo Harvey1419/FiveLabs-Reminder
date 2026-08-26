@@ -2,13 +2,14 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 1. Users table (Identity, Timezone, Preferences, Morning Briefing)
+-- 1. Users table (Identity, Timezone, Preferences, Morning Briefing, Admin RBAC)
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number TEXT UNIQUE NOT NULL,
   display_name TEXT,
   timezone TEXT NOT NULL DEFAULT 'America/Bogota',
   locale TEXT NOT NULL DEFAULT 'es-CO',
+  is_admin BOOLEAN DEFAULT FALSE,
   morning_briefing_enabled BOOLEAN DEFAULT TRUE,
   morning_briefing_time TEXT DEFAULT '07:30',
   last_briefing_at TIMESTAMPTZ,
@@ -106,3 +107,17 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_phone_created ON messages(phone_number, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at DESC);
+
+-- 7. Subscriptions table (Billing, Plans, Active status)
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  plan TEXT NOT NULL DEFAULT 'free',
+  status TEXT NOT NULL DEFAULT 'active',
+  amount NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+

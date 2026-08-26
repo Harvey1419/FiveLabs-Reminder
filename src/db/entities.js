@@ -181,6 +181,7 @@ export async function findOrCreateEntityFuzzy({
             .from('entities')
             .update({ metadata: merged, updated_at: new Date().toISOString() })
             .eq('id', bestMatch.id)
+            .eq('user_id', userId)
             .select()
             .single();
           return updated || { ...bestMatch, metadata: merged };
@@ -300,6 +301,7 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
         updated_at: new Date().toISOString(),
       })
       .eq('id', source.id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -383,6 +385,7 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
         .from('entities')
         .update({ name: cleanTarget, updated_at: new Date().toISOString() })
         .eq('id', source.id)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -399,6 +402,7 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
       .from('tasks')
       .update({ entity_id: target.id, updated_at: new Date().toISOString() })
       .eq('entity_id', source.id)
+      .eq('user_id', userId)
       .select();
 
     const tasksMovedCount = (movedTasks && movedTasks.length) || 0;
@@ -413,11 +417,12 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
         updated_at: new Date().toISOString(),
       })
       .eq('id', target.id)
+      .eq('user_id', userId)
       .select()
       .single();
 
     // 3. Delete source entity
-    await supabase.from('entities').delete().eq('id', source.id);
+    await supabase.from('entities').delete().eq('id', source.id).eq('user_id', userId);
 
     console.log(`[entities] Merged entity "${source.name}" (${source.id}) into "${target.name}" (${target.id}). Tasks moved: ${tasksMovedCount}`);
 
@@ -543,19 +548,21 @@ export async function findEntities({ userId, query, category, limit = 10 }) {
 }
 
 /**
- * Get entity by ID.
+ * Get entity by ID for a specific user.
  *
  * @param {string} id
+ * @param {string} userId
  * @returns {Promise<object|null>}
  */
-export async function getEntityById(id) {
-  if (!id) return null;
+export async function getEntityById(id, userId) {
+  if (!id || !userId) return null;
 
   try {
     const { data, error } = await supabase
       .from('entities')
       .select('*')
       .eq('id', id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {

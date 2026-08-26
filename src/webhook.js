@@ -203,7 +203,9 @@ export async function handleWebhook(req, res) {
         const mimeType = message.image?.mime_type || 'image/jpeg';
         const extracted = await processDocumentOrImage(imageBuffer, mimeType, caption);
         if (extracted) {
-          messageText = caption ? `${caption}\n\n[Contenido de la imagen analizada]: ${extracted}` : extracted;
+          messageText = caption
+            ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
+            : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
           console.log(`[webhook] Image analyzed: "${messageText.slice(0, 90)}..."`);
         }
       }
@@ -215,7 +217,9 @@ export async function handleWebhook(req, res) {
         const mimeType = message.document?.mime_type || 'application/pdf';
         const extracted = await processDocumentOrImage(docBuffer, mimeType, caption);
         if (extracted) {
-          messageText = caption ? `${caption}\n\n[Contenido del documento analizado]: ${extracted}` : extracted;
+          messageText = caption
+            ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
+            : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
           console.log(`[webhook] Document analyzed: "${messageText.slice(0, 90)}..."`);
         }
       }

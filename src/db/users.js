@@ -5,10 +5,22 @@ import { detectTimezoneFromPhone } from '../utils/time.js';
 const userCache = new Map();
 const USER_CACHE_TTL_MS = 10 * 60 * 1000;
 
-export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defaultLocale = 'es-CO', displayName = null) {
-  const resolvedTz = defaultTz || (phoneNumber ? detectTimezoneFromPhone(phoneNumber) : 'America/Bogota');
+export function normalizeUserPhone(phone) {
+  if (!phone || typeof phone !== 'string') return '';
+  const trimmed = phone.trim();
+  // Check if BSUID (e.g. CO.1552339023039755)
+  if (trimmed.includes('.') || trimmed.startsWith('CO.') || trimmed.startsWith('US.') || trimmed.startsWith('AR.')) {
+    return trimmed;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  return digits || trimmed;
+}
 
-  if (!phoneNumber) {
+export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defaultLocale = 'es-CO', displayName = null) {
+  const cleanPhone = normalizeUserPhone(phoneNumber);
+  const resolvedTz = defaultTz || (cleanPhone ? detectTimezoneFromPhone(cleanPhone) : 'America/Bogota');
+
+  if (!cleanPhone) {
     return {
       id: null,
       phone_number: '',
@@ -19,7 +31,6 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
     };
   }
 
-  const cleanPhone = String(phoneNumber).trim();
   const cached = userCache.get(cleanPhone);
   if (cached && Date.now() - cached.timestamp < USER_CACHE_TTL_MS) {
     if (displayName && !cached.user.display_name) {
@@ -96,7 +107,8 @@ export async function updateUserPreferences(userId, { timezone, locale }) {
 
   // Invalidate cache
   if (data?.phone_number) {
-    userCache.set(data.phone_number, { user: data, timestamp: Date.now() });
+    const cleanP = normalizeUserPhone(data.phone_number);
+    userCache.set(cleanP, { user: data, timestamp: Date.now() });
   }
 
   return data;

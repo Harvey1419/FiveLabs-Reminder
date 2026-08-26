@@ -17,7 +17,9 @@ import {
   getDailyOverview,
   forgetMemories,
   searchMemories,
+  supabase,
 } from '../db/index.js';
+import { isAdminUser } from '../utils/auth.js';
 import {
   parseTargetTime,
   humanizeTimeUntil,
@@ -385,6 +387,74 @@ export async function executeTool(toolName, params, user) {
           data: overview,
           rawSummary: JSON.stringify(overview),
         };
+      }
+
+      case 'admin_metrics': {
+        if (!isAdminUser(user)) {
+          return {
+            success: false,
+            action: 'unauthorized',
+            data: null,
+            rawSummary: 'Acceso no autorizado: se requieren permisos de administrador.',
+          };
+        }
+
+        const action = params.action || 'get_overview';
+
+        if (action === 'get_overview') {
+          const [{ count: userCount }, { data: activeSubs }, { count: pendingRemindersCount }, { count: pendingTasksCount }] = await Promise.all([
+            supabase.from('users').select('*', { count: 'exact', head: true }),
+            supabase.from('subscriptions').select('amount, plan, status').eq('status', 'active'),
+            supabase.from('reminders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+            supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          ]);
+
+          const mrr = (activeSubs || []).reduce((acc, s) => acc + (Number(s.amount) || 0), 0);
+          const overviewData = {
+            totalUsers: userCount || 0,
+            activeSubscriptions: (activeSubs || []).length,
+            totalMRR: mrr,
+            pendingReminders: pendingRemindersCount || 0,
+            pendingTasks: pendingTasksCount || 0,
+          };
+
+          return {
+            success: true,
+            action: 'admin_overview',
+            data: overviewData,
+            rawSummary: `Métricas del Sistema:\n• Usuarios registrados: ${overviewData.totalUsers}\n• Suscripciones activas: ${overviewData.activeSubscriptions}\n• MRR total: $${overviewData.totalMRR}\n• Recordatorios pendientes: ${overviewData.pendingReminders}\n• Tareas pendientes: ${overviewData.pendingTasks}`,
+          };
+        }
+
+        if (action === 'get_active_subscriptions') {
+          const { data: subs, error } = await supabase
+            .from('subscriptions')
+            .select('id, user_id, plan, status, amount, created_at, users:user_id(phone_number, display_name)')
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+
+          return {
+            success: true,
+            action: 'admin_active_subscriptions',
+            data: subs || [],
+            rawSummary: `Hay ${subs?.length || 0} suscripciones activas registradas.`,
+          };
+        }
+
+        if (action === 'get_user_count') {
+          const { count, error } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true });
+
+          return {
+            success: true,
+            action: 'admin_user_count',
+            data: { totalUsers: count || 0 },
+            rawSummary: `Total de usuarios en la plataforma: ${count || 0}.`,
+          };
+        }
+
+        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de métricas no reconocida.' };
       }
 
       default:

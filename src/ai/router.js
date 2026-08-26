@@ -3,6 +3,7 @@ import { callChatCompletion } from './client.js';
 import { retrieveRelevantMemories } from '../services/memoryService.js';
 import { getDailyOverview } from '../db/index.js';
 import { buildAgentCorePrompt } from './agentCore.js';
+import { isAdminUser } from '../utils/auth.js';
 import {
   nowISO,
   nowHuman,
@@ -27,8 +28,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   const offset = computeOffsetMinutes(timezone);
   const nowStr = nowISO(timezone);
   const nowHumanStr = nowHuman(timezone, user.locale === 'en-US' ? 'en' : 'es');
+  const isAdmin = isAdminUser(user);
 
-  console.log(`[router] in: "${messageText}" phone=${phoneNumber} tz=${timezone}`);
+  console.log(`[router] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
   // 1. Parallel Context Pre-fetch (~80-120ms)
   const [relevantMemories, dailyOverview] = await Promise.all([
@@ -40,13 +42,14 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     ? relevantMemories.map(m => `- [${m.category || 'memoria'}] ${m.content}`).join('\n')
     : '';
 
-  // 2. Build Authoritative Agent Core Grounded Prompt
+  // 2. Build Authoritative Agent Core Grounded Prompt with RBAC exposure
   const prompt = buildAgentCorePrompt({
     nowStr,
     nowHumanStr,
     timezone,
     memoryHints,
     overview: dailyOverview,
+    isAdmin,
   });
 
   const pastTurns = history.slice(-4);
@@ -90,10 +93,12 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   const totalDurationMs = Date.now() - startMs;
   console.log(`[router] Out in ${totalDurationMs}ms: "${finalReply.slice(0, 80)}..."`);
 
+  const isEnglish = (user.locale && user.locale.startsWith('en')) || /\b(hello|hi|good morning|schedule|remind me|please|help me|thank you|thanks)\b/i.test(messageText);
+
   return {
     intent: plan.intent || 'chat',
     entities: plan.params || {},
-    language: 'es',
+    language: isEnglish ? 'en' : 'es',
     confirmation: finalReply,
   };
 }

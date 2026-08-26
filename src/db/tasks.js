@@ -190,6 +190,7 @@ export async function completeTasks({
               updated_at: nowIso,
             })
             .in('id', targetIds)
+            .eq('user_id', userId)
             .select('*, entities:entity_id(name, category)');
 
           return {
