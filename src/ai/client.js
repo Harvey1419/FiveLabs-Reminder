@@ -10,77 +10,104 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
   const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
 
   const unifiedModel = process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
-  const providers = [];
 
-  // 1. PRIMARY: Google Gemini with unified AI_MODEL
+  // 1. PRIMARY: Google Gemini Native generateContent (~750ms - 1.5s, no OpenAI wrapper timeouts)
   if (geminiKey) {
-    providers.push({
-      name: `Gemini (${unifiedModel})`,
-      url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      key: geminiKey,
-      model: unifiedModel,
-      jsonMode: true,
-    });
-
-    // Gemini fallback if primary encounters temporary issues
+    const modelsToTry = [unifiedModel];
     if (unifiedModel !== 'gemini-2.5-flash') {
-      providers.push({
-        name: 'Gemini (gemini-2.5-flash)',
-        url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-        key: geminiKey,
-        model: 'gemini-2.5-flash',
-        jsonMode: true,
-      });
+      modelsToTry.push('gemini-2.5-flash');
+    }
+
+    // Format messages for native Gemini REST API
+    let systemInstruction = null;
+    const contents = [];
+
+    for (const m of messages) {
+      if (m.role === 'system') {
+        systemInstruction = { parts: [{ text: m.content }] };
+      } else if (m.role === 'user') {
+        contents.push({ role: 'user', parts: [{ text: m.content }] });
+      } else if (m.role === 'assistant') {
+        contents.push({ role: 'model', parts: [{ text: m.content }] });
+      }
+    }
+
+    if (contents.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: 'Hola' }] });
+    }
+
+    for (const model of modelsToTry) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+        const payload = {
+          ...(systemInstruction ? { systemInstruction } : {}),
+          contents,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature,
+            maxOutputTokens: max_tokens,
+          },
+        };
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (raw) {
+            return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+          }
+        } else {
+          const errBody = await res.text();
+          console.warn(`[ai-client] Gemini (${model}) returned ${res.status}:`, errBody.slice(0, 100));
+        }
+      } catch (err) {
+        console.warn(`[ai-client] Gemini (${model}) failed:`, err.message);
+      }
     }
   }
 
-  // 2. BACKUP: Groq LPUs
+  // 2. BACKUP: Groq LPUs (~400-500ms)
   if (groqKey) {
-    providers.push({
-      name: 'Groq (openai/gpt-oss-20b)',
-      url: 'https://api.groq.com/openai/v1/chat/completions',
-      key: groqKey,
-      model: 'openai/gpt-oss-20b',
-      jsonMode: false,
-    });
-  }
+    const groqModels = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+    for (const model of groqModels) {
+      try {
+        const payload = {
+          model,
+          messages,
+          temperature,
+          max_tokens,
+          response_format: { type: 'json_object' },
+        };
 
-  // Execute providers in prioritized order
-  for (const p of providers) {
-    try {
-      const payload = {
-        model: p.model,
-        messages,
-        temperature,
-        max_tokens,
-      };
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(6000),
+        });
 
-      if (p.jsonMode) {
-        payload.response_format = { type: 'json_object' };
-      }
-
-      const res = await fetch(p.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${p.key}`,
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.choices?.[0]?.message?.content;
-        if (raw) {
-          return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+        if (res.ok) {
+          const data = await res.json();
+          const raw = data.choices?.[0]?.message?.content;
+          if (raw) {
+            return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+          }
+        } else {
+          const errBody = await res.text();
+          console.warn(`[ai-client] Groq (${model}) returned ${res.status}:`, errBody.slice(0, 80));
         }
-      } else {
-        const errBody = await res.text();
-        console.warn(`[ai-client] ${p.name} returned ${res.status}:`, errBody.slice(0, 80));
+      } catch (err) {
+        console.warn(`[ai-client] Groq (${model}) failed:`, err.message);
       }
-    } catch (err) {
-      console.warn(`[ai-client] ${p.name} failed:`, err.message);
     }
   }
 

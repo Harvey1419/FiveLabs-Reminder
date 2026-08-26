@@ -164,9 +164,11 @@ export async function handleWebhook(req, res) {
     let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
     const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
-    // Show typing indicator in background
+    // Show typing indicator immediately so the user sees "Escribiendo..." during media download & processing
     if (messageId) {
-      sendTypingIndicator(messageId, phoneNumberId).catch(() => {});
+      sendTypingIndicator(messageId, phoneNumberId).catch((err) => {
+        console.warn('[webhook] sendTypingIndicator background error:', err?.message || err);
+      });
     }
 
     // 6. Handle Multimodal Media (Audio, Images, PDFs, Documents, Location)
