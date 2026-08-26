@@ -307,10 +307,11 @@ export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = n
 
   const tStart = Date.now();
   try {
-    let downloadUrl = directUrl || null;
+    // Only use directUrl directly if it is a Kapso-hosted URL (api.kapso.ai). Raw Meta CDN (lookaside.fbsbx.com) requires Kapso proxy metadata.
+    let downloadUrl = (directUrl && directUrl.includes('kapso.ai')) ? directUrl : null;
     let tMeta = 0;
 
-    // If directUrl is not provided, fetch download_url metadata from Kapso API
+    // If directUrl is not a Kapso URL, fetch download_url metadata from Kapso API proxy
     if (!downloadUrl && mediaId) {
       const metaStart = Date.now();
       const metaRes = await fetch(

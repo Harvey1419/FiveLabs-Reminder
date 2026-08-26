@@ -28,13 +28,13 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
     // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
     if (geminiKey) {
       console.log(`[ai-client] Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
-      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 4500 });
+      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 7000 });
       if (geminiRes) return geminiRes;
     }
   } else {
     // 1. PRIMARY: Google Gemini Native API
     if (geminiKey) {
-      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 4500 });
+      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 7000 });
       if (geminiRes) return geminiRes;
     }
 
