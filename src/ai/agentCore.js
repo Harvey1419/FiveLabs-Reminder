@@ -103,7 +103,14 @@ ${memoryHints || '(Sin memorias registradas)'}
 ### [Agenda Viva]:
 ${compactOverviewText}
 
-## 4. RESPUESTA JSON ESTRICTA
+## 4. PATRONES CANÓNICOS (MODELO ↔ DB)
+- "En 10 min X y en 20 min Y" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'X', targetTime:'+10m'}, {content:'Y', targetTime:'+20m'}]}
+- "A las 6:30 ver películas con tareas hacer palomitas, comprar gaseosa" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Ver películas', targetTime:'18:30', tasks:['Hacer palomitas', 'Comprar gaseosa']}]}
+- "No era Jacks sino Yax" -> type:'tool_call', tool:'manage_entity', params:{action:'rename', oldName:'Jacks', newName:'Yax'}
+- "Cancela los anteriores y ponme X a las 4" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', cancelContent:['...'], items:[{content:'X', targetTime:'16:00'}]}
+- "Gracias por recordarme / Todo listo" -> type:'chat', tool:null, reply:'¡Con mucho gusto! 😊 Quedo atento.'
+
+## 5. RESPUESTA JSON ESTRICTA
 {
   "type": "tool_call" | "chat",
   "tool": ${toolEnumSchema},

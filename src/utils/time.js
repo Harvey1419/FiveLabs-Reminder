@@ -103,12 +103,51 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
   const s = String(str).trim();
   const offset = computeOffsetMinutes(timezone);
 
-  // 1. Time-only format (e.g. "08:00", "08:00:00")
+  // 1. Relative offset format (e.g. "+10m", "+10 min", "10m", "20m", "in 15 minutes", "en 10 minutos")
+  const relMatch = s.match(/^(?:\+?|in\s+|en\s+)?(\d+)\s*(m|min|mins|minuto|minutos|h|hr|hrs|hora|horas|d|d[ií]a|d[ií]as)$/i);
+  if (relMatch) {
+    const val = parseInt(relMatch[1], 10);
+    const unit = relMatch[2].toLowerCase();
+    let ms = 0;
+    if (unit.startsWith('m')) ms = val * 60 * 1000;
+    else if (unit.startsWith('h')) ms = val * 60 * 60 * 1000;
+    else if (unit.startsWith('d')) ms = val * 24 * 60 * 60 * 1000;
+    return new Date(Date.now() + ms);
+  }
+
+  // 2. 12-hour AM/PM format (e.g. "6:00 PM", "6 PM", "06:30 pm", "6:00 AM", "6 am")
+  const ampmMatch = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  if (ampmMatch) {
+    let hours = parseInt(ampmMatch[1], 10);
+    const minutes = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0;
+    const meridian = ampmMatch[3].toLowerCase();
+    if (meridian === 'pm' && hours < 12) hours += 12;
+    if (meridian === 'am' && hours === 12) hours = 0;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
+    const d = new Date(`${todayStr}T${hh}:${mm}:00${offset}`);
+    if (!isNaN(d.getTime())) {
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+      return d;
+    }
+  }
+
+  // 3. Time-only 24h format (e.g. "08:00", "18:30:00")
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
     const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
-    const d = new Date(`${todayStr}T${s}${s.length <= 5 ? ':00' : ''}${offset}`);
+    let d = new Date(`${todayStr}T${s}${s.length <= 5 ? ':00' : ''}${offset}`);
     if (!isNaN(d.getTime())) {
-      // If the hour already passed today, target tomorrow
+      // Smart daytime heuristic: if "6:00" was given (6 AM passed), check if 18:00 (6 PM) is upcoming today
+      const rawHour = parseInt(s.split(':')[0], 10);
+      if (rawHour > 0 && rawHour <= 11 && d.getTime() <= Date.now()) {
+        const pmHour = rawHour + 12;
+        const pmTimeStr = `${String(pmHour).padStart(2, '0')}:${s.split(':')[1]}${s.length > 5 ? s.slice(5) : ':00'}`;
+        const pmDate = new Date(`${todayStr}T${pmTimeStr}${offset}`);
+        if (pmDate.getTime() > Date.now()) {
+          return pmDate;
+        }
+      }
       if (d.getTime() <= Date.now()) {
         d.setDate(d.getDate() + 1);
       }
@@ -116,13 +155,13 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     }
   }
 
-  // 2. Already has explicit offset (Z or ±HH:mm)?
+  // 4. Already has explicit offset (Z or ±HH:mm)?
   if (/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) {
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // 3. Naive — treat as user's local timezone.
+  // 5. Naive ISO — treat as user's local timezone.
   const d = new Date(s + offset);
   return isNaN(d.getTime()) ? null : d;
 }

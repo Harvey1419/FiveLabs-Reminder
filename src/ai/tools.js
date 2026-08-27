@@ -123,8 +123,8 @@ export async function executeTool(toolName, params, user) {
                     )
                   );
                   primaryTaskId = insertedTasks.find(t => t?.id)?.id || null;
-                  const checklist = cleanTasks.map(t => `• [ ] ${t}`).join('\n');
-                  fullContent = `${fullContent}\n\n📋 *Tareas asociadas:*\n${checklist}`;
+                  const checklist = cleanTasks.map(t => `▫️ ${t}`).join('\n');
+                  fullContent = `${fullContent}\n\n📝 *Checklist de tareas:*\n${checklist}`;
                 }
               }
 

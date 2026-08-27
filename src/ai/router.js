@@ -73,6 +73,32 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     console.warn('[router] planning failed:', err.message);
   }
 
+  // 2.5 Transaction Guard: Ensure promises made in conversation match database mutations
+  const claimedScheduled = /\b(te\s+program[eé]|te\s+recordar[eé]|recordatorio\s+programado|te\s+dej[eé]\s+programado|he\s+programado|agendado)\b/i.test(plan.reply || '');
+  const requestedReminder = /\b(recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me)\b/i.test(messageText) &&
+    !/\b(gracias|ok|listo|no\s+tengo|consulta|cu[aá]les|qu[eé]\s+tengo|verdad\?|cierto\?)\b/i.test(messageText);
+
+  if ((claimedScheduled || requestedReminder) && (!plan.tool || plan.type !== 'tool_call')) {
+    console.warn('[router] Transaction Guard: missing database tool call detected for reminder intent. Executing emergency repair...');
+    try {
+      const rescueMessages = [
+        { role: 'system', content: `${prompt}\n\nCRITICAL: The previous output failed to execute the database tool. You MUST output STRICT JSON with "type": "tool_call", "tool": "manage_reminder", "params": {"action": "create", "items": [...]}.` },
+        { role: 'user', content: messageText },
+      ];
+      const rescueRaw = await callChatCompletion(rescueMessages, { max_tokens: 600, temperature: 0.0 });
+      const rescueJson = extractFirstJsonObject(rescueRaw);
+      if (rescueJson) {
+        const repairedPlan = JSON.parse(rescueJson);
+        if (repairedPlan.tool === 'manage_reminder' && repairedPlan.type === 'tool_call') {
+          plan = repairedPlan;
+          console.log('[router] Transaction Guard successfully repaired tool call for manage_reminder.');
+        }
+      }
+    } catch (rescueErr) {
+      console.error('[router] Transaction Guard repair failed:', rescueErr.message);
+    }
+  }
+
   // 3. Tool Execution if requested (Supports Batch Creation)
   if (plan.type === 'tool_call' && plan.tool) {
     const toolResult = await executeTool(plan.tool, plan.params || {}, user);
