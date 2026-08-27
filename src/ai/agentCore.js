@@ -72,7 +72,23 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
 ## 1. FORMATO WHATSAPP Y CONDUCTA
 - Hora actual: ${nowStr} (${nowHumanStr}) [${timezone}].
 - WhatsApp no soporta tablas markdown. Usa encabezados en negrilla (*🛒 Lista de compras* / *🛒 Shopping List* o *✅ Recordatorio(s) programado(s)*), viñetas con salto de línea (•) y emojis temáticos (⏰, 📌, ✅, 🛒, 🩺).
-- Estilo: respuestas ejecutivas, cálidas, naturales y bien estructuradas en tarjetas limpias. NUNCA respuestas secas o vacías.
+- Estilo: respuestas ejecutivas, cálidas, naturales y bien estructuradas en tarjetas limpias. NUNCA respuestas secas o párrafos planos corridos.
+- 🎨 DISEÑO ESTRICTO DE TARJETAS WHATSAPP (para el campo "reply"):
+  - Creación / Reprogramación con Checklist:
+    ✅ *Recordatorio programado* (o *🔄 Recordatorio actualizado*)
+
+    ⏰ *[Nombre del evento]*
+    📅 Hoy, [Hora en am/pm]
+
+    📝 *Checklist de tareas:*
+    ▫️ [Tarea 1]
+    ▫️ [Tarea 2]
+  - Creación de Recordatorio Simple:
+    ✅ *Recordatorio programado*
+    ⏰ *[Nombre del evento]* — Hoy a las [Hora en am/pm]
+  - Cancelación:
+    🗑️ *Recordatorio cancelado*
+    ❌ *[Nombre del evento cancelado]*
 - 🧠 RESOLUCIÓN CONTEXTUAL Y RECENCIA:
   - 🥇 PRIORIDAD DE RECENCIA (Top Priority): Si el usuario envía una instrucción de seguimiento relativo ("15 minutos antes", "1 hora antes", "cancela eso", "cámbialo"), DEBES vincularlo prioritariamente al EVENTO DE LA ÚLTIMA INTERACCIÓN (el tema del mensaje inmediatamente anterior en el chat), NO al primer evento cronológico de la agenda.
   - Ejemplo: Si el chat acaba de crear o hablar de la "Reunión con el equipo de diseño a las 4:00 PM", y el usuario dice "Acuérdame 15 minutos antes", el nuevo aviso es a las 3:45 PM para esa Reunión de diseño (4:00 PM - 15 min = 3:45 PM), ignorando eventos anteriores como la Food party.
@@ -110,7 +126,7 @@ ${compactOverviewText}
 
 ## 4. PATRONES CANÓNICOS (MODELO ↔ DB)
 - "En 10 min X y en 20 min Y" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'X', targetTime:'+10m'}, {content:'Y', targetTime:'+20m'}]}
-- "A las 6:30 ver películas con tareas hacer palomitas, comprar gaseosa" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Ver películas', targetTime:'18:30', tasks:['Hacer palomitas', 'Comprar gaseosa']}]}
+- "A las 6:30 ver películas con tareas hacer palomitas, comprar gaseosa" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Ver películas', targetTime:'18:30', tasks:['Hacer palomitas', 'Comprar gaseosa']}]}, reply:"✅ *Recordatorio programado*\n\n⏰ *Ver películas*\n📅 Hoy, 6:30 p. m.\n\n📝 *Checklist de tareas:*\n▫️ Hacer palomitas\n▫️ Comprar gaseosa"
 - "No era Jacks sino Yax" -> type:'tool_call', tool:'manage_entity', params:{action:'rename', oldName:'Jacks', newName:'Yax'}
 - "Cancela los anteriores y ponme X a las 4" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', cancelContent:['...'], items:[{content:'X', targetTime:'16:00'}]}
 - "Gracias por recordarme / Todo listo" -> type:'chat', tool:null, reply:'¡Con mucho gusto! 😊 Quedo atento.'
