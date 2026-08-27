@@ -181,14 +181,14 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
  * @param {number} [params.limit=4]
  * @returns {Promise<Array<object>>}
  */
-const CONVERSATIONAL_SKIP_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|qu[eé]\s+puedes\s+hacer|qui[eé]n\s+eres|ayuda)$/i;
+const OPERATIONAL_OR_CONVERSATIONAL_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|qu[eé]\s+puedes\s+hacer|qui[eé]n\s+eres|ayuda|recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve|\d+\s*minutos?\s*antes|\d+\s*horas?\s*antes|mu[eé]strame|lista|agenda|pendientes|qu[eé]\s+tengo\s+para\s+hoy|c[oó]mo\s+quedan|otra\s+vez)\b/i;
 
 export async function retrieveRelevantMemories({ userId, queryText, limit = 4 }) {
   if (!userId || !queryText) return [];
 
   const clean = queryText.trim().toLowerCase().replace(/[.,!?:;¿¡]/g, '');
-  // Skip embedding vector search on pure greetings, pleasantries, and short conversational turns
-  if (clean.length < 3 || CONVERSATIONAL_SKIP_REGEX.test(clean)) {
+  // Skip embedding vector search on operational commands, greetings, and relative follow-up turns
+  if (clean.length < 4 || OPERATIONAL_OR_CONVERSATIONAL_REGEX.test(clean)) {
     return [];
   }
 
