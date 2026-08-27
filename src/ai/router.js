@@ -66,6 +66,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     const jsonStr = extractFirstJsonObject(rawText);
     if (jsonStr) {
       plan = JSON.parse(jsonStr);
+      if (plan.reasoning) {
+        console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
+      }
     } else if (rawText && !rawText.startsWith('{')) {
       plan.reply = rawText;
     }

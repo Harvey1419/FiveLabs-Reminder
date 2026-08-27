@@ -116,6 +116,7 @@ ${compactOverviewText}
 
 ## 5. RESPUESTA JSON ESTRICTA
 {
+  "reasoning": "Breve análisis paso a paso: 1) Intención del usuario (crear, cancelar, modificar, renombrar, consultar). 2) Verificación contra el historial y la [Agenda Viva]. 3) Decisión de mutación en BD o respuesta pura.",
   "type": "tool_call" | "chat",
   "tool": ${toolEnumSchema},
   "params": { ... },
