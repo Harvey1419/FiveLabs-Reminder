@@ -255,6 +255,14 @@ export async function handleWebhook(req, res) {
       return;
     }
 
+    // Extract WhatsApp quoted/replied message context (Swipe to Reply)
+    const contextObj = message.context || body.message?.context || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.context;
+    const quotedText = contextObj?.quoted_content || contextObj?.body || contextObj?.text || contextObj?.message?.text?.body || contextObj?.message?.text || null;
+    if (quotedText && typeof quotedText === 'string' && quotedText.trim().length > 0) {
+      console.log(`[webhook] Quoted message detected: "${quotedText.slice(0, 60)}..."`);
+      messageText = `[Respondiendo a: "${quotedText.trim()}"]\n${messageText}`;
+    }
+
     const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
     console.log(`[webhook] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
 
