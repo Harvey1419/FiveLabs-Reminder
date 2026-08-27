@@ -256,11 +256,12 @@ export function stripReminderPrefix(text) {
  */
 export async function isWithin24HourWindow(phoneNumber) {
   if (!phoneNumber) return false;
-  const cleanPhone = normalizePhoneNumber(phoneNumber);
-  if (!cleanPhone) return false;
+  const str = String(phoneNumber).trim();
+  const isBsuid = str.includes('.') || str.startsWith('CO.') || str.startsWith('US.') || str.startsWith('AR.');
+  const identifier = isBsuid ? str : (normalizePhoneNumber(str) || str);
 
   // 1. Ultra-fast RAM lookup: Check in-memory userCache (0ms CPU operation)
-  const cached = userCache.get(cleanPhone);
+  const cached = userCache.get(identifier) || (isBsuid ? null : userCache.get(normalizePhoneNumber(str)));
   if (cached?.user?.last_user_message_at) {
     const lastActiveMs = new Date(cached.user.last_user_message_at).getTime();
     if (!isNaN(lastActiveMs)) {
@@ -280,7 +281,7 @@ export async function isWithin24HourWindow(phoneNumber) {
     const { data, error } = await supabase
       .from('messages')
       .select('created_at')
-      .eq('phone_number', cleanPhone)
+      .eq('phone_number', identifier)
       .eq('role', 'user')
       .gt('created_at', threshold)
       .limit(1);
