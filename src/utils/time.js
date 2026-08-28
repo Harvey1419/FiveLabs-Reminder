@@ -6,29 +6,136 @@ const UNIT_WORDS = {
   pt: { minutes: 'minuto', hours: 'hora', days: 'dia', weeks: 'semana' },
 };
 
+/**
+ * Meta WhatsApp Business-Scoped User ID (BSUID) ISO 3166-1 alpha-2 mapping.
+ */
+export const BSUID_COUNTRY_TIMEZONES = Object.freeze({
+  CO: 'America/Bogota',
+  MX: 'America/Mexico_City',
+  AR: 'America/Argentina/Buenos_Aires',
+  ES: 'Europe/Madrid',
+  PE: 'America/Lima',
+  CL: 'America/Santiago',
+  EC: 'America/Guayaquil',
+  VE: 'America/Caracas',
+  BR: 'America/Sao_Paulo',
+  US: 'America/New_York',
+  CA: 'America/Toronto',
+  GB: 'Europe/London',
+  FR: 'Europe/Paris',
+  DE: 'Europe/Berlin',
+  IT: 'Europe/Rome',
+  PT: 'Europe/Lisbon',
+  UY: 'America/Montevideo',
+  PY: 'America/Asuncion',
+  BO: 'America/La_Paz',
+  CR: 'America/Costa_Rica',
+  PA: 'America/Panama',
+  DO: 'America/Santo_Domingo',
+  GT: 'America/Guatemala',
+});
+
+/**
+ * E.164 International Dialing Code Prefixes.
+ */
+const COUNTRY_CALLING_CODES = Object.freeze([
+  { prefix: '34', tz: 'Europe/Madrid' },
+  { prefix: '57', tz: 'America/Bogota' },
+  { prefix: '54', tz: 'America/Argentina/Buenos_Aires' },
+  { prefix: '52', tz: 'America/Mexico_City' },
+  { prefix: '56', tz: 'America/Santiago' },
+  { prefix: '51', tz: 'America/Lima' },
+  { prefix: '593', tz: 'America/Guayaquil' },
+  { prefix: '58', tz: 'America/Caracas' },
+  { prefix: '55', tz: 'America/Sao_Paulo' },
+  { prefix: '44', tz: 'Europe/London' },
+  { prefix: '33', tz: 'Europe/Paris' },
+  { prefix: '49', tz: 'Europe/Berlin' },
+  { prefix: '39', tz: 'Europe/Rome' },
+  { prefix: '351', tz: 'Europe/Lisbon' },
+]);
+
+/**
+ * US/Canada Area Code sets for O(1) matching.
+ */
+const US_BOISE_CODES = new Set(['208', '986']);
+const US_PACIFIC_CODES = new Set([
+  '206', '209', '213', '310', '323', '408', '415', '503', '509', '510',
+  '530', '559', '562', '619', '626', '650', '661', '702', '707', '714',
+  '760', '775', '805', '818', '831', '858', '909', '916', '925', '949',
+  '951', '971',
+]);
+const US_MOUNTAIN_CODES = new Set([
+  '303', '719', '720', '970', '480', '520', '602', '623', '928', '801',
+  '385', '505', '575', '406', '307',
+]);
+const US_CENTRAL_CODES = new Set([
+  '214', '281', '469', '512', '713', '832', '972', '312', '773', '847',
+  '630', '815', '612', '651', '763', '952', '314', '636', '816',
+]);
+const US_EASTERN_CODES = new Set([
+  '212', '315', '516', '518', '585', '607', '631', '646', '716', '718',
+  '845', '914', '917', '929', '305', '786', '954', '407', '813', '202',
+  '404', '678', '617', '215', '267', '412', '703', '571', '919', '704',
+  '410', '443',
+]);
+
+/**
+ * Natural language city and destination keyword map.
+ */
+const CITY_LOCATION_MAP = Object.freeze([
+  { pattern: /\b(madrid|barcelona|valencia|sevilla|espana|spain|malaga|bilbao|ibiza|mallorca|zaragoza)\b/i, tz: 'Europe/Madrid' },
+  { pattern: /\b(bogota|medellin|cali|barranquilla|cartagena|bucaramanga|pereira|manizales|colombia|santa marta)\b/i, tz: 'America/Bogota' },
+  { pattern: /\b(buenos aires|caba|cordoba|rosario|mendoza|argentina|bariloche|la plata|mar del plata)\b/i, tz: 'America/Argentina/Buenos_Aires' },
+  { pattern: /\b(ciudad de mexico|cdmx|mexico city|guadalajara|monterrey|cancun|mexico|puebla|tijuana|queretaro)\b/i, tz: 'America/Mexico_City' },
+  { pattern: /\b(santiago de chile|santiago|chile|valparaiso|concepcion|antofagasta)\b/i, tz: 'America/Santiago' },
+  { pattern: /\b(miami|orlando|nueva york|new york|nyc|boston|atlanta|washington|filadelfia|philadelphia|tampa)\b/i, tz: 'America/New_York' },
+  { pattern: /\b(boise|idaho)\b/i, tz: 'America/Boise' },
+  { pattern: /\b(los angeles|san francisco|seattle|las vegas|california|san diego|portland)\b/i, tz: 'America/Los_Angeles' },
+  { pattern: /\b(chicago|dallas|houston|austin|san antonio|texas)\b/i, tz: 'America/Chicago' },
+  { pattern: /\b(denver|colorado|phoenix|salt lake city|arizona)\b/i, tz: 'America/Denver' },
+  { pattern: /\b(lima|cusco|cuzco|arequipa|peru)\b/i, tz: 'America/Lima' },
+  { pattern: /\b(londres|london|reino unido|united kingdom|uk)\b/i, tz: 'Europe/London' },
+  { pattern: /\b(paris|francia|france)\b/i, tz: 'Europe/Paris' },
+  { pattern: /\b(tokio|tokyo|japon|japan)\b/i, tz: 'Asia/Tokyo' },
+  { pattern: /\b(sao paulo|rio de janeiro|brasil|brazil)\b/i, tz: 'America/Sao_Paulo' },
+]);
+
+/**
+ * GPS Bounding boxes for coordinates-based timezone resolution.
+ */
+const GPS_BOUNDING_BOXES = Object.freeze([
+  { minLat: -4.5, maxLat: 13.5, minLon: -79.5, maxLon: -66.5, tz: 'America/Bogota' },
+  { minLat: 35.0, maxLat: 44.5, minLon: -9.5, maxLon: 4.5, tz: 'Europe/Madrid' },
+  { minLat: -55.5, maxLat: -21.5, minLon: -74.0, maxLon: -53.0, tz: 'America/Argentina/Buenos_Aires' },
+  { minLat: 14.0, maxLat: 33.0, minLon: -118.5, maxLon: -86.0, tz: 'America/Mexico_City' },
+  { minLat: -56.0, maxLat: -17.5, minLon: -76.0, maxLon: -66.0, tz: 'America/Santiago' },
+  { minLat: 41.5, maxLat: 49.0, minLon: -117.5, maxLon: -111.0, tz: 'America/Boise' },
+  { minLat: 32.0, maxLat: 49.0, minLon: -125.0, maxLon: -114.0, tz: 'America/Los_Angeles' },
+  { minLat: 31.0, maxLat: 49.0, minLon: -114.0, maxLon: -103.0, tz: 'America/Denver' },
+  { minLat: 25.0, maxLat: 49.0, minLon: -105.0, maxLon: -84.0, tz: 'America/Chicago' },
+  { minLat: 24.0, maxLat: 48.0, minLon: -84.0, maxLon: -67.0, tz: 'America/New_York' },
+  { minLat: 49.5, maxLat: 60.0, minLon: -8.5, maxLon: 2.0, tz: 'Europe/London' },
+  { minLat: 41.5, maxLat: 51.5, minLon: -5.5, maxLon: 10.0, tz: 'Europe/Paris' },
+]);
+
 function pluralUnit(value, unit, language = 'es') {
   const word = UNIT_WORDS[language]?.[unit] || unit;
   return `${value} ${word}${value > 1 ? 's' : ''}`;
 }
 
 /**
- * Compute the UTC offset string (e.g. "-05:00", "+00:00") for a specific IANA timezone at the current instant.
- *
- * @param {string} [timezone='America/Bogota']
- * @returns {string}
+ * Compute the UTC offset string (e.g. "-05:00", "+00:00") for a specific IANA timezone.
  */
 export function computeOffsetMinutes(timezone = DEFAULT_TIMEZONE) {
   try {
-    const now = new Date();
-    // Get formatted string in the target timezone
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'longOffset',
     });
-    const parts = formatter.formatToParts(now);
+    const parts = formatter.formatToParts(new Date());
     const tzPart = parts.find(p => p.type === 'timeZoneName');
-    if (tzPart && tzPart.value) {
-      // E.g. "GMT-05:00" or "GMT+02:00" or "GMT"
+    if (tzPart?.value) {
       const match = tzPart.value.match(/GMT([+-]\d{2}:\d{2})/);
       if (match) return match[1];
       if (tzPart.value === 'GMT') return '+00:00';
@@ -36,16 +143,11 @@ export function computeOffsetMinutes(timezone = DEFAULT_TIMEZONE) {
   } catch (err) {
     console.warn(`[time] failed to compute offset for ${timezone}:`, err.message);
   }
-
-  // Fallback Colombia offset
   return '-05:00';
 }
 
 /**
- * Returns current local time as ISO 8601 with explicit offset, e.g. "2026-06-18T22:00:00-05:00".
- *
- * @param {string} [timezone='America/Bogota']
- * @returns {string}
+ * Returns current local time as ISO 8601 with explicit offset.
  */
 export function nowISO(timezone = DEFAULT_TIMEZONE) {
   const offset = computeOffsetMinutes(timezone);
@@ -67,11 +169,7 @@ export function nowISO(timezone = DEFAULT_TIMEZONE) {
 }
 
 /**
- * Returns current local time in human form, e.g. "miércoles 18 de junio, 22:00".
- *
- * @param {string} [timezone='America/Bogota']
- * @param {string} [language='es']
- * @returns {string}
+ * Returns current local time in human form.
  */
 export function nowHuman(timezone = DEFAULT_TIMEZONE, language = 'es') {
   const intlLocale = language === 'en' ? 'en-US' : language === 'pt' ? 'pt-BR' : 'es-CO';
@@ -92,18 +190,13 @@ export function nowHuman(timezone = DEFAULT_TIMEZONE, language = 'es') {
 
 /**
  * Parse a targetTime string from the LLM into a UTC-anchored Date.
- * Accepts either ISO with offset ("2026-06-18T22:00:00-05:00") or naive ("2026-06-18T22:00:00").
- *
- * @param {string} str
- * @param {string} [timezone='America/Bogota']
- * @returns {Date|null}
  */
 export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
   if (!str) return null;
   const s = String(str).trim();
   const offset = computeOffsetMinutes(timezone);
 
-  // 1. Relative offset format (e.g. "+10m", "+10 min", "10m", "20m", "in 15 minutes", "en 10 minutos")
+  // 1. Relative offset format (e.g. "+10m", "in 15 minutes", "en 10 minutos")
   const relMatch = s.match(/^(?:\+?|in\s+|en\s+)?(\d+)\s*(m|min|mins|minuto|minutos|h|hr|hrs|hora|horas|d|d[ií]a|d[ií]as)$/i);
   if (relMatch) {
     const val = parseInt(relMatch[1], 10);
@@ -115,7 +208,7 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     return new Date(Date.now() + ms);
   }
 
-  // 2. 12-hour AM/PM format (e.g. "6:00 PM", "6 PM", "06:30 pm", "6:00 AM", "6 am")
+  // 2. 12-hour AM/PM format (e.g. "6:00 PM", "6 PM", "06:30 pm", "6 am")
   const ampmMatch = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
   if (ampmMatch) {
     let hours = parseInt(ampmMatch[1], 10);
@@ -138,19 +231,14 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
     let d = new Date(`${todayStr}T${s}${s.length <= 5 ? ':00' : ''}${offset}`);
     if (!isNaN(d.getTime())) {
-      // Smart daytime heuristic: if "6:00" was given (6 AM passed), check if 18:00 (6 PM) is upcoming today
       const rawHour = parseInt(s.split(':')[0], 10);
       if (rawHour > 0 && rawHour <= 11 && d.getTime() <= Date.now()) {
         const pmHour = rawHour + 12;
         const pmTimeStr = `${String(pmHour).padStart(2, '0')}:${s.split(':')[1]}${s.length > 5 ? s.slice(5) : ':00'}`;
         const pmDate = new Date(`${todayStr}T${pmTimeStr}${offset}`);
-        if (pmDate.getTime() > Date.now()) {
-          return pmDate;
-        }
+        if (pmDate.getTime() > Date.now()) return pmDate;
       }
-      if (d.getTime() <= Date.now()) {
-        d.setDate(d.getDate() + 1);
-      }
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
       return d;
     }
   }
@@ -161,17 +249,13 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // 5. Naive ISO — treat as user's local timezone.
+  // 5. Naive ISO
   const d = new Date(s + offset);
   return isNaN(d.getTime()) ? null : d;
 }
 
 /**
  * Convert an ISO datetime into a human "in X minutes/hours/days/weeks" string.
- *
- * @param {Date} targetDate
- * @param {string} [language='es']
- * @returns {{value: number, unit: string, label: string}}
  */
 export function humanizeTimeUntil(targetDate, language = 'es') {
   const ms = targetDate.getTime() - Date.now();
@@ -193,14 +277,6 @@ export function humanizeTimeUntil(targetDate, language = 'es') {
   return { value: weeks, unit: 'weeks', label: pluralUnit(weeks, 'weeks', language) };
 }
 
-/**
- * Format a timestamp for localized user-facing status.
- *
- * @param {Date|string|number} date
- * @param {string} [timezone='America/Bogota']
- * @param {string} [locale='es-CO']
- * @returns {string}
- */
 export function formatLocalDateTime(date, timezone = DEFAULT_TIMEZONE, locale = 'es-CO') {
   try {
     return new Date(date).toLocaleString(locale, {
@@ -217,9 +293,6 @@ export function formatLocalDateTime(date, timezone = DEFAULT_TIMEZONE, locale = 
   }
 }
 
-/**
- * Helper for relative time calculations in prompt construction.
- */
 export function addMinutes(localStr, minutes, timezone = DEFAULT_TIMEZONE) {
   const offset = computeOffsetMinutes(timezone);
   const d = new Date(localStr + offset);
@@ -227,16 +300,11 @@ export function addMinutes(localStr, minutes, timezone = DEFAULT_TIMEZONE) {
   return formatLocalISO(d, timezone);
 }
 
-/**
- * Helper for absolute time today/tomorrow in prompt construction.
- */
 export function todayAt(localStr, hour, minute, timezone = DEFAULT_TIMEZONE) {
   const offset = computeOffsetMinutes(timezone);
   const d = new Date(localStr + offset);
   d.setHours(hour, minute, 0, 0);
-  if (d.getTime() <= Date.now()) {
-    d.setDate(d.getDate() + 1);
-  }
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
   return formatLocalISO(d, timezone);
 }
 
@@ -253,74 +321,37 @@ export function formatLocalISO(d, timezone = DEFAULT_TIMEZONE) {
 }
 
 /**
- * Detect IANA timezone from E.164 phone number prefix / area code.
- *
- * @param {string} rawPhone
- * @returns {string} IANA timezone
+ * Detect IANA timezone from phone number, BSUID or dialing code.
  */
 export function detectTimezoneFromPhone(rawPhone) {
   if (!rawPhone || typeof rawPhone !== 'string') return DEFAULT_TIMEZONE;
-  const digits = rawPhone.replace(/\D/g, '');
+  const trimmed = rawPhone.trim();
+
+  // 1. Meta BSUID ISO 3166-1 Alpha-2 resolution (e.g. "CO.1046858631495979", "MX.9999...")
+  if (trimmed.includes('.')) {
+    const isoCode = trimmed.split('.')[0]?.toUpperCase();
+    if (isoCode && BSUID_COUNTRY_TIMEZONES[isoCode]) {
+      return BSUID_COUNTRY_TIMEZONES[isoCode];
+    }
+    return DEFAULT_TIMEZONE;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
   if (!digits) return DEFAULT_TIMEZONE;
 
-  // Spain (+34)
-  if (digits.startsWith('34')) return 'Europe/Madrid';
-  // Colombia (+57)
-  if (digits.startsWith('57')) return 'America/Bogota';
-  // Argentina (+54)
-  if (digits.startsWith('54')) return 'America/Argentina/Buenos_Aires';
-  // Mexico (+52)
-  if (digits.startsWith('52')) return 'America/Mexico_City';
-  // Chile (+56)
-  if (digits.startsWith('56')) return 'America/Santiago';
-  // Peru (+51)
-  if (digits.startsWith('51')) return 'America/Lima';
-  // Ecuador (+593)
-  if (digits.startsWith('593')) return 'America/Guayaquil';
-  // Venezuela (+58)
-  if (digits.startsWith('58')) return 'America/Caracas';
-  // Brazil (+55)
-  if (digits.startsWith('55')) return 'America/Sao_Paulo';
-  // UK (+44)
-  if (digits.startsWith('44')) return 'Europe/London';
-  // France (+33)
-  if (digits.startsWith('33')) return 'Europe/Paris';
+  // 2. Direct E.164 Country Calling Codes
+  for (const { prefix, tz } of COUNTRY_CALLING_CODES) {
+    if (digits.startsWith(prefix)) return tz;
+  }
 
-  // US / Canada (+1)
+  // 3. US / Canada (+1) Area Code resolution
   if (digits.startsWith('1') && digits.length >= 4) {
     const areaCode = digits.slice(1, 4);
-
-    // Idaho / Boise
-    if (['208', '986'].includes(areaCode)) return 'America/Boise';
-
-    // Pacific US (CA, WA, OR, NV)
-    if ([
-      '206', '209', '213', '310', '323', '408', '415', '503', '509', '510',
-      '530', '559', '562', '619', '626', '650', '661', '702', '707', '714',
-      '760', '775', '805', '818', '831', '858', '909', '916', '925', '949',
-      '951', '971'
-    ].includes(areaCode)) return 'America/Los_Angeles';
-
-    // Mountain US (CO, AZ, UT, NM, MT, WY)
-    if ([
-      '303', '719', '720', '970', '480', '520', '602', '623', '928', '801',
-      '385', '505', '575', '406', '307'
-    ].includes(areaCode)) return 'America/Denver';
-
-    // Central US (IL, TX, MN, MO, etc.)
-    if ([
-      '214', '281', '469', '512', '713', '832', '972', '312', '773', '847',
-      '630', '815', '612', '651', '763', '952', '314', '636', '816'
-    ].includes(areaCode)) return 'America/Chicago';
-
-    // Eastern US (NY, FL, MA, GA, DC, PA, NC, VA, etc.)
-    if ([
-      '212', '315', '516', '518', '585', '607', '631', '646', '716', '718',
-      '845', '914', '917', '929', '305', '786', '954', '407', '813', '202',
-      '404', '678', '617', '215', '267', '412', '703', '571', '919', '704',
-      '410', '443'
-    ].includes(areaCode)) return 'America/New_York';
-
+    if (US_BOISE_CODES.has(areaCode)) return 'America/Boise';
+    if (US_PACIFIC_CODES.has(areaCode)) return 'America/Los_Angeles';
+    if (US_MOUNTAIN_CODES.has(areaCode)) return 'America/Denver';
+    if (US_CENTRAL_CODES.has(areaCode)) return 'America/Chicago';
+    if (US_EASTERN_CODES.has(areaCode)) return 'America/New_York';
     return 'America/New_York';
   }
 
@@ -328,67 +359,101 @@ export function detectTimezoneFromPhone(rawPhone) {
 }
 
 /**
- * Detect IANA timezone from natural text mentioning cities, countries, or travel destinations.
- *
- * @param {string} text
- * @returns {string|null} IANA timezone or null
+ * Detect IANA timezone from natural text mentioning cities or countries.
  */
 export function detectTimezoneFromLocationText(text) {
   if (!text || typeof text !== 'string') return null;
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  for (const item of CITY_LOCATION_MAP) {
+    if (item.pattern.test(normalized)) return item.tz;
+  }
+  return null;
+}
 
-  const normalized = text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+/**
+ * Major Latin American and Global cities for instant reverse-geocoding (0.001ms).
+ */
+export const KNOWN_MAJOR_CITIES = Object.freeze([
+  // Colombia
+  { city: 'Bucaramanga', region: 'Santander', country: 'Colombia', lat: 7.1193, lon: -73.1227, tz: 'America/Bogota' },
+  { city: 'Bogotá', region: 'Cundinamarca', country: 'Colombia', lat: 4.7110, lon: -74.0721, tz: 'America/Bogota' },
+  { city: 'Medellín', region: 'Antioquia', country: 'Colombia', lat: 6.2442, lon: -75.5812, tz: 'America/Bogota' },
+  { city: 'Cali', region: 'Valle del Cauca', country: 'Colombia', lat: 3.4516, lon: -76.5320, tz: 'America/Bogota' },
+  { city: 'Barranquilla', region: 'Atlántico', country: 'Colombia', lat: 10.9685, lon: -74.7813, tz: 'America/Bogota' },
+  { city: 'Cartagena', region: 'Bolívar', country: 'Colombia', lat: 10.3910, lon: -75.4794, tz: 'America/Bogota' },
+  { city: 'Cúcuta', region: 'Norte de Santander', country: 'Colombia', lat: 7.8939, lon: -72.5078, tz: 'America/Bogota' },
+  { city: 'Pereira', region: 'Risaralda', country: 'Colombia', lat: 4.8133, lon: -75.6961, tz: 'America/Bogota' },
+  { city: 'Manizales', region: 'Caldas', country: 'Colombia', lat: 5.0689, lon: -75.5174, tz: 'America/Bogota' },
+  { city: 'Santa Marta', region: 'Magdalena', country: 'Colombia', lat: 11.2408, lon: -74.1990, tz: 'America/Bogota' },
+  { city: 'Ibagué', region: 'Tolima', country: 'Colombia', lat: 4.4389, lon: -75.2322, tz: 'America/Bogota' },
+  { city: 'Villavicencio', region: 'Meta', country: 'Colombia', lat: 4.1420, lon: -73.6266, tz: 'America/Bogota' },
+  { city: 'Pasto', region: 'Nariño', country: 'Colombia', lat: 1.2136, lon: -77.2811, tz: 'America/Bogota' },
+  { city: 'Montería', region: 'Córdoba', country: 'Colombia', lat: 8.7479, lon: -75.8814, tz: 'America/Bogota' },
+  { city: 'Neiva', region: 'Huila', country: 'Colombia', lat: 2.9273, lon: -75.2819, tz: 'America/Bogota' },
+  { city: 'Armenia', region: 'Quindío', country: 'Colombia', lat: 4.5339, lon: -75.6811, tz: 'America/Bogota' },
+  { city: 'Popayán', region: 'Cauca', country: 'Colombia', lat: 2.4448, lon: -76.6147, tz: 'America/Bogota' },
+  { city: 'Valledupar', region: 'Cesar', country: 'Colombia', lat: 10.4631, lon: -73.2532, tz: 'America/Bogota' },
 
-  const cityMap = [
-    // Spain (Europe/Madrid)
-    { pattern: /\b(madrid|barcelona|valencia|sevilla|espana|spain|malaga|bilbao|ibiza|mallorca|zaragoza)\b/i, tz: 'Europe/Madrid' },
-    // Colombia (America/Bogota)
-    { pattern: /\b(bogota|medellin|cali|barranquilla|cartagena|bucaramanga|pereira|manizales|colombia|santa marta)\b/i, tz: 'America/Bogota' },
-    // Argentina (America/Argentina/Buenos_Aires)
-    { pattern: /\b(buenos aires|caba|cordoba|rosario|mendoza|argentina|bariloche|la plata|mar del plata)\b/i, tz: 'America/Argentina/Buenos_Aires' },
-    // Mexico (America/Mexico_City)
-    { pattern: /\b(ciudad de mexico|cdmx|mexico city|guadalajara|monterrey|cancun|mexico|puebla|tijuana|queretaro)\b/i, tz: 'America/Mexico_City' },
-    // Chile (America/Santiago)
-    { pattern: /\b(santiago de chile|santiago|chile|valparaiso|concepcion|antofagasta)\b/i, tz: 'America/Santiago' },
-    // US Eastern / Florida / NY
-    { pattern: /\b(miami|orlando|nueva york|new york|nyc|boston|atlanta|washington|filadelfia|philadelphia|tampa)\b/i, tz: 'America/New_York' },
-    // Idaho / Boise
-    { pattern: /\b(boise|idaho)\b/i, tz: 'America/Boise' },
-    // US Pacific
-    { pattern: /\b(los angeles|san francisco|seattle|las vegas|california|san diego|portland)\b/i, tz: 'America/Los_Angeles' },
-    // US Central
-    { pattern: /\b(chicago|dallas|houston|austin|san antonio|texas)\b/i, tz: 'America/Chicago' },
-    // US Mountain
-    { pattern: /\b(denver|colorado|phoenix|salt lake city|arizona)\b/i, tz: 'America/Denver' },
-    // Peru
-    { pattern: /\b(lima|cusco|cuzco|arequipa|peru)\b/i, tz: 'America/Lima' },
-    // UK
-    { pattern: /\b(londres|london|reino unido|united kingdom|uk)\b/i, tz: 'Europe/London' },
-    // France
-    { pattern: /\b(paris|francia|france)\b/i, tz: 'Europe/Paris' },
-    // Japan
-    { pattern: /\b(tokio|tokyo|japon|japan)\b/i, tz: 'Asia/Tokyo' },
-    // Brazil
-    { pattern: /\b(sao paulo|rio de janeiro|brasil|brazil)\b/i, tz: 'America/Sao_Paulo' },
-  ];
+  // Mexico
+  { city: 'Ciudad de México', region: 'CDMX', country: 'México', lat: 19.4326, lon: -99.1332, tz: 'America/Mexico_City' },
+  { city: 'Guadalajara', region: 'Jalisco', country: 'México', lat: 20.6597, lon: -103.3496, tz: 'America/Mexico_City' },
+  { city: 'Monterrey', region: 'Nuevo León', country: 'México', lat: 25.6866, lon: -100.3161, tz: 'America/Mexico_City' },
+  { city: 'Cancún', region: 'Quintana Roo', country: 'México', lat: 21.1619, lon: -86.8515, tz: 'America/Cancun' },
 
-  for (const item of cityMap) {
-    if (item.pattern.test(normalized)) {
-      return item.tz;
+  // Argentina
+  { city: 'Buenos Aires', region: 'CABA', country: 'Argentina', lat: -34.6037, lon: -58.3816, tz: 'America/Argentina/Buenos_Aires' },
+  { city: 'Córdoba', region: 'Córdoba', country: 'Argentina', lat: -31.4201, lon: -64.1888, tz: 'America/Argentina/Buenos_Aires' },
+  { city: 'Rosario', region: 'Santa Fe', country: 'Argentina', lat: -32.9468, lon: -60.6393, tz: 'America/Argentina/Buenos_Aires' },
+
+  // Spain
+  { city: 'Madrid', region: 'Madrid', country: 'España', lat: 40.4168, lon: -3.7038, tz: 'Europe/Madrid' },
+  { city: 'Barcelona', region: 'Cataluña', country: 'España', lat: 41.3851, lon: 2.1734, tz: 'Europe/Madrid' },
+  { city: 'Valencia', region: 'Valencia', country: 'España', lat: 39.4699, lon: -0.3763, tz: 'Europe/Madrid' },
+
+  // US
+  { city: 'Miami', region: 'FL', country: 'EE. UU.', lat: 25.7617, lon: -80.1918, tz: 'America/New_York' },
+  { city: 'Orlando', region: 'FL', country: 'EE. UU.', lat: 28.5383, lon: -81.3792, tz: 'America/New_York' },
+  { city: 'Nueva York', region: 'NY', country: 'EE. UU.', lat: 40.7128, lon: -74.0060, tz: 'America/New_York' },
+  { city: 'Los Ángeles', region: 'CA', country: 'EE. UU.', lat: 34.0522, lon: -118.2437, tz: 'America/Los_Angeles' },
+  { city: 'Boise', region: 'ID', country: 'EE. UU.', lat: 43.6150, lon: -116.2023, tz: 'America/Boise' },
+  { city: 'Houston', region: 'TX', country: 'EE. UU.', lat: 29.7604, lon: -95.3698, tz: 'America/Chicago' },
+]);
+
+/**
+ * Find the nearest city name from GPS coordinates (Instant Reverse-Geocoding in 0.001ms).
+ * @param {number} latitude
+ * @param {number} longitude
+ * @returns {{city: string, region: string, country: string, tz: string, distanceKm: number}|null}
+ */
+export function getNearestCityFromCoordinates(latitude, longitude) {
+  if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) return null;
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (isNaN(lat) || isNaN(lon)) return null;
+
+  let bestMatch = null;
+  let minDistanceSq = Infinity;
+
+  for (const c of KNOWN_MAJOR_CITIES) {
+    const dLat = lat - c.lat;
+    const dLon = (lon - c.lon) * Math.cos((lat * Math.PI) / 180);
+    const distSq = dLat * dLat + dLon * dLon;
+    if (distSq < minDistanceSq) {
+      minDistanceSq = distSq;
+      bestMatch = c;
     }
+  }
+
+  const distanceKm = Math.round(Math.sqrt(minDistanceSq) * 111);
+  if (bestMatch && distanceKm <= 250) {
+    return { ...bestMatch, distanceKm };
   }
 
   return null;
 }
 
 /**
- * Detect IANA timezone from GPS latitude/longitude coordinates (e.g. from WhatsApp location pin).
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {string|null}
+ * Detect IANA timezone from GPS coordinates.
  */
 export function detectTimezoneFromCoordinates(latitude, longitude) {
   if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) return null;
@@ -396,41 +461,15 @@ export function detectTimezoneFromCoordinates(latitude, longitude) {
   const lon = Number(longitude);
   if (isNaN(lat) || isNaN(lon)) return null;
 
-  // Colombia: lat [-4.5, 13.5], lon [-79.5, -66.5]
-  if (lat >= -4.5 && lat <= 13.5 && lon >= -79.5 && lon <= -66.5) return 'America/Bogota';
+  // 1. Try nearest city match
+  const nearest = getNearestCityFromCoordinates(lat, lon);
+  if (nearest?.tz) return nearest.tz;
 
-  // Spain: lat [35.0, 44.5], lon [-9.5, 4.5]
-  if (lat >= 35.0 && lat <= 44.5 && lon >= -9.5 && lon <= 4.5) return 'Europe/Madrid';
-
-  // Argentina: lat [-55.5, -21.5], lon [-74.0, -53.0]
-  if (lat >= -55.5 && lat <= -21.5 && lon >= -74.0 && lon <= -53.0) return 'America/Argentina/Buenos_Aires';
-
-  // Mexico: lat [14.0, 33.0], lon [-118.5, -86.0]
-  if (lat >= 14.0 && lat <= 33.0 && lon >= -118.5 && lon <= -86.0) return 'America/Mexico_City';
-
-  // Chile: lat [-56.0, -17.5], lon [-76.0, -66.0]
-  if (lat >= -56.0 && lat <= -17.5 && lon >= -76.0 && lon <= -66.0) return 'America/Santiago';
-
-  // Idaho / Boise: lat [41.5, 49.0], lon [-117.5, -111.0]
-  if (lat >= 41.5 && lat <= 49.0 && lon >= -117.5 && lon <= -111.0) return 'America/Boise';
-
-  // US Pacific: lat [32.0, 49.0], lon [-125.0, -114.0]
-  if (lat >= 32.0 && lat <= 49.0 && lon >= -125.0 && lon <= -114.0) return 'America/Los_Angeles';
-
-  // US Mountain: lat [31.0, 49.0], lon [-114.0, -103.0]
-  if (lat >= 31.0 && lat <= 49.0 && lon >= -114.0 && lon <= -103.0) return 'America/Denver';
-
-  // US Central: lat [25.0, 49.0], lon [-105.0, -84.0]
-  if (lat >= 25.0 && lat <= 49.0 && lon >= -105.0 && lon <= -84.0) return 'America/Chicago';
-
-  // US East: lat [24.0, 48.0], lon [-84.0, -67.0]
-  if (lat >= 24.0 && lat <= 48.0 && lon >= -84.0 && lon <= -67.0) return 'America/New_York';
-
-  // UK: lat [49.5, 60.0], lon [-8.5, 2.0]
-  if (lat >= 49.5 && lat <= 60.0 && lon >= -8.5 && lon <= 2.0) return 'Europe/London';
-
-  // France: lat [41.5, 51.5], lon [-5.5, 10.0]
-  if (lat >= 41.5 && lat <= 51.5 && lon >= -5.5 && lon <= 10.0) return 'Europe/Paris';
-
+  // 2. Bounding box fallback
+  for (const box of GPS_BOUNDING_BOXES) {
+    if (lat >= box.minLat && lat <= box.maxLat && lon >= box.minLon && lon <= box.maxLon) {
+      return box.tz;
+    }
+  }
   return null;
 }

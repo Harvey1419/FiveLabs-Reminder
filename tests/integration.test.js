@@ -196,7 +196,16 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
   });
 
   describe('4. Dynamic Timezone Resolution', () => {
-    it('detects timezone from international phone prefixes', () => {
+    it('detects timezone from international phone prefixes and Meta BSUIDs', () => {
+      // Meta WhatsApp BSUID ISO 3166-1 Alpha-2 resolution
+      expect(detectTimezoneFromPhone('CO.1046858631495979')).toBe('America/Bogota');
+      expect(detectTimezoneFromPhone('AR.1234567890123456')).toBe('America/Argentina/Buenos_Aires');
+      expect(detectTimezoneFromPhone('MX.9988776655443322')).toBe('America/Mexico_City');
+      expect(detectTimezoneFromPhone('ES.1122334455667788')).toBe('Europe/Madrid');
+      expect(detectTimezoneFromPhone('US.9999888877776666')).toBe('America/New_York');
+      expect(detectTimezoneFromPhone('UNKNOWN.123456789')).toBe('America/Bogota');
+
+      // Standard E.164 Phone Prefixes
       expect(detectTimezoneFromPhone('+57 311 8588249')).toBe('America/Bogota');
       expect(detectTimezoneFromPhone('+34 612 345 678')).toBe('Europe/Madrid');
       expect(detectTimezoneFromPhone('+54 9 11 2345-6789')).toBe('America/Argentina/Buenos_Aires');

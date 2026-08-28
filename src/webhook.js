@@ -6,7 +6,7 @@ import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from 
 import { extractMemoryInBackground } from './workers/memoryExtractor.js';
 import { transcribeAudio } from './services/transcriptionService.js';
 import { processDocumentOrImage } from './services/documentService.js';
-import { detectTimezoneFromLocationText, detectTimezoneFromCoordinates } from './utils/time.js';
+import { detectTimezoneFromLocationText, detectTimezoneFromCoordinates, getNearestCityFromCoordinates } from './utils/time.js';
 
 // In-memory dedup set for message IDs we've already processed.
 const recentlyProcessed = new Set();
@@ -204,8 +204,10 @@ export async function handleWebhook(req, res) {
       const lat = loc.latitude;
       const lon = loc.longitude;
       const locName = loc.name || loc.address || '';
-      locationTz = detectTimezoneFromCoordinates(lat, lon) || detectTimezoneFromLocationText(locName);
-      messageText = `[Ubicación compartida: ${locName ? `${locName} ` : ''}(lat ${lat}, lon ${lon})]`;
+      const nearest = getNearestCityFromCoordinates(lat, lon);
+      const placeText = locName || (nearest ? `${nearest.city}, ${nearest.region || nearest.country}` : '');
+      locationTz = detectTimezoneFromCoordinates(lat, lon) || (nearest?.tz || null) || detectTimezoneFromLocationText(locName);
+      messageText = `[Ubicación compartida: ${placeText ? `${placeText} ` : ''}(lat ${lat}, lon ${lon})]`;
     } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url || audioObj?.download_url)) {
       const audioStart = Date.now();
       const mediaId = audioObj?.id || message.id;
