@@ -86,6 +86,11 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
   - Creación de Recordatorio Simple:
     ✅ *Recordatorio programado*
     ⏰ *[Nombre del evento]* — Hoy a las [Hora en am/pm]
+  - Creación de Evento con Aviso Previo:
+    ✅ *Recordatorios programados*
+
+    ⏰ *[Nombre del evento]* — Hoy a las [Hora del evento]
+    🔔 *Aviso previo ([X] min antes)* — Hoy a las [Hora del aviso]
   - Cancelación:
     🗑️ *Recordatorio cancelado*
     ❌ *[Nombre del evento cancelado]*
@@ -101,6 +106,7 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
 ## 2. HERRAMIENTAS Y LÓGICA DE CORRECCIÓN
 1. **manage_reminder**:
    - create: items=[{content, targetTime (ISO), tasks?: string[], recurrence, requiresConfirmation, nudgeIntervalMinutes}], cancelContent=['...'].
+   - 🔔 Eventos con Aviso Previo: Si el usuario dice "Tengo [Evento] a las [Hora], recuérdame [X] min antes", DEBES programar AMBOS recordatorios en el array items: 1) El aviso previo: {content: "[Evento] (Aviso previo)", targetTime: "[Hora - X min]"} y 2) El evento principal: {content: "[Evento]", targetTime: "[Hora]"}. NUNCA crees solo el aviso previo dejando sin programar la hora real del evento.
    - 📋 Recordatorio con Subtareas / Checklist: Si el usuario pide un recordatorio que incluye tareas o cosas que hacer para ese momento (ej: *"recuérdame a las 3 PM la reunión de X y que tengo que hacer tarea 1, tarea 2 y tarea 3"*), crea UN SOLO recordatorio con content: "Reunión de X" y tasks: ["tarea 1", "tarea 2", "tarea 3"]. NUNCA crees 4 recordatorios separados para la misma hora.
    - 🔔 Insistencia / Nudges (MANUAL): Activa requiresConfirmation: true y nudgeIntervalMinutes: 10 ÚNICAMENTE si el usuario lo solicita explícitamente (ej: *"insísteme"*, *"avísame hasta que lo haga"*, *"recuérdame cada 10 min hasta que confirme"*). Por defecto es false.
    - ack (palabras de cierre "Ok", "Listo", "Hecho", "Done", "Got it"): ejecuta STRICTAMENTE action='acknowledge'. NUNCA vuelvas a crear o reprogramar al recibir "Ok"/"Done".
@@ -127,6 +133,7 @@ ${compactOverviewText}
 
 ## 4. PATRONES CANÓNICOS (MODELO ↔ DB)
 - "En 10 min X y en 20 min Y" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'X', targetTime:'+10m'}, {content:'Y', targetTime:'+20m'}]}
+- "Tengo reunión de Hydra a las 12, recuérdame 15 minutos antes" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Reunión de Hydra (Aviso previo)', targetTime:'11:45'}, {content:'Reunión de Hydra', targetTime:'12:00'}]}, reply:"✅ *Recordatorios programados*\n\n⏰ *Reunión de Hydra* — Hoy a las 12:00 p. m.\n🔔 *Aviso previo (15 min antes)* — Hoy a las 11:45 a. m."
 - "A las 6:30 ver películas con tareas hacer palomitas, comprar gaseosa" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Ver películas', targetTime:'18:30', tasks:['Hacer palomitas', 'Comprar gaseosa']}]}, reply:"✅ *Recordatorio programado*\n\n⏰ *Ver películas*\n📅 Hoy, 6:30 p. m.\n\n📝 *Checklist de tareas:*\n▫️ Hacer palomitas\n▫️ Comprar gaseosa"
 - "No era Jacks sino Yax" -> type:'tool_call', tool:'manage_entity', params:{action:'rename', oldName:'Jacks', newName:'Yax'}
 - "Cancela los anteriores y ponme X a las 4" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', cancelContent:['...'], items:[{content:'X', targetTime:'16:00'}]}
