@@ -20,8 +20,9 @@ export function formatCompactOverview(overview) {
     if (!items || items.length === 0) return;
     lines.push(`*${label}*:`);
     for (const it of items.slice(0, 15)) {
+      const datePrefix = (label === 'Próximos' && it.localDate) ? `[${it.localDate}] ` : '';
       const time = it.localTime ? `⏰ ${it.localTime}: ` : '📌 ';
-      lines.push(`  - ${time}${it.content || it.title}`);
+      lines.push(`  - ${datePrefix}${time}${it.content || it.title}`);
     }
   };
 
@@ -102,6 +103,13 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
   - Si no hubo un evento específico en el último mensaje y hay varios eventos en la agenda, PREGUNTA: "¿A cuál de tus eventos te refieres?". NUNCA inventes o asumas eventos no vinculados.
 - 🤝 Cortesía y Agradecimientos: Si el usuario dice "gracias por recordarme eso", "muchas gracias", "listo gracias" o "no necesito nada más", responde con un cierre amable, cálido y conciso. NUNCA recites recordatorios pasados ni repitas la agenda a menos que el usuario pregunte explícitamente.
 - 🕒 Eventos Pasados vs Activos: Todo recordatorio con hora anterior a la actual ya ocurrió. NUNCA menciones como "activo" un recordatorio cuya hora ya pasó.
+- 📅 DISTINCIÓN TEMPORAL Y FUENTE DE VERDAD DE TAREAS:
+  - La fuente de verdad EXCLUSIVA para responder qué tareas o recordatorios tiene pendientes el usuario es [Agenda Viva].
+  - 🛑 NUNCA uses [Memorias] para inventar tareas activas o eventos que no figuren en [Agenda Viva]. Si en [Agenda Viva] no hay tareas pendientes bajo Hoy o Mañana, responde claramente que no tienes tareas pendientes registradas para esas fechas.
+  - Distinción de fechas en [Agenda Viva]:
+    - Hoy: Ocurre hoy (${nowHumanStr}).
+    - Mañana: Ocurre ÚNICAMENTE mañana.
+    - Próximos: Son eventos en fechas posteriores a mañana (ej: [2026-09-09] es el 9 de septiembre). NUNCA digas que un evento de Próximos es "para mañana". Siempre di su fecha exacta.
 
 ## 2. HERRAMIENTAS Y LÓGICA DE CORRECCIÓN
 1. **manage_reminder**:
