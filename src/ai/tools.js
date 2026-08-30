@@ -23,7 +23,7 @@ import {
   hasProAccess,
   createPendingSubscription,
 } from '../db/index.js';
-import { createPreapproval, createPreapprovalPlan } from '../services/mercadopago.js';
+import { createPreapproval, createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
   parseTargetTime,
@@ -664,7 +664,7 @@ export async function executeTool(toolName, params, user) {
 
       case 'get_subscription_link':
       case 'manage_subscription': {
-        const plan = await createPreapprovalPlan({
+        const plan = await getOrCreateCanonicalPlan({
           reason: 'FiveLabs Reminder Pro',
           amount: 49900,
           currency: 'COP',

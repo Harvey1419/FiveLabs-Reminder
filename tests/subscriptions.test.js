@@ -289,14 +289,29 @@ describe('AI Tools & Plan Tier Gating', () => {
     };
 
     const mockInitPoint = 'https://www.mercadopago.com.co/subscriptions/checkout?preapproval_id=test_sub_123';
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        id: 'test_sub_123',
-        init_point: mockInitPoint,
-        status: 'pending',
-        external_reference: user.id,
-      }),
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      if (String(url).includes('/preapproval_plan/search')) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [{
+              id: 'test_sub_123',
+              reason: 'FiveLabs Reminder Pro',
+              init_point: mockInitPoint,
+              status: 'active',
+              auto_recurring: { transaction_amount: 49900 },
+            }],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          id: 'test_sub_123',
+          init_point: mockInitPoint,
+          status: 'active',
+        }),
+      };
     });
 
     const res = await executeTool('get_subscription_link', {}, user);

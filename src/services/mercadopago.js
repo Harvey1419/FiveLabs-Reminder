@@ -13,6 +13,67 @@ function getAccessToken() {
   return token;
 }
 
+let cachedCanonicalPlan = null;
+
+/**
+ * Get existing active plan or create one canonically (Idempotent single plan pattern).
+ *
+ * @param {object} [params]
+ * @param {string} [params.reason='FiveLabs Reminder Pro']
+ * @param {number} [params.amount=49900]
+ * @param {string} [params.currency='COP']
+ * @param {string} [params.backUrl]
+ * @returns {Promise<{id: string, init_point: string, status: string}>}
+ */
+export async function getOrCreateCanonicalPlan({
+  reason = 'FiveLabs Reminder Pro',
+  amount = 49900,
+  currency = 'COP',
+  backUrl = null,
+} = {}) {
+  if (process.env.MP_PLAN_ID) {
+    return {
+      id: process.env.MP_PLAN_ID,
+      init_point: `https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=${process.env.MP_PLAN_ID}`,
+      status: 'active',
+    };
+  }
+
+  if (cachedCanonicalPlan) {
+    return cachedCanonicalPlan;
+  }
+
+  const token = getAccessToken();
+  if (token) {
+    try {
+      const res = await fetch(`${MP_API_BASE}/preapproval_plan/search?status=active`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const existing = (data.results || []).find(p =>
+        (p.reason === reason || p.reason?.includes('Reminder Pro')) &&
+        p.auto_recurring?.transaction_amount === Number(amount)
+      );
+
+      if (existing) {
+        cachedCanonicalPlan = {
+          id: existing.id,
+          init_point: existing.init_point,
+          status: existing.status,
+        };
+        console.log(`[mercadopago] Reusing canonical active plan: ${existing.id} (${existing.reason})`);
+        return cachedCanonicalPlan;
+      }
+    } catch (err) {
+      console.warn('[mercadopago] plan lookup warning:', err.message);
+    }
+  }
+
+  const created = await createPreapprovalPlan({ reason, amount, currency, backUrl });
+  cachedCanonicalPlan = created;
+  return created;
+}
+
 /**
  * Create a recurring preapproval plan without locking payer_email.
  * Customers can subscribe and enter any email in the MercadoPago checkout.

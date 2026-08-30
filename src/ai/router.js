@@ -8,7 +8,7 @@ import {
   hasProAccess,
   createPendingSubscription,
 } from '../db/index.js';
-import { createPreapprovalPlan } from '../services/mercadopago.js';
+import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -183,7 +183,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   // Universal safety check: if reply has [checkout_url] anywhere (even in type: 'chat'), replace with real link
   if (plan.reply && plan.reply.includes('[checkout_url]')) {
     try {
-      const planRes = await createPreapprovalPlan({
+      const planRes = await getOrCreateCanonicalPlan({
         reason: 'FiveLabs Reminder Pro',
         amount: 49900,
         currency: 'COP',
