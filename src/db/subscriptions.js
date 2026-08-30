@@ -17,6 +17,18 @@ export function hasProAccess(subscription, user = null) {
     return true;
   }
 
+  // Explicit free subscription record denies Pro access
+  if (subscription && subscription.plan === 'free') {
+    return false;
+  }
+
+  // For testing phase: all other users have Pro access by default.
+  // ONLY test phone 19164158325 is evaluated against the Free tier for conversion testing.
+  const isTestEvaluationPhone = user?.phone_number && user.phone_number.includes('19164158325');
+  if (!isTestEvaluationPhone && user?.phone_number) {
+    return true;
+  }
+
   if (!subscription) {
     return false;
   }
