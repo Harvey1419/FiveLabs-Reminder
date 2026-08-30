@@ -17,6 +17,8 @@ import {
   getDailyOverview,
   forgetMemories,
   searchMemories,
+  saveMemory,
+  getActiveMemories,
   supabase,
 } from '../db/index.js';
 import { isAdminUser } from '../utils/auth.js';
@@ -194,6 +196,36 @@ export async function executeTool(toolName, params, user) {
           };
         }
 
+        if (action === 'update' || action === 'reschedule') {
+          const reminderId = params.id || params.reminderId;
+          const targetTime = params.targetTime || params.sendAt;
+          const newContent = params.content;
+          const requiresConfirmation = params.requiresConfirmation ?? params.requires_confirmation;
+          const nudgeIntervalMinutes = params.nudgeIntervalMinutes ?? params.nudge_interval_minutes;
+
+          const updatePayload = {};
+          if (targetTime) {
+            const parsed = parseTargetTime(targetTime, timezone);
+            if (parsed) updatePayload.send_at = parsed.toISOString();
+          }
+          if (newContent) updatePayload.content = newContent;
+          if (requiresConfirmation !== undefined) updatePayload.requires_confirmation = Boolean(requiresConfirmation);
+          if (nudgeIntervalMinutes !== undefined) updatePayload.nudge_interval_minutes = Number(nudgeIntervalMinutes);
+
+          let q = supabase.from('reminders').update(updatePayload);
+          if (reminderId) q = q.eq('id', reminderId);
+          else if (params.contentQuery) q = q.eq('user_id', user.id).ilike('content', `%${params.contentQuery}%`).eq('status', 'pending');
+          else q = q.eq('user_id', user.id).eq('status', 'pending').order('created_at', { ascending: false }).limit(1);
+
+          const { data: updated, error: updErr } = await q.select();
+          return {
+            success: !updErr && updated?.length > 0,
+            action: 'updated_reminder',
+            data: updated || [],
+            rawSummary: updated?.length > 0 ? 'Recordatorio actualizado correctamente.' : 'No se encontró el recordatorio para actualizar.',
+          };
+        }
+
         if (action === 'list') {
           const reminders = await getRecentRemindersForPhone(user.phone_number, 10);
           const active = reminders.filter(r => r.status === 'pending');
@@ -359,8 +391,48 @@ export async function executeTool(toolName, params, user) {
           };
         }
 
+        if (action === 'update') {
+          const taskId = params.id || params.taskId;
+          const updatePayload = {};
+          if (params.title) updatePayload.title = params.title;
+          if (params.priority) updatePayload.priority = params.priority;
+          if (params.dueDate) {
+            const parsed = parseTargetTime(params.dueDate, timezone);
+            if (parsed) updatePayload.due_date = parsed.toISOString();
+          }
+          if (params.status) updatePayload.status = params.status;
+
+          let q = supabase.from('tasks').update(updatePayload).eq('user_id', user.id);
+          if (taskId) q = q.eq('id', taskId);
+          else if (params.titleQuery) q = q.ilike('title', `%${params.titleQuery}%`).eq('status', 'pending');
+
+          const { data: updated, error: updErr } = await q.select();
+          return {
+            success: !updErr && updated?.length > 0,
+            action: 'updated_task',
+            data: updated || [],
+            rawSummary: updated?.length > 0 ? 'Tarea actualizada correctamente.' : 'No se encontró la tarea para actualizar.',
+          };
+        }
+
+        if (action === 'delete' || action === 'cancel') {
+          const taskId = params.id || params.taskId;
+          let q = supabase.from('tasks').delete().eq('user_id', user.id);
+          if (taskId) q = q.eq('id', taskId);
+          else if (params.titleQuery || params.title) q = q.ilike('title', `%${params.titleQuery || params.title}%`);
+          else if (params.deleteAll) q = q.eq('status', 'pending');
+
+          const { data: deleted, error: delErr } = await q.select();
+          return {
+            success: !delErr && deleted?.length > 0,
+            action: 'deleted_tasks',
+            data: deleted || [],
+            rawSummary: deleted?.length > 0 ? `Se eliminaron ${deleted.length} tarea(s).` : 'No se encontraron tareas para eliminar.',
+          };
+        }
+
         if (action === 'list') {
-          const tasks = await getTasks({ userId: user.id, status: 'pending', limit: 10 });
+          const tasks = await getTasks({ userId: user.id, status: params.status || 'pending', limit: params.limit || 15 });
           return {
             success: true,
             action: 'listed_tasks',
@@ -392,7 +464,53 @@ export async function executeTool(toolName, params, user) {
       }
 
       case 'manage_memory': {
-        const { action, query, topicKey } = params;
+        const { action = 'list', query, topicKey, category, content, fact } = params;
+
+        if (action === 'list') {
+          const memories = await getActiveMemories({
+            userId: user.id,
+            category: category || null,
+            limit: params.limit || 15,
+          });
+          return {
+            success: true,
+            action: 'listed_memories',
+            data: memories,
+            rawSummary: `Hay ${memories.length} memorias activas registradas.`,
+          };
+        }
+
+        if (action === 'search' || action === 'query') {
+          const memories = await searchMemories({
+            userId: user.id,
+            query: query || params.search || null,
+            topicKey: topicKey || null,
+            category: category || null,
+            limit: params.limit || 10,
+          });
+          return {
+            success: true,
+            action: 'searched_memories',
+            data: memories,
+            rawSummary: `Se encontraron ${memories.length} memorias relevantes.`,
+          };
+        }
+
+        if (action === 'save' || action === 'create') {
+          const mem = await saveMemory({
+            userId: user.id,
+            topicKey: topicKey || null,
+            category: category || 'fact',
+            content: content || fact || params.text,
+            confidence: params.confidence || 1.0,
+          });
+          return {
+            success: Boolean(mem),
+            action: 'saved_memory',
+            data: mem,
+            rawSummary: mem ? `Memoria guardada correctamente: "${mem.content}"` : 'No se pudo guardar la memoria.',
+          };
+        }
 
         if (action === 'forget' || action === 'delete') {
           const result = await forgetMemories({

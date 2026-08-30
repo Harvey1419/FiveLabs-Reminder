@@ -181,10 +181,18 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
  * @param {number} [params.limit=4]
  * @returns {Promise<Array<object>>}
  */
+const META_MEMORY_QUERY_REGEX = /\b(qu[eé]\s+(sabes|conoces|recuerdas|guardas|tienes)\s+(de|sobre|acerca\s+de)\s+m[ií]|qu[eé]\s+memorias\s+tienes|qu[eé]\s+informaci[oó]n\s+tienes\s+(de|sobre)\s+m[ií]|dime\s+(todo\s+)?(lo\s+que\s+sabes|mis\s+memorias|mis\s+preferencias|mis\s+datos)|qu[eé]\s+sabes\s+de\s+mi|qu[eé]\s+sabes\s+sobre\s+mi)\b/i;
+
 const OPERATIONAL_OR_CONVERSATIONAL_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|qu[eé]\s+puedes\s+hacer|qui[eé]n\s+eres|ayuda|recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve|\d+\s*minutos?\s*antes|\d+\s*horas?\s*antes|mu[eé]strame|lista|agenda|pendientes|mis\s+(tareas|pendientes|recordatorios)|qu[eé]\s+(tareas|pendientes|recordatorios|actividades|compromisos|citas)|qu[eé]\s+(tengo|hay|qued[oó]|queda|tenemos)\s+(de\s+|para\s+)?(hoy|mañana|tareas|pendientes|recordatorios|actividades|hacer)|cu[aá]les\s+(son\s+)?(mis\s+)?(tareas|pendientes|recordatorios)|dime\s+(mis\s+|las\s+|la\s+)?(tareas|pendientes|recordatorios|agenda)|c[oó]mo\s+quedan|otra\s+vez)\b/i;
 
-export async function retrieveRelevantMemories({ userId, queryText, limit = 4 }) {
+export async function retrieveRelevantMemories({ userId, queryText, limit = 5 }) {
   if (!userId || !queryText) return [];
+
+  // If user asks about their overall memory profile, retrieve all active memories
+  if (META_MEMORY_QUERY_REGEX.test(queryText)) {
+    const { getActiveMemories } = await import('../db/index.js');
+    return getActiveMemories({ userId, limit: Math.max(limit, 15) });
+  }
 
   const clean = queryText.trim().toLowerCase().replace(/[.,!?:;¿¡]/g, '');
   // Skip embedding vector search on operational commands, greetings, task/agenda queries, and relative follow-up turns

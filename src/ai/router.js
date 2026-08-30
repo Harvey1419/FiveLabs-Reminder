@@ -1,7 +1,7 @@
 import { executeTool } from './tools.js';
 import { callChatCompletion } from './client.js';
 import { retrieveRelevantMemories } from '../services/memoryService.js';
-import { getDailyOverview } from '../db/index.js';
+import { getDailyOverview, getActiveMemories } from '../db/index.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -32,14 +32,23 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
 
   console.log(`[router] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
-  // 1. Parallel Context Pre-fetch (~80-120ms)
-  const [relevantMemories, dailyOverview] = await Promise.all([
+  // 1. Parallel Context Pre-fetch (~80-120ms): Always load active user preferences alongside dynamic memories
+  const [relevantMemories, userPreferences, dailyOverview] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 5 }),
+    user.id ? getActiveMemories({ userId: user.id, category: 'preference', limit: 5 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
   ]);
 
-  const memoryHints = relevantMemories.length > 0
-    ? relevantMemories.map(m => `- [${m.category || 'memoria'}] ${m.content}`).join('\n')
+  // Deduplicate and combine persistent preferences with topic-relevant memories
+  const combinedMemories = [...(userPreferences || [])];
+  for (const m of (relevantMemories || [])) {
+    if (!combinedMemories.some(p => p.id === m.id)) {
+      combinedMemories.push(m);
+    }
+  }
+
+  const memoryHints = combinedMemories.length > 0
+    ? combinedMemories.map(m => `- [${m.category || 'memoria'}] ${m.content}`).join('\n')
     : '';
 
   // 2. Build Authoritative Agent Core Grounded Prompt with RBAC exposure
@@ -64,8 +73,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   try {
     const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
     const jsonStr = extractFirstJsonObject(rawText);
-    if (jsonStr) {
-      plan = JSON.parse(jsonStr);
+    const parsed = safeJsonParse(jsonStr);
+    if (parsed) {
+      plan = parsed;
       if (plan.reasoning) {
         console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
       }
@@ -85,17 +95,15 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     console.warn('[router] Transaction Guard: missing database tool call detected for action intent. Executing emergency repair...');
     try {
       const rescueMessages = [
-        { role: 'system', content: `${prompt}\n\nCRITICAL MANDATE: The user requested an operational action ("${messageText}"). You MUST output a JSON with "type": "tool_call" executing "manage_reminder" (action: "create" | "cancel"), "manage_task", or "manage_entity". NEVER answer with chat-only when an action is requested.` },
+        { role: 'system', content: `${prompt}\n\nCRITICAL MANDATE: The user requested an operational action ("${messageText}"). You MUST output a JSON with "type": "tool_call" executing "manage_reminder" (action: "create" | "cancel" | "update"), "manage_task", or "manage_entity". NEVER answer with chat-only when an action is requested.` },
         { role: 'user', content: messageText },
       ];
       const rescueRaw = await callChatCompletion(rescueMessages, { max_tokens: 600, temperature: 0.0 });
       const rescueJson = extractFirstJsonObject(rescueRaw);
-      if (rescueJson) {
-        const repairedPlan = JSON.parse(rescueJson);
-        if (repairedPlan.tool && repairedPlan.type === 'tool_call') {
-          plan = repairedPlan;
-          console.log(`[router] Transaction Guard successfully repaired tool call for ${plan.tool}.`);
-        }
+      const repairedPlan = safeJsonParse(rescueJson);
+      if (repairedPlan?.tool && repairedPlan.type === 'tool_call') {
+        plan = repairedPlan;
+        console.log(`[router] Transaction Guard successfully repaired tool call for ${plan.tool}.`);
       }
     } catch (rescueErr) {
       console.error('[router] Transaction Guard repair failed:', rescueErr.message);
@@ -106,6 +114,24 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   if (plan.type === 'tool_call' && plan.tool) {
     const toolResult = await executeTool(plan.tool, plan.params || {}, user);
     console.log(`[router] Tool ${plan.tool} executed (${toolResult.action}):`, toolResult.rawSummary);
+
+    // Dynamic memory listing fallback if model left reply generic, interim or empty
+    if (toolResult.action === 'listed_memories' && Array.isArray(toolResult.data)) {
+      const isGenericOrInterim = !plan.reply ||
+        plan.reply.length < 15 ||
+        (/\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply) && !plan.reply.includes('•'));
+
+      if (isGenericOrInterim) {
+        const mems = toolResult.data;
+        if (mems.length > 0) {
+          plan.reply = `🧠 *Lo que sé y recuerdo sobre ti:*\n\n` +
+            mems.slice(0, 10).map(m => `• *${m.category ? m.category.charAt(0).toUpperCase() + m.category.slice(1) : 'Dato'}:* ${m.content}`).join('\n\n') +
+            `\n\n¿Hay algo más que quieras que tenga presente o algún detalle que actualizar? 😊`;
+        } else {
+          plan.reply = `Actualmente no tengo memorias registradas sobre ti. Puedes contarme sobre tus proyectos, personas o preferencias y las recordaré con gusto. 😊`;
+        }
+      }
+    }
 
     // Dynamic cancellation count enrichment
     if (toolResult.action === 'cancelled_reminders' && toolResult.data) {
@@ -122,14 +148,42 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   const totalDurationMs = Date.now() - startMs;
   console.log(`[router] Out in ${totalDurationMs}ms: "${finalReply.slice(0, 80)}..."`);
 
+  let inferredIntent = plan.intent || 'chat';
+  if (plan.tool === 'manage_memory') inferredIntent = 'memory';
+  else if (plan.tool === 'manage_reminder') inferredIntent = 'reminder';
+  else if (plan.tool === 'manage_task') inferredIntent = 'task';
+  else if (plan.tool === 'manage_entity') inferredIntent = 'entity';
+  else if (plan.tool === 'manage_subscription' || plan.tool === 'get_subscription_link') inferredIntent = 'subscription';
+  else if (plan.tool === 'admin_metrics') inferredIntent = 'admin';
+
   const isEnglish = (user.locale && user.locale.startsWith('en')) || /\b(hello|hi|good morning|schedule|remind me|please|help me|thank you|thanks)\b/i.test(messageText);
 
   return {
-    intent: plan.intent || 'chat',
+    intent: inferredIntent,
     entities: plan.params || {},
     language: isEnglish ? 'en' : 'es',
     confirmation: finalReply,
   };
+}
+
+function safeJsonParse(jsonStr) {
+  if (!jsonStr) return null;
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    try {
+      // Sanitize unescaped control characters inside string literals
+      const sanitized = jsonStr.replace(/[\u0000-\u001F]+/g, (match) => {
+        if (match === '\n') return '\\n';
+        if (match === '\r') return '\\r';
+        if (match === '\t') return '\\t';
+        return '';
+      });
+      return JSON.parse(sanitized);
+    } catch {
+      return null;
+    }
+  }
 }
 
 function extractFirstJsonObject(text) {

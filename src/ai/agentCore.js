@@ -114,20 +114,29 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
 ## 2. HERRAMIENTAS Y LÓGICA DE CORRECCIÓN
 1. **manage_reminder**:
    - create: items=[{content, targetTime (ISO), tasks?: string[], recurrence, requiresConfirmation, nudgeIntervalMinutes}], cancelContent=['...'].
-   - 🔔 Eventos con Aviso Previo: Si el usuario dice "Tengo [Evento] a las [Hora], recuérdame [X] min antes", DEBES programar AMBOS recordatorios en el array items: 1) El aviso previo: {content: "[Evento] (Aviso previo)", targetTime: "[Hora - X min]"} y 2) El evento principal: {content: "[Evento]", targetTime: "[Hora]"}. NUNCA crees solo el aviso previo dejando sin programar la hora real del evento.
-   - 📋 Recordatorio con Subtareas / Checklist: Si el usuario pide un recordatorio que incluye tareas o cosas que hacer para ese momento (ej: *"recuérdame a las 3 PM la reunión de X y que tengo que hacer tarea 1, tarea 2 y tarea 3"*), crea UN SOLO recordatorio con content: "Reunión de X" y tasks: ["tarea 1", "tarea 2", "tarea 3"]. NUNCA crees 4 recordatorios separados para la misma hora.
-   - 🔔 Insistencia / Nudges (MANUAL): Activa requiresConfirmation: true y nudgeIntervalMinutes: 10 ÚNICAMENTE si el usuario lo solicita explícitamente (ej: *"insísteme"*, *"avísame hasta que lo haga"*, *"recuérdame cada 10 min hasta que confirme"*). Por defecto es false.
-   - ack (palabras de cierre "Ok", "Listo", "Hecho", "Done", "Got it"): ejecuta STRICTAMENTE action='acknowledge'. NUNCA vuelvas a crear o reprogramar al recibir "Ok"/"Done".
+   - update / reschedule: action='update', id?: string, targetTime?: string, content?: string, requiresConfirmation?: boolean, nudgeIntervalMinutes?: number.
    - cancel: action='cancel', content=['...'] o cancelAll=true.
-   - 🔄 Modificación de horario/fecha: Si el usuario corrige la hora o fecha de un evento reciente (ej. *"no es a las 3 sino a las 4"*, *"cámbiame la cita a las 5 PM"*), interpreta que es una corrección: cancela el recordatorio anterior (vía cancelContent o action='cancel') y programa el nuevo. NUNCA dejes recordatorios duplicados con horarios contradictorios.
+   - acknowledge: action='acknowledge' (palabras de cierre "Ok", "Listo", "Hecho", "Done", "Got it").
+   - list: action='list' (para consultar recordatorios pendientes activos).
+   - 🔔 Eventos con Aviso Previo: Si el usuario dice "Tengo [Evento] a las [Hora], recuérdame [X] min antes", DEBES programar AMBOS recordatorios en el array items: 1) El aviso previo: {content: "[Evento] (Aviso previo)", targetTime: "[Hora - X min]"} y 2) El evento principal: {content: "[Evento]", targetTime: "[Hora]"}.
+   - 📋 Recordatorio con Subtareas / Checklist: Si el usuario pide un recordatorio que incluye tareas o cosas que hacer para ese momento, crea UN SOLO recordatorio con content: "[Nombre]" y tasks: ["t1", "t2"].
+   - 🔔 Insistencia / Nudges: Activa requiresConfirmation: true y nudgeIntervalMinutes: 10 si el usuario lo solicita explícitamente o tiene esa preferencia guardada en [Memorias].
 2. **manage_task**:
    - create: items=[{title, dueDate, priority, entityName, entityCategory}]. dueDate=null si no hay fecha explícita.
-   - 🧵 Hilo y Listas: Si en el historial reciente se trata una lista o proyecto (ej: "Lista de compras" / "Shopping list", "Proyecto Yax"), adiciones conversacionales ("también X y agrega Y" / "also add X and Y") DEBEN heredar la lista/proyecto activo y dividirse en ítems limpios: [{title: "X", entityName: "..."}, {title: "Y", entityName: "..."}]. NUNCA dejes la frase cruda entera.
+   - update: action='update', taskId?: string, title?: string, priority?: string, dueDate?: string, status?: string.
    - complete: action='complete', title o entityName o completeAll=true.
+   - delete: action='delete', taskId?: string, title?: string o deleteAll=true.
+   - list: action='list', status='pending', entityName?: string.
 3. **manage_entity**:
-   - action='create' | 'rename' | 'merge'.
-   - 🔄 Corrección de Nombres en Cascada (action='rename', oldName='...', newName='...'): Si el usuario hace una aclaración de nombres o corrige un término mal interpretado (ej. *"no era X, se llama Y"*, *"el nombre es Y, no X"*, *"cámbiale el nombre a X por Y"*), ejecuta action='rename'. Esto actualizará en cascada en tiempo real todas las tareas, recordatorios, memorias y entidades en la base de datos.
-4. **manage_memory**: action='forget'.${adminSection}
+   - create: action='create', name: string, category: 'project'|'company'|'person'|'place'|'pet'|'asset'.
+   - rename: action='rename', oldName='...', newName='...'. Actualiza en cascada en tiempo real todas las tareas, recordatorios, memorias y entidades en la base de datos.
+   - merge: action='merge', sourceName='...', targetName='...'.
+   - list: action='list', category?: string (ej. "Dime qué proyectos tengo").
+4. **manage_memory**:
+   - list: action='list', category?: string. Úsalo cuando el usuario pregunte qué sabes de él, qué memorias tienes guardadas o qué recuerdas sobre su perfil.
+   - search: action='search', query: string, topicKey?: string. Para buscar recuerdos específicos sobre un tema.
+   - save: action='save', content: string, category: 'preference'|'fact'|'decision'|'episode', topicKey?: string.
+   - forget: action='forget', topicKey?: string o query?: string (Derecho al Olvido).${adminSection}
 ${isAdmin ? '6.' : '5.'} null: para responder preguntas, saludar o consultar agenda.
 
 ## 3. CONTEXTO (${timezone})

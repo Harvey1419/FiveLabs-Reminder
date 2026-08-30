@@ -95,6 +95,44 @@ export async function saveMemory({
 }
 
 /**
+ * Fetch all active durable memories for a user ordered by created_at DESC.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} [params.category]
+ * @param {number} [params.limit=15]
+ * @returns {Promise<Array<object>>}
+ */
+export async function getActiveMemories({ userId, category = null, limit = 15 }) {
+  if (!userId) return [];
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
+
+  try {
+    let q = supabase
+      .from('memories')
+      .select('id, topic_key, category, content, confidence, created_at')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (category) {
+      q = q.eq('category', category);
+    }
+
+    const { data, error } = await q;
+    if (error) {
+      console.warn('[memories] getActiveMemories error:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error('[memories] getActiveMemories threw:', err);
+    return [];
+  }
+}
+
+/**
  * Hybrid Semantic (pgvector) + Full-Text Search (tsvector with Spanish Snowball/Porter stemming) Memory Search:
  * Combines dense vector similarity with sparse stemmed keyword matching.
  *
@@ -115,6 +153,11 @@ export async function searchMemories({
 }) {
   if (!userId) return [];
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
+
+  // If no specific query and no topicKey provided, return all active memories
+  if (!query && !topicKey) {
+    return getActiveMemories({ userId, category, limit: safeLimit });
+  }
 
   try {
     let vectorResults = [];
