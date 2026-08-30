@@ -43,6 +43,7 @@ export async function handleMercadoPagoWebhook(req, res) {
 
       const subRecord = await updateSubscriptionFromWebhook({
         mpPreapprovalId: dataId,
+        preapprovalPlanId: mpSub.preapproval_plan_id || null,
         status: mpStatus,
         nextPaymentDate,
         plan: mpStatus === 'authorized' ? 'pro' : 'free',

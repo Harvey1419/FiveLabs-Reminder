@@ -159,14 +159,16 @@ export async function createPendingSubscription(userId, { mpPreapprovalId, amoun
  */
 export async function updateSubscriptionFromWebhook({
   mpPreapprovalId,
+  preapprovalPlanId = null,
   status,
   nextPaymentDate = null,
   canceledAt = null,
   plan = 'pro',
 }) {
-  if (!mpPreapprovalId) return null;
+  if (!mpPreapprovalId && !preapprovalPlanId) return null;
 
   const updateData = {
+    mp_preapproval_id: mpPreapprovalId,
     status,
     plan,
     updated_at: new Date().toISOString(),
@@ -182,12 +184,25 @@ export async function updateSubscriptionFromWebhook({
     updateData.canceled_at = new Date().toISOString();
   }
 
-  const { data, error } = await supabase
+  // 1. Try matching by direct mp_preapproval_id
+  let { data, error } = await supabase
     .from('subscriptions')
     .update(updateData)
     .eq('mp_preapproval_id', mpPreapprovalId)
     .select()
     .maybeSingle();
+
+  // 2. If not found and preapprovalPlanId exists, match by plan ID and link preapproval ID
+  if (!data && preapprovalPlanId) {
+    const res = await supabase
+      .from('subscriptions')
+      .update(updateData)
+      .eq('mp_preapproval_id', preapprovalPlanId)
+      .select()
+      .maybeSingle();
+    data = res.data;
+    error = res.error;
+  }
 
   if (error) {
     console.error('[db/subscriptions] updateSubscriptionFromWebhook error:', error.message);
