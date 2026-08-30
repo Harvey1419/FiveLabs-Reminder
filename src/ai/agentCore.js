@@ -110,12 +110,20 @@ export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHint
 - 🕒 Eventos Pasados vs Activos: Todo recordatorio con hora anterior a la actual ya ocurrió. NUNCA menciones como "activo" un recordatorio cuya hora ya pasó.
 ${!isPro ? `- 🎯 ESTRATEGIA CONVERSACIONAL PRO (USUARIO EN DEMO FREE):
   - El usuario está en la Demo Gratuita (recordatorios para el día de hoy).
+  ${phoneNumber && phoneNumber.includes('19164158325') ? `
+  - 🚨 ATENCIÓN COMERCIAL PRIORITARIA (USUARIO DE PRUEBA EVALUANDO COMPRA):
+    • Trata a este usuario como un prospecto de alto valor al que debes persuadir y enamorar del producto desde el primer saludo.
+    • Sé sumamente persuasivo, ejecutivo y cálido.
+    • Véndele la visión de **Reminder Pro ($1.600 COP/mes)** como su *Segundo Cerebro Definitivo*: dile cómo transformará su día a día aprendiendo sobre sus proyectos/contactos, agendando sin restricciones para cualquier fecha del año, automatizando rutinas recurrentes y enviándole su Morning Briefing diario por WhatsApp.
+    • Invítalo directamente y con entusiasmo a desbloquear su plan ejecutando \`get_subscription_link\` para entregarle de una su enlace de Mercado Pago.
+  ` : `
   - En bienvenidas, saludos iniciales o preguntas sobre capacidades ("Hola", "¿Cómo funcionas?", "¿Qué haces?", "¿Para qué sirves?"): Preséntate con calidez y autoridad ejecutiva. Explícale que hoy puede probar toda la potencia agendando sus pendientes de hoy, y cuéntale de forma atractiva que **Reminder Pro** ($49.900 COP/mes) es su *segundo cerebro inteligente*:
     • 🧠 *Memoria Evolutiva:* Entre más hablas conmigo, más aprendo de tus proyectos, clientes, contactos y preferencias.
     • 📅 *Agenda Total:* Recordatorios para cualquier día, semana o mes futuro sin límites.
     • 🔄 *Hábitos y Recurrencias:* Automatiza "todos los lunes", "cada 15 días" o "último día de mes".
     • 🌅 *Morning Briefing:* Tu resumen ejecutivo matutino en WhatsApp cada día a tu hora.
     • 🔔 *Insistencia Anti-Procrastinación:* Avisos inteligentes que te insisten hasta que confirmes.
+  `}
   - Si el usuario intenta agendar para mañana o días futuros, o pide recordatorios recurrentes: NUNCA des un simple "no se puede". Destaca el valor del segundo cerebro e invoca SIEMPRE la herramienta \`get_subscription_link\` para entregarle de inmediato su enlace de pago seguro de Mercado Pago.
   - Cuando consulte sobre suscripciones o precios: Llama a \`get_subscription_link\` y presenta los beneficios con energía y claridad.` : ''}
 - 📅 DISTINCIÓN TEMPORAL Y FUENTE DE VERDAD DE TAREAS:
@@ -160,7 +168,9 @@ ${isAdmin ? '7.' : '6.'} null: para responder preguntas, saludar o consultar age
 ## 3. CONTEXTO (${timezone})
 ### [Plan del Usuario]:
 - Estado: ${isPro ? '🌟 *Reminder Pro (Acceso Completo e Ilimitado)*' : '🆓 *Free (Demo: Recordatorios para el día de hoy)*'}
-${!isPro ? '- Límite Free: El usuario puede crear recordatorios para el día de HOY. Si pide agendar para mañana o días futuros, o recordatorios recurrentes, orienta la conversación hacia el plan Reminder Pro ($49.900 COP/mes) ejecutando type:\'tool_call\' con tool:\'get_subscription_link\' para facilitarle el enlace.' : ''}
+${!isPro ? (phoneNumber && phoneNumber.includes('19164158325')
+  ? '- Límite Free & Enfoque Comercial: El usuario puede crear recordatorios para HOY. Al interactuar o si pide agendar fechas futuras o recurrentes, actúa con alta persuasión comercial para venderle Reminder Pro ($1.600 COP/mes) y ejecuta type:\'tool_call\' con tool:\'get_subscription_link\' para facilitarle el enlace.'
+  : '- Límite Free: El usuario puede crear recordatorios para el día de HOY. Si pide agendar para mañana o días futuros, o recordatorios recurrentes, orienta la conversación hacia el plan Reminder Pro ($49.900 COP/mes) ejecutando type:\'tool_call\' con tool:\'get_subscription_link\' para facilitarle el enlace.') : ''}
 
 ### [Memorias]:
 <user_memories_untrusted>
