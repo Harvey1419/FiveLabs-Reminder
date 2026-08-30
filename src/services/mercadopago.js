@@ -30,7 +30,19 @@ export async function getOrCreateCanonicalPlan({
   amount = 49900,
   currency = 'COP',
   backUrl = null,
+  phoneNumber = null,
 } = {}) {
+  // Test number routing: If the user is our test phone 19164158325, route to the $1.600 COP test plan
+  if (phoneNumber && String(phoneNumber).includes('19164158325')) {
+    return {
+      id: 'a4406391b5914bfeaf0f3d708cbcf869',
+      init_point: 'https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=a4406391b5914bfeaf0f3d708cbcf869',
+      amount: 1600,
+      reason: 'Reminder Pro Plan Test',
+      status: 'active',
+    };
+  }
+
   if (process.env.MP_PLAN_ID) {
     return {
       id: process.env.MP_PLAN_ID,

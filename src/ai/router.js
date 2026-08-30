@@ -187,11 +187,13 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
         reason: 'FiveLabs Reminder Pro',
         amount: 49900,
         currency: 'COP',
+        phoneNumber: phoneNumber || user.phone_number,
       });
+      const planAmount = planRes.amount || 49900;
       if (user?.id) {
         await createPendingSubscription(user.id, {
           mpPreapprovalId: planRes.id,
-          amount: 49900,
+          amount: planAmount,
           plan: 'pro',
         }).catch(() => {});
       }

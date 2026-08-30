@@ -668,11 +668,14 @@ export async function executeTool(toolName, params, user) {
           reason: 'FiveLabs Reminder Pro',
           amount: 49900,
           currency: 'COP',
+          phoneNumber: user.phone_number,
         });
+
+        const planAmount = plan.amount || 49900;
 
         await createPendingSubscription(user.id, {
           mpPreapprovalId: plan.id,
-          amount: 49900,
+          amount: planAmount,
           plan: 'pro',
         });
 
@@ -681,11 +684,11 @@ export async function executeTool(toolName, params, user) {
           action: 'subscription_link_generated',
           data: {
             checkout_url: plan.init_point,
-            amount: 49900,
+            amount: planAmount,
             currency: 'COP',
             plan: 'Reminder Pro',
           },
-          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($49.900 COP/mes): ${plan.init_point}`,
+          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($${planAmount.toLocaleString('es-CO')} COP/mes): ${plan.init_point}`,
         };
       }
 
