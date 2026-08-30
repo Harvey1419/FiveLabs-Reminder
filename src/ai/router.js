@@ -1,7 +1,14 @@
 import { executeTool } from './tools.js';
 import { callChatCompletion } from './client.js';
 import { retrieveRelevantMemories } from '../services/memoryService.js';
-import { getDailyOverview, getActiveMemories, getUserSubscription, hasProAccess } from '../db/index.js';
+import {
+  getDailyOverview,
+  getActiveMemories,
+  getUserSubscription,
+  hasProAccess,
+  createPendingSubscription,
+} from '../db/index.js';
+import { createPreapprovalPlan } from '../services/mercadopago.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -170,6 +177,27 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     // Tier limit exceeded notification
     if (toolResult.action === 'tier_limit_exceeded') {
       plan.reply = toolResult.rawSummary;
+    }
+  }
+
+  // Universal safety check: if reply has [checkout_url] anywhere (even in type: 'chat'), replace with real link
+  if (plan.reply && plan.reply.includes('[checkout_url]')) {
+    try {
+      const planRes = await createPreapprovalPlan({
+        reason: 'FiveLabs Reminder Pro',
+        amount: 49900,
+        currency: 'COP',
+      });
+      if (user?.id) {
+        await createPendingSubscription(user.id, {
+          mpPreapprovalId: planRes.id,
+          amount: 49900,
+          plan: 'pro',
+        }).catch(() => {});
+      }
+      plan.reply = plan.reply.replace(/\[checkout_url\]/g, planRes.init_point);
+    } catch (err) {
+      console.error('[router] auto-generating checkout_url failed:', err);
     }
   }
 

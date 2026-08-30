@@ -160,7 +160,7 @@ ${isAdmin ? '7.' : '6.'} null: para responder preguntas, saludar o consultar age
 ## 3. CONTEXTO (${timezone})
 ### [Plan del Usuario]:
 - Estado: ${isPro ? '🌟 *Reminder Pro (Acceso Completo e Ilimitado)*' : '🆓 *Free (Demo: Recordatorios para el día de hoy)*'}
-${!isPro ? '- Límite Free: El usuario puede crear recordatorios para el día de HOY. Si pide agendar para mañana o días futuros, o recordatorios recurrentes, orienta la conversación hacia el plan Reminder Pro ($49.900 COP/mes) llamando a get_subscription_link para facilitarle el enlace.' : ''}
+${!isPro ? '- Límite Free: El usuario puede crear recordatorios para el día de HOY. Si pide agendar para mañana o días futuros, o recordatorios recurrentes, orienta la conversación hacia el plan Reminder Pro ($49.900 COP/mes) ejecutando type:\'tool_call\' con tool:\'get_subscription_link\' para facilitarle el enlace.' : ''}
 
 ### [Memorias]:
 <user_memories_untrusted>
