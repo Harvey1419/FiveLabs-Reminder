@@ -159,6 +159,17 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       expect(reminder.status).toBe('pending');
     }, 15000);
 
+    it('creates hourly recurring reminders and parses "cada hora" correctly', async () => {
+      const { executeTool } = await import('../src/ai/tools.js');
+      const res = await executeTool('manage_reminder', {
+        action: 'create',
+        items: [{ content: 'Echar gotas en los ojos cada hora' }],
+      }, user);
+
+      expect(res.success).toBe(true);
+      expect(res.data[0].recurrence_rule).toBe('hourly');
+    }, 15000);
+
     it('formats daily overview in local timezone without UTC drift', async () => {
       const overview = await getDailyOverview({
         userId: user.id,

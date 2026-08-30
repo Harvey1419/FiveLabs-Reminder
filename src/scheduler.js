@@ -131,9 +131,20 @@ async function handleRecurrence(reminder) {
     let nextSendAt = new Date(currentSendAt);
     const rule = reminder.recurrence_rule.toLowerCase().trim();
 
-    // Advance until nextSendAt is strictly in the future (avoids day-by-day cascade of stale reminders)
+    // Advance until nextSendAt is strictly in the future (avoids cascade of stale reminders)
     while (nextSendAt.getTime() <= Date.now()) {
-      if (rule === 'daily') {
+      if (rule === 'hourly') {
+        nextSendAt.setHours(nextSendAt.getHours() + 1);
+      } else if (rule.startsWith('hourly:')) {
+        const hours = parseInt(rule.split(':')[1], 10) || 1;
+        nextSendAt.setHours(nextSendAt.getHours() + hours);
+      } else if (rule.startsWith('interval:') && rule.endsWith('m')) {
+        const mins = parseInt(rule.slice(9, -1), 10) || 30;
+        nextSendAt.setMinutes(nextSendAt.getMinutes() + mins);
+      } else if (rule.startsWith('interval:') && rule.endsWith('h')) {
+        const hours = parseInt(rule.slice(9, -1), 10) || 1;
+        nextSendAt.setHours(nextSendAt.getHours() + hours);
+      } else if (rule === 'daily') {
         nextSendAt.setDate(nextSendAt.getDate() + 1);
       } else if (rule === 'weekly' || rule.startsWith('weekly:')) {
         nextSendAt.setDate(nextSendAt.getDate() + 7);

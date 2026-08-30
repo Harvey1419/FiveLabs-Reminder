@@ -74,11 +74,22 @@ export async function executeTool(toolName, params, user) {
                 sendAt = new Date(Date.now() + 60 * 60 * 1000);
               }
 
-              // Extract recurrence rule if specified (e.g. 'daily', 'weekly:monday', etc.)
+              // Extract recurrence rule if specified (e.g. 'hourly', 'hourly:2', 'daily', 'weekly:1', etc.)
               let recurrenceRule = item.recurrence || item.recurrenceRule || params.recurrence || null;
               if (item.content && !recurrenceRule) {
                 const lower = item.content.toLowerCase();
-                if (lower.includes('todos los días') || lower.includes('cada día') || lower.includes('diario') || lower.includes('every day')) {
+                if (lower.includes('cada hora') || lower.includes('por hora') || lower.includes('every hour') || lower.includes('hourly')) {
+                  recurrenceRule = 'hourly';
+                } else if (/\bcada\s+(\d+)\s*horas?\b/i.test(lower)) {
+                  const m = lower.match(/\bcada\s+(\d+)\s*horas?\b/i);
+                  recurrenceRule = `hourly:${m[1]}`;
+                } else if (/\bevery\s+(\d+)\s*hours?\b/i.test(lower)) {
+                  const m = lower.match(/\bevery\s+(\d+)\s*hours?\b/i);
+                  recurrenceRule = `hourly:${m[1]}`;
+                } else if (/\bcada\s+(\d+)\s*minutos?\b/i.test(lower)) {
+                  const m = lower.match(/\bcada\s+(\d+)\s*minutos?\b/i);
+                  recurrenceRule = `interval:${m[1]}m`;
+                } else if (lower.includes('todos los días') || lower.includes('cada día') || lower.includes('diario') || lower.includes('every day')) {
                   recurrenceRule = 'daily';
                 } else if (lower.includes('todos los lunes') || lower.includes('every monday')) {
                   recurrenceRule = 'weekly:1';
@@ -147,6 +158,7 @@ export async function executeTool(toolName, params, user) {
                 content: item.content,
                 sendAt: sendAt.toISOString(),
                 recurrenceRule,
+                recurrence_rule: recurrenceRule,
                 requiresConfirmation,
                 nudgeIntervalMinutes,
                 formattedTime: formatLocalDateTime(sendAt, timezone, locale),
