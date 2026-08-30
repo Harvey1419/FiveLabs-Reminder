@@ -1,7 +1,7 @@
 import { executeTool } from './tools.js';
 import { callChatCompletion } from './client.js';
 import { retrieveRelevantMemories } from '../services/memoryService.js';
-import { getDailyOverview } from '../db/index.js';
+import { getDailyOverview, getUserSubscription, hasProAccess } from '../db/index.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -33,16 +33,21 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   console.log(`[router] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
   // 1. Parallel Context Pre-fetch (~80-120ms)
-  const [relevantMemories, dailyOverview] = await Promise.all([
+  const [relevantMemories, dailyOverview, subscription] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 5 }),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
+    user.id ? getUserSubscription(user.id) : Promise.resolve(null),
   ]);
+
+  const isPro = hasProAccess(subscription, user);
+  user.subscription = subscription;
+  user.isPro = isPro;
 
   const memoryHints = relevantMemories.length > 0
     ? relevantMemories.map(m => `- [${m.category || 'memoria'}] ${m.content}`).join('\n')
     : '';
 
-  // 2. Build Authoritative Agent Core Grounded Prompt with RBAC exposure
+  // 2. Build Authoritative Agent Core Grounded Prompt with RBAC & Plan exposure
   const prompt = buildAgentCorePrompt({
     nowStr,
     nowHumanStr,
@@ -50,6 +55,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     memoryHints,
     overview: dailyOverview,
     isAdmin,
+    isPro,
   });
 
   const pastTurns = history.slice(-8);
@@ -115,6 +121,29 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       } else if (plan.params?.cancelAll) {
         plan.reply = `¡Listo! Eliminé todos tus recordatorios pendientes (${cancelledCount} en total) 🗑️`;
       }
+    }
+
+    // Subscription link generation enrichment
+    if (toolResult.action === 'subscription_link_generated' && toolResult.data?.checkout_url) {
+      const checkoutUrl = toolResult.data.checkout_url;
+      if (plan.reply && plan.reply.includes('[checkout_url]')) {
+        plan.reply = plan.reply.replace(/\[checkout_url\]/g, checkoutUrl);
+      } else if (!plan.reply || !plan.reply.includes('http')) {
+        plan.reply =
+          `🚀 *Desbloquea tu Segundo Cerebro con Reminder Pro*\n\n` +
+          `Con **Reminder Pro** ($49.900 COP/mes) obtienes un asistente que evoluciona contigo:\n\n` +
+          `• 🧠 *Memoria Continua:* Entre más hablas conmigo, más aprendo de tus proyectos, clientes y hábitos.\n` +
+          `• 📅 *Agenda Total:* Recordatorios para cualquier fecha futura sin límites.\n` +
+          `• 🔄 *Recurrencias Inteligentes:* 'Todos los lunes', 'cada 15 días' o fin de mes.\n` +
+          `• 🌅 *Morning Briefing:* Tu resumen ejecutivo matutino en WhatsApp a tu hora.\n` +
+          `• 🔔 *Insistencia Anti-Procrastinación:* Avisos inteligentes hasta que confirmes.\n\n` +
+          `👉 *Suscríbete aquí de forma segura con Mercado Pago:*\n${checkoutUrl}`;
+      }
+    }
+
+    // Tier limit exceeded notification
+    if (toolResult.action === 'tier_limit_exceeded') {
+      plan.reply = toolResult.rawSummary;
     }
   }
 

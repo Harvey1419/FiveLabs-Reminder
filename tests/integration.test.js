@@ -39,6 +39,17 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
     await supabase.from('tasks').delete().eq('user_id', user.id);
     await supabase.from('reminders').delete().eq('user_id', user.id);
     await supabase.from('entities').delete().eq('user_id', user.id);
+    await supabase.from('subscriptions').delete().eq('user_id', user.id);
+
+    // Grant Pro subscription for full end-to-end integration testing
+    await supabase.from('subscriptions').insert({
+      user_id: user.id,
+      mp_preapproval_id: `test_preapproval_${Date.now()}`,
+      plan: 'pro',
+      status: 'authorized',
+      amount: 49900,
+      next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
   }, 20000);
 
   afterAll(async () => {
@@ -46,6 +57,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
     await supabase.from('tasks').delete().eq('user_id', user.id);
     await supabase.from('reminders').delete().eq('user_id', user.id);
     await supabase.from('entities').delete().eq('user_id', user.id);
+    await supabase.from('subscriptions').delete().eq('user_id', user.id);
     await supabase.from('users').delete().eq('id', user.id);
   }, 20000);
 

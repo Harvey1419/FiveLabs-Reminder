@@ -111,16 +111,21 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_phone_created ON messages(phone_number, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at DESC);
 
--- 7. Subscriptions table (Billing, Plans, Active status)
+-- 7. Subscriptions table (Billing, Plans, Active status, MercadoPago Integration)
 CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   plan TEXT NOT NULL DEFAULT 'free',
   status TEXT NOT NULL DEFAULT 'active',
   amount NUMERIC DEFAULT 0,
+  mp_preapproval_id TEXT UNIQUE,
+  next_payment_date TIMESTAMPTZ,
+  canceled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status ON subscriptions(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_mp_preapproval ON subscriptions(mp_preapproval_id);
 
