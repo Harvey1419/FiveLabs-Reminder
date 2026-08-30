@@ -68,6 +68,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     nowStr,
     nowHumanStr,
     timezone,
+    phoneNumber,
     memoryHints,
     overview: dailyOverview,
     isAdmin,

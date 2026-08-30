@@ -53,7 +53,16 @@ export function formatCompactOverview(overview) {
  * @param {boolean} [context.isPro=false] - Whether current user has active Pro subscription
  * @returns {string} Master Agent System Prompt
  */
-export function buildAgentCorePrompt({ nowStr, nowHumanStr, timezone, memoryHints, overview, isAdmin = false, isPro = false }) {
+export function buildAgentCorePrompt({
+  nowStr,
+  nowHumanStr,
+  timezone,
+  phoneNumber = '',
+  memoryHints,
+  overview,
+  isAdmin = false,
+  isPro = false,
+}) {
   const adminSection = isAdmin
     ? `\n6. **"admin_metrics"** (Métricas y Panel de Administración): \`{"action": "get_overview" | "get_active_subscriptions" | "get_user_count"}\``
     : '';
