@@ -23,7 +23,7 @@ import {
   hasProAccess,
   createPendingSubscription,
 } from '../db/index.js';
-import { createPreapproval } from '../services/mercadopago.js';
+import { createPreapproval, createPreapprovalPlan } from '../services/mercadopago.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
   parseTargetTime,
@@ -664,16 +664,14 @@ export async function executeTool(toolName, params, user) {
 
       case 'get_subscription_link':
       case 'manage_subscription': {
-        const checkout = await createPreapproval({
-          userId: user.id,
-          phoneNumber: user.phone_number,
+        const plan = await createPreapprovalPlan({
           reason: 'FiveLabs Reminder Pro',
           amount: 49900,
           currency: 'COP',
         });
 
         await createPendingSubscription(user.id, {
-          mpPreapprovalId: checkout.id,
+          mpPreapprovalId: plan.id,
           amount: 49900,
           plan: 'pro',
         });
@@ -682,12 +680,12 @@ export async function executeTool(toolName, params, user) {
           success: true,
           action: 'subscription_link_generated',
           data: {
-            checkout_url: checkout.init_point,
+            checkout_url: plan.init_point,
             amount: 49900,
             currency: 'COP',
             plan: 'Reminder Pro',
           },
-          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($49.900 COP/mes): ${checkout.init_point}`,
+          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($49.900 COP/mes): ${plan.init_point}`,
         };
       }
 

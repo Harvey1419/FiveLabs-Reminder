@@ -30,7 +30,11 @@ export function formatCompactOverview(overview) {
   formatList(overview.tomorrow, 'Mañana');
   formatList(overview.upcoming, 'Próximos');
   if (overview.doneToday?.length > 0) {
-    lines.push(`*Completados hoy*: ${overview.doneToday.length} ítem(s)`);
+    lines.push(`*Completados hoy*:`);
+    for (const it of overview.doneToday.slice(0, 15)) {
+      const time = it.localTime ? ` (${it.localTime})` : '';
+      lines.push(`  - ✅ ${it.content || it.title}${time}`);
+    }
   }
 
   return lines.length > 0 ? lines.join('\n') : '(Sin pendientes ni recordatorios programados)';

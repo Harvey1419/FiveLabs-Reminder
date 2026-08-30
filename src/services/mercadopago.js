@@ -14,6 +14,67 @@ function getAccessToken() {
 }
 
 /**
+ * Create a recurring preapproval plan without locking payer_email.
+ * Customers can subscribe and enter any email in the MercadoPago checkout.
+ *
+ * @param {object} [params]
+ * @param {string} [params.reason='FiveLabs Reminder Pro']
+ * @param {number} [params.amount=49900]
+ * @param {string} [params.currency='COP']
+ * @param {string} [params.backUrl]
+ * @returns {Promise<{id: string, init_point: string, status: string}>}
+ */
+export async function createPreapprovalPlan({
+  reason = 'FiveLabs Reminder Pro',
+  amount = 49900,
+  currency = 'COP',
+  backUrl = null,
+} = {}) {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('MercadoPago Access Token not configured (MP_ACCESS_TOKEN)');
+  }
+
+  const defaultBackUrl = process.env.APP_BASE_URL
+    ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/subscription/callback`
+    : 'https://fivelabs-reminder-production.up.railway.app/subscription/callback';
+
+  const body = {
+    reason,
+    auto_recurring: {
+      frequency: 1,
+      frequency_type: 'months',
+      transaction_amount: Number(amount),
+      currency_id: currency,
+    },
+    back_url: backUrl || defaultBackUrl,
+  };
+
+  const response = await fetch(`${MP_API_BASE}/preapproval_plan`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error('[mercadopago] createPreapprovalPlan failed:', response.status, data);
+    const errorMsg = data.message || data.error || JSON.stringify(data);
+    throw new Error(`MercadoPago createPreapprovalPlan error (${response.status}): ${errorMsg}`);
+  }
+
+  return {
+    id: data.id,
+    init_point: data.init_point,
+    status: data.status,
+  };
+}
+
+/**
  * Create a recurring preapproval subscription with status 'pending' (checkout URL).
  *
  * @param {object} params

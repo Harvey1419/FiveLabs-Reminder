@@ -415,7 +415,13 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const tasks = allTasks || [];
 
   const formatItem = (item, isDone = false) => {
-    const rawDate = item.send_at || item.due_date || item.sent_at || item.completed_at;
+    const rawDate = (isDone ? (item.acknowledged_at || item.completed_at || item.sent_at) : null)
+      || item.send_at
+      || item.due_date
+      || item.sent_at
+      || item.acknowledged_at
+      || item.completed_at
+      || item.updated_at;
     if (!rawDate) {
       return {
         id: item.id,
@@ -461,9 +467,9 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const upcoming = [];
 
   for (const r of reminders) {
-    if (r.status === 'sent') {
+    if (r.status === 'sent' || r.acknowledged_at) {
       const formatted = formatItem(r, true);
-      if (formatted.localDate === todayStr) doneToday.push(formatted);
+      if (formatted.localDate === todayStr || (!r.acknowledged_at && !r.sent_at)) doneToday.push(formatted);
     } else if (r.status === 'pending' || r.status === 'processing') {
       const formatted = formatItem(r);
       if (formatted.localDate === todayStr) {

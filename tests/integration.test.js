@@ -505,7 +505,8 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
     }, 35000);
 
     it('creates advance notice reminder and main event reminder when asked for 30 minutes before', async () => {
-      const res = await routeMessage('Tengo una reunión mañana a las 5:00 PM, recuérdame 30 minutos antes', user);
+      const advanceUser = await getOrCreateUserByPhone('573771110009', 'America/Bogota');
+      const res = await routeMessage('Tengo una reunión a las 5:00 PM, recuérdame 30 minutos antes', advanceUser);
       expect(res.confirmation).toBeDefined();
       expect(res.confirmation.toLowerCase()).toMatch(/4:30|30 minuto|aviso/i);
 
@@ -513,7 +514,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       const { data: reminders } = await supabase
         .from('reminders')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', advanceUser.id)
         .eq('status', 'pending')
         .ilike('content', '%reunión%');
 
