@@ -37,12 +37,21 @@ describe('Security & Multi-Tenant Isolation Test Suite', () => {
     // Clean any previous test data
     for (const u of [userA, userB, adminUser]) {
       if (u?.id) {
+        await supabase.from('subscriptions').delete().eq('user_id', u.id);
         await supabase.from('memories').delete().eq('user_id', u.id);
         await supabase.from('tasks').delete().eq('user_id', u.id);
         await supabase.from('reminders').delete().eq('user_id', u.id);
         await supabase.from('entities').delete().eq('user_id', u.id);
       }
     }
+
+    // Set userA as Pro for full functionality security tests
+    await supabase.from('subscriptions').insert({
+      user_id: userA.id,
+      plan: 'pro',
+      status: 'authorized',
+      next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
   }, 25000);
 
   afterAll(async () => {

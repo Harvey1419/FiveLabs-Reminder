@@ -20,7 +20,10 @@ import {
   saveMemory,
   getActiveMemories,
   supabase,
+  hasProAccess,
+  createPendingSubscription,
 } from '../db/index.js';
+import { createPreapproval } from '../services/mercadopago.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
   parseTargetTime,
@@ -51,6 +54,40 @@ export async function executeTool(toolName, params, user) {
         const items = params.items || params.reminders || (params.content ? [params] : []);
 
         if (action === 'create' && items.length > 0) {
+          // Tier gate: Check if user has Pro access
+          const isPro = hasProAccess(user?.subscription, user);
+          if (!isPro) {
+            const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+            for (const item of items) {
+              let sendAt = parseTargetTime(item.targetTime, timezone);
+              if (!sendAt || sendAt.getTime() <= Date.now()) {
+                sendAt = new Date(Date.now() + 60 * 60 * 1000);
+              }
+              const targetDay = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(sendAt);
+              let recurrenceRule = item.recurrence || item.recurrenceRule || params.recurrence || null;
+              if (item.content && !recurrenceRule) {
+                const lower = item.content.toLowerCase();
+                if (lower.includes('todos los') || lower.includes('cada día') || lower.includes('diario') || lower.includes('every day') || lower.includes('semanal') || lower.includes('mensual')) {
+                  recurrenceRule = 'recurrence';
+                }
+              }
+
+              if (targetDay !== localToday || recurrenceRule) {
+                return {
+                  success: false,
+                  action: 'tier_limit_exceeded',
+                  isProFeature: true,
+                  data: {
+                    feature: recurrenceRule ? 'recurring_reminders' : 'future_reminders',
+                    targetDate: targetDay,
+                    todayDate: localToday,
+                  },
+                  rawSummary: `🔒 Los recordatorios para días futuros (${targetDay}) o recurrentes son una función exclusiva de Reminder Pro ($49.900 COP/mes). En tu demo Free puedes programar todos los recordatorios que desees para el día de hoy.`,
+                };
+              }
+            }
+          }
+
           // 0. Compound operation: Cancel requested items or criteria before creating new ones
           let cancelledSummary = '';
           const cancelQuery = params.cancelContent || params.cancelCriteria?.content || params.cancelPrevious;
@@ -623,6 +660,35 @@ export async function executeTool(toolName, params, user) {
         }
 
         return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de métricas no reconocida.' };
+      }
+
+      case 'get_subscription_link':
+      case 'manage_subscription': {
+        const checkout = await createPreapproval({
+          userId: user.id,
+          phoneNumber: user.phone_number,
+          reason: 'FiveLabs Reminder Pro',
+          amount: 49900,
+          currency: 'COP',
+        });
+
+        await createPendingSubscription(user.id, {
+          mpPreapprovalId: checkout.id,
+          amount: 49900,
+          plan: 'pro',
+        });
+
+        return {
+          success: true,
+          action: 'subscription_link_generated',
+          data: {
+            checkout_url: checkout.init_point,
+            amount: 49900,
+            currency: 'COP',
+            plan: 'Reminder Pro',
+          },
+          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($49.900 COP/mes): ${checkout.init_point}`,
+        };
       }
 
       default:

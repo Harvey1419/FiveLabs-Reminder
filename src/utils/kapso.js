@@ -3,8 +3,7 @@ import { supabase } from '../db/index.js';
 import { userCache } from '../db/users.js';
 
 const KAPSO_API_BASE = 'https://api.kapso.ai/meta/whatsapp/v24.0';
-const DEPRECATED_SANDBOX_ID = '597907523413541';
-const PRODUCTION_PHONE_NUMBER_ID = '1248246475047194';
+const DEFAULT_PHONE_NUMBER_ID = '1248246475047194';
 
 export class KapsoError extends Error {
   constructor(message, { status, code, data } = {}) {
@@ -64,8 +63,8 @@ export function normalizePhoneNumber(rawPhone) {
  * Official Kapso WhatsApp sender following enterprise best practices:
  * - Uses `to` for valid E.164 phone numbers.
  * - Uses `recipient` exclusively for BSUIDs (e.g. CO.1552339023039755).
+ * - Dynamically routes through the originating phoneNumberId (Sandbox or Production).
  * - Implements exponential backoff retry for temporary errors (429, 500, 502, 503, 504).
- * - Guard against legacy sandbox ID 597907523413541.
  *
  * @param {object} params
  * @param {string} [params.phoneNumberId]
@@ -85,13 +84,12 @@ export async function sendWhatsAppText({
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
   }
 
-  let activePhoneId = String(phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID).trim();
-
-  // Guard: Auto-route legacy sandbox ID to production phone ID
-  if (activePhoneId === DEPRECATED_SANDBOX_ID) {
-    console.warn(`[kapso] Notice: Detected legacy sandbox ID ${DEPRECATED_SANDBOX_ID}. Automatically routing to production phone ID ${PRODUCTION_PHONE_NUMBER_ID}.`);
-    activePhoneId = PRODUCTION_PHONE_NUMBER_ID;
-  }
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     throw new KapsoValidationError('Cannot send empty text message.');
@@ -322,10 +320,12 @@ export async function sendWhatsAppTemplate({
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
   }
 
-  let activePhoneId = String(phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID).trim();
-  if (activePhoneId === DEPRECATED_SANDBOX_ID) {
-    activePhoneId = PRODUCTION_PHONE_NUMBER_ID;
-  }
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
 
   const cleanPhone = normalizePhoneNumber(phoneNumber);
   const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
@@ -475,7 +475,12 @@ export async function sendTypingIndicator(messageId, phoneNumberId = null) {
     return null;
   }
 
-  const phoneId = phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID;
+  const phoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
 
   try {
     const t0 = Date.now();
@@ -517,7 +522,12 @@ export async function sendTypingIndicator(messageId, phoneNumberId = null) {
  */
 export async function downloadMedia(mediaId, phoneNumberId = null, directUrl = null) {
   if ((!mediaId && !directUrl) || !process.env.KAPSO_API_KEY) return null;
-  const phoneId = phoneNumberId || process.env.KAPSO_PHONE_NUMBER_ID || PRODUCTION_PHONE_NUMBER_ID;
+  const phoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
 
   const tStart = Date.now();
   try {

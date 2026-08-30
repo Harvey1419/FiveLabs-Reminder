@@ -53,7 +53,31 @@ function verifySignature(req) {
 }
 
 /**
- * Extract clean contact information separating E.164 phone numbers and BSUIDs.
+ * Dynamically extract originating phoneNumberId (Sandbox vs Production) from Meta/Kapso payload.
+ */
+export function extractPhoneNumberId(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return process.env.KAPSO_PHONE_NUMBER_ID || process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID || '1248246475047194';
+  }
+
+  const changeValue = payload.entry?.[0]?.changes?.[0]?.value || {};
+  const metadata = changeValue.metadata || {};
+
+  const id = payload.phone_number_id
+    || metadata.phone_number_id
+    || changeValue.phone_number_id
+    || payload.conversation?.phone_number_id
+    || payload.data?.phone_number_id
+    || payload.message?.phone_number_id
+    || process.env.KAPSO_PHONE_NUMBER_ID
+    || process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID
+    || '1248246475047194';
+
+  return String(id).trim();
+}
+
+/**
+ * Clean contact information separating E.164 phone numbers and BSUIDs.
  */
 export function extractContactInfo(payload) {
   const message = payload.message
@@ -168,11 +192,8 @@ export async function handleWebhook(req, res) {
     }
 
     const recipientIdentifier = phoneNumber || bsuid;
-    const configuredPhoneId = process.env.KAPSO_PHONE_NUMBER_ID || '1248246475047194';
-    // Always use configured production phone ID, ignoring incoming sandbox tags
-    const phoneNumberId = (body.phone_number_id === '597907523413541' || body.conversation?.phone_number_id === '597907523413541')
-      ? configuredPhoneId
-      : (process.env.KAPSO_PHONE_NUMBER_ID || body.phone_number_id || '1248246475047194');
+    const phoneNumberId = extractPhoneNumberId(body);
+    console.log(`[webhook] Inbound channel phone_number_id: ${phoneNumberId}`);
 
     // Concurrently pre-fetch user profile & conversation history while media is downloading & transcribing
     const userAndHistoryPromise = Promise.all([

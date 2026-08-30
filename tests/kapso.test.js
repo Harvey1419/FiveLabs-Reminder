@@ -8,7 +8,7 @@ import {
   KapsoAuthError,
   KapsoSandboxError,
 } from '../src/utils/kapso.js';
-import { extractContactInfo, isOutboundMessage, isDuplicate, markAsProcessed } from '../src/webhook.js';
+import { extractContactInfo, extractPhoneNumberId, isOutboundMessage, isDuplicate, markAsProcessed } from '../src/webhook.js';
 
 describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
 
@@ -30,7 +30,15 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
     });
   });
 
-  describe('2. Contact Info Extraction (Phone vs BSUID Classification)', () => {
+  describe('2. Contact Info & Channel ID Extraction', () => {
+    it('extracts sandbox and production phone_number_id dynamically', () => {
+      expect(extractPhoneNumberId({ phone_number_id: '597907523413541' })).toBe('597907523413541');
+      expect(extractPhoneNumberId({ phone_number_id: '1248246475047194' })).toBe('1248246475047194');
+      expect(extractPhoneNumberId({
+        entry: [{ changes: [{ value: { metadata: { phone_number_id: '597907523413541' } } }] }]
+      })).toBe('597907523413541');
+    });
+
     it('correctly extracts contact with phone number', () => {
       const payload = {
         message: { from: '573118588249', text: { body: 'Hola' } },
@@ -96,26 +104,32 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
   });
 
   describe('4. Kapso WhatsApp Sender Function (sendWhatsAppText)', () => {
-    it('auto-routes legacy sandbox ID 597907523413541 to production phone ID 1248246475047194', async () => {
+    it('routes dynamically to exact phoneNumberId (sandbox vs production)', async () => {
       const originalFetch = global.fetch;
-      let requestedUrl = '';
+      const requestedUrls = [];
       global.fetch = async (url) => {
-        requestedUrl = url;
+        requestedUrls.push(url);
         return {
           ok: true,
           status: 200,
-          json: async () => ({ messages: [{ id: 'wamid.TEST_SANDBOX_REDIRECT' }] }),
+          json: async () => ({ messages: [{ id: 'wamid.TEST' }] }),
         };
       };
 
       try {
-        const res = await sendWhatsAppText({
+        await sendWhatsAppText({
           phoneNumberId: '597907523413541',
           phoneNumber: '573118588249',
-          text: 'Prueba redirección sandbox',
+          text: 'Prueba sandbox',
         });
-        expect(res.success).toBe(true);
-        expect(requestedUrl).toContain('1248246475047194/messages');
+        await sendWhatsAppText({
+          phoneNumberId: '1248246475047194',
+          phoneNumber: '573118588249',
+          text: 'Prueba producción',
+        });
+
+        expect(requestedUrls[0]).toContain('597907523413541/messages');
+        expect(requestedUrls[1]).toContain('1248246475047194/messages');
       } finally {
         global.fetch = originalFetch;
       }
