@@ -7,6 +7,7 @@ import {
   getUserSubscription,
   hasProAccess,
   createPendingSubscription,
+  acknowledgeReminders,
 } from '../db/index.js';
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { buildAgentCorePrompt } from './agentCore.js';
@@ -201,6 +202,23 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       plan.reply = plan.reply.replace(/\[checkout_url\]/g, planRes.init_point);
     } catch (err) {
       console.error('[router] auto-generating checkout_url failed:', err);
+    }
+  }
+
+  // Universal safety check: if user message is an acknowledgement ("ok", "listo", "hecho", "done", "ya", "listo ya lo envie", etc.)
+  // and manage_reminder acknowledge wasn't already executed, auto-acknowledge pending reminders to stop nudges immediately
+  const cleanAckText = messageText.trim().toLowerCase().replace(/[.,!¡?¿]/g, '');
+  const isAckMessage = /^(ok|listo|hecho|ya|done|perfecto|completado|ya quedo|ya quedo|listo ya|ya lo envie|ya lo mande|ya termine|terminado|listo ya quedo)$/i.test(cleanAckText) ||
+    /^(listo\b|ya est[aá]\b|ya lo hice\b|ya qued[oó]\b|ya se envi[oó]\b|ya enviad[ao]\b)/i.test(cleanAckText);
+
+  if (isAckMessage && (!plan.tool || plan.tool !== 'manage_reminder' || plan.params?.action !== 'acknowledge')) {
+    try {
+      const ackRes = await acknowledgeReminders({ userId: user.id, phoneNumber });
+      if (ackRes.acknowledgedCount > 0) {
+        console.log(`[router] Auto-acknowledged ${ackRes.acknowledgedCount} pending reminder(s) from user confirmation "${messageText}".`);
+      }
+    } catch (ackErr) {
+      console.warn('[router] Auto-acknowledgement safety net error:', ackErr.message);
     }
   }
 
