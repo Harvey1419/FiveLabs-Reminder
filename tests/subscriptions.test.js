@@ -141,12 +141,14 @@ describe('MercadoPago Service Client', () => {
   });
 
   it('should verify webhook HMAC signature', () => {
-    process.env.MP_WEBHOOK_SECRET = 'my_secret_key_123';
+    const originalSecret = process.env.MP_WEBHOOK_SECRET;
+    const testSecret = 'test-mock-secret';
+    process.env.MP_WEBHOOK_SECRET = testSecret;
 
     // Mock request with raw body
     const rawBody = Buffer.from(JSON.stringify({ data: { id: '123' } }));
     const crypto = require('crypto');
-    const signature = crypto.createHmac('sha256', 'my_secret_key_123').update(rawBody).digest('hex');
+    const signature = crypto.createHmac('sha256', testSecret).update(rawBody).digest('hex');
 
     const req = {
       headers: {
@@ -167,6 +169,12 @@ describe('MercadoPago Service Client', () => {
     };
 
     expect(verifyWebhookSignature(invalidReq)).toBe(false);
+
+    if (originalSecret !== undefined) {
+      process.env.MP_WEBHOOK_SECRET = originalSecret;
+    } else {
+      delete process.env.MP_WEBHOOK_SECRET;
+    }
   });
 });
 
