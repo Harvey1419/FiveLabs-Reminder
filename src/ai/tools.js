@@ -246,11 +246,39 @@ export async function executeTool(toolName, params, user) {
         }
 
         if (action === 'update' || action === 'reschedule') {
-          const reminderId = params.id || params.reminderId;
+          let reminderId = params.id || params.reminderId;
           const targetTime = params.targetTime || params.sendAt;
-          const newContent = params.content;
+          const newContent = params.content || params.title;
           const requiresConfirmation = params.requiresConfirmation ?? params.requires_confirmation;
           const nudgeIntervalMinutes = params.nudgeIntervalMinutes ?? params.nudge_interval_minutes;
+
+          // If no explicit reminderId was provided, resolve the most recent matching or pending reminder ID
+          if (!reminderId) {
+            let findQuery = supabase
+              .from('reminders')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'pending');
+
+            if (params.contentQuery || params.query) {
+              findQuery = findQuery.ilike('content', `%${params.contentQuery || params.query}%`);
+            }
+            findQuery = findQuery.order('created_at', { ascending: false }).limit(1);
+
+            const { data: found } = await findQuery;
+            if (found && found.length > 0) {
+              reminderId = found[0].id;
+            }
+          }
+
+          if (!reminderId) {
+            return {
+              success: false,
+              action: 'updated_reminder',
+              data: [],
+              rawSummary: 'No se encontró ningún recordatorio pendiente para actualizar.',
+            };
+          }
 
           const updatePayload = {};
           if (targetTime) {
@@ -261,12 +289,12 @@ export async function executeTool(toolName, params, user) {
           if (requiresConfirmation !== undefined) updatePayload.requires_confirmation = Boolean(requiresConfirmation);
           if (nudgeIntervalMinutes !== undefined) updatePayload.nudge_interval_minutes = Number(nudgeIntervalMinutes);
 
-          let q = supabase.from('reminders').update(updatePayload);
-          if (reminderId) q = q.eq('id', reminderId);
-          else if (params.contentQuery) q = q.eq('user_id', user.id).ilike('content', `%${params.contentQuery}%`).eq('status', 'pending');
-          else q = q.eq('user_id', user.id).eq('status', 'pending').order('created_at', { ascending: false }).limit(1);
+          const { data: updated, error: updErr } = await supabase
+            .from('reminders')
+            .update(updatePayload)
+            .eq('id', reminderId)
+            .select();
 
-          const { data: updated, error: updErr } = await q.select();
           return {
             success: !updErr && updated?.length > 0,
             action: 'updated_reminder',
