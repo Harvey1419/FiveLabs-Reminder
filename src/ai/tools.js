@@ -246,13 +246,15 @@ export async function executeTool(toolName, params, user) {
         }
 
         if (action === 'update' || action === 'reschedule') {
-          let reminderId = params.id || params.reminderId;
+          const rawId = params.id || params.reminderId;
+          const isUuid = typeof rawId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId.trim());
+          let reminderId = isUuid ? rawId.trim() : null;
           const targetTime = params.targetTime || params.sendAt;
           const newContent = params.content || params.title;
           const requiresConfirmation = params.requiresConfirmation ?? params.requires_confirmation;
           const nudgeIntervalMinutes = params.nudgeIntervalMinutes ?? params.nudge_interval_minutes;
 
-          // If no explicit reminderId was provided, resolve the most recent matching or pending reminder ID
+          // If no explicit reminderId was provided or rawId was not a UUID, resolve the most recent matching or pending reminder ID
           if (!reminderId) {
             let findQuery = supabase
               .from('reminders')
