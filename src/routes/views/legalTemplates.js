@@ -10,7 +10,7 @@ export function renderPrivacyPolicyPage() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Política de Privacidad — FiveLabs Reminder</title>
-        <link rel="icon" type="image/jpeg" href="/brand_logo.jpeg" />
+        <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -41,10 +41,12 @@ export function renderPrivacyPolicyPage() {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           }
           .brand-header img {
-            width: 44px;
-            height: 44px;
-            border-radius: 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            width: 48px;
+            height: 48px;
+            border-radius: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            object-fit: cover;
+            background: #000000;
           }
           .brand-header h2 {
             font-size: 1.25rem;
@@ -115,7 +117,7 @@ export function renderPrivacyPolicyPage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/brand_logo.jpeg" alt="FiveLabs" />
+            <img src="/Logo.png" alt="FiveLabs Logo" />
             <div>
               <h2>FiveLabs Reminder</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>
@@ -190,7 +192,7 @@ export function renderTermsOfServicePage() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Condiciones del Servicio — FiveLabs Reminder</title>
-        <link rel="icon" type="image/jpeg" href="/brand_logo.jpeg" />
+        <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -221,10 +223,12 @@ export function renderTermsOfServicePage() {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           }
           .brand-header img {
-            width: 44px;
-            height: 44px;
-            border-radius: 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            width: 48px;
+            height: 48px;
+            border-radius: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            object-fit: cover;
+            background: #000000;
           }
           .brand-header h2 {
             font-size: 1.25rem;
@@ -283,7 +287,7 @@ export function renderTermsOfServicePage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/brand_logo.jpeg" alt="FiveLabs" />
+            <img src="/Logo.png" alt="FiveLabs Logo" />
             <div>
               <h2>FiveLabs Reminder</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>

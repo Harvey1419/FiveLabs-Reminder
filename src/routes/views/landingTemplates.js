@@ -19,7 +19,7 @@ export function renderGoogleSuccessPage({ email = null, theme = 'obsidian' } = {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Google Calendar Conectado — FiveLabs Reminder</title>
-        <link rel="icon" type="image/jpeg" href="/brand_logo.jpeg" />
+        <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -206,7 +206,7 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>¡Suscripción Exitosa! — FiveLabs Reminder Pro</title>
-        <link rel="icon" type="image/jpeg" href="/brand_logo.jpeg" />
+        <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
