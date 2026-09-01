@@ -3,6 +3,7 @@ import express from 'express';
 import { handleWebhook } from './webhook.js';
 import { handleMercadoPagoWebhook } from './webhooks/mercadopagoWebhook.js';
 import { googleAuthRouter } from './routes/googleAuthRoutes.js';
+import { renderSubscriptionSuccessPage } from './routes/views/landingTemplates.js';
 import { startScheduler } from './scheduler.js';
 import { startMorningBriefingWorker } from './workers/morningBriefing.js';
 
