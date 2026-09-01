@@ -128,8 +128,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   }
 
   // 3. Tool Execution if requested (Supports Batch Creation)
+  let toolResult = null;
   if (plan.type === 'tool_call' && plan.tool) {
-    const toolResult = await executeTool(plan.tool, plan.params || {}, user);
+    toolResult = await executeTool(plan.tool, plan.params || {}, user);
     console.log(`[router] Tool ${plan.tool} executed (${toolResult.action}):`, toolResult.rawSummary);
 
     // Dynamic memory listing fallback if model left reply generic, interim or empty
@@ -143,52 +144,45 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
         if (mems.length > 0) {
           plan.reply = `🧠 *Lo que sé y recuerdo sobre ti:*\n\n` +
             mems.slice(0, 10).map(m => `• *${m.category ? m.category.charAt(0).toUpperCase() + m.category.slice(1) : 'Dato'}:* ${m.content}`).join('\n\n') +
-            `\n\n¿Hay algo más que quieras que tenga presente o algún detalle que actualizar? 😊`;
+            `\n\n💡 _Puedes pedirme agregar más detalles o corregir cualquier dato cuando quieras._`;
         } else {
-          plan.reply = `Actualmente no tengo memorias registradas sobre ti. Puedes contarme sobre tus proyectos, personas o preferencias y las recordaré con gusto. 😊`;
+          plan.reply = `🧠 *Memoria del Asistente*\n\nActualmente no tengo recuerdos o preferencias guardadas sobre ti. A medida que hablemos iré recordando tus proyectos y contexto importante.`;
         }
       }
     }
 
-    // Dynamic cancellation count enrichment
+    // Dynamic cancelled reminder feedback fallback if model forgot to mention it
     if (toolResult.action === 'cancelled_reminders' && toolResult.data) {
       const { cancelledCount } = toolResult.data;
-      if (plan.params?.keepLatest) {
-        plan.reply = `¡Listo! Eliminé ${cancelledCount} recordatorio(s) anterior(es) y te dejé solo el último 🗑️⏰`;
-      } else if (plan.params?.cancelAll) {
-        plan.reply = `¡Listo! Eliminé todos tus recordatorios pendientes (${cancelledCount} en total) 🗑️`;
+      if (cancelledCount > 0 && !plan.reply.includes('cancelado') && !plan.reply.includes('eliminado')) {
+        plan.reply = `🗑️ *Recordatorio cancelado*\n\n${toolResult.rawSummary}\n\n${plan.reply}`;
       }
     }
 
-    // Subscription link generation enrichment
+    // Dynamic subscription link replacement if model left placeholder
     if (toolResult.action === 'subscription_link_generated' && toolResult.data?.checkout_url) {
       const checkoutUrl = toolResult.data.checkout_url;
       if (plan.reply && plan.reply.includes('[checkout_url]')) {
         plan.reply = plan.reply.replace(/\[checkout_url\]/g, checkoutUrl);
-      } else if (!plan.reply || !plan.reply.includes('http')) {
-        plan.reply =
-          `🚀 *Desbloquea tu Segundo Cerebro con Reminder Pro*\n\n` +
-          `Con **Reminder Pro** ($49.900 COP/mes) obtienes un asistente que evoluciona contigo:\n\n` +
-          `• 🧠 *Memoria Continua:* Entre más hablas conmigo, más aprendo de tus proyectos, clientes y hábitos.\n` +
-          `• 📅 *Agenda Total:* Recordatorios para cualquier fecha futura sin límites.\n` +
-          `• 🔄 *Recurrencias Inteligentes:* 'Todos los lunes', 'cada 15 días' o fin de mes.\n` +
-          `• 🌅 *Morning Briefing:* Tu resumen ejecutivo matutino en WhatsApp a tu hora.\n` +
-          `• 🔔 *Insistencia Anti-Procrastinación:* Avisos inteligentes hasta que confirmes.\n\n` +
-          `👉 *Suscríbete aquí de forma segura con Mercado Pago:*\n${checkoutUrl}`;
+      } else if (!plan.reply.includes(checkoutUrl)) {
+        plan.reply = `${plan.reply}\n\n👉 *Enlace de pago seguro de Mercado Pago:*\n${checkoutUrl}`;
       }
     }
 
     // Google Calendar link replacement / result enrichment
     if (toolResult.action === 'google_auth_link_generated' || toolResult.action === 'google_not_connected') {
       if (toolResult.data?.auth_url) {
-        if (plan.reply && plan.reply.includes('[auth_url]')) {
+        const isInterim = /\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply);
+        if (isInterim || !plan.reply || plan.reply.length < 15) {
+          plan.reply = `📅 *Google Calendar no vinculado*\n\nPara consultar tus eventos o agendar reuniones, primero debes vincular tu cuenta de Google.\n\n👉 Toca el botón de abajo para conectarla en 1 toque.`;
+        } else if (plan.reply.includes('[auth_url]')) {
           plan.reply = plan.reply.replace(/\[auth_url\]/g, toolResult.data.auth_url);
         } else if (!plan.reply.includes(toolResult.data.auth_url)) {
           plan.reply = `${plan.reply}\n\n👉 *Vincula tu cuenta aquí:* ${toolResult.data.auth_url}`;
         }
       }
     } else if (toolResult.action === 'google_events_listed' || toolResult.action === 'google_event_created' || toolResult.action === 'google_disconnected') {
-      if (!plan.reply || plan.reply === '') {
+      if (!plan.reply || plan.reply === '' || /\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply)) {
         plan.reply = toolResult.rawSummary;
       }
     }
