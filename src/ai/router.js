@@ -8,6 +8,7 @@ import {
   hasProAccess,
   createPendingSubscription,
   acknowledgeReminders,
+  cancelUserSubscription,
 } from '../db/index.js';
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { buildAgentCorePrompt } from './agentCore.js';
@@ -176,6 +177,11 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       }
     }
 
+    // Subscription cancellation enrichment
+    if (toolResult.action === 'subscription_cancelled') {
+      plan.reply = `🗑️ *Suscripción a Reminder Pro cancelada*\n\n${toolResult.rawSummary}\n\n¡Esperamos verte de vuelta pronto! 😊`;
+    }
+
     // Tier limit exceeded notification
     if (toolResult.action === 'tier_limit_exceeded') {
       plan.reply = toolResult.rawSummary;
@@ -219,6 +225,29 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       }
     } catch (ackErr) {
       console.warn('[router] Auto-acknowledgement safety net error:', ackErr.message);
+    }
+  }
+
+  // Universal safety check: if user explicitly requests subscription cancellation and manage_subscription wasn't executed
+  const isCancelSubMessage = /\b(cancela(r)?|desactiva(r)?|dar(me)?\s+de\s+baja|no\s+quiero\s+(m[aá]s\s+)?(renovar|pagar))\b/i.test(messageText) &&
+    /\b(sub|suscripci[oó]n|pro|plan)\b/i.test(messageText);
+
+  if (isCancelSubMessage && (!plan.tool || (plan.tool !== 'manage_subscription' && plan.tool !== 'get_subscription_link') || plan.params?.action !== 'cancel')) {
+    try {
+      const cancelRes = await cancelUserSubscription(user.id);
+      if (cancelRes?.success) {
+        const nextPaymentDate = cancelRes.subscription?.next_payment_date;
+        const expiryNotice = nextPaymentDate
+          ? ` Conservarás el acceso a tus funciones Pro hasta el término de tu período actual (${new Date(nextPaymentDate).toLocaleDateString('es-CO')}).`
+          : '';
+
+        plan.reply = `🗑️ *Suscripción a Reminder Pro cancelada*\n\nHemos cancelado la renovación automática de tu suscripción con éxito. No se realizarán más cobros a tu tarjeta.${expiryNotice}\n\n¡Esperamos verte de vuelta pronto! 😊`;
+        plan.tool = 'manage_subscription';
+        plan.params = { action: 'cancel' };
+        plan.intent = 'subscription';
+      }
+    } catch (cancelErr) {
+      console.warn('[router] Auto-cancel subscription error:', cancelErr.message);
     }
   }
 

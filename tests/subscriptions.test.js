@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hasProAccess } from '../src/db/subscriptions.js';
-import { createPreapproval, getPreapproval, verifyWebhookSignature } from '../src/services/mercadopago.js';
+import { createPreapproval, getPreapproval, cancelPreapproval, verifyWebhookSignature } from '../src/services/mercadopago.js';
 import { handleMercadoPagoWebhook } from '../src/webhooks/mercadopagoWebhook.js';
 import { executeTool } from '../src/ai/tools.js';
 
@@ -11,6 +11,22 @@ vi.mock('../src/db/index.js', async (importOriginal) => {
     saveReminder: vi.fn().mockResolvedValue({ id: 'rem-123' }),
     cancelReminders: vi.fn().mockResolvedValue({ cancelledCount: 0, remainingCount: 0 }),
     createPendingSubscription: vi.fn().mockResolvedValue(true),
+    getUserSubscription: vi.fn().mockResolvedValue({
+      id: 'sub-123',
+      user_id: 'test-user-uuid-1',
+      plan: 'pro',
+      status: 'authorized',
+      mp_preapproval_id: 'test_sub_123',
+      next_payment_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+    }),
+    cancelUserSubscription: vi.fn().mockResolvedValue({
+      success: true,
+      subscription: {
+        id: 'sub-123',
+        status: 'cancelled',
+        next_payment_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    }),
   };
 });
 describe('Subscription Access Control (hasProAccess)', () => {
@@ -330,5 +346,42 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.data.amount).toBe(49900);
 
     fetchSpy.mockRestore();
+  });
+
+  it('should cancel subscription in MercadoPago and return confirmation', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: 'test_sub_123',
+        status: 'cancelled',
+      }),
+    });
+
+    const cancelRes = await cancelPreapproval('test_sub_123');
+    expect(cancelRes.status).toBe('cancelled');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://api.mercadopago.com/preapproval/test_sub_123',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+    );
+
+    fetchSpy.mockRestore();
+  });
+
+  it('should execute manage_subscription with action cancel via executeTool', async () => {
+    const user = {
+      id: 'test-user-uuid-1',
+      phone_number: '573001112233',
+      timezone: 'America/Bogota',
+      locale: 'es-CO',
+      is_admin: false,
+    };
+
+    const res = await executeTool('manage_subscription', { action: 'cancel' }, user);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('subscription_cancelled');
+    expect(res.rawSummary).toContain('cancelada');
   });
 });

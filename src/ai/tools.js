@@ -22,6 +22,8 @@ import {
   supabase,
   hasProAccess,
   createPendingSubscription,
+  getUserSubscription,
+  cancelUserSubscription,
 } from '../db/index.js';
 import { createPreapproval, createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { isAdminUser } from '../utils/auth.js';
@@ -694,6 +696,32 @@ export async function executeTool(toolName, params, user) {
 
       case 'get_subscription_link':
       case 'manage_subscription': {
+        const action = params.action || 'get_link';
+
+        if (action === 'cancel' || action === 'unsubscribe' || action === 'delete') {
+          const sub = await getUserSubscription(user.id);
+          if (!sub || sub.status === 'cancelled' || sub.plan === 'free') {
+            return {
+              success: false,
+              action: 'no_active_subscription',
+              rawSummary: 'No tienes una suscripción activa a Reminder Pro en este momento.',
+            };
+          }
+
+          const cancelRes = await cancelUserSubscription(user.id);
+          const nextPaymentDate = cancelRes.subscription?.next_payment_date;
+          const expiryNotice = nextPaymentDate
+            ? ` Conservarás todos los beneficios Pro hasta el término de tu período actual (${new Date(nextPaymentDate).toLocaleDateString('es-CO')}).`
+            : '';
+
+          return {
+            success: true,
+            action: 'subscription_cancelled',
+            data: cancelRes.subscription,
+            rawSummary: `Tu suscripción a Reminder Pro ha sido cancelada con éxito.${expiryNotice} No se realizarán nuevos cobros automáticos.`,
+          };
+        }
+
         const plan = await getOrCreateCanonicalPlan({
           reason: 'FiveLabs Reminder Pro',
           amount: 49900,

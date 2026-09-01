@@ -1,4 +1,5 @@
 import { supabase } from './index.js';
+import { cancelPreapproval } from '../services/mercadopago.js';
 
 /**
  * Check if a subscription record or user object grants Pro access.
@@ -223,3 +224,57 @@ export async function updateSubscriptionFromWebhook({
 
   return data || null;
 }
+
+/**
+ * Cancel user subscription locally and remotely on MercadoPago.
+ *
+ * @param {string} userId
+ * @returns {Promise<{success: boolean, subscription?: object, alreadyCancelled?: boolean, error?: string}>}
+ */
+export async function cancelUserSubscription(userId) {
+  if (!userId) return { success: false, error: 'User ID is required' };
+
+  try {
+    const sub = await getUserSubscription(userId);
+    if (!sub) {
+      return { success: false, error: 'No subscription found for user' };
+    }
+
+    if (sub.status === 'cancelled') {
+      return { success: true, subscription: sub, alreadyCancelled: true };
+    }
+
+    // Cancel in MercadoPago if valid preapproval ID
+    if (sub.mp_preapproval_id) {
+      try {
+        await cancelPreapproval(sub.mp_preapproval_id);
+        console.log(`[db/subscriptions] Cancelled MercadoPago preapproval: ${sub.mp_preapproval_id}`);
+      } catch (mpErr) {
+        console.warn(`[db/subscriptions] cancelPreapproval warning: ${mpErr.message}`);
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const { data: updated, error: updErr } = await supabase
+      .from('subscriptions')
+      .update({
+        status: 'cancelled',
+        canceled_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', sub.id)
+      .select()
+      .single();
+
+    if (updErr) throw updErr;
+
+    return {
+      success: true,
+      subscription: updated,
+    };
+  } catch (err) {
+    console.error('[db/subscriptions] cancelUserSubscription error:', err.message);
+    throw err;
+  }
+}
+

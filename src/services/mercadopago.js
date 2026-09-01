@@ -259,6 +259,54 @@ export async function getPreapproval(preapprovalId) {
 }
 
 /**
+ * Cancel a recurring preapproval subscription in MercadoPago.
+ *
+ * @param {string} preapprovalId
+ * @returns {Promise<object>}
+ */
+export async function cancelPreapproval(preapprovalId) {
+  if (!preapprovalId) {
+    throw new Error('preapprovalId is required');
+  }
+
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('MercadoPago Access Token not configured (MP_ACCESS_TOKEN)');
+  }
+
+  const response = await fetch(`${MP_API_BASE}/preapproval/${preapprovalId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status: 'cancelled' }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    // Retry with 'canceled' spelling if rejected
+    const retryRes = await fetch(`${MP_API_BASE}/preapproval/${preapprovalId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'canceled' }),
+    });
+    const retryData = await retryRes.json();
+    if (!retryRes.ok) {
+      console.error('[mercadopago] cancelPreapproval failed:', retryRes.status, retryData);
+      throw new Error(`MercadoPago cancelPreapproval error (${retryRes.status}): ${retryData.message || JSON.stringify(retryData)}`);
+    }
+    return retryData;
+  }
+
+  return data;
+}
+
+/**
  * Validate HMAC-SHA256 signature from MercadoPago webhook request.
  * Header format: ts=[timestamp],v1=[hash]
  *

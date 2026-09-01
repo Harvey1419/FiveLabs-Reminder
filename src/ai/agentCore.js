@@ -68,8 +68,8 @@ export function buildAgentCorePrompt({
     : '';
 
   const toolEnumSchema = isAdmin
-    ? `"manage_memory" | "manage_reminder" | "manage_entity" | "manage_task" | "get_subscription_link" | "admin_metrics" | null`
-    : `"manage_memory" | "manage_reminder" | "manage_entity" | "manage_task" | "get_subscription_link" | null`;
+    ? `"manage_memory" | "manage_reminder" | "manage_entity" | "manage_task" | "manage_subscription" | "get_subscription_link" | "admin_metrics" | null`
+    : `"manage_memory" | "manage_reminder" | "manage_entity" | "manage_task" | "manage_subscription" | "get_subscription_link" | null`;
 
   const compactOverviewText = formatCompactOverview(overview);
 
@@ -169,9 +169,9 @@ ${!isPro ? `- 🎯 ESTRATEGIA CONVERSACIONAL PRO (USUARIO EN DEMO FREE):
    - search: action='search', query: string, topicKey?: string. Para buscar recuerdos específicos sobre un tema.
    - save: action='save', content: string, category: 'preference'|'fact'|'decision'|'episode', topicKey?: string.
    - forget: action='forget', topicKey?: string o query?: string (Derecho al Olvido).
-5. **get_subscription_link**: {}
-   - Genera el enlace de pago seguro de MercadoPago para suscribirse a **Reminder Pro** ($49.900 COP/mes).
-   - Úsalo cuando el usuario pregunte cómo suscribirse, pida el link de pago, pregunte precios, o intente agendar para fechas futuras o recurrentes.${adminSection}
+5. **manage_subscription**: {"action": "get_link" | "cancel"}
+   - action='get_link': Genera el enlace de pago seguro de MercadoPago para suscribirse a **Reminder Pro** ($49.900 COP/mes). Úsalo cuando el usuario pregunte cómo suscribirse, pida el link de pago, pregunte precios, o intente agendar para fechas futuras o recurrentes.
+   - action='cancel': Cancela la suscripción activa a Reminder Pro en Mercado Pago y en la base de datos directamente desde el chat. Si el usuario pide cancelar su suscripción, darse de baja o no renovar Pro, DEBES ejecutar type:'tool_call' con tool:'manage_subscription' y params:{action:'cancel'}. NUNCA le digas al usuario que debe ir a la página de Mercado Pago para cancelar; nosotros gestionamos y ejecutamos la cancelación inmediatamente.${adminSection}
 ${isAdmin ? '7.' : '6.'} null: para responder preguntas, saludar o consultar agenda.
 
 ## 3. CONTEXTO (${timezone})
@@ -192,7 +192,8 @@ ${compactOverviewText}
 ## 4. PATRONES CANÓNICOS (MODELO ↔ DB)
 - "En 10 min X y en 20 min Y" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'X', targetTime:'+10m'}, {content:'Y', targetTime:'+20m'}]}
 - "Tengo reunión de Hydra a las 12, recuérdame 15 minutos antes" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Reunión de Hydra (Aviso previo)', targetTime:'11:45'}, {content:'Reunión de Hydra', targetTime:'12:00'}]}, reply:"✅ *Recordatorios programados*\n\n⏰ *Reunión de Hydra* — Hoy a las 12:00 p. m.\n🔔 *Aviso previo (15 min antes)* — Hoy a las 11:45 a. m."
-- "Quiero suscribirme / Cómo pago / Pásame el link pro" -> type:'tool_call', tool:'get_subscription_link', params:{}, reply:"🚀 *Desbloquea tu Segundo Cerebro con Reminder Pro*\n\nCon **Reminder Pro** ($49.900 COP/mes) obtienes un asistente ejecutivo que evoluciona contigo:\n\n• 🧠 *Memoria Continua:* Aprende tus proyectos, personas y preferencias con cada mensaje\n• 📅 *Agenda sin Límites:* Recordatorios para cualquier fecha (mañana, próximo mes o año)\n• 🔄 *Recurrencias Inteligentes:* 'Todos los lunes', 'cada quincena', etc.\n• 🌅 *Morning Briefing:* Tu resumen matutino diario personalizado por WhatsApp\n• 🔔 *Insistencia Inteligente:* Seguimiento persistente hasta que lo completes\n\n👉 *Suscríbete aquí de forma segura con Mercado Pago:*\n[checkout_url]"
+- "Quiero suscribirme / Cómo pago / Pásame el link pro" -> type:'tool_call', tool:'manage_subscription', params:{action:'get_link'}, reply:"🚀 *Desbloquea tu Segundo Cerebro con Reminder Pro*\n\nCon **Reminder Pro** ($49.900 COP/mes) obtienes un asistente ejecutivo que evoluciona contigo:\n\n• 🧠 *Memoria Continua:* Aprende tus proyectos, personas y preferencias con cada mensaje\n• 📅 *Agenda sin Límites:* Recordatorios para cualquier fecha (mañana, próximo mes o año)\n• 🔄 *Recurrencias Inteligentes:* 'Todos los lunes', 'cada quincena', etc.\n• 🌅 *Morning Briefing:* Tu resumen matutino diario personalizado por WhatsApp\n• 🔔 *Insistencia Inteligente:* Seguimiento persistente hasta que lo completes\n\n👉 *Suscríbete aquí de forma segura con Mercado Pago:*\n[checkout_url]"
+- "Cancela mi suscripción / Ya no quiero pagar Pro / Darme de baja" -> type:'tool_call', tool:'manage_subscription', params:{action:'cancel'}, reply:"🗑️ *Suscripción a Reminder Pro cancelada*\n\nHemos cancelado la renovación automática de tu suscripción con éxito. No se realizarán más cobros automáticos a tu tarjeta.\n\nConservarás el acceso a tus funciones Pro hasta el final de tu período actual. ¡Esperamos verte de vuelta pronto! 😊"
 - "A las 6:30 ver películas con tareas hacer palomitas, comprar gaseosa" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Ver películas', targetTime:'18:30', tasks:['Hacer palomitas', 'Comprar gaseosa']}]}, reply:"✅ *Recordatorio programado*\n\n⏰ *Ver películas*\n📅 Hoy, 6:30 p. m.\n\n📝 *Checklist de tareas:*\n▫️ Hacer palomitas\n▫️ Comprar gaseosa"
 - "No era Jacks sino Yax" -> type:'tool_call', tool:'manage_entity', params:{action:'rename', oldName:'Jacks', newName:'Yax'}
 - "Cancela los anteriores y ponme X a las 4" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', cancelContent:['...'], items:[{content:'X', targetTime:'16:00'}]}

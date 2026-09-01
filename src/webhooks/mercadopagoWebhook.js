@@ -1,6 +1,6 @@
 import { getPreapproval, verifyWebhookSignature } from '../services/mercadopago.js';
 import { updateSubscriptionFromWebhook, getSubscriptionByMpId } from '../db/subscriptions.js';
-import { sendWhatsAppText } from '../utils/kapso.js';
+import { sendWhatsAppText, sendWhatsAppTemplate } from '../utils/kapso.js';
 
 /**
  * Handle incoming MercadoPago Webhook notifications.
@@ -64,9 +64,18 @@ export async function handleMercadoPagoWebhook(req, res) {
             `• 🌅 *Morning briefing diario personalizado*\n\n` +
             `¡Gracias por confiar en Reminder! ¿Qué recordatorio deseas programar?`;
 
-          await sendWhatsAppText({ phoneNumber, text: welcomeMessage }).catch(err => {
-            console.error(`[mp-webhook] Failed to send welcome WhatsApp to ${phoneNumber}:`, err.message);
-          });
+          try {
+            await sendWhatsAppText({ phoneNumber, text: welcomeMessage });
+          } catch (textErr) {
+            console.warn(`[mp-webhook] sendWhatsAppText failed (${textErr.message}), falling back to template message...`);
+            await sendWhatsAppTemplate({
+              phoneNumber,
+              templateName: 'reminder_task_one_reminder',
+              parameters: ['🎉 ¡Tu suscripción a Reminder Pro está activa! Ya tienes acceso ilimitado a todas las funciones.'],
+            }).catch(tmplErr => {
+              console.error(`[mp-webhook] Failed to send template welcome WhatsApp to ${phoneNumber}:`, tmplErr.message);
+            });
+          }
         }
       }
     } else if (topic === 'subscription_authorized_payment' || topic === 'authorized_payment') {
