@@ -275,8 +275,8 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: #eab308;
-            box-shadow: 0 0 10px #eab308;
+            background: #22c55e;
+            box-shadow: 0 0 10px #22c55e;
           }
           h1 {
             font-size: 1.75rem;
