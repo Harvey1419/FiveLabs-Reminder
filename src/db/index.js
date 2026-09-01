@@ -626,3 +626,4 @@ export * from './tasks.js';
 export * from './entities.js';
 export * from './memories.js';
 export * from './subscriptions.js';
+export * from './integrations.js';

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { handleWebhook } from './webhook.js';
 import { handleMercadoPagoWebhook } from './webhooks/mercadopagoWebhook.js';
+import { googleAuthRouter } from './routes/googleAuthRoutes.js';
 import { startScheduler } from './scheduler.js';
 import { startMorningBriefingWorker } from './workers/morningBriefing.js';
 
@@ -27,6 +28,9 @@ app.use(express.json({
 app.get('/', (req, res) => {
   res.status(200).send('🚀 Reminder WhatsApp Bot Service is running.');
 });
+
+// Google OAuth Routes
+app.use('/auth/google', googleAuthRouter);
 
 // Webhook verification endpoint (Meta / Kapso standard)
 app.get('/webhook', (req, res) => {

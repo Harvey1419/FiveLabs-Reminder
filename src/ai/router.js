@@ -11,6 +11,7 @@ import {
   cancelUserSubscription,
 } from '../db/index.js';
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
+import { generateGoogleAuthUrl } from '../services/googleAuth.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -177,6 +178,21 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       }
     }
 
+    // Google Calendar link replacement / result enrichment
+    if (toolResult.action === 'google_auth_link_generated' || toolResult.action === 'google_not_connected') {
+      if (toolResult.data?.auth_url) {
+        if (plan.reply && plan.reply.includes('[auth_url]')) {
+          plan.reply = plan.reply.replace(/\[auth_url\]/g, toolResult.data.auth_url);
+        } else if (!plan.reply.includes(toolResult.data.auth_url)) {
+          plan.reply = `${plan.reply}\n\n👉 *Vincula tu cuenta aquí:* ${toolResult.data.auth_url}`;
+        }
+      }
+    } else if (toolResult.action === 'google_events_listed' || toolResult.action === 'google_event_created' || toolResult.action === 'google_disconnected') {
+      if (!plan.reply || plan.reply === '') {
+        plan.reply = toolResult.rawSummary;
+      }
+    }
+
     // Subscription cancellation enrichment
     if (toolResult.action === 'subscription_cancelled') {
       plan.reply = `🗑️ *Suscripción a Reminder Pro cancelada*\n\n${toolResult.rawSummary}\n\n¡Esperamos verte de vuelta pronto! 😊`;
@@ -185,6 +201,16 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     // Tier limit exceeded notification
     if (toolResult.action === 'tier_limit_exceeded') {
       plan.reply = toolResult.rawSummary;
+    }
+  }
+
+  // Universal safety check: if reply has [auth_url] anywhere (even in type: 'chat'), replace with real link
+  if (plan.reply && plan.reply.includes('[auth_url]')) {
+    try {
+      const authUrl = generateGoogleAuthUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
+      plan.reply = plan.reply.replace(/\[auth_url\]/g, authUrl);
+    } catch (authErr) {
+      console.warn('[router] generating auth_url for reply replacement failed:', authErr.message);
     }
   }
 
