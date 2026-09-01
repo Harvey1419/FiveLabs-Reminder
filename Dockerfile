@@ -31,8 +31,9 @@ USER node
 COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./
 
-# Copy application source code
+# Copy application source code & public static assets
 COPY --chown=node:node src/ ./src/
+COPY --chown=node:node public/ ./public/
 
 # Expose server port
 EXPOSE 3005
