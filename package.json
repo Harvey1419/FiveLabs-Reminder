@@ -14,7 +14,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "googleapis": "^178.0.0"
+    "googleapis": "^144.0.0"
   },
   "devDependencies": {
     "vitest": "^4.1.0"
