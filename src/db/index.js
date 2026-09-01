@@ -391,13 +391,20 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
       tomorrowDate: '',
       doneToday: [],
       pendingToday: [],
+      timedRemindersToday: [],
+      tasksDueToday: [],
+      openTasks: [],
+      openTasksByEntity: {},
+      openTasksGeneral: [],
       tomorrow: [],
+      tomorrowReminders: [],
+      tomorrowTasks: [],
       upcoming: [],
     };
   }
 
   let userRemindersQ = supabase.from('reminders').select('*');
-  let userTasksQ = supabase.from('tasks').select('*');
+  let userTasksQ = supabase.from('tasks').select('*, entities:entity_id(id, name, category)');
 
   if (userId) {
     userRemindersQ = userRemindersQ.eq('user_id', userId);
@@ -415,22 +422,31 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const tasks = allTasks || [];
 
   const formatItem = (item, isDone = false) => {
-    const rawDate = (isDone ? (item.acknowledged_at || item.completed_at || item.sent_at) : null)
-      || item.send_at
-      || item.due_date
-      || item.sent_at
-      || item.acknowledged_at
-      || item.completed_at
-      || item.updated_at;
+    // For reminders: scheduled date is send_at
+    // For tasks: scheduled date is due_date
+    // For completed: date is acknowledged_at / completed_at / sent_at
+    // NEVER fall back to created_at or updated_at for an item's date or time!
+    const rawDate = isDone
+      ? (item.acknowledged_at || item.completed_at || item.sent_at || null)
+      : (item.send_at || item.due_date || null);
+
+    const isTask = !item.send_at && (item.title !== undefined || item.due_date !== undefined);
+    const entityName = item.entities?.name || null;
+    const entityCategory = item.entities?.category || null;
+
     if (!rawDate) {
       return {
         id: item.id,
         content: item.content || item.title,
+        title: item.title || item.content,
         localDate: null,
         localTime: null,
         localFormatted: '(Sin fecha límite)',
         recurrenceRule: item.recurrence_rule || null,
         status: item.status,
+        isTask,
+        entityName,
+        entityCategory,
       };
     }
 
@@ -446,11 +462,15 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     return {
       id: item.id,
       content: item.content || item.title,
+      title: item.title || item.content,
       localDate: localDateStr,
       localTime: localTimeStr,
       localFormatted,
       recurrenceRule: item.recurrence_rule || null,
       status: item.status,
+      isTask,
+      entityName,
+      entityCategory,
     };
   };
 
@@ -462,20 +482,25 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const tomorrowStr = todayFormatter.format(tomorrowObj);
 
   const doneToday = [];
-  const pendingToday = [];
-  const tomorrow = [];
+  const timedRemindersToday = [];
+  const tasksDueToday = [];
+  const openTasks = [];
+  const tomorrowReminders = [];
+  const tomorrowTasks = [];
   const upcoming = [];
 
   for (const r of reminders) {
     if (r.status === 'sent' || r.acknowledged_at) {
       const formatted = formatItem(r, true);
-      if (formatted.localDate === todayStr || (!r.acknowledged_at && !r.sent_at)) doneToday.push(formatted);
+      if (formatted.localDate === todayStr || (!r.acknowledged_at && !r.sent_at)) {
+        doneToday.push(formatted);
+      }
     } else if (r.status === 'pending' || r.status === 'processing') {
       const formatted = formatItem(r);
       if (formatted.localDate === todayStr) {
-        pendingToday.push(formatted);
+        timedRemindersToday.push(formatted);
       } else if (formatted.localDate === tomorrowStr) {
-        tomorrow.push(formatted);
+        tomorrowReminders.push(formatted);
       } else if (formatted.localDate > tomorrowStr) {
         upcoming.push(formatted);
       }
@@ -485,25 +510,55 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   for (const t of tasks) {
     if (t.status === 'completed') {
       const formatted = formatItem(t, true);
-      if (formatted.localDate === todayStr) doneToday.push(formatted);
+      if (formatted.localDate === todayStr) {
+        doneToday.push(formatted);
+      }
     } else if (t.status === 'pending') {
       const formatted = formatItem(t);
-      if (!t.due_date || formatted.localDate === todayStr) {
-        pendingToday.push(formatted);
+      if (formatted.localDate === todayStr) {
+        tasksDueToday.push(formatted);
+      } else if (!t.due_date) {
+        openTasks.push(formatted);
       } else if (formatted.localDate === tomorrowStr) {
-        tomorrow.push(formatted);
+        tomorrowTasks.push(formatted);
       } else if (formatted.localDate > tomorrowStr) {
         upcoming.push(formatted);
       }
     }
   }
 
+  // Group open tasks by entity/project
+  const openTasksByEntity = {};
+  const openTasksGeneral = [];
+
+  for (const task of openTasks) {
+    const groupKey = task.entityName ? task.entityName.trim() : null;
+    if (groupKey) {
+      if (!openTasksByEntity[groupKey]) {
+        openTasksByEntity[groupKey] = [];
+      }
+      openTasksByEntity[groupKey].push(task);
+    } else {
+      openTasksGeneral.push(task);
+    }
+  }
+
+  const pendingToday = [...timedRemindersToday, ...tasksDueToday, ...openTasks];
+  const tomorrow = [...tomorrowReminders, ...tomorrowTasks];
+
   return {
     todayDate: todayStr,
     tomorrowDate: tomorrowStr,
     doneToday,
     pendingToday,
+    timedRemindersToday,
+    tasksDueToday,
+    openTasks,
+    openTasksByEntity,
+    openTasksGeneral,
     tomorrow,
+    tomorrowReminders,
+    tomorrowTasks,
     upcoming,
   };
 }

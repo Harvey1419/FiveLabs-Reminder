@@ -16,22 +16,75 @@ export function formatCompactOverview(overview) {
   if (!overview) return '(Sin pendientes ni recordatorios programados)';
   const lines = [];
 
-  const formatList = (items, label) => {
-    if (!items || items.length === 0) return;
-    lines.push(`*${label}*:`);
-    for (const it of items.slice(0, 15)) {
-      const datePrefix = (label === 'Próximos' && it.localDate) ? `[${it.localDate}] ` : '';
+  // 1. Timed Reminders Today
+  if (overview.timedRemindersToday?.length > 0) {
+    lines.push(`*Recordatorios de hoy con hora fija*:`);
+    for (const it of overview.timedRemindersToday.slice(0, 15)) {
+      lines.push(`  - ⏰ ${it.localTime}: ${it.content || it.title}`);
+    }
+  }
+
+  // 2. Tasks Due Today
+  if (overview.tasksDueToday?.length > 0) {
+    lines.push(`*Tareas que vencen hoy*:`);
+    for (const it of overview.tasksDueToday.slice(0, 15)) {
+      const time = it.localTime ? ` (antes de las ${it.localTime})` : '';
+      const entity = it.entityName ? ` [Proyecto: ${it.entityName}]` : '';
+      lines.push(`  - 🎯 ${it.title || it.content}${time}${entity}`);
+    }
+  }
+
+  // 3. Open Tasks by Entity
+  if (overview.openTasksByEntity && Object.keys(overview.openTasksByEntity).length > 0) {
+    lines.push(`*Tareas y Proyectos abiertos (sin hora fija)*:`);
+    for (const [entityName, tasks] of Object.entries(overview.openTasksByEntity)) {
+      lines.push(`  📁 [${entityName}]:`);
+      for (const t of tasks.slice(0, 10)) {
+        lines.push(`    ▫️ ${t.title || t.content}`);
+      }
+    }
+  }
+
+  // 4. General Open Tasks
+  if (overview.openTasksGeneral?.length > 0) {
+    if (!overview.openTasksByEntity || Object.keys(overview.openTasksByEntity).length === 0) {
+      lines.push(`*Tareas abiertas (sin hora fija)*:`);
+    }
+    for (const t of overview.openTasksGeneral.slice(0, 10)) {
+      lines.push(`  - 📌 ${t.title || t.content}`);
+    }
+  }
+
+  // 5. Fallback for pendingToday if newer fields absent
+  if (lines.length === 0 && overview.pendingToday?.length > 0) {
+    lines.push(`*Hoy*:`);
+    for (const it of overview.pendingToday.slice(0, 15)) {
+      const time = it.localTime ? `⏰ ${it.localTime}: ` : '📌 ';
+      lines.push(`  - ${time}${it.content || it.title}`);
+    }
+  }
+
+  // 6. Tomorrow & Upcoming
+  if (overview.tomorrow?.length > 0) {
+    lines.push(`*Mañana*:`);
+    for (const it of overview.tomorrow.slice(0, 10)) {
+      const time = it.localTime ? `⏰ ${it.localTime}: ` : '📌 ';
+      lines.push(`  - ${time}${it.content || it.title}`);
+    }
+  }
+
+  if (overview.upcoming?.length > 0) {
+    lines.push(`*Próximos días*:`);
+    for (const it of overview.upcoming.slice(0, 10)) {
+      const datePrefix = it.localDate ? `[${it.localDate}] ` : '';
       const time = it.localTime ? `⏰ ${it.localTime}: ` : '📌 ';
       lines.push(`  - ${datePrefix}${time}${it.content || it.title}`);
     }
-  };
+  }
 
-  formatList(overview.pendingToday, 'Hoy');
-  formatList(overview.tomorrow, 'Mañana');
-  formatList(overview.upcoming, 'Próximos');
   if (overview.doneToday?.length > 0) {
     lines.push(`*Completados hoy*:`);
-    for (const it of overview.doneToday.slice(0, 15)) {
+    for (const it of overview.doneToday.slice(0, 10)) {
       const time = it.localTime ? ` (${it.localTime})` : '';
       lines.push(`  - ✅ ${it.content || it.title}${time}`);
     }
