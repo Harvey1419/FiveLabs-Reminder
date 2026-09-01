@@ -4,6 +4,7 @@ import { handleWebhook } from './webhook.js';
 import { handleMercadoPagoWebhook } from './webhooks/mercadopagoWebhook.js';
 import { googleAuthRouter } from './routes/googleAuthRoutes.js';
 import { renderSubscriptionSuccessPage } from './routes/views/landingTemplates.js';
+import { renderPrivacyPolicyPage, renderTermsOfServicePage } from './routes/views/legalTemplates.js';
 import { startScheduler } from './scheduler.js';
 import { startMorningBriefingWorker } from './workers/morningBriefing.js';
 
@@ -31,6 +32,15 @@ app.use(express.json({
 // Root health check for browser visits
 app.get('/', (req, res) => {
   res.status(200).send('🚀 Reminder WhatsApp Bot Service is running.');
+});
+
+// Privacy Policy & Terms of Service (Required by Google OAuth Consent Screen)
+app.get(['/privacy', '/politica-de-privacidad'], (req, res) => {
+  res.status(200).send(renderPrivacyPolicyPage());
+});
+
+app.get(['/terms', '/terminos-y-condiciones'], (req, res) => {
+  res.status(200).send(renderTermsOfServicePage());
 });
 
 // Google OAuth Routes
