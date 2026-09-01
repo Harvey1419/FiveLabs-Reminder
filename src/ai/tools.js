@@ -27,7 +27,7 @@ import {
   getUserIntegration,
 } from '../db/index.js';
 import { createPreapproval, createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
-import { generateGoogleAuthUrl, revokeGoogleIntegration } from '../services/googleAuth.js';
+import { generateGoogleAuthUrl, getGoogleConnectUrl, revokeGoogleIntegration } from '../services/googleAuth.js';
 import {
   listCalendarEvents,
   createCalendarEvent,
@@ -772,7 +772,7 @@ export async function executeTool(toolName, params, user) {
             };
           }
 
-          const authUrl = generateGoogleAuthUrl({ userId: user.id, phoneNumber: user.phone_number });
+          const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
           return {
             success: true,
             action: 'google_auth_link_generated',
@@ -800,7 +800,7 @@ export async function executeTool(toolName, params, user) {
 
         if (action === 'list_events') {
           if (!integration || !integration.access_token) {
-            const authUrl = generateGoogleAuthUrl({ userId: user.id, phoneNumber: user.phone_number });
+            const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
             return {
               success: false,
               action: 'google_not_connected',
@@ -845,7 +845,7 @@ export async function executeTool(toolName, params, user) {
 
         if (action === 'create_event') {
           if (!integration || !integration.access_token) {
-            const authUrl = generateGoogleAuthUrl({ userId: user.id, phoneNumber: user.phone_number });
+            const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
             return {
               success: false,
               action: 'google_not_connected',

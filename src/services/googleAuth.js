@@ -65,6 +65,26 @@ export function generateGoogleAuthUrl({ userId, phoneNumber = null, redirectUri 
 }
 
 /**
+ * Get clean, short branded connection URL that 302-redirects to Google OAuth.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} [params.phoneNumber]
+ * @returns {string}
+ */
+export function getGoogleConnectUrl({ userId, phoneNumber = null }) {
+  const baseUrl = process.env.APP_BASE_URL
+    ? process.env.APP_BASE_URL.replace(/\/$/, '')
+    : 'https://fivelabs-reminder-production.up.railway.app';
+
+  const query = phoneNumber
+    ? `phone=${encodeURIComponent(phoneNumber)}`
+    : `userId=${encodeURIComponent(userId)}`;
+
+  return `${baseUrl}/auth/google?${query}`;
+}
+
+/**
  * Exchange Google authorization code for tokens and fetch user email profile.
  *
  * @param {string} code

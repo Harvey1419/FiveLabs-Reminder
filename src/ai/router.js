@@ -11,7 +11,7 @@ import {
   cancelUserSubscription,
 } from '../db/index.js';
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
-import { generateGoogleAuthUrl } from '../services/googleAuth.js';
+import { generateGoogleAuthUrl, getGoogleConnectUrl } from '../services/googleAuth.js';
 import { buildAgentCorePrompt } from './agentCore.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
@@ -204,10 +204,10 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     }
   }
 
-  // Universal safety check: if reply has [auth_url] anywhere (even in type: 'chat'), replace with real link
+  // Universal safety check: if reply has [auth_url] anywhere (even in type: 'chat'), replace with clean short link
   if (plan.reply && plan.reply.includes('[auth_url]')) {
     try {
-      const authUrl = generateGoogleAuthUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
+      const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
       plan.reply = plan.reply.replace(/\[auth_url\]/g, authUrl);
     } catch (authErr) {
       console.warn('[router] generating auth_url for reply replacement failed:', authErr.message);
@@ -287,7 +287,22 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   else if (plan.tool === 'manage_task') inferredIntent = 'task';
   else if (plan.tool === 'manage_entity') inferredIntent = 'entity';
   else if (plan.tool === 'manage_subscription' || plan.tool === 'get_subscription_link') inferredIntent = 'subscription';
+  else if (plan.tool === 'manage_google_calendar') inferredIntent = 'calendar';
   else if (plan.tool === 'admin_metrics') inferredIntent = 'admin';
+
+  let ctaUrl = null;
+  let ctaHeader = null;
+  let ctaButtonText = null;
+
+  if (toolResult?.action === 'google_auth_link_generated' || toolResult?.action === 'google_not_connected') {
+    ctaUrl = toolResult.data?.auth_url || getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
+    ctaHeader = '📅 Google Calendar';
+    ctaButtonText = '🔗 Conectar Google';
+  } else if (toolResult?.action === 'subscription_link_generated' || plan.tool === 'get_subscription_link') {
+    ctaUrl = toolResult?.data?.checkout_url || null;
+    ctaHeader = '🌟 Reminder Pro';
+    ctaButtonText = '🚀 Suscribirme a Pro';
+  }
 
   const isEnglish = (user.locale && user.locale.startsWith('en')) || /\b(hello|hi|good morning|schedule|remind me|please|help me|thank you|thanks)\b/i.test(messageText);
 
@@ -296,6 +311,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     entities: plan.params || {},
     language: isEnglish ? 'en' : 'es',
     confirmation: finalReply,
+    ctaUrl,
+    ctaHeader,
+    ctaButtonText,
   };
 }
 

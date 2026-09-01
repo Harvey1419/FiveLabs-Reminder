@@ -212,6 +212,127 @@ export async function sendWhatsAppText({
 }
 
 /**
+ * Send an interactive WhatsApp Call-to-Action (CTA) URL button.
+ * Renders as a native interactive button card in WhatsApp chat.
+ *
+ * @param {object} params
+ * @param {string|null} [params.phoneNumberId]
+ * @param {string|null} [params.phoneNumber]
+ * @param {string|null} [params.bsuid]
+ * @param {string} [params.headerText]
+ * @param {string} params.bodyText
+ * @param {string} [params.footerText]
+ * @param {string} [params.buttonText='🔗 Conectar']
+ * @param {string} params.url
+ * @returns {Promise<{success: boolean, messageId?: string, data?: any}>}
+ */
+export async function sendWhatsAppCtaUrl({
+  phoneNumberId = null,
+  phoneNumber = null,
+  bsuid = null,
+  headerText = null,
+  bodyText,
+  footerText = 'FiveLabs Reminder Assistant',
+  buttonText = '🔗 Conectar',
+  url,
+}) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
+  }
+
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
+
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
+
+  if (!cleanPhone && !cleanBsuid) {
+    throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
+  }
+
+  const interactivePayload = {
+    type: 'cta_url',
+    body: { text: bodyText },
+    action: {
+      name: 'cta_url',
+      parameters: {
+        display_text: buttonText.slice(0, 20),
+        url,
+      },
+    },
+  };
+
+  if (headerText) {
+    interactivePayload.header = {
+      type: 'text',
+      text: headerText.slice(0, 60),
+    };
+  }
+
+  if (footerText) {
+    interactivePayload.footer = {
+      text: footerText.slice(0, 60),
+    };
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    type: 'interactive',
+    interactive: interactivePayload,
+  };
+
+  if (cleanPhone) {
+    payload.to = cleanPhone;
+  } else {
+    payload.recipient = cleanBsuid;
+  }
+
+  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const messageId = data.messages?.[0]?.id || 'unknown';
+      if (messageId && messageId !== 'unknown') {
+        markAsProcessed(messageId);
+      }
+      console.log(`[kapso] sent CTA button ok to=${cleanPhone || cleanBsuid} messageId=${messageId}`);
+      return { success: true, messageId, data };
+    }
+
+    const errText = await response.text();
+    console.warn(`[kapso] CTA URL button rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: `${bodyText}\n\n👉 *${buttonText}:*\n${url}`,
+    });
+  } catch (err) {
+    console.warn(`[kapso] CTA URL error: ${err.message}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: `${bodyText}\n\n👉 *${buttonText}:*\n${url}`,
+    });
+  }
+}
+
+/**
  * Backward compatibility helper for routers and scheduler.
  */
 export async function sendReminderConfirmation(recipient, message) {

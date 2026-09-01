@@ -45,7 +45,7 @@ describe('Google Calendar Integration Test Suite', () => {
 
     expect(result.success).toBe(true);
     expect(result.action).toBe('google_auth_link_generated');
-    expect(result.data.auth_url).toContain('accounts.google.com');
+    expect(result.data.auth_url).toContain('/auth/google');
   });
 
   it('handles already_connected state when user integration exists', async () => {

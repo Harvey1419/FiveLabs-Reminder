@@ -280,4 +280,41 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
       }
     });
   });
+
+  describe('7. WhatsApp Interactive CTA URL Buttons', () => {
+    it('structures interactive cta_url button payload correctly', async () => {
+      const { sendWhatsAppCtaUrl } = await import('../src/utils/kapso.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.CTA_TEST_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppCtaUrl({
+          phoneNumber: '573046154163',
+          headerText: '📅 Google Calendar',
+          bodyText: 'Para consultar tu calendario, vincula tu cuenta en 1 toque.',
+          buttonText: '🔗 Conectar Google',
+          url: 'https://fivelabs-reminder-production.up.railway.app/auth/google?phone=573046154163',
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayload.type).toBe('interactive');
+        expect(capturedPayload.interactive.type).toBe('cta_url');
+        expect(capturedPayload.interactive.header.text).toBe('📅 Google Calendar');
+        expect(capturedPayload.interactive.action.name).toBe('cta_url');
+        expect(capturedPayload.interactive.action.parameters.display_text).toBe('🔗 Conectar Google');
+        expect(capturedPayload.interactive.action.parameters.url).toContain('/auth/google');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });

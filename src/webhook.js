@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { routeMessage } from './ai/router.js';
-import { sendWhatsAppText, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from './utils/kapso.js';
+import { sendWhatsAppText, sendWhatsAppCtaUrl, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from './utils/kapso.js';
 import { saveMessage, getRecentMessages } from './db/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from './db/users.js';
 import { extractMemoryInBackground } from './workers/memoryExtractor.js';
@@ -325,12 +325,24 @@ export async function handleWebhook(req, res) {
     let sendElapsedMs = 0;
     if (result.confirmation) {
       const sendStart = Date.now();
-      await sendWhatsAppText({
-        phoneNumberId,
-        phoneNumber,
-        bsuid,
-        text: result.confirmation,
-      });
+      if (result.ctaUrl) {
+        await sendWhatsAppCtaUrl({
+          phoneNumberId,
+          phoneNumber,
+          bsuid,
+          headerText: result.ctaHeader || '📅 Google Calendar',
+          bodyText: result.confirmation,
+          buttonText: result.ctaButtonText || '🔗 Conectar',
+          url: result.ctaUrl,
+        });
+      } else {
+        await sendWhatsAppText({
+          phoneNumberId,
+          phoneNumber,
+          bsuid,
+          text: result.confirmation,
+        });
+      }
       sendElapsedMs = Date.now() - sendStart;
     }
 
