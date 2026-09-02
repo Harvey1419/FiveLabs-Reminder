@@ -44,6 +44,21 @@ export function hasProAccess(subscription, user = null) {
 }
 
 /**
+ * Check if the experimental billing enforcement applies to this user.
+ * Currently, ONLY canonical test number 19164158325 is subject to the experimental Free/Pro billing gate.
+ * All other existing, new, BSUID, and standard phone users are exempt from the experimental restriction.
+ *
+ * @param {object|null} user - Canonical user object { phone_number, id, ... }
+ * @returns {boolean}
+ */
+export function shouldEnforceBillingForUser(user) {
+  if (!user) return false;
+  const rawPhone = user.phone_number || '';
+  const digits = String(rawPhone).replace(/\D/g, '');
+  return digits.includes('19164158325') || rawPhone.includes('19164158325');
+}
+
+/**
  * Get latest subscription for a given user.
  *
  * @param {string} userId

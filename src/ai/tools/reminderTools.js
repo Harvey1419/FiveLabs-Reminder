@@ -10,6 +10,7 @@ import {
   createTask,
   getUserSubscription,
   hasProAccess,
+  shouldEnforceBillingForUser,
 } from '../../db/index.js';
 import {
   parseTargetTime,
@@ -95,30 +96,33 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
           };
         }
 
-        // Check Pro Tier Restriction (Future Days & Recurrence)
-        const now = new Date();
-        const userDateStr = now.toLocaleDateString('sv-SE', { timeZone: timezone });
-        const targetDateStr = mainDate.toLocaleDateString('sv-SE', { timeZone: timezone });
-        const diffMs = mainDate.getTime() - now.getTime();
-        // Future day if different date and beyond 3 hours from now
-        const isFutureDay = (targetDateStr !== userDateStr && diffMs > 3 * 60 * 60 * 1000) || (diffMs > 24 * 60 * 60 * 1000);
-        const isRecurring = Boolean(recurrenceRule);
+        // Check Pro Tier Restriction (Future Days & Recurrence) if user is subject to billing enforcement
+        const enforceBilling = shouldEnforceBillingForUser(user);
+        if (enforceBilling) {
+          const now = new Date();
+          const userDateStr = now.toLocaleDateString('sv-SE', { timeZone: timezone });
+          const targetDateStr = mainDate.toLocaleDateString('sv-SE', { timeZone: timezone });
+          const diffMs = mainDate.getTime() - now.getTime();
+          // Future day if different date and beyond 3 hours from now
+          const isFutureDay = (targetDateStr !== userDateStr && diffMs > 3 * 60 * 60 * 1000) || (diffMs > 24 * 60 * 60 * 1000);
+          const isRecurring = Boolean(recurrenceRule);
 
-        if ((isFutureDay || isRecurring) && !userHasPro) {
-          const errorMsg = 'Para programar recordatorios recurrentes o para días futuros, se requiere una suscripción a Reminder Pro.';
-          return {
-            success: false,
-            action: 'tier_limit_exceeded',
-            errorCode: 'PRO_TIER_REQUIRED',
-            isProFeature: true,
-            error: errorMsg,
-            rawSummary: errorMsg,
-            data: {
-              reason: 'pro_tier_limit',
-              targetDate: mainDate.toISOString(),
-              recurrence: recurrenceRule,
-            },
-          };
+          if ((isFutureDay || isRecurring) && !userHasPro) {
+            const errorMsg = 'Para programar recordatorios recurrentes o para días futuros, se requiere una suscripción a Reminder Pro.';
+            return {
+              success: false,
+              action: 'tier_limit_exceeded',
+              errorCode: 'PRO_TIER_REQUIRED',
+              isProFeature: true,
+              error: errorMsg,
+              rawSummary: errorMsg,
+              data: {
+                reason: 'pro_tier_limit',
+                targetDate: mainDate.toISOString(),
+                recurrence: recurrenceRule,
+              },
+            };
+          }
         }
 
         // Optional: Replace previous similar reminders
@@ -279,11 +283,12 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         }
 
         // Pro tier check for future days
+        const enforceBilling = shouldEnforceBillingForUser(user);
         const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
         const reminderDateStr = parsedDate.toLocaleDateString('en-CA', { timeZone: timezone });
         const isFutureDay = reminderDateStr > todayDateStr;
 
-        if (isFutureDay && !userHasPro) {
+        if (enforceBilling && isFutureDay && !userHasPro) {
           const errorMsg = language === 'en'
             ? 'Scheduling reminders for future days requires a Reminder Pro subscription.'
             : 'Para programar recordatorios para días futuros, se requiere una suscripción a Reminder Pro.';
@@ -308,7 +313,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       // Recurrence update (if specified)
       const newRecurrence = recurrence || recurrenceRule || updates.recurrence || updates.recurrenceRule || updates.recurrence_rule;
       if (newRecurrence !== undefined) {
-        if (newRecurrence && !userHasPro) {
+        if (enforceBilling && newRecurrence && !userHasPro) {
           const errorMsg = language === 'en'
             ? 'Recurring reminders require a Reminder Pro subscription.'
             : 'Para programar recordatorios recurrentes, se requiere una suscripción a Reminder Pro.';

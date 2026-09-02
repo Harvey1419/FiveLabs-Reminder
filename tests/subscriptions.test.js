@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { hasProAccess } from '../src/db/subscriptions.js';
+import { hasProAccess, shouldEnforceBillingForUser } from '../src/db/subscriptions.js';
 import { createPreapproval, getPreapproval, cancelPreapproval, verifyWebhookSignature } from '../src/services/mercadopago.js';
 import { handleMercadoPagoWebhook } from '../src/webhooks/mercadopagoWebhook.js';
 import { executeTool } from '../src/ai/tools.js';
@@ -87,6 +87,32 @@ describe('Subscription Access Control (hasProAccess)', () => {
       next_payment_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
     };
     expect(hasProAccess(pausedSub, regularUser)).toBe(true);
+  });
+});
+
+describe('Experimental Billing Enforcement Target (shouldEnforceBillingForUser)', () => {
+  it('should return true strictly for experimental billing phone number 19164158325', () => {
+    expect(shouldEnforceBillingForUser({ phone_number: '19164158325' })).toBe(true);
+    expect(shouldEnforceBillingForUser({ phone_number: '+1 (916) 415-8325' })).toBe(true);
+    expect(shouldEnforceBillingForUser({ phone_number: '19164158325@c.us' })).toBe(true);
+  });
+
+  it('should return false for any other phone number (standard users exempt from experimental gate)', () => {
+    expect(shouldEnforceBillingForUser({ phone_number: '573001112233' })).toBe(false);
+    expect(shouldEnforceBillingForUser({ phone_number: '573118588249' })).toBe(false);
+    expect(shouldEnforceBillingForUser({ phone_number: '573046154163' })).toBe(false);
+  });
+
+  it('should return false for BSUID identities (e.g. Meta Cloud API)', () => {
+    expect(shouldEnforceBillingForUser({ phone_number: 'CO.1552339023039755' })).toBe(false);
+    expect(shouldEnforceBillingForUser({ phone_number: 'CO.1046858631495979' })).toBe(false);
+    expect(shouldEnforceBillingForUser({ phone_number: 'US.998877665544' })).toBe(false);
+  });
+
+  it('should return false for new users without phone or null user', () => {
+    expect(shouldEnforceBillingForUser({ phone_number: '' })).toBe(false);
+    expect(shouldEnforceBillingForUser({ phone_number: null })).toBe(false);
+    expect(shouldEnforceBillingForUser(null)).toBe(false);
   });
 });
 
@@ -221,10 +247,10 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.action).toBe('created_reminders_batch');
   });
 
-  it('should block free users from creating future-day reminders and offer Pro', async () => {
-    const freeUser = {
+  it('should block experimental target 19164158325 without Pro from creating future-day reminders', async () => {
+    const experimentalFreeUser = {
       id: 'free-user-uuid',
-      phone_number: '573001112233',
+      phone_number: '19164158325',
       timezone: 'America/Bogota',
       locale: 'es-CO',
       is_admin: false,
@@ -240,7 +266,7 @@ describe('AI Tools & Plan Tier Gating', () => {
         action: 'create',
         items: [{ content: 'Cita con el doctor mañana', targetTime: tomorrowIso }],
       },
-      freeUser
+      experimentalFreeUser
     );
 
     expect(res.success).toBe(false);
@@ -249,10 +275,10 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.rawSummary).toContain('Reminder Pro');
   });
 
-  it('should block free users from creating recurring reminders', async () => {
-    const freeUser = {
+  it('should block experimental target 19164158325 without Pro from creating recurring reminders', async () => {
+    const experimentalFreeUser = {
       id: 'free-user-uuid',
-      phone_number: '573001112233',
+      phone_number: '19164158325',
       timezone: 'America/Bogota',
       locale: 'es-CO',
       is_admin: false,
@@ -265,7 +291,7 @@ describe('AI Tools & Plan Tier Gating', () => {
         action: 'create',
         items: [{ content: 'Tomar pastilla todos los días a las 8am', targetTime: '08:00', recurrence: 'daily' }],
       },
-      freeUser
+      experimentalFreeUser
     );
 
     expect(res.success).toBe(false);
@@ -273,10 +299,10 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.isProFeature).toBe(true);
   });
 
-  it('should allow Pro users to create future-day and recurring reminders', async () => {
+  it('should allow experimental target 19164158325 with Pro to create future-day and recurring reminders', async () => {
     const proUser = {
       id: 'pro-user-uuid',
-      phone_number: '573009998877',
+      phone_number: '19164158325',
       timezone: 'America/Bogota',
       locale: 'es-CO',
       is_admin: false,
@@ -296,6 +322,97 @@ describe('AI Tools & Plan Tier Gating', () => {
         items: [{ content: 'Cita con el dentista la próxima semana', targetTime: tomorrowIso }],
       },
       proUser
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('created_reminders_batch');
+  });
+
+  it('should allow new users without subscription to create future-day and recurring reminders without gating', async () => {
+    const newUser = {
+      id: 'brand-new-user-uuid',
+      phone_number: '573118588249',
+      timezone: 'America/Bogota',
+      locale: 'es-CO',
+      is_admin: false,
+      subscription: null,
+    };
+
+    const nextWeekIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 1. Future day reminder
+    const resFuture = await executeTool(
+      'manage_reminder',
+      {
+        action: 'create',
+        items: [{ content: 'Renovar pasaporte la próxima semana', targetTime: nextWeekIso }],
+      },
+      newUser
+    );
+    expect(resFuture.success).toBe(true);
+    expect(resFuture.action).toBe('created_reminders_batch');
+
+    // 2. Recurring reminder
+    const resRecurring = await executeTool(
+      'manage_reminder',
+      {
+        action: 'create',
+        items: [{ content: 'Pagar arriendo', targetTime: '10:00', recurrence: 'monthly' }],
+      },
+      newUser
+    );
+    expect(resRecurring.success).toBe(true);
+    expect(resRecurring.action).toBe('created_reminders_batch');
+  });
+
+  it('should allow existing users without subscription (distinct from 1916) to create future-day and recurring reminders', async () => {
+    const existingUser = {
+      id: 'existing-free-uuid',
+      phone_number: '573001112233',
+      timezone: 'America/Bogota',
+      locale: 'es-CO',
+      is_admin: false,
+      subscription: null,
+    };
+
+    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
+
+    const res = await executeTool(
+      'manage_reminder',
+      {
+        action: 'create',
+        items: [{ content: 'Comprar boletos mañana', targetTime: tomorrowIso, recurrence: 'weekly' }],
+      },
+      existingUser
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('created_reminders_batch');
+  });
+
+  it('should allow BSUID users without subscription (e.g. CO.1552339023039755) to create future-day and recurring reminders', async () => {
+    const bsuidUser = {
+      id: 'bsuid-user-yuranis',
+      phone_number: 'CO.1552339023039755',
+      display_name: 'Yuranis Lopez',
+      timezone: 'America/Bogota',
+      locale: 'es-CO',
+      is_admin: false,
+      subscription: null,
+    };
+
+    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
+
+    const res = await executeTool(
+      'manage_reminder',
+      {
+        action: 'create',
+        items: [
+          { content: 'Depilarme', targetTime: tomorrowIso },
+          { content: 'Cita depilación láser', targetTime: tomorrowIso },
+        ],
+      },
+      bsuidUser
     );
 
     expect(res.success).toBe(true);
