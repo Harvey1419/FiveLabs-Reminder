@@ -5,6 +5,7 @@ import {
   getDailyOverview,
   getActiveMemories,
   getUserSubscription,
+  getUserIntegration,
   hasProAccess,
   createPendingSubscription,
   acknowledgeReminders,
@@ -43,12 +44,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   console.log(`[router req=${options?.correlationId || 'none'}] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
-  // 1. Parallel Context Pre-fetch (~80-120ms): Always load active user preferences alongside dynamic memories and subscription
-  const [relevantMemories, userPreferences, dailyOverview, subscription] = await Promise.all([
+  // 1. Parallel Context Pre-fetch (~80-120ms): Always load active user preferences alongside dynamic memories, subscription, and integrations
+  const [relevantMemories, userPreferences, dailyOverview, subscription, googleIntegration] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 5 }),
     user.id ? getActiveMemories({ userId: user.id, category: 'preference', limit: 5 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
+    user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
   ]);
 
   const effectiveSub = subscription || user.subscription;
@@ -76,6 +78,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     phoneNumber,
     memoryHints,
     overview: dailyOverview,
+    googleIntegration,
     isAdmin,
     isPro,
   });

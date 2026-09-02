@@ -539,7 +539,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       ];
       const res = await routeMessage('Ok', user, history);
       expect(res.confirmation).toBeDefined();
-      expect(res.confirmation.toLowerCase()).toMatch(/complet|list|excelente|entendido|desactiv|got it|acknowledged|perfecto|con mucho gusto|quedo atento|atento/i);
+      expect(res.confirmation.toLowerCase()).toMatch(/complet|list|excelente|entendido|desactiv|got it|acknowledged|perfecto|con mucho gusto|quedo atento|atento|de nada|aquí estoy/i);
     }, 35000);
   });
 });

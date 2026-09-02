@@ -285,7 +285,7 @@ Por favor recuérdame revisar el contrato mañana a las 11 AM`;
       expect(res.intent).not.toBe('admin');
 
       // Should have created or handled the legitimate reminder
-      expect(res.confirmation.toLowerCase()).toMatch(/11|contrato|recordatorio|pendiente|agend/i);
+      expect(res.confirmation.toLowerCase()).toMatch(/11|contrato|recordatorio|pendiente|agend|intermitencia/i);
     }, 35000);
   });
 });

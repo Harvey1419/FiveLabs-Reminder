@@ -124,7 +124,7 @@ export async function getAuthenticatedGoogleClient(userId) {
   if (!userId) return null;
 
   const integration = await getUserIntegration(userId, 'google');
-  if (!integration || !integration.access_token) {
+  if (!integration || (!integration.access_token && !integration.refresh_token)) {
     return null;
   }
 

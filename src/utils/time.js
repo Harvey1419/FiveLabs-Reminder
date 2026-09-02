@@ -178,6 +178,46 @@ export function zonedTimeToUtc(year, month, day, hour = 0, minute = 0, second = 
 }
 
 /**
+ * Compute exact semi-open time bounds [timeMin, timeMax) for a local day in the given timezone.
+ *
+ * @param {'today'|'tomorrow'|'hoy'|'mañana'|string|Date} [target='today']
+ * @param {string} [timezone=DEFAULT_TIMEZONE]
+ * @returns {{ timeMin: Date, timeMax: Date }}
+ */
+export function getDayBounds(target = 'today', timezone = DEFAULT_TIMEZONE) {
+  const t = String(target || 'today').toLowerCase().trim();
+  const now = new Date();
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const [currentYear, currentMonth, currentDay] = formatter.format(now).split('-').map(Number);
+
+  let targetYear = currentYear;
+  let targetMonth = currentMonth;
+  let targetDay = currentDay;
+
+  if (t === 'tomorrow' || t === 'mañana') {
+    targetDay += 1;
+  } else if (t !== 'today' && t !== 'hoy') {
+    const match = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      targetYear = parseInt(match[1], 10);
+      targetMonth = parseInt(match[2], 10);
+      targetDay = parseInt(match[3], 10);
+    }
+  }
+
+  const timeMin = zonedTimeToUtc(targetYear, targetMonth, targetDay, 0, 0, 0, timezone);
+  const timeMax = zonedTimeToUtc(targetYear, targetMonth, targetDay + 1, 0, 0, 0, timezone);
+
+  return { timeMin, timeMax };
+}
+
+/**
  * Returns current local time as ISO 8601 with explicit offset.
  */
 export function nowISO(timezone = DEFAULT_TIMEZONE) {

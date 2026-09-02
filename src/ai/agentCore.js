@@ -130,6 +130,7 @@ export function buildAgentCorePrompt({
   phoneNumber = '',
   memoryHints,
   overview,
+  googleIntegration = null,
   isAdmin = false,
   isPro = false,
 }) {
@@ -142,6 +143,14 @@ export function buildAgentCorePrompt({
     : `"manage_memory" | "manage_reminder" | "manage_entity" | "manage_task" | "manage_subscription" | "manage_google_calendar" | "get_subscription_link" | null`;
 
   const compactOverviewText = formatCompactOverview(overview);
+
+  const isGoogleConnected = Boolean(
+    googleIntegration && (googleIntegration.access_token || googleIntegration.refresh_token)
+  );
+  const googleAccountEmail = googleIntegration?.account_email || null;
+  const googleStatusText = isGoogleConnected
+    ? `🟢 Conectado${googleAccountEmail ? ` (${googleAccountEmail})` : ''}`
+    : '🔴 No conectado';
 
   return `# ASISTENTE PERSONAL HERMES
 Hora actual: ${nowStr} (${nowHumanStr}) [${timezone}].
@@ -175,10 +184,12 @@ ${!isPro ? `- 🎯 FREE DEMO: Solo recordatorios para hoy. Si el usuario pide ag
 - manage_entity: create(name, category), rename(oldName, newName), merge(sourceName, targetName), list(category)
 - manage_memory: list(category), search(query), save(content, category, topicKey), forget(topicKey, query)
 - manage_subscription: {"action": "get_link" | "cancel"}
-- manage_google_calendar: {"action": "get_connect_link" | "list_events" | "create_event" | "disconnect"}${adminSection}
+- manage_google_calendar: {"action": "get_connect_link" | "list_events" | "create_event" | "disconnect", "timeMin"?: string, "timeMax"?: string, "summary"?: string, "startDateTime"?: string}${adminSection}
 
 ## 2. CONTEXTO (${timezone})
 ### [Plan del Usuario]: ${isPro ? '🌟 Pro' : '🆓 Free'}
+### [Integraciones]:
+- Google Calendar: ${googleStatusText}
 ### [Memorias]:
 <user_memories_untrusted>
 ${memoryHints || '(Sin memorias registradas)'}
@@ -206,6 +217,11 @@ ${compactOverviewText}
 - "Cancela el de las 10 [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'cancel', reminderId:'r1e2m345'}
 - "Perdón, el recordatorio es para hoy a las 8am [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'update', reminderId:'r1e2m345', updates:{targetTime:'hoy a las 8am'}}
 - "Reunión a las 12, avísame 15 min antes" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Reunión (Aviso previo)', targetTime:'11:45'}, {content:'Reunión', targetTime:'12:00'}]}
+- "Tengo algo en el calendario de google para hoy?" / "¿Qué tengo en mi Google Calendar hoy?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'hoy'}
+- "¿Y qué tengo en Google Calendar para mañana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'mañana'}
+- "Tráemelos" / "Entonces tráeme lo de esa cuenta porfa el google calendar" (continuación de consulta de hoy) -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'hoy'}
+- "¿Cuáles son mis próximos eventos en Google Calendar?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events'}
+- "Conectar Google Calendar" / "Vincular calendario de Google" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'get_connect_link'}
 
 ## 4. RESPUESTA JSON ESTRICTA
 {

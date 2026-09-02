@@ -9,7 +9,12 @@ import {
   listCalendarEvents,
   createCalendarEvent,
 } from '../../services/googleCalendar.js';
-import { parseTargetTime, formatLocalDateTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
+import {
+  parseTargetTime,
+  getDayBounds,
+  formatLocalDateTime,
+  DEFAULT_TIMEZONE,
+} from '../../utils/time.js';
 
 /**
  * Domain tool for managing Google Calendar synchronization.
@@ -19,11 +24,12 @@ export async function executeCalendarTool({ action, params = {}, user, language 
   const phoneNumber = user?.phone_number;
   const tz = user?.timezone || DEFAULT_TIMEZONE;
   const integration = await getUserIntegration(userId, 'google');
+  const isConnected = Boolean(integration && (integration.access_token || integration.refresh_token));
 
   switch (action) {
     case 'get_connect_link':
     case 'connect': {
-      if (integration?.access_token) {
+      if (isConnected) {
         const email = integration.account_email ? ` (${integration.account_email})` : '';
         const summary = `Tu Google Calendar ya está conectado${email}. Si deseas desconectarlo o cambiar de cuenta, solo dímelo.`;
         return {
@@ -72,7 +78,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
     }
 
     case 'list_events': {
-      if (!integration?.access_token) {
+      if (!isConnected) {
         const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
         const summary = `Para consultar tu Google Calendar, primero debes vincular tu cuenta: ${authUrl}`;
         return {
@@ -86,18 +92,39 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const timeMin = params.timeMin ? parseTargetTime(params.timeMin, tz) : new Date();
-      const timeMax = params.timeMax ? parseTargetTime(params.timeMax, tz) : null;
+      let timeMin = null;
+      let timeMax = null;
+
+      const rawMin = params.timeMin ? String(params.timeMin).toLowerCase().trim() : null;
+      const rawMax = params.timeMax ? String(params.timeMax).toLowerCase().trim() : null;
+
+      if (rawMin === 'hoy' || rawMin === 'today') {
+        const bounds = getDayBounds('today', tz);
+        timeMin = bounds.timeMin;
+        timeMax = bounds.timeMax;
+      } else if (rawMin === 'mañana' || rawMin === 'tomorrow') {
+        const bounds = getDayBounds('tomorrow', tz);
+        timeMin = bounds.timeMin;
+        timeMax = bounds.timeMax;
+      } else if (rawMin) {
+        timeMin = parseTargetTime(rawMin, tz);
+        timeMax = rawMax ? parseTargetTime(rawMax, tz) : null;
+      } else {
+        timeMin = new Date();
+        timeMax = rawMax ? parseTargetTime(rawMax, tz) : null;
+      }
 
       const events = await listCalendarEvents(userId, {
         timeMin,
         timeMax,
         timezone: tz,
-        maxResults: params.maxResults || 10,
+        maxResults: params.maxResults || 15,
       });
 
       if (!events || events.length === 0) {
-        const summary = 'No tienes eventos programados en Google Calendar para este período.';
+        const summary = language === 'en'
+          ? 'You have no events scheduled in Google Calendar for this period.'
+          : 'No tienes eventos programados en Google Calendar para este período.';
         return {
           success: true,
           action: 'google_events_listed',
@@ -113,7 +140,9 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         return `• 📅 *${e.summary}* — ${dateStr}${meet}`;
       }).join('\n');
 
-      const summary = `Eventos en tu Google Calendar:\n${eventsFormatted}`;
+      const summary = language === 'en'
+        ? `Events in your Google Calendar:\n${eventsFormatted}`
+        : `Eventos en tu Google Calendar:\n${eventsFormatted}`;
 
       return {
         success: true,
@@ -125,7 +154,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
     }
 
     case 'create_event': {
-      if (!integration?.access_token) {
+      if (!isConnected) {
         const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
         const summary = `Para agendar directamente en Google Calendar, primero debes conectar tu cuenta: ${authUrl}`;
         return {
