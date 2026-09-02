@@ -1,9 +1,10 @@
 import { supabase } from './index.js';
 import { detectTimezoneFromPhone } from '../utils/time.js';
 
-// High-speed in-memory cache for user profiles (TTL: 10 minutes)
+// High-speed in-memory cache for user profiles (TTL: 15 minutes)
 export const userCache = new Map();
-const USER_CACHE_TTL_MS = 10 * 60 * 1000;
+userCache.del = userCache.delete.bind(userCache);
+const USER_CACHE_TTL_MS = 15 * 60 * 1000;
 
 export function normalizeUserPhone(phone) {
   if (!phone || typeof phone !== 'string') return '';
@@ -32,7 +33,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
   }
 
   const cached = userCache.get(cleanPhone);
-  if (cached && Date.now() - cached.timestamp < USER_CACHE_TTL_MS) {
+  if (cached?.user?.id && Date.now() - cached.timestamp < USER_CACHE_TTL_MS) {
     if (displayName && !cached.user.display_name) {
       cached.user.display_name = displayName;
       supabase.from('users').update({ display_name: displayName }).eq('id', cached.user.id).then(() => {}).catch(() => {});
@@ -71,11 +72,26 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
       userCache.set(cleanPhone, { user: newUser, timestamp: Date.now() });
       return newUser;
     }
+
+    // In case insert failed due to concurrent creation race, retry select once
+    if (insertError) {
+      const { data: retryUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('phone_number', cleanPhone)
+        .maybeSingle();
+
+      if (retryUser) {
+        userCache.set(cleanPhone, { user: retryUser, timestamp: Date.now() });
+        return retryUser;
+      }
+    }
   } catch (err) {
     console.error('getOrCreateUserByPhone threw:', err);
   }
 
-  const fallbackUser = {
+  // Transient failure or unpersisted fallback: NEVER store id:null in userCache!
+  return {
     id: null,
     phone_number: cleanPhone,
     display_name: displayName,
@@ -83,8 +99,6 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
     locale: defaultLocale,
     created_at: new Date().toISOString(),
   };
-  userCache.set(cleanPhone, { user: fallbackUser, timestamp: Date.now() });
-  return fallbackUser;
 }
 
 export async function updateUserPreferences(userId, { timezone, locale }) {

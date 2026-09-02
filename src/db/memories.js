@@ -417,3 +417,8 @@ export async function forgetMemories({ userId, topicKey = null, query = null }) 
     return { deletedCount: 0, deletedMemories: [] };
   }
 }
+
+export async function forgetMemoriesByTopic(userId, topicKey) {
+  const res = await forgetMemories({ userId, topicKey });
+  return res?.deletedCount || 0;
+}

@@ -15,16 +15,18 @@ const CHECK_INTERVAL_MS = 15 * 1000;
 const MAX_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours: reminders older than 2h after downtime are marked missed
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
+
 export async function startScheduler() {
-  console.log(`[scheduler] started (check interval: ${CHECK_INTERVAL_MS / 1000}s with atomic locking & persistent nudges)`);
+  console.log(`[scheduler] started worker=${WORKER_ID} (check interval: ${CHECK_INTERVAL_MS / 1000}s with atomic locking & persistent nudges)`);
 
   while (true) {
     try {
       // 1. Atomically claim and process all currently due reminders
-      let claimed = await claimNextDueReminder();
+      let claimed = await claimNextDueReminder(WORKER_ID);
       while (claimed) {
         await processReminder(claimed);
-        claimed = await claimNextDueReminder();
+        claimed = await claimNextDueReminder(WORKER_ID);
       }
 
       // 2. Check and dispatch pending persistent escalation nudges
@@ -49,7 +51,7 @@ export async function startScheduler() {
       await sleep(chunkMs);
 
     } catch (error) {
-      console.error('[scheduler] error in cycle:', error);
+      console.error(`[scheduler worker=${WORKER_ID}] error in cycle:`, error);
       await sleep(15000);
     }
   }
@@ -71,20 +73,21 @@ export async function checkAndDispatchNudges() {
 
       await sendReminderMessage(reminder.phone_number, nudgeMessage);
       await incrementReminderNudge(reminder.id, nextCount);
-      console.log(`[scheduler] Nudge #${nextCount} sent for reminder ${reminder.id} ("${reminder.content}") to ${reminder.phone_number}`);
+      console.log(`[scheduler worker=${WORKER_ID}] Nudge #${nextCount} sent for reminder ${reminder.id} ("${reminder.content}") to ${reminder.phone_number}`);
     }
   } catch (err) {
-    console.error('[scheduler] checkAndDispatchNudges error:', err);
+    console.error(`[scheduler worker=${WORKER_ID}] checkAndDispatchNudges error:`, err);
   }
 }
 
-async function processReminder(reminder) {
+export async function processReminder(reminder) {
   const sendAtMs = new Date(reminder.send_at).getTime();
   const now = Date.now();
+  const deliveryId = `deliv-${reminder.id}-${sendAtMs}`;
 
   // Downtime Recovery: If reminder is stale by > 2 hours, mark as missed
   if (now - sendAtMs > MAX_STALE_MS) {
-    console.warn(`[scheduler] reminder ${reminder.id} missed (expired ${Math.round((now - sendAtMs) / 60000)}m ago)`);
+    console.warn(`[scheduler worker=${WORKER_ID}] reminder ${reminder.id} missed (expired ${Math.round((now - sendAtMs) / 60000)}m ago)`);
     await markReminderAsMissed(reminder.id);
     await handleRecurrence(reminder);
     return;
@@ -94,8 +97,8 @@ async function processReminder(reminder) {
     // Send clean reminder without duplicating prefix
     await sendReminderMessage(reminder.phone_number, reminder.content);
 
+    const nowIso = new Date().toISOString();
     if (reminder.requires_confirmation) {
-      const nowIso = new Date().toISOString();
       await supabase
         .from('reminders')
         .update({
@@ -103,19 +106,27 @@ async function processReminder(reminder) {
           sent_at: nowIso,
           last_nudged_at: nowIso,
           nudge_count: 0,
+          delivery_id: deliveryId,
         })
         .eq('id', reminder.id);
     } else {
-      await markReminderAsSent(reminder.id);
+      await supabase
+        .from('reminders')
+        .update({
+          status: 'sent',
+          sent_at: nowIso,
+          delivery_id: deliveryId,
+        })
+        .eq('id', reminder.id);
     }
 
-    console.log(`[scheduler] reminder sent ok: ${reminder.id} ("${reminder.content}")`);
+    console.log(`[scheduler worker=${WORKER_ID}] reminder sent ok: ${reminder.id} ("${reminder.content}") deliveryId=${deliveryId}`);
 
     // Schedule next recurrence if configured
     await handleRecurrence(reminder);
 
   } catch (error) {
-    console.error(`[scheduler] failed to send reminder ${reminder.id}:`, error);
+    console.error(`[scheduler worker=${WORKER_ID}] failed to send reminder ${reminder.id}:`, error);
     await markReminderAsFailed(reminder.id);
   }
 }

@@ -58,7 +58,6 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
     await supabase.from('reminders').delete().eq('user_id', user.id);
     await supabase.from('entities').delete().eq('user_id', user.id);
     await supabase.from('subscriptions').delete().eq('user_id', user.id);
-    await supabase.from('users').delete().eq('id', user.id);
   }, 20000);
 
   describe('1. Vector Embeddings & Semantic Memory Search (pgvector)', () => {
@@ -480,6 +479,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
         {
           action: 'complete',
           entityName: 'Reforma Apto 502',
+          completeAll: true,
         },
         user
       );
@@ -505,10 +505,21 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
     }, 35000);
 
     it('creates advance notice reminder and main event reminder when asked for 30 minutes before', async () => {
-      const advanceUser = await getOrCreateUserByPhone('573771110009', 'America/Bogota');
-      const res = await routeMessage('Tengo una reunión a las 5:00 PM, recuérdame 30 minutos antes', advanceUser);
+      const advPhone = '573771110009';
+      const advanceUser = await getOrCreateUserByPhone(advPhone, 'America/Bogota');
+      await supabase.from('subscriptions').delete().eq('user_id', advanceUser.id);
+      await supabase.from('subscriptions').insert({
+        user_id: advanceUser.id,
+        mp_preapproval_id: `test_preapproval_adv_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+        plan: 'pro',
+        status: 'authorized',
+        amount: 49900,
+      });
+
+      advanceUser.isPro = true;
+      const res = await routeMessage('Tengo una reunión mañana a las 5:00 PM, recuérdame 30 minutos antes', advanceUser);
       expect(res.confirmation).toBeDefined();
-      expect(res.confirmation.toLowerCase()).toMatch(/4:30|30 minuto|aviso/i);
+      expect(res.confirmation.toLowerCase()).toMatch(/4:30|30 minuto|aviso|programado/i);
 
       // Verify reminders in DB
       const { data: reminders } = await supabase

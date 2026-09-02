@@ -1,5 +1,5 @@
 import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../db/index.js';
-import { callChatCompletion, callGeminiDirect } from '../ai/client.js';
+import { callGeminiDirect } from '../ai/client.js';
 
 const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
 Analyze the following conversation turn between User and Assistant.
@@ -93,18 +93,22 @@ export function canonicalizeTopicKey(rawTopicKey, entityName = null, category = 
  * @param {string} params.assistantReply
  * @returns {Promise<Array<object>>}
  */
+/**
+ * Extract durable memories from a conversation turn and persist them.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} params.userText
+ * @param {string} params.assistantReply
+ * @returns {Promise<Array<object>>}
+ */
 export async function extractAndSaveMemories({ userId, userText, assistantReply }) {
   if (!userId || !userText) return [];
 
-  // Quick filter: skip single-word messages, pure greetings, or agenda queries
+  // Quick filter: skip empty or pure single-word greetings / trivial acknowledgments
   const trimmed = userText.trim().toLowerCase();
-  if (trimmed.length < 5 || trimmed === 'hola' || trimmed === 'ok' || trimmed === 'gracias') {
-    return [];
-  }
-
-  // Pure query turns (asking what tasks or reminders exist), confirmations, or polite closures do not generate new facts
-  const isQueryTurn = /\b(qu[eé]\s+(?:tengo|hay|tareas|recordatorios|pendientes|citas)|cu[aá]l\s+es\s+(?:la\s+m[aá]s\s+pr[oó]xima|el\s+pr[oó]ximo)|a\s+qu[eé]\s+hora|cu[aá]ndo\s+tengo|agenda|mis\s+pendientes|mis\s+recordatorios|what\s+(?:tasks|reminders|do\s+i\s+have)|no\s+(?:tenemos|tengo|hay)\s+(?:nada|ning[uú]n|m[aá]s)|no\s+necesito\s+nada|eso\s+es\s+todo|gracias\s+por\s+(?:recordar|avisar|la\s+informaci[oó]n)|verdad\?|cierto\?)\b/i.test(trimmed);
-  if (isQueryTurn) {
+  const PURE_TRIVIAL_REGEX = /^(hola|hi|hey|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|ok|listo|dale|gracias|muchas\s+gracias|de\s+nada|chao|adi[oó]s|done|ya|perfecto|entendido)$/i;
+  if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) {
     return [];
   }
 
@@ -117,8 +121,7 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
       },
     ];
 
-    const rawResponse = (await callGeminiDirect(messages, { temperature: 0.1, max_tokens: 800 }))
-      || (await callChatCompletion(messages, { temperature: 0.1 }));
+    const rawResponse = await callGeminiDirect(messages, { temperature: 0.1, max_tokens: 800 });
     const candidates = parseJsonArray(rawResponse);
 
     if (!Array.isArray(candidates) || candidates.length === 0) {
@@ -178,12 +181,12 @@ export async function extractAndSaveMemories({ userId, userText, assistantReply 
  * @param {object} params
  * @param {string} params.userId
  * @param {string} params.queryText
- * @param {number} [params.limit=4]
+ * @param {number} [params.limit=5]
  * @returns {Promise<Array<object>>}
  */
 const META_MEMORY_QUERY_REGEX = /\b(qu[eé]\s+(sabes|conoces|recuerdas|guardas|tienes)\s+(de|sobre|acerca\s+de)\s+m[ií]|qu[eé]\s+memorias\s+tienes|qu[eé]\s+informaci[oó]n\s+tienes\s+(de|sobre)\s+m[ií]|dime\s+(todo\s+)?(lo\s+que\s+sabes|mis\s+memorias|mis\s+preferencias|mis\s+datos)|qu[eé]\s+sabes\s+de\s+mi|qu[eé]\s+sabes\s+sobre\s+mi)\b/i;
 
-const OPERATIONAL_OR_CONVERSATIONAL_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|qu[eé]\s+puedes\s+hacer|qui[eé]n\s+eres|ayuda|recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve|\d+\s*minutos?\s*antes|\d+\s*horas?\s*antes|mu[eé]strame|lista|agenda|pendientes|mis\s+(tareas|pendientes|recordatorios)|qu[eé]\s+(tareas|pendientes|recordatorios|actividades|compromisos|citas)|qu[eé]\s+(tengo|hay|qued[oó]|queda|tenemos)\s+(de\s+|para\s+)?(hoy|mañana|tareas|pendientes|recordatorios|actividades|hacer)|cu[aá]les\s+(son\s+)?(mis\s+)?(tareas|pendientes|recordatorios)|dime\s+(mis\s+|las\s+|la\s+)?(tareas|pendientes|recordatorios|agenda)|c[oó]mo\s+quedan|otra\s+vez)\b/i;
+const PURE_TRIVIAL_INTERACTION_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|done|ya)$/i;
 
 export async function retrieveRelevantMemories({ userId, queryText, limit = 5 }) {
   if (!userId || !queryText) return [];
@@ -195,8 +198,8 @@ export async function retrieveRelevantMemories({ userId, queryText, limit = 5 })
   }
 
   const clean = queryText.trim().toLowerCase().replace(/[.,!?:;¿¡]/g, '');
-  // Skip embedding vector search on operational commands, greetings, task/agenda queries, and relative follow-up turns
-  if (clean.length < 4 || OPERATIONAL_OR_CONVERSATIONAL_REGEX.test(clean)) {
+  // Skip embedding vector search ONLY on pure trivial greetings or acknowledgements
+  if (clean.length < 4 || PURE_TRIVIAL_INTERACTION_REGEX.test(clean)) {
     return [];
   }
 

@@ -1,14 +1,14 @@
 import crypto from 'crypto';
 import { routeMessage } from './ai/router.js';
 import { sendWhatsAppText, sendWhatsAppCtaUrl, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from './utils/kapso.js';
-import { saveMessage, getRecentMessages } from './db/messages.js';
+import { saveMessage, getRecentMessages, isMessageAlreadyProcessed } from './db/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from './db/users.js';
 import { extractMemoryInBackground } from './workers/memoryExtractor.js';
 import { transcribeAudio } from './services/transcriptionService.js';
 import { processDocumentOrImage } from './services/documentService.js';
 import { detectTimezoneFromLocationText, detectTimezoneFromCoordinates, getNearestCityFromCoordinates } from './utils/time.js';
 
-// In-memory dedup set for message IDs we've already processed.
+// In-memory dedup set for message IDs as fast-path optimization (DB is true source of truth).
 const recentlyProcessed = new Set();
 const DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -25,12 +25,65 @@ export function isDuplicate(messageId) {
   return false;
 }
 
+// Per-user in-flight promise queue to guarantee FIFO order across concurrent messages from the same user
+const userQueueMap = new Map();
+
+/**
+ * Execute task in sequential order per user.
+ */
+export async function enqueueForUser(userIdOrPhone, taskFn) {
+  const key = String(userIdOrPhone || 'global_queue');
+  const prevPromise = userQueueMap.get(key) || Promise.resolve();
+
+  const currentPromise = (async () => {
+    try {
+      await prevPromise;
+    } catch {
+      // Ignore previous task failure and continue
+    }
+    return taskFn();
+  })();
+
+  userQueueMap.set(key, currentPromise);
+  currentPromise.finally(() => {
+    if (userQueueMap.get(key) === currentPromise) {
+      userQueueMap.delete(key);
+    }
+  });
+
+  return currentPromise;
+}
+
+/**
+ * Helper to verify webhook HMAC signature.
+ */
+export function verifyWebhookSignature(payload, signatureHeader, secret) {
+  if (!signatureHeader || !secret) return false;
+  try {
+    const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    const signature = signatureHeader.replace(/^sha256=/, '');
+    return crypto.timingSafeEqual(Buffer.from(signature, 'utf8'), Buffer.from(expected, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Validate HMAC-SHA256 signature from X-Webhook-Signature header using raw body bytes.
  */
 function verifySignature(req) {
   const secret = process.env.WEBHOOK_SECRET_KEY;
-  if (!secret) return true; // Signature check disabled if secret is not set
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!secret) {
+    // Fail-closed in production if secret is not configured
+    if (isProd) {
+      console.error('[webhook] ❌ Security violation: WEBHOOK_SECRET_KEY is missing in production environment.');
+      return false;
+    }
+    return true; // Signature check disabled only in development/test
+  }
 
   const signatureHeader = req.headers['x-webhook-signature'] || req.headers['x-hub-signature-256'];
   if (!signatureHeader) return false;
@@ -133,11 +186,16 @@ export function isOutboundMessage(payload) {
 }
 
 export async function handleWebhook(req, res) {
+  const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID();
   const startTime = Date.now();
 
-  // 1. Validate signature if configured
+  // 1. Validate signature
   if (!verifySignature(req)) {
-    console.warn('[webhook] ❌ Rejected webhook: invalid X-Webhook-Signature.');
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd && !process.env.WEBHOOK_SECRET_KEY) {
+      return res.status(500).send('Server Error: Webhook secret not configured');
+    }
+    console.warn(`[webhook req=${correlationId}] ❌ Rejected webhook: invalid signature.`);
     return res.status(401).send('Unauthorized: Invalid Signature');
   }
 
@@ -178,195 +236,202 @@ export async function handleWebhook(req, res) {
         transitLagMs = Date.now() - msgEpochMs;
       }
     }
-    console.log(`[webhook-ingress] Webhook recibido: ${new Date().toISOString()} | Message timestamp: ${rawMsgTs} (${msgIso}) | Transit lag: ${transitLagMs !== null ? `${transitLagMs}ms` : 'unknown'}`);
+    console.log(`[webhook-ingress req=${correlationId}] Webhook recibido: ${new Date().toISOString()} | Message timestamp: ${rawMsgTs} (${msgIso}) | Transit lag: ${transitLagMs !== null ? `${transitLagMs}ms` : 'unknown'}`);
 
-    // Idempotency: Ignore duplicate message IDs
-    if (isDuplicate(messageId)) {
+    // Idempotency: Ignore duplicate message IDs (Fast-path RAM check + Persistent DB check)
+    if (isDuplicate(messageId) || (messageId && await isMessageAlreadyProcessed(messageId))) {
+      console.log(`[webhook req=${correlationId}] Duplicate inbound messageId=${messageId} ignored.`);
       return;
     }
 
     // Must have at least one recipient identifier (phone or bsuid)
     if (!phoneNumber && !bsuid) {
-      console.warn('[webhook] Inbound message dropped: missing both phoneNumber and bsuid.');
+      console.warn(`[webhook req=${correlationId}] Inbound message dropped: missing both phoneNumber and bsuid.`);
       return;
     }
 
     const recipientIdentifier = phoneNumber || bsuid;
     const phoneNumberId = extractPhoneNumberId(body);
-    console.log(`[webhook] Inbound channel phone_number_id: ${phoneNumberId}`);
 
-    // Concurrently pre-fetch user profile & conversation history while media is downloading & transcribing
-    const userAndHistoryPromise = Promise.all([
-      getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName),
-      getRecentMessages(recipientIdentifier, 10),
-    ]);
+    // Enqueue processing sequentially for this recipient to prevent context race conditions
+    await enqueueForUser(recipientIdentifier, async () => {
+      // 1. Resolve User Record
+      const user = await getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName);
 
-    let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
-    const caption = message.caption || message.image?.caption || message.document?.caption || '';
+      let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
+      const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
-    // Show typing indicator immediately so the user sees "Escribiendo..." during media download & processing
-    if (messageId) {
-      sendTypingIndicator(messageId, phoneNumberId).catch((err) => {
-        console.warn('[webhook] sendTypingIndicator background error:', err?.message || err);
-      });
-    }
-
-    // 6. Handle Multimodal Media (Audio, Images, PDFs, Documents, Location)
-    const audioObj = message.audio || body.message?.audio;
-    const isAudio = message.type === 'audio' || Boolean(audioObj);
-    const isImage = message.type === 'image' || Boolean(message.image);
-    const isDocument = message.type === 'document' || Boolean(message.document);
-    const isLocation = message.type === 'location' || Boolean(message.location);
-
-    let locationTz = null;
-    let audioElapsedMs = 0;
-    if (isLocation) {
-      const loc = message.location || {};
-      const lat = loc.latitude;
-      const lon = loc.longitude;
-      const locName = loc.name || loc.address || '';
-      const nearest = getNearestCityFromCoordinates(lat, lon);
-      const placeText = locName || (nearest ? `${nearest.city}, ${nearest.region || nearest.country}` : '');
-      locationTz = detectTimezoneFromCoordinates(lat, lon) || (nearest?.tz || null) || detectTimezoneFromLocationText(locName);
-      messageText = `[Ubicación compartida: ${placeText ? `${placeText} ` : ''}(lat ${lat}, lon ${lon})]`;
-    } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url || audioObj?.download_url)) {
-      const audioStart = Date.now();
-      const mediaId = audioObj?.id || message.id;
-      const directMediaUrl = audioObj?.media_url || audioObj?.url || audioObj?.download_url || audioObj?.link || message?.media_url || body?.media_url || null;
-      console.log(`[webhook] Downloading voice note mediaId=${mediaId} directUrl=${Boolean(directMediaUrl)}...`);
-      const audioBlob = await downloadMedia(mediaId, phoneNumberId, directMediaUrl);
-      if (audioBlob) {
-        const mimeType = audioObj?.mime_type || 'audio/ogg';
-        const transcribed = await transcribeAudio(audioBlob, mimeType);
-        if (transcribed) {
-          messageText = transcribed;
-          console.log(`[webhook] Audio transcribed via Whisper: "${messageText}"`);
-        }
-      }
-      audioElapsedMs = Date.now() - audioStart;
-    } else if (isImage && (message.image?.id || message.id)) {
-      const mediaId = message.image?.id || message.id;
-      console.log(`[webhook] Downloading image mediaId=${mediaId}...`);
-      const imageBuffer = await downloadMedia(mediaId, phoneNumberId);
-      if (imageBuffer) {
-        const mimeType = message.image?.mime_type || 'image/jpeg';
-        const extracted = await processDocumentOrImage(imageBuffer, mimeType, caption);
-        if (extracted) {
-          messageText = caption
-            ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
-            : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
-          console.log(`[webhook] Image analyzed: "${messageText.slice(0, 90)}..."`);
-        }
-      }
-    } else if (isDocument && (message.document?.id || message.id)) {
-      const mediaId = message.document?.id || message.id;
-      console.log(`[webhook] Downloading document mediaId=${mediaId}...`);
-      const docBuffer = await downloadMedia(mediaId, phoneNumberId);
-      if (docBuffer) {
-        const mimeType = message.document?.mime_type || 'application/pdf';
-        const extracted = await processDocumentOrImage(docBuffer, mimeType, caption);
-        if (extracted) {
-          messageText = caption
-            ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
-            : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
-          console.log(`[webhook] Document analyzed: "${messageText.slice(0, 90)}..."`);
-        }
-      }
-    }
-
-    if (!messageText) {
-      return;
-    }
-
-    // Extract WhatsApp quoted/replied message context (Swipe to Reply)
-    const contextObj = message.context || body.message?.context || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.context;
-    const quotedText = contextObj?.quoted_content || contextObj?.body || contextObj?.text || contextObj?.message?.text?.body || contextObj?.message?.text || null;
-    if (quotedText && typeof quotedText === 'string' && quotedText.trim().length > 0) {
-      console.log(`[webhook] Quoted message detected: "${quotedText.slice(0, 60)}..."`);
-      messageText = `[Respondiendo a: "${quotedText.trim()}"]\n${messageText}`;
-    }
-
-    const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
-    console.log(`[webhook] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
-
-    // Await pre-fetched User Profile + Conversation History (resolved concurrently during media download)
-    const [user, history] = await userAndHistoryPromise;
-
-    // Dynamic Timezone Resolution: WhatsApp Location Pin or Conversational Travel Text
-    if (locationTz && user.timezone !== locationTz) {
-      console.log(`[webhook] Dynamic timezone switch via location pin: ${user.timezone} -> ${locationTz}`);
-      await updateUserTimezone(user.id, locationTz);
-      user.timezone = locationTz;
-    } else {
-      const isTravelPhrase = /\b(estoy en|llegue a|llegué a|viaje a|viajé a|me mude a|me mudé a|ahora en|desde|ubicado en|ando por|de viaje en|de viaje por|visitando)\b/i.test(messageText);
-      const textTz = detectTimezoneFromLocationText(messageText);
-      if (textTz && isTravelPhrase && user.timezone !== textTz) {
-        console.log(`[webhook] Dynamic timezone switch via conversational text: ${user.timezone} -> ${textTz}`);
-        await updateUserTimezone(user.id, textTz);
-        user.timezone = textTz;
-      }
-    }
-
-    // Save user message and update last_user_message_at window in background
-    saveMessage({
-      userId: user.id,
-      phoneNumber: recipientIdentifier,
-      role: 'user',
-      content: messageText,
-    }).catch(err => console.error('saveMessage(user) failed:', err));
-    touchUserLastActive(user.id, recipientIdentifier);
-
-    // Route to AI with full batch & natural reply generation
-    const routeStart = Date.now();
-    const result = await routeMessage(messageText, user, history);
-    const routeElapsedMs = Date.now() - routeStart;
-
-    // Send confirmation to user via Kapso WhatsApp API
-    let sendElapsedMs = 0;
-    if (result.confirmation) {
-      const sendStart = Date.now();
-      if (result.ctaUrl) {
-        await sendWhatsAppCtaUrl({
-          phoneNumberId,
-          phoneNumber,
-          bsuid,
-          headerText: result.ctaHeader || '📅 Google Calendar',
-          bodyText: result.confirmation,
-          buttonText: result.ctaButtonText || '🔗 Conectar',
-          url: result.ctaUrl,
+      // Show typing indicator immediately
+      if (messageId) {
+        sendTypingIndicator(messageId, phoneNumberId).catch((err) => {
+          console.warn(`[webhook req=${correlationId}] sendTypingIndicator background error:`, err?.message || err);
         });
+      }
+
+      // 2. Handle Multimodal Media (Audio, Images, PDFs, Documents, Location)
+      const audioObj = message.audio || body.message?.audio;
+      const isAudio = message.type === 'audio' || Boolean(audioObj);
+      const isImage = message.type === 'image' || Boolean(message.image);
+      const isDocument = message.type === 'document' || Boolean(message.document);
+      const isLocation = message.type === 'location' || Boolean(message.location);
+
+      let locationTz = null;
+      let audioElapsedMs = 0;
+      if (isLocation) {
+        const loc = message.location || {};
+        const lat = loc.latitude;
+        const lon = loc.longitude;
+        const locName = loc.name || loc.address || '';
+        const nearest = getNearestCityFromCoordinates(lat, lon);
+        const placeText = locName || (nearest ? `${nearest.city}, ${nearest.region || nearest.country}` : '');
+        locationTz = detectTimezoneFromCoordinates(lat, lon) || (nearest?.tz || null) || detectTimezoneFromLocationText(locName);
+        messageText = `[Ubicación compartida: ${placeText ? `${placeText} ` : ''}(lat ${lat}, lon ${lon})]`;
+      } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url || audioObj?.download_url)) {
+        const audioStart = Date.now();
+        const mediaId = audioObj?.id || message.id;
+        const directMediaUrl = audioObj?.media_url || audioObj?.url || audioObj?.download_url || audioObj?.link || message?.media_url || body?.media_url || null;
+        console.log(`[webhook req=${correlationId}] Downloading voice note mediaId=${mediaId}...`);
+        const audioBlob = await downloadMedia(mediaId, phoneNumberId, directMediaUrl);
+        if (audioBlob) {
+          const mimeType = audioObj?.mime_type || 'audio/ogg';
+          const transcribed = await transcribeAudio(audioBlob, mimeType);
+          if (transcribed) {
+            messageText = transcribed;
+            console.log(`[webhook req=${correlationId}] Audio transcribed via Whisper: "${messageText}"`);
+          }
+        }
+        audioElapsedMs = Date.now() - audioStart;
+      } else if (isImage && (message.image?.id || message.id)) {
+        const mediaId = message.image?.id || message.id;
+        console.log(`[webhook req=${correlationId}] Downloading image mediaId=${mediaId}...`);
+        const imageBuffer = await downloadMedia(mediaId, phoneNumberId);
+        if (imageBuffer) {
+          const mimeType = message.image?.mime_type || 'image/jpeg';
+          const extracted = await processDocumentOrImage(imageBuffer, mimeType, caption);
+          if (extracted) {
+            messageText = caption
+              ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
+              : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
+            console.log(`[webhook req=${correlationId}] Image analyzed: "${messageText.slice(0, 90)}..."`);
+          }
+        }
+      } else if (isDocument && (message.document?.id || message.id)) {
+        const mediaId = message.document?.id || message.id;
+        console.log(`[webhook req=${correlationId}] Downloading document mediaId=${mediaId}...`);
+        const docBuffer = await downloadMedia(mediaId, phoneNumberId);
+        if (docBuffer) {
+          const mimeType = message.document?.mime_type || 'application/pdf';
+          const extracted = await processDocumentOrImage(docBuffer, mimeType, caption);
+          if (extracted) {
+            messageText = caption
+              ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
+              : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
+            console.log(`[webhook req=${correlationId}] Document analyzed: "${messageText.slice(0, 90)}..."`);
+          }
+        }
+      }
+
+      if (!messageText) {
+        return;
+      }
+
+      // Extract WhatsApp quoted/replied message context (Swipe to Reply)
+      const contextObj = message.context || body.message?.context || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.context;
+      const quotedText = contextObj?.quoted_content || contextObj?.body || contextObj?.text || contextObj?.message?.text?.body || contextObj?.message?.text || null;
+      if (quotedText && typeof quotedText === 'string' && quotedText.trim().length > 0) {
+        console.log(`[webhook req=${correlationId}] Quoted message detected: "${quotedText.slice(0, 60)}..."`);
+        messageText = `[Respondiendo a: "${quotedText.trim()}"]\n${messageText}`;
+      }
+
+      const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
+      console.log(`[webhook req=${correlationId}] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
+
+      // Dynamic Timezone Resolution
+      if (locationTz && user.timezone !== locationTz) {
+        console.log(`[webhook req=${correlationId}] Dynamic timezone switch via location pin: ${user.timezone} -> ${locationTz}`);
+        await updateUserTimezone(user.id, locationTz);
+        user.timezone = locationTz;
       } else {
-        await sendWhatsAppText({
-          phoneNumberId,
-          phoneNumber,
-          bsuid,
-          text: result.confirmation,
-        });
+        const isTravelPhrase = /\b(estoy en|llegue a|llegué a|viaje a|viajé a|me mude a|me mudé a|ahora en|desde|ubicado en|ando por|de viaje en|de viaje por|visitando)\b/i.test(messageText);
+        const textTz = detectTimezoneFromLocationText(messageText);
+        if (textTz && isTravelPhrase && user.timezone !== textTz) {
+          console.log(`[webhook req=${correlationId}] Dynamic timezone switch via conversational text: ${user.timezone} -> ${textTz}`);
+          await updateUserTimezone(user.id, textTz);
+          user.timezone = textTz;
+        }
       }
-      sendElapsedMs = Date.now() - sendStart;
-    }
 
-    const totalElapsed = Date.now() - startTime;
-    console.log(`[webhook] Turn delivered in ${totalElapsed}ms (audio: ${audioElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
+      // 3. PERSIST USER MESSAGE FIRST AND AWAIT (Guarantees chronological order and DB-level deduplication)
+      const savedUserMsg = await saveMessage({
+        userId: user.id,
+        phoneNumber: recipientIdentifier,
+        role: 'user',
+        content: messageText,
+        messageId: messageId || null,
+      });
 
-    // Persist assistant message in background
-    saveMessage({
-      userId: user.id,
-      phoneNumber: recipientIdentifier,
-      role: 'assistant',
-      content: result.confirmation ?? '',
-      intent: result.intent,
-      entities: result.entities ?? {},
-    }).catch(err => console.error('saveMessage(assistant) failed:', err));
+      // If concurrent request won the DB insert on the same message_id, abort duplicate processing
+      if (messageId && !savedUserMsg) {
+        console.warn(`[webhook req=${correlationId}] Duplicate inbound messageId=${messageId} caught by DB unique constraint.`);
+        return;
+      }
+      touchUserLastActive(user.id, recipientIdentifier);
 
-    // Trigger persistent memory extraction in background
-    extractMemoryInBackground({
-      userId: user.id,
-      userText: messageText,
-      assistantReply: result.confirmation ?? '',
+      // 4. Fetch updated conversation history including this message
+      const history = await getRecentMessages(recipientIdentifier, 10);
+
+      // 5. Route to AI with full batch & natural reply generation
+      const routeStart = Date.now();
+      const result = await routeMessage(messageText, user, history, { correlationId });
+      const routeElapsedMs = Date.now() - routeStart;
+
+      // 6. Send confirmation to user via Kapso WhatsApp API
+      let sendElapsedMs = 0;
+      if (result.confirmation) {
+        const sendStart = Date.now();
+        if (result.ctaUrl) {
+          await sendWhatsAppCtaUrl({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            headerText: result.ctaHeader || '📅 Google Calendar',
+            bodyText: result.confirmation,
+            buttonText: result.ctaButtonText || '🔗 Conectar',
+            url: result.ctaUrl,
+          });
+        } else {
+          await sendWhatsAppText({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            text: result.confirmation,
+          });
+        }
+        sendElapsedMs = Date.now() - sendStart;
+      }
+
+      const totalElapsed = Date.now() - startTime;
+      console.log(`[webhook req=${correlationId}] Turn delivered in ${totalElapsed}ms (audio: ${audioElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
+
+      // 7. PERSIST ASSISTANT MESSAGE AND AWAIT
+      await saveMessage({
+        userId: user.id,
+        phoneNumber: recipientIdentifier,
+        role: 'assistant',
+        content: result.confirmation ?? '',
+        intent: result.intent,
+        entities: result.entities ?? {},
+      });
+
+      // 8. Trigger persistent memory extraction in background
+      extractMemoryInBackground({
+        userId: user.id,
+        userText: messageText,
+        assistantReply: result.confirmation ?? '',
+      });
     });
 
   } catch (error) {
-    console.error('[webhook] Process error:', error.message || error);
+    console.error(`[webhook req=${correlationId}] Process error:`, error.message || error);
   }
 }

@@ -210,6 +210,31 @@ export async function acknowledgeReminders({ userId, phoneNumber, contentQuery =
 }
 
 /**
+ * Acknowledge single reminder by its ID.
+ */
+export async function acknowledgeReminder(id) {
+  if (!id) return null;
+  const ackTime = new Date().toISOString();
+  try {
+    const { data, error } = await supabase
+      .from('reminders')
+      .update({ acknowledged_at: ackTime, status: 'sent' })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[reminders] acknowledgeReminder error:', error.message);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.warn('[reminders] acknowledgeReminder threw:', e.message);
+    return null;
+  }
+}
+
+/**
  * Find reminders that need an escalation nudge.
  */
 export async function getRemindersDueForNudge() {
@@ -278,6 +303,21 @@ export async function getDueReminders() {
   return data || [];
 }
 
+/**
+ * Get pending reminders by phone number or user ID.
+ */
+export async function getRemindersByPhone(phoneNumber, status = 'pending', limit = 20) {
+  if (!phoneNumber) return [];
+  const { data } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('phone_number', phoneNumber)
+    .eq('status', status)
+    .order('send_at', { ascending: true })
+    .limit(limit);
+  return data || [];
+}
+
 export async function markReminderAsSent(id) {
   const { error } = await supabase
     .from('reminders')
@@ -303,6 +343,32 @@ export async function markReminderAsMissed(id) {
     .eq('id', id);
 
   if (error) throw error;
+}
+
+export async function markReminderAsCancelled(id, userId = null, phoneNumber = null) {
+  if (!id) return false;
+  try {
+    let q = supabase
+      .from('reminders')
+      .update({ status: 'cancelled' })
+      .eq('id', id);
+
+    if (userId) {
+      q = q.eq('user_id', userId);
+    } else if (phoneNumber) {
+      q = q.eq('phone_number', phoneNumber);
+    }
+
+    const { error } = await q;
+    if (error) {
+      console.error('[reminders] markReminderAsCancelled failed:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[reminders] markReminderAsCancelled threw:', err);
+    return false;
+  }
 }
 
 /**
@@ -582,26 +648,81 @@ export async function getRecentRemindersForPhone(phoneNumber, limit = 10) {
 }
 
 /**
- * Claim the next due reminder atomically with FOR UPDATE SKIP LOCKED.
+ * Claim the next due reminder atomically with FOR UPDATE SKIP LOCKED or conditional lease locking.
+ * Safe across multiple concurrent workers and server replicas.
+ *
+ * @param {string} [workerId='worker-1']
+ * @param {number} [lockDurationSec=120]
+ * @returns {Promise<object|null>}
  */
-export async function claimNextDueReminder() {
-  const { data, error } = await supabase.rpc('claim_next_pending_reminder');
-  if (error) {
-    // Fallback if RPC not loaded
-    const { data: fallback, error: fbErr } = await supabase
-      .from('reminders')
-      .select('*')
-      .eq('status', 'pending')
-      .lte('send_at', new Date().toISOString())
-      .order('send_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+export async function claimNextDueReminder(workerId = 'worker-1', lockDurationSec = 120) {
+  const nowIso = new Date().toISOString();
+  const lockUntilIso = new Date(Date.now() + lockDurationSec * 1000).toISOString();
 
-    if (fbErr) throw fbErr;
-    return fallback || null;
+  // 1. Try native Postgres RPC function with FOR UPDATE SKIP LOCKED
+  try {
+    const { data, error } = await supabase.rpc('claim_next_pending_reminder', {
+      p_worker_id: workerId,
+      p_lock_duration_sec: lockDurationSec,
+    });
+
+    if (!error && data && data.length > 0) {
+      return data[0];
+    }
+    if (!error && data && data.length === 0) {
+      return null;
+    }
+  } catch (rpcErr) {
+    // Continue to atomic client fallback
   }
 
-  return data?.[0] || null;
+  // 2. Client-side Atomic Conditional Claim Fallback with Lease Recovery:
+  // Select candidate due reminders (either pending or processing with expired lock_until)
+  try {
+    const { data: candidates, error: candErr } = await supabase
+      .from('reminders')
+      .select('*')
+      .or(`status.eq.pending,and(status.eq.processing,lock_until.not.is.null,lock_until.lte.${nowIso})`)
+      .lte('send_at', nowIso)
+      .order('send_at', { ascending: true })
+      .limit(10);
+
+    if (candErr || !candidates || candidates.length === 0) {
+      return null;
+    }
+
+    for (const candidate of candidates) {
+      // Execute atomic conditional UPDATE:
+      // If pending: match status = 'pending'
+      // If processing: match status = 'processing' AND lock_until <= nowIso
+      let updQuery = supabase
+        .from('reminders')
+        .update({
+          status: 'processing',
+          claimed_by: workerId,
+          claimed_at: nowIso,
+          lock_until: lockUntilIso,
+        })
+        .eq('id', candidate.id);
+
+      if (candidate.status === 'pending') {
+        updQuery = updQuery.eq('status', 'pending');
+      } else {
+        updQuery = updQuery.eq('status', 'processing').lte('lock_until', nowIso);
+      }
+
+      const { data: claimed, error: updErr } = await updQuery.select();
+
+      // If update succeeded and returned the row, this worker won the atomic claim!
+      if (!updErr && claimed && claimed.length > 0) {
+        return claimed[0];
+      }
+    }
+  } catch (fbErr) {
+    console.error('[db] claimNextDueReminder fallback error:', fbErr.message);
+  }
+
+  return null;
 }
 
 /**
@@ -627,3 +748,4 @@ export * from './entities.js';
 export * from './memories.js';
 export * from './subscriptions.js';
 export * from './integrations.js';
+export * from './messages.js';

@@ -63,14 +63,14 @@ export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
     }
   }
 
-  // 2. FALLBACK: Google Gemini Native Multimodal Audio (gemini-3.1-flash-lite / gemini-2.5-flash)
+  // 2. FALLBACK: Google Gemini Native Multimodal Audio (gemini-2.5-flash / gemini-2.0-flash)
   if (geminiKey) {
     try {
       const arrayBuffer = await blob.arrayBuffer();
       const base64Data = Buffer.from(arrayBuffer).toString('base64');
       const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
 
-      const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-2.5-flash'];
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
       for (const model of modelsToTry) {
         try {
           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
@@ -123,8 +123,6 @@ export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
         : `${baseUrl}/audio/transcriptions`;
 
       const formData = new FormData();
-      const cleanMime = mimeType.split(';')[0].trim() || 'audio/ogg';
-      const blob = new Blob([audioBuffer], { type: cleanMime });
       formData.append('file', blob, 'audio.ogg');
       formData.append('model', process.env.AI_AUDIO_MODEL || 'whisper-1');
       formData.append('language', 'es');

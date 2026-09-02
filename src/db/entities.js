@@ -79,7 +79,7 @@ export function jaccardSimilarity(s1, s2) {
 }
 
 /**
- * Composite fuzzy match score combining Levenshtein and Jaccard token similarity.
+ * Composite fuzzy match score combining Levenshtein and Jaccard token similarity with strict length ratio guards.
  */
 export function entityMatchScore(nameA, nameB) {
   const normA = normalizeEntityName(nameA);
@@ -88,17 +88,48 @@ export function entityMatchScore(nameA, nameB) {
   if (!normA || !normB) return 0.0;
   if (normA === normB) return 1.0;
 
-  // Substring containment check for prefixes or root words (e.g. "remindersim" & "reminder")
-  if (normA.length >= 3 && normB.length >= 3) {
-    if (normA.startsWith(normB) || normB.startsWith(normA) || normA.includes(normB) || normB.includes(normA)) {
-      const lev = levenshteinSimilarity(normA, normB);
-      return Math.max(0.80, lev);
-    }
+  const minLen = Math.min(normA.length, normB.length);
+  const maxLen = Math.max(normA.length, normB.length);
+  const lengthRatio = minLen / maxLen;
+
+  // Plural/singular inflection check (e.g. "recordatorio" vs "recordatorios", "reminder" vs "reminders")
+  if (
+    (normA + 's' === normB || normB + 's' === normA || normA + 'es' === normB || normB + 'es' === normA) &&
+    minLen >= 4
+  ) {
+    return 0.95;
   }
 
   const lev = levenshteinSimilarity(normA, normB);
   const jac = jaccardSimilarity(normA, normB);
-  return Math.max(lev, jac, lev * 0.6 + jac * 0.4);
+
+  // For very short single-word entities (length <= 4), do not allow substring boosts and require strict similarity
+  if (maxLen <= 4 || minLen <= 3) {
+    // For short words like "pan" (3) vs "panadería" (9) or "sol" (3) vs "soluciones" (10),
+    // lengthRatio is <= 0.4. Never allow substring containment to boost these!
+    if (lengthRatio < 0.70) {
+      return lev;
+    }
+    return lev >= 0.85 ? lev : 0.0;
+  }
+
+  // For multi-word phrases or longer words with high length ratio (>= 0.70)
+  // E.g. "remindersim" (11) vs "reminder" (8) -> ratio 0.727 -> returns 0.78
+  // "pan" (3) vs "panadería" (9) -> ratio 0.33 -> rejected (returns ~0.33)
+  // "sol" (3) vs "soluciones" (10) -> ratio 0.30 -> rejected (returns ~0.30)
+  if (lengthRatio >= 0.70 && (normA.startsWith(normB) || normB.startsWith(normA))) {
+    return Math.max(lev, 0.78);
+  }
+
+  // Composite calculation
+  const tokensA = normA.split(/\s+/).filter(Boolean);
+  const tokensB = normB.split(/\s+/).filter(Boolean);
+
+  if (tokensA.length > 1 || tokensB.length > 1) {
+    return Math.max(jac, lev * 0.5 + jac * 0.5);
+  }
+
+  return lev;
 }
 
 /**
@@ -251,8 +282,34 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
   const cleanOld = String(oldName).trim();
   const cleanNew = String(newName).trim();
 
+  // 1. Try atomic PostgreSQL RPC transaction
   try {
-    // 1. Find existing entity matching oldName
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc('rename_entity_cascade', {
+      p_user_id: userId,
+      p_old_name: cleanOld,
+      p_new_name: cleanNew,
+      p_category: category || 'other',
+    });
+
+    if (!rpcErr && rpcResult?.success) {
+      console.log(`[entities] Atomically renamed "${cleanOld}" -> "${cleanNew}" via PostgreSQL RPC (tasks: ${rpcResult.tasks_updated}, reminders: ${rpcResult.reminders_updated}, memories: ${rpcResult.memories_updated})`);
+      return {
+        success: true,
+        action: 'renamed_atomic_rpc',
+        entity: { id: rpcResult.entity_id, name: cleanNew, category: category || 'other' },
+        oldName: cleanOld,
+        newName: cleanNew,
+        tasksUpdated: rpcResult.tasks_updated,
+        remindersUpdated: rpcResult.reminders_updated,
+        memoriesUpdated: rpcResult.memories_updated,
+      };
+    }
+  } catch (err) {
+    console.warn('[entities] rename_entity_cascade RPC warning, falling back:', err.message);
+  }
+
+  try {
+    // 1. Resolve source and target entities
     const { data: entities, error: fetchErr } = await supabase
       .from('entities')
       .select('*')
@@ -265,11 +322,26 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
     let source = null;
     let maxScore = 0;
     for (const ent of entities) {
+      if (ent.name.toLowerCase() === cleanOld.toLowerCase()) {
+        source = ent;
+        maxScore = 1.0;
+        break;
+      }
       if (category && ent.category !== category) continue;
       const score = entityMatchScore(cleanOld, ent.name);
       if (score > maxScore) {
         maxScore = score;
         source = ent;
+      }
+    }
+
+    if (!source) {
+      for (const ent of entities) {
+        const score = entityMatchScore(cleanOld, ent.name);
+        if (score > maxScore) {
+          maxScore = score;
+          source = ent;
+        }
       }
     }
 
@@ -491,6 +563,27 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
       return { success: true, action: 'noop', targetEntity: target, tasksMovedCount: 0 };
     }
 
+    // Try atomic PostgreSQL RPC transaction
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('merge_entities', {
+        p_user_id: userId,
+        p_source_id: source.id,
+        p_target_id: target.id,
+      });
+
+      if (!rpcErr && rpcRes?.success) {
+        console.log(`[entities] Atomically merged entity ${source.name} (${source.id}) -> ${target.name} (${target.id}) via PostgreSQL RPC (tasks moved: ${rpcRes.tasks_reassigned})`);
+        return {
+          success: true,
+          action: 'merged_atomic_rpc',
+          targetEntity: { ...target, metadata: rpcRes.merged_metadata },
+          tasksMovedCount: rpcRes.tasks_reassigned,
+        };
+      }
+    } catch (rpcErr) {
+      console.warn('[entities] merge_entities RPC warning, falling back:', rpcErr.message);
+    }
+
     // 1. Move all tasks from source to target
     const { data: movedTasks, error: moveErr } = await supabase
       .from('tasks')
@@ -567,7 +660,7 @@ export async function deduplicateEntities(paramsOrUserId, categoryArg) {
         if (eliminatedIds.has(e2.id)) continue;
 
         const score = entityMatchScore(e1.name, e2.name);
-        if (score >= 0.80) {
+        if (score >= 0.88) {
           // Merge e2 into e1 (or whichever has shorter/cleaner name)
           const target = normalizeEntityName(e1.name).length <= normalizeEntityName(e2.name).length ? e1 : e2;
           const source = target.id === e1.id ? e2 : e1;
@@ -670,3 +763,5 @@ export async function getEntityById(id, userId) {
     return null;
   }
 }
+
+export const renameEntityCascade = renameEntity;

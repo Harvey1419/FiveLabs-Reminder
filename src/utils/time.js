@@ -125,15 +125,15 @@ function pluralUnit(value, unit, language = 'es') {
 }
 
 /**
- * Compute the UTC offset string (e.g. "-05:00", "+00:00") for a specific IANA timezone.
+ * Compute the exact UTC offset string (e.g. "-05:00", "+00:00", "+02:00") for a specific IANA timezone and instant.
  */
-export function computeOffsetMinutes(timezone = DEFAULT_TIMEZONE) {
+export function computeOffsetMinutes(timezone = DEFAULT_TIMEZONE, targetDate = new Date()) {
   try {
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       timeZoneName: 'longOffset',
     });
-    const parts = formatter.formatToParts(new Date());
+    const parts = formatter.formatToParts(targetDate instanceof Date ? targetDate : new Date(targetDate));
     const tzPart = parts.find(p => p.type === 'timeZoneName');
     if (tzPart?.value) {
       const match = tzPart.value.match(/GMT([+-]\d{2}:\d{2})/);
@@ -147,12 +147,44 @@ export function computeOffsetMinutes(timezone = DEFAULT_TIMEZONE) {
 }
 
 /**
+ * Convert local date/time components in a specified IANA timezone to a true UTC Date instance with exact DST resolution.
+ */
+export function zonedTimeToUtc(year, month, day, hour = 0, minute = 0, second = 0, timezone = DEFAULT_TIMEZONE) {
+  try {
+    const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(utcGuess);
+    const p = {};
+    for (const { type, value } of parts) {
+      if (type !== 'literal') p[type] = parseInt(value, 10);
+    }
+    if (p.hour === 24) p.hour = 0;
+    const localTimeInTz = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    const offsetDiff = localTimeInTz - utcGuess.getTime();
+    return new Date(utcGuess.getTime() - offsetDiff);
+  } catch (err) {
+    console.error(`[time] zonedTimeToUtc error for ${timezone}:`, err);
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  }
+}
+
+/**
  * Returns current local time as ISO 8601 with explicit offset.
  */
 export function nowISO(timezone = DEFAULT_TIMEZONE) {
-  const offset = computeOffsetMinutes(timezone);
+  const now = new Date();
+  const offset = computeOffsetMinutes(timezone, now);
   try {
-    const localStr = new Date().toLocaleString('sv-SE', {
+    const localStr = now.toLocaleString('sv-SE', {
       timeZone: timezone,
       year: 'numeric',
       month: '2-digit',
@@ -164,7 +196,7 @@ export function nowISO(timezone = DEFAULT_TIMEZONE) {
     return localStr.replace(' ', 'T') + offset;
   } catch (err) {
     console.error(`[time] nowISO error with timezone ${timezone}:`, err);
-    return new Date().toISOString();
+    return now.toISOString();
   }
 }
 
@@ -189,14 +221,14 @@ export function nowHuman(timezone = DEFAULT_TIMEZONE, language = 'es') {
 }
 
 /**
- * Parse a targetTime string from the LLM into a UTC-anchored Date.
+ * Parse a targetTime string from the LLM or user into a UTC-anchored Date.
+ * Supports relative offsets, full ISO dates, AM/PM 12h, and 24h formats with true timezone resolution.
  */
 export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
   if (!str) return null;
   const s = String(str).trim();
-  const offset = computeOffsetMinutes(timezone);
 
-  // 1. Relative offset format (e.g. "+10m", "in 15 minutes", "en 10 minutos")
+  // 1. Relative offset format (e.g. "+10m", "in 15 minutes", "en 10 minutos", "en 2 horas")
   const relMatch = s.match(/^(?:\+?|in\s+|en\s+)?(\d+)\s*(m|min|mins|minuto|minutos|h|hr|hrs|hora|horas|d|d[ií]a|d[ií]as)$/i);
   if (relMatch) {
     const val = parseInt(relMatch[1], 10);
@@ -208,7 +240,43 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     return new Date(Date.now() + ms);
   }
 
-  // 2. 12-hour AM/PM format (e.g. "6:00 PM", "6 PM", "06:30 pm", "6 am")
+  // Get current date components in the user's timezone
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const [todayYear, todayMonth, todayDay] = formatter.format(now).split('-').map(Number);
+
+  // 2. Full Date + Time ISO or Date string (e.g. "2026-09-02T17:00:00Z", "2026-09-02 17:00", "2026-09-02T17:00:00-05:00")
+  const fullIsoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s*(am|pm))?(?:([Zz])|([+-]\d{2}:?\d{2}))?$/i);
+  if (fullIsoMatch) {
+    const y = parseInt(fullIsoMatch[1], 10);
+    const m = parseInt(fullIsoMatch[2], 10);
+    const d = parseInt(fullIsoMatch[3], 10);
+    let hh = fullIsoMatch[4] ? parseInt(fullIsoMatch[4], 10) : 12;
+    const mm = fullIsoMatch[5] ? parseInt(fullIsoMatch[5], 10) : 0;
+    const ss = fullIsoMatch[6] ? parseInt(fullIsoMatch[6], 10) : 0;
+    const meridian = fullIsoMatch[7]?.toLowerCase();
+    const hasZ = Boolean(fullIsoMatch[8]);
+    const explicitOffset = fullIsoMatch[9];
+
+    if (meridian === 'pm' && hh < 12) hh += 12;
+    if (meridian === 'am' && hh === 12) hh = 0;
+
+    if (hasZ) {
+      return new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
+    }
+    if (explicitOffset) {
+      return new Date(s);
+    }
+    // No explicit offset -> interpret in user's timezone
+    return zonedTimeToUtc(y, m, d, hh, mm, ss, timezone);
+  }
+
+  // 3. 12-hour AM/PM format (e.g. "5:00 PM", "5 PM", "06:30 am", "11 am", "5am")
   const ampmMatch = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
   if (ampmMatch) {
     let hours = parseInt(ampmMatch[1], 10);
@@ -216,42 +284,37 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     const meridian = ampmMatch[3].toLowerCase();
     if (meridian === 'pm' && hours < 12) hours += 12;
     if (meridian === 'am' && hours === 12) hours = 0;
-    const hh = String(hours).padStart(2, '0');
-    const mm = String(minutes).padStart(2, '0');
-    const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
-    const d = new Date(`${todayStr}T${hh}:${mm}:00${offset}`);
-    if (!isNaN(d.getTime())) {
-      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
-      return d;
+
+    let targetUtc = zonedTimeToUtc(todayYear, todayMonth, todayDay, hours, minutes, 0, timezone);
+    // If the scheduled time is already in the past today, move to tomorrow
+    if (targetUtc.getTime() <= Date.now()) {
+      targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
     }
+    return targetUtc;
   }
 
-  // 3. Time-only 24h format (e.g. "08:00", "18:30:00")
-  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) {
-    const todayStr = new Date().toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
-    let d = new Date(`${todayStr}T${s}${s.length <= 5 ? ':00' : ''}${offset}`);
-    if (!isNaN(d.getTime())) {
-      const rawHour = parseInt(s.split(':')[0], 10);
-      if (rawHour > 0 && rawHour <= 11 && d.getTime() <= Date.now()) {
-        const pmHour = rawHour + 12;
-        const pmTimeStr = `${String(pmHour).padStart(2, '0')}:${s.split(':')[1]}${s.length > 5 ? s.slice(5) : ':00'}`;
-        const pmDate = new Date(`${todayStr}T${pmTimeStr}${offset}`);
-        if (pmDate.getTime() > Date.now()) return pmDate;
-      }
-      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
-      return d;
+  // 4. Time-only 24h format (e.g. "08:00", "18:30:00", "17:00")
+  const timeOnlyMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (timeOnlyMatch) {
+    const hours = parseInt(timeOnlyMatch[1], 10);
+    const minutes = parseInt(timeOnlyMatch[2], 10);
+    const seconds = timeOnlyMatch[3] ? parseInt(timeOnlyMatch[3], 10) : 0;
+
+    let targetUtc = zonedTimeToUtc(todayYear, todayMonth, todayDay, hours, minutes, seconds, timezone);
+    // If the time is already in the past today, advance to tomorrow (deterministic, no AM/PM guessing)
+    if (targetUtc.getTime() <= Date.now()) {
+      targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
     }
+    return targetUtc;
   }
 
-  // 4. Already has explicit offset (Z or ±HH:mm)?
-  if (/[Zz]$|[+-]\d{2}:?\d{2}$/.test(s)) {
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? null : d;
+  // 5. Explicit ISO string fallback
+  const parsedDirect = new Date(s);
+  if (!isNaN(parsedDirect.getTime())) {
+    return parsedDirect;
   }
 
-  // 5. Naive ISO
-  const d = new Date(s + offset);
-  return isNaN(d.getTime()) ? null : d;
+  return null;
 }
 
 /**

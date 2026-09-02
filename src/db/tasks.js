@@ -26,17 +26,31 @@ export async function createTask({
   try {
     const cleanTitle = String(title).trim();
 
-    // Deduplication check: return existing pending task with matching title
-    const { data: existing } = await supabase
+    // Deduplication check: return existing pending task with matching title, entity, and dueDate
+    const isoDueDate = dueDate ? new Date(dueDate).toISOString() : null;
+    let dedupQ = supabase
       .from('tasks')
       .select('*, entities:entity_id(name, category)')
       .eq('user_id', userId)
       .eq('status', 'pending')
-      .ilike('title', cleanTitle)
-      .limit(1);
+      .ilike('title', cleanTitle);
+
+    if (entityId) {
+      dedupQ = dedupQ.eq('entity_id', entityId);
+    } else {
+      dedupQ = dedupQ.is('entity_id', null);
+    }
+
+    if (isoDueDate) {
+      dedupQ = dedupQ.eq('due_date', isoDueDate);
+    } else {
+      dedupQ = dedupQ.is('due_date', null);
+    }
+
+    const { data: existing } = await dedupQ.limit(1);
 
     if (existing && existing.length > 0) {
-      console.log(`[tasks] Duplicate pending task prevented for "${cleanTitle}", reusing id=${existing[0].id}`);
+      console.log(`[tasks] Duplicate pending task prevented for "${cleanTitle}" in same entity/date context, reusing id=${existing[0].id}`);
       return existing[0];
     }
 
@@ -208,10 +222,14 @@ export async function completeTasks({
         .eq('user_id', userId);
 
       if (allEntities && allEntities.length > 0) {
+        const cleanTerm = searchEntityTerm.toLowerCase();
         for (const ent of allEntities) {
+          const entNameLower = ent.name.toLowerCase();
           if (
-            ent.name.toLowerCase() === searchEntityTerm.toLowerCase() ||
-            entityMatchScore(ent.name, searchEntityTerm) >= 0.70
+            entNameLower === cleanTerm ||
+            entNameLower.includes(cleanTerm) ||
+            cleanTerm.includes(entNameLower) ||
+            entityMatchScore(ent.name, searchEntityTerm) >= 0.65
           ) {
             matchingEntityIds.add(ent.id);
           }
@@ -227,7 +245,21 @@ export async function completeTasks({
       .eq('status', 'pending');
 
     if (taskId) {
-      q = q.eq('id', taskId);
+      if (taskId.length === 36) {
+        q = q.eq('id', taskId);
+      } else {
+        const { data: userPending } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+        const matched = (userPending || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+        if (matched) {
+          q = q.eq('id', matched.id);
+        } else {
+          q = q.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
     } else if (matchingEntityIds.size > 0) {
       q = q.in('entity_id', Array.from(matchingEntityIds));
     } else if (!completeAll && (effectiveTitleQuery || titleQuery)) {
@@ -281,7 +313,7 @@ export async function completeTasks({
       })
       .in('id', targetIds)
       .eq('user_id', userId)
-      .select('*, entities:entity_id(name, category)');
+      .select('*');
 
     if (updateErr) {
       console.error('[tasks] completeTasks update failed:', updateErr);
@@ -308,29 +340,87 @@ export async function completeTask({ userId, taskId, titleQuery, entityName }) {
 /**
  * Update an existing task.
  */
-export async function updateTask(userId, taskId, updates) {
-  if (!userId || !taskId) return null;
-
+export async function updateTask(taskId, updates, userId = null) {
+  if (!taskId) return null;
   try {
-    const { data, error } = await supabase
+    let resolvedId = taskId;
+    if (taskId.length < 36) {
+      let q = supabase.from('tasks').select('id');
+      if (userId) q = q.eq('user_id', userId);
+      const { data: tasks } = await q;
+      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+      if (matched) resolvedId = matched.id;
+      else return null;
+    }
+
+    let q = supabase
       .from('tasks')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', taskId)
-      .eq('user_id', userId)
-      .select('*, entities:entity_id(name, category)')
-      .single();
+      .eq('id', resolvedId);
+
+    if (userId) {
+      q = q.eq('user_id', userId);
+    }
+
+    const { data, error } = await q.select().limit(1);
 
     if (error) {
       console.error('[tasks] updateTask failed:', error);
       return null;
     }
 
-    return data;
+    return data && data.length > 0 ? data[0] : null;
   } catch (err) {
     console.error('[tasks] updateTask threw:', err);
     return null;
   }
 }
+
+/**
+ * Soft or hard delete a task by ID.
+ *
+ * @param {string} taskId
+ * @param {string} [userId]
+ * @returns {Promise<boolean>}
+ */
+export async function deleteTask(taskId, userId = null) {
+  if (!taskId) return false;
+  try {
+    let resolvedId = taskId;
+    if (taskId.length < 36) {
+      let q = supabase.from('tasks').select('id');
+      if (userId) q = q.eq('user_id', userId);
+      const { data: tasks } = await q;
+      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+      if (matched) resolvedId = matched.id;
+      else return false;
+    }
+
+    let q = supabase
+      .from('tasks')
+      .delete()
+      .eq('id', resolvedId);
+
+    if (userId) {
+      q = q.eq('user_id', userId);
+    }
+
+    const { error } = await q;
+
+    if (error) {
+      console.error('[tasks] deleteTask failed:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[tasks] deleteTask threw:', err);
+    return false;
+  }
+}
+
+export const completeTasksByQuery = completeTasks;
+export const getTasksWithEntities = getTasks;

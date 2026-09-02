@@ -1,969 +1,156 @@
-import {
-  saveReminder,
-  cancelReminders,
-  acknowledgeReminders,
-  createTask,
-  getTasks,
-  completeTask,
-  completeTasks,
-  updateTask,
-  findOrCreateEntityFuzzy,
-  renameEntity,
-  mergeEntities,
-  deduplicateEntities,
-  getOrCreateEntity,
-  findEntities,
-  getRecentRemindersForPhone,
-  getDailyOverview,
-  forgetMemories,
-  searchMemories,
-  saveMemory,
-  getActiveMemories,
-  supabase,
-  hasProAccess,
-  createPendingSubscription,
-  getUserSubscription,
-  cancelUserSubscription,
-  getUserIntegration,
-} from '../db/index.js';
-import { createPreapproval, createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
-import { generateGoogleAuthUrl, getGoogleConnectUrl, revokeGoogleIntegration } from '../services/googleAuth.js';
-import {
-  listCalendarEvents,
-  createCalendarEvent,
-  findConflictingEvents,
-} from '../services/googleCalendar.js';
-import { isAdminUser } from '../utils/auth.js';
-import {
-  parseTargetTime,
-  humanizeTimeUntil,
-  formatLocalDateTime,
-} from '../utils/time.js';
+import { executeReminderTool } from './tools/reminderTools.js';
+import { executeTaskTool } from './tools/taskTools.js';
+import { executeEntityTool } from './tools/entityTools.js';
+import { executeMemoryTool } from './tools/memoryTools.js';
+import { executeSubscriptionTool } from './tools/subscriptionTools.js';
+import { executeCalendarTool } from './tools/calendarTools.js';
+import { executeAdminTool } from './tools/adminTools.js';
+import { formatErrorCard } from './tools/formatters.js';
+
+export const TOOL_NAMES = {
+  MANAGE_REMINDER: 'manage_reminder',
+  MANAGE_TASK: 'manage_task',
+  MANAGE_ENTITY: 'manage_entity',
+  MANAGE_MEMORY: 'manage_memory',
+  MANAGE_SUBSCRIPTION: 'manage_subscription',
+  GET_SUBSCRIPTION_LINK: 'get_subscription_link',
+  MANAGE_GOOGLE_CALENDAR: 'manage_google_calendar',
+  ADMIN_METRICS: 'admin_metrics',
+};
 
 /**
- * Execute single or batch tool operations deterministically.
- *
- * @param {string} toolName
- * @param {object} params
- * @param {object} user - User record { id, phone_number, timezone, locale }
- * @returns {Promise<{success: boolean, action: string, data: any, rawSummary: string}>}
+ * Master tool router that executes domain tools deterministically and returns validated results.
+ * Supports both options object and positional (toolName, params, user) invocations.
  */
-export async function executeTool(toolName, params, user) {
-  const timezone = user.timezone || 'America/Bogota';
-  const locale = user.locale || 'es-CO';
-  const language = locale.startsWith('en') ? 'en' : locale.startsWith('pt') ? 'pt' : 'es';
+export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = null) {
+  let toolName;
+  let params = {};
+  let user = null;
+  let isPro = false;
+  let language = 'es';
+  let userMessage = '';
+  let correlationId = null;
+
+  if (typeof toolNameOrOptions === 'object' && toolNameOrOptions !== null) {
+    toolName = toolNameOrOptions.toolName;
+    params = toolNameOrOptions.params || {};
+    user = toolNameOrOptions.user;
+    isPro = toolNameOrOptions.isPro ?? (user?.isPro || false);
+    language = toolNameOrOptions.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
+    userMessage = toolNameOrOptions.userMessage || '';
+    correlationId = toolNameOrOptions.correlationId || null;
+  } else {
+    toolName = toolNameOrOptions;
+    params = paramsArg || {};
+    user = userArg;
+    isPro = userArg?.isPro ?? false;
+    language = userArg?.locale?.startsWith('en') ? 'en' : 'es';
+    userMessage = '';
+    correlationId = null;
+  }
+
+  const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';
+  console.log(`${reqId} Executing ${toolName} action=${params?.action || 'default'} for user=${user?.id || user?.phone_number}`);
 
   try {
+    let result = null;
+
     switch (toolName) {
-      case 'create_reminder':
-      case 'manage_reminder': {
-        const action = params.action || 'create';
-
-        // 1. Batch / Single creation with Recurrence Rule & Persistent Nudge support
-        const items = params.items || params.reminders || (params.content ? [params] : []);
-
-        if (action === 'create' && items.length > 0) {
-          // Tier gate: Check if user has Pro access
-          const isPro = hasProAccess(user?.subscription, user);
-          if (!isPro) {
-            const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
-            for (const item of items) {
-              let sendAt = parseTargetTime(item.targetTime, timezone);
-              if (!sendAt || sendAt.getTime() <= Date.now()) {
-                sendAt = new Date(Date.now() + 60 * 60 * 1000);
-              }
-              const targetDay = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(sendAt);
-              let recurrenceRule = item.recurrence || item.recurrenceRule || params.recurrence || null;
-              if (item.content && !recurrenceRule) {
-                const lower = item.content.toLowerCase();
-                if (lower.includes('todos los') || lower.includes('cada día') || lower.includes('diario') || lower.includes('every day') || lower.includes('semanal') || lower.includes('mensual')) {
-                  recurrenceRule = 'recurrence';
-                }
-              }
-
-              if (targetDay !== localToday || recurrenceRule) {
-                return {
-                  success: false,
-                  action: 'tier_limit_exceeded',
-                  isProFeature: true,
-                  data: {
-                    feature: recurrenceRule ? 'recurring_reminders' : 'future_reminders',
-                    targetDate: targetDay,
-                    todayDate: localToday,
-                  },
-                  rawSummary: `🔒 Los recordatorios para días futuros (${targetDay}) o recurrentes son una función exclusiva de Reminder Pro ($49.900 COP/mes). En tu demo Free puedes programar todos los recordatorios que desees para el día de hoy.`,
-                };
-              }
-            }
-          }
-
-          // 0. Compound operation: Cancel requested items or criteria before creating new ones
-          let cancelledSummary = '';
-          const cancelQuery = params.cancelContent || params.cancelCriteria?.content || params.cancelPrevious;
-          if (cancelQuery || params.cancelAll || params.cancelCriteria?.cancelAll) {
-            const cancelRes = await cancelReminders({
-              userId: user.id,
-              phoneNumber: user.phone_number,
-              contentQuery: typeof cancelQuery === 'string' || Array.isArray(cancelQuery) ? cancelQuery : null,
-              cancelAll: Boolean(params.cancelAll || params.cancelCriteria?.cancelAll),
-            });
-            if (cancelRes.cancelledCount > 0) {
-              cancelledSummary = ` (Se cancelaron ${cancelRes.cancelledCount} previos)`;
-              console.log(`[manage_reminder] Compound cancellation executed: ${cancelRes.cancelledCount} reminder(s) cancelled.`);
-            }
-          }
-
-          const savedReminders = await Promise.all(
-            items.map(async (item) => {
-              let sendAt = parseTargetTime(item.targetTime, timezone);
-              if (!sendAt || sendAt.getTime() <= Date.now()) {
-                sendAt = new Date(Date.now() + 60 * 60 * 1000);
-              }
-
-              // Extract recurrence rule if specified (e.g. 'hourly', 'hourly:2', 'daily', 'weekly:1', etc.)
-              let recurrenceRule = item.recurrence || item.recurrenceRule || params.recurrence || null;
-              if (item.content && !recurrenceRule) {
-                const lower = item.content.toLowerCase();
-                if (lower.includes('cada hora') || lower.includes('por hora') || lower.includes('every hour') || lower.includes('hourly')) {
-                  recurrenceRule = 'hourly';
-                } else if (/\bcada\s+(\d+)\s*horas?\b/i.test(lower)) {
-                  const m = lower.match(/\bcada\s+(\d+)\s*horas?\b/i);
-                  recurrenceRule = `hourly:${m[1]}`;
-                } else if (/\bevery\s+(\d+)\s*hours?\b/i.test(lower)) {
-                  const m = lower.match(/\bevery\s+(\d+)\s*hours?\b/i);
-                  recurrenceRule = `hourly:${m[1]}`;
-                } else if (/\bcada\s+(\d+)\s*minutos?\b/i.test(lower)) {
-                  const m = lower.match(/\bcada\s+(\d+)\s*minutos?\b/i);
-                  recurrenceRule = `interval:${m[1]}m`;
-                } else if (lower.includes('todos los días') || lower.includes('cada día') || lower.includes('diario') || lower.includes('every day')) {
-                  recurrenceRule = 'daily';
-                } else if (lower.includes('todos los lunes') || lower.includes('every monday')) {
-                  recurrenceRule = 'weekly:1';
-                } else if (lower.includes('todos los martes') || lower.includes('every tuesday')) {
-                  recurrenceRule = 'weekly:2';
-                } else if (lower.includes('todos los miércoles') || lower.includes('every wednesday')) {
-                  recurrenceRule = 'weekly:3';
-                } else if (lower.includes('todos los jueves') || lower.includes('every thursday')) {
-                  recurrenceRule = 'weekly:4';
-                } else if (lower.includes('todos los viernes') || lower.includes('every friday')) {
-                  recurrenceRule = 'weekly:5';
-                } else if (lower.includes('todos los sábados') || lower.includes('every saturday')) {
-                  recurrenceRule = 'weekly:6';
-                } else if (lower.includes('todos los domingos') || lower.includes('every sunday')) {
-                  recurrenceRule = 'weekly:0';
-                } else if (lower.includes('cada semana') || lower.includes('semanal') || lower.includes('weekly')) {
-                  recurrenceRule = 'weekly';
-                } else if (lower.includes('cada mes') || lower.includes('mensual') || lower.includes('monthly')) {
-                  recurrenceRule = 'monthly';
-                }
-              }
-
-              const requiresConfirmation = Boolean(
-                item.requiresConfirmation ?? item.requires_confirmation ?? params.requiresConfirmation ?? params.requires_confirmation
-              );
-              const nudgeIntervalMinutes = Number(
-                item.nudgeIntervalMinutes ?? item.nudge_interval_minutes ?? params.nudgeIntervalMinutes ?? params.nudge_interval_minutes ?? 15
-              );
-              const maxNudges = Number(item.maxNudges ?? item.max_nudges ?? params.maxNudges ?? params.max_nudges ?? 5);
-              let fullContent = String(item.content || 'Recordatorio').trim();
-              let primaryTaskId = null;
-              const rawTasks = item.tasks || item.subtasks || item.checklist;
-              if (Array.isArray(rawTasks) && rawTasks.length > 0) {
-                const cleanTasks = rawTasks.map(t => String(t).trim()).filter(Boolean);
-                if (cleanTasks.length > 0) {
-                  const insertedTasks = await Promise.all(
-                    cleanTasks.map(title =>
-                      createTask({
-                        userId: user.id,
-                        title,
-                        dueDate: sendAt.toISOString(),
-                        status: 'pending',
-                      }).catch(() => null)
-                    )
-                  );
-                  primaryTaskId = insertedTasks.find(t => t?.id)?.id || null;
-                  const checklist = cleanTasks.map(t => `▫️ ${t}`).join('\n');
-                  fullContent = `${fullContent}\n\n📝 *Checklist de tareas:*\n${checklist}`;
-                }
-              }
-
-              const reminder = await saveReminder({
-                userId: user.id,
-                phoneNumber: user.phone_number,
-                content: fullContent,
-                sendAt: sendAt.toISOString(),
-                taskId: primaryTaskId,
-                recurrenceRule,
-                requiresConfirmation,
-                nudgeIntervalMinutes,
-                maxNudges,
-              });
-
-              return {
-                id: reminder?.id,
-                content: item.content,
-                sendAt: sendAt.toISOString(),
-                recurrenceRule,
-                recurrence_rule: recurrenceRule,
-                requiresConfirmation,
-                nudgeIntervalMinutes,
-                formattedTime: formatLocalDateTime(sendAt, timezone, locale),
-              };
-            })
-          );
-
-          return {
-            success: true,
-            action: 'created_reminders_batch',
-            data: savedReminders,
-            rawSummary: `Se programaron ${savedReminders.length} recordatorios.`,
-          };
-        }
-
-        if (action === 'acknowledge' || action === 'ack' || action === 'confirm') {
-          const result = await acknowledgeReminders({
-            userId: user.id,
-            phoneNumber: user.phone_number,
-            contentQuery: params.content || params.query,
-          });
-
-          return {
-            success: result.acknowledgedCount > 0,
-            action: 'acknowledged_reminders',
-            data: result,
-            rawSummary: result.acknowledgedCount > 0
-              ? `Se confirmó el cumplimiento de ${result.acknowledgedCount} recordatorio(s).`
-              : 'No había recordatorios pendientes por confirmar.',
-          };
-        }
-
-        if (action === 'cancel' || action === 'delete') {
-          const result = await cancelReminders({
-            userId: user.id,
-            phoneNumber: user.phone_number,
-            contentQuery: params.content || params.cancelContent || params.query || (Array.isArray(params.items) ? params.items.map(it => it.content || it) : null),
-            cancelAll: Boolean(params.cancelAll),
-            keepLatest: Boolean(params.keepLatest),
-          });
-
-          return {
-            success: true,
-            action: 'cancelled_reminders',
-            data: result,
-            rawSummary: `Eliminados ${result.cancelledCount} recordatorios. Restan ${result.remainingCount} pendientes.`,
-          };
-        }
-
-        if (action === 'update' || action === 'reschedule') {
-          const rawId = params.id || params.reminderId;
-          const isUuid = typeof rawId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId.trim());
-          let reminderId = isUuid ? rawId.trim() : null;
-          const targetTime = params.targetTime || params.sendAt;
-          const newContent = params.content || params.title;
-          const requiresConfirmation = params.requiresConfirmation ?? params.requires_confirmation;
-          const nudgeIntervalMinutes = params.nudgeIntervalMinutes ?? params.nudge_interval_minutes;
-
-          // If no explicit reminderId was provided or rawId was not a UUID, resolve the most recent matching or pending reminder ID
-          if (!reminderId) {
-            let findQuery = supabase
-              .from('reminders')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('status', 'pending');
-
-            if (params.contentQuery || params.query) {
-              findQuery = findQuery.ilike('content', `%${params.contentQuery || params.query}%`);
-            }
-            findQuery = findQuery.order('created_at', { ascending: false }).limit(1);
-
-            const { data: found } = await findQuery;
-            if (found && found.length > 0) {
-              reminderId = found[0].id;
-            }
-          }
-
-          if (!reminderId) {
-            return {
-              success: false,
-              action: 'updated_reminder',
-              data: [],
-              rawSummary: 'No se encontró ningún recordatorio pendiente para actualizar.',
-            };
-          }
-
-          const updatePayload = {};
-          if (targetTime) {
-            const parsed = parseTargetTime(targetTime, timezone);
-            if (parsed) updatePayload.send_at = parsed.toISOString();
-          }
-          if (newContent) updatePayload.content = newContent;
-          if (requiresConfirmation !== undefined) updatePayload.requires_confirmation = Boolean(requiresConfirmation);
-          if (nudgeIntervalMinutes !== undefined) updatePayload.nudge_interval_minutes = Number(nudgeIntervalMinutes);
-
-          const { data: updated, error: updErr } = await supabase
-            .from('reminders')
-            .update(updatePayload)
-            .eq('id', reminderId)
-            .select();
-
-          return {
-            success: !updErr && updated?.length > 0,
-            action: 'updated_reminder',
-            data: updated || [],
-            rawSummary: updated?.length > 0 ? 'Recordatorio actualizado correctamente.' : 'No se encontró el recordatorio para actualizar.',
-          };
-        }
-
-        if (action === 'list') {
-          const overview = await getDailyOverview({ userId: user.id, phoneNumber: user.phone_number, timezone });
-          const todayReminders = overview.timedRemindersToday || [];
-          const tomorrowReminders = overview.tomorrowReminders || [];
-          const upcoming = overview.upcoming || [];
-
-          let formattedSummary = '';
-          if (todayReminders.length > 0 || tomorrowReminders.length > 0 || upcoming.length > 0) {
-            formattedSummary = '📅 *Tus recordatorios programados*\n\n';
-            if (todayReminders.length > 0) {
-              formattedSummary += '*Hoy*:\n' + todayReminders.map(r => `• ⏰ ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
-            }
-            if (tomorrowReminders.length > 0) {
-              formattedSummary += '*Mañana*:\n' + tomorrowReminders.map(r => `• ⏰ ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
-            }
-            if (upcoming.length > 0) {
-              formattedSummary += '*Próximos días*:\n' + upcoming.slice(0, 5).map(r => `• ⏰ [${r.localDate}] ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
-            }
-            formattedSummary = formattedSummary.trim();
-          } else {
-            formattedSummary = '📅 *Recordatorios*\n\nNo tienes recordatorios pendientes programados en tu agenda.';
-          }
-
-          return {
-            success: true,
-            action: 'listed_reminders',
-            data: overview,
-            rawSummary: formattedSummary,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción no válida' };
+      case TOOL_NAMES.MANAGE_REMINDER: {
+        const action = params?.action || 'create';
+        result = await executeReminderTool({ action, params, user, isPro, language, userMessage });
+        break;
       }
 
-      case 'manage_entity': {
-        const { action = 'create', name, oldName, newName, sourceName, targetName, category = 'project', metadata = {}, query, limit = 10 } = params;
-
-        if (action === 'create' || action === 'update') {
-          const entity = await findOrCreateEntityFuzzy({
-            userId: user.id,
-            name: name || newName,
-            category,
-            metadata,
-          });
-
-          return {
-            success: Boolean(entity),
-            action: action === 'create' ? 'created_entity' : 'updated_entity',
-            data: entity,
-            rawSummary: entity ? `Entidad "${entity.name}" guardada correctamente.` : 'No se pudo guardar la entidad.',
-          };
-        }
-
-        if (action === 'rename') {
-          const result = await renameEntity({
-            userId: user.id,
-            oldName: oldName || sourceName || name,
-            newName: newName || targetName,
-            category,
-          });
-
-          return {
-            success: result.success,
-            action: 'renamed_entity',
-            data: result,
-            rawSummary: result.success
-              ? `Entidad renombrada de "${result.oldName || oldName}" a "${result.newName || newName}". Actualizados: ${result.tasksUpdated || 0} tareas, ${result.remindersUpdated || 0} recordatorios, ${result.memoriesUpdated || 0} memorias.`
-              : `Error al renombrar: ${result.error}`,
-          };
-        }
-
-        if (action === 'merge') {
-          const result = await mergeEntities({
-            userId: user.id,
-            sourceName: sourceName || oldName || name,
-            targetName: targetName || newName,
-            category,
-          });
-
-          return {
-            success: result.success,
-            action: 'merged_entities',
-            data: result,
-            rawSummary: result.success
-              ? `Entidad unificada correctamente. Se reasignaron ${result.tasksMovedCount} tareas.`
-              : `Error al unificar entidades: ${result.error}`,
-          };
-        }
-
-        if (action === 'deduplicate') {
-          const result = await deduplicateEntities({
-            userId: user.id,
-            category,
-          });
-
-          return {
-            success: true,
-            action: 'deduplicated_entities',
-            data: result,
-            rawSummary: `Se unificaron ${result.mergedCount} entidades duplicadas.`,
-          };
-        }
-
-        if (action === 'list') {
-          const entities = await findEntities({
-            userId: user.id,
-            query,
-            category,
-            limit,
-          });
-
-          let formattedSummary = '';
-          if (entities && entities.length > 0) {
-            const isProjectsOnly = category === 'project';
-            const title = isProjectsOnly ? '📁 *Tus proyectos activos*' : '📂 *Tus proyectos y listas activas*';
-            formattedSummary = `${title}\n\n` + entities.map(e => `• ${e.name}`).join('\n');
-          } else {
-            formattedSummary = category === 'project'
-              ? '📂 *Proyectos activos*\n\nActualmente no tienes proyectos registrados en tu agenda.'
-              : '📂 *Entidades y proyectos*\n\nActualmente no tienes entidades registradas en tu agenda.';
-          }
-
-          return {
-            success: true,
-            action: 'listed_entities',
-            data: entities,
-            rawSummary: formattedSummary,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de entidad no reconocida.' };
+      case TOOL_NAMES.MANAGE_TASK: {
+        const action = params?.action || 'create';
+        result = await executeTaskTool({ action, params, user, language, userMessage });
+        break;
       }
 
-      case 'manage_task': {
-        const { action, title, description, priority, dueDate, entityName, entityCategory } = params;
-
-        // Batch creation if items array is passed
-        const items = params.items || params.tasks || (title ? [params] : []);
-
-        if (action === 'create' && items.length > 0) {
-          const savedTasks = await Promise.all(
-            items.map(async (item) => {
-              let entityId = null;
-              if (item.entityName) {
-                const entity = await findOrCreateEntityFuzzy({
-                  userId: user.id,
-                  name: item.entityName,
-                  category: item.entityCategory || 'other',
-                });
-                if (entity) entityId = entity.id;
-              }
-
-              let parsedDueDate = null;
-              if (item.dueDate) {
-                parsedDueDate = parseTargetTime(item.dueDate, timezone);
-              }
-
-              const task = await createTask({
-                userId: user.id,
-                title: item.title,
-                description: item.description,
-                priority: item.priority || 'medium',
-                dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
-                entityId,
-              });
-
-              // If task has a scheduled date/time, auto-create linked reminder with 5-min follow-up check-in
-              if (parsedDueDate && task?.id) {
-                await saveReminder({
-                  userId: user.id,
-                  phoneNumber: user.phone_number,
-                  content: item.title,
-                  sendAt: parsedDueDate.toISOString(),
-                  requiresConfirmation: true,
-                  nudgeIntervalMinutes: 5,
-                  taskId: task.id,
-                }).catch(err => console.warn('[tools] auto-link reminder error:', err.message));
-              }
-
-              return {
-                id: task?.id,
-                title: item.title,
-                dueFormatted: parsedDueDate ? formatLocalDateTime(parsedDueDate, timezone, locale) : null,
-                entityName: item.entityName,
-              };
-            })
-          );
-
-          return {
-            success: true,
-            action: 'created_tasks_batch',
-            data: savedTasks,
-            rawSummary: `Se crearon ${savedTasks.length} tareas.`,
-          };
-        }
-
-        if (action === 'update') {
-          const taskId = params.id || params.taskId;
-          const updatePayload = {};
-          if (params.title) updatePayload.title = params.title;
-          if (params.priority) updatePayload.priority = params.priority;
-          if (params.dueDate) {
-            const parsed = parseTargetTime(params.dueDate, timezone);
-            if (parsed) updatePayload.due_date = parsed.toISOString();
-          }
-          if (params.status) updatePayload.status = params.status;
-
-          let q = supabase.from('tasks').update(updatePayload).eq('user_id', user.id);
-          if (taskId) q = q.eq('id', taskId);
-          else if (params.titleQuery) q = q.ilike('title', `%${params.titleQuery}%`).eq('status', 'pending');
-
-          const { data: updated, error: updErr } = await q.select();
-          return {
-            success: !updErr && updated?.length > 0,
-            action: 'updated_task',
-            data: updated || [],
-            rawSummary: updated?.length > 0 ? 'Tarea actualizada correctamente.' : 'No se encontró la tarea para actualizar.',
-          };
-        }
-
-        if (action === 'delete' || action === 'cancel') {
-          const taskId = params.id || params.taskId;
-          let q = supabase.from('tasks').delete().eq('user_id', user.id);
-          if (taskId) q = q.eq('id', taskId);
-          else if (params.titleQuery || params.title) q = q.ilike('title', `%${params.titleQuery || params.title}%`);
-          else if (params.deleteAll) q = q.eq('status', 'pending');
-
-          const { data: deleted, error: delErr } = await q.select();
-          return {
-            success: !delErr && deleted?.length > 0,
-            action: 'deleted_tasks',
-            data: deleted || [],
-            rawSummary: deleted?.length > 0 ? `Se eliminaron ${deleted.length} tarea(s).` : 'No se encontraron tareas para eliminar.',
-          };
-        }
-
-        if (action === 'list') {
-          const tasks = await getTasks({
-            userId: user.id,
-            status: params.status || 'pending',
-            entityId: params.entityId || null,
-            entityName: params.entityName || params.project || params.projectName || null,
-            limit: params.limit || 50,
-          });
-
-          let formattedSummary = '';
-          if (tasks && tasks.length > 0) {
-            const byEntity = {};
-            const general = [];
-            for (const t of tasks) {
-              const ent = t.entities?.name || t.entityName || null;
-              if (ent) {
-                if (!byEntity[ent]) byEntity[ent] = [];
-                byEntity[ent].push(t);
-              } else {
-                general.push(t);
-              }
-            }
-
-            if (params.entityName || params.project || params.projectName) {
-              const pName = params.entityName || params.project || params.projectName;
-              formattedSummary = `📁 *Tareas en ${pName}*\n\n` + tasks.map(t => `• ${t.title || t.content}`).join('\n');
-            } else {
-              formattedSummary = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
-              for (const [entName, entTasks] of Object.entries(byEntity)) {
-                formattedSummary += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-              }
-              if (general.length > 0) {
-                formattedSummary += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-              }
-              formattedSummary = formattedSummary.trim();
-            }
-          } else {
-            formattedSummary = (params.entityName || params.project || params.projectName)
-              ? `📁 *${params.entityName || params.project || params.projectName}*\n\nNo hay tareas pendientes en este proyecto.`
-              : `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
-          }
-
-          return {
-            success: true,
-            action: 'listed_tasks',
-            data: tasks,
-            rawSummary: formattedSummary,
-          };
-        }
-
-        if (action === 'complete' || action === 'done' || action === 'finish') {
-          const result = await completeTasks({
-            userId: user.id,
-            taskId: params.taskId || params.id,
-            titleQuery: title || params.query || params.titleQuery,
-            titles: params.titles || params.items || params.tasks,
-            entityName: entityName || params.projectName || params.project,
-            completeAll: Boolean(params.completeAll || params.all),
-          });
-
-          return {
-            success: result.completedCount > 0,
-            action: 'completed_tasks',
-            data: result,
-            rawSummary: result.completedCount > 0
-              ? `Se marcaron ${result.completedCount} tarea(s) como completada(s).`
-              : `No se encontraron tareas pendientes para completar.`,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de tarea no reconocida.' };
+      case TOOL_NAMES.MANAGE_ENTITY: {
+        const action = params?.action || 'create';
+        result = await executeEntityTool({ action, params, user, language });
+        break;
       }
 
-      case 'manage_memory': {
-        const { action = 'list', query, topicKey, category, content, fact } = params;
-
-        if (action === 'list') {
-          const memories = await getActiveMemories({
-            userId: user.id,
-            category: category || null,
-            limit: params.limit || 15,
-          });
-          return {
-            success: true,
-            action: 'listed_memories',
-            data: memories,
-            rawSummary: `Hay ${memories.length} memorias activas registradas.`,
-          };
-        }
-
-        if (action === 'search' || action === 'query') {
-          const memories = await searchMemories({
-            userId: user.id,
-            query: query || params.search || null,
-            topicKey: topicKey || null,
-            category: category || null,
-            limit: params.limit || 10,
-          });
-          return {
-            success: true,
-            action: 'searched_memories',
-            data: memories,
-            rawSummary: `Se encontraron ${memories.length} memorias relevantes.`,
-          };
-        }
-
-        if (action === 'save' || action === 'create') {
-          const mem = await saveMemory({
-            userId: user.id,
-            topicKey: topicKey || null,
-            category: category || 'fact',
-            content: content || fact || params.text,
-            confidence: params.confidence || 1.0,
-          });
-          return {
-            success: Boolean(mem),
-            action: 'saved_memory',
-            data: mem,
-            rawSummary: mem ? `Memoria guardada correctamente: "${mem.content}"` : 'No se pudo guardar la memoria.',
-          };
-        }
-
-        if (action === 'forget' || action === 'delete') {
-          const result = await forgetMemories({
-            userId: user.id,
-            topicKey: topicKey || null,
-            query: query || params.content || null,
-          });
-
-          return {
-            success: true,
-            action: 'forgot_memories',
-            data: result,
-            rawSummary: `Se eliminaron ${result.deletedCount} registros de memoria.`,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de memoria no reconocida.' };
+      case TOOL_NAMES.MANAGE_MEMORY: {
+        const action = params?.action || 'save';
+        result = await executeMemoryTool({ action, params, user, language });
+        break;
       }
 
-      case 'get_pending_summary': {
-        const overview = await getDailyOverview({
-          userId: user.id,
-          phoneNumber: user.phone_number,
-          timezone,
+      case TOOL_NAMES.MANAGE_SUBSCRIPTION:
+      case TOOL_NAMES.GET_SUBSCRIPTION_LINK: {
+        const action = toolName === TOOL_NAMES.GET_SUBSCRIPTION_LINK ? 'get_link' : (params?.action || 'get_link');
+        result = await executeSubscriptionTool({
+          action,
+          params,
+          user,
+          language,
         });
-
-        return {
-          success: true,
-          action: 'daily_overview',
-          data: overview,
-          rawSummary: JSON.stringify(overview),
-        };
+        break;
       }
 
-      case 'admin_metrics': {
-        if (!isAdminUser(user)) {
-          return {
-            success: false,
-            action: 'unauthorized',
-            data: null,
-            rawSummary: 'Acceso no autorizado: se requieren permisos de administrador.',
-          };
-        }
-
-        const action = params.action || 'get_overview';
-
-        if (action === 'get_overview') {
-          const [{ count: userCount }, { data: activeSubs }, { count: pendingRemindersCount }, { count: pendingTasksCount }] = await Promise.all([
-            supabase.from('users').select('*', { count: 'exact', head: true }),
-            supabase.from('subscriptions').select('amount, plan, status').eq('status', 'active'),
-            supabase.from('reminders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-            supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          ]);
-
-          const mrr = (activeSubs || []).reduce((acc, s) => acc + (Number(s.amount) || 0), 0);
-          const overviewData = {
-            totalUsers: userCount || 0,
-            activeSubscriptions: (activeSubs || []).length,
-            totalMRR: mrr,
-            pendingReminders: pendingRemindersCount || 0,
-            pendingTasks: pendingTasksCount || 0,
-          };
-
-          return {
-            success: true,
-            action: 'admin_overview',
-            data: overviewData,
-            rawSummary: `Métricas del Sistema:\n• Usuarios registrados: ${overviewData.totalUsers}\n• Suscripciones activas: ${overviewData.activeSubscriptions}\n• MRR total: $${overviewData.totalMRR}\n• Recordatorios pendientes: ${overviewData.pendingReminders}\n• Tareas pendientes: ${overviewData.pendingTasks}`,
-          };
-        }
-
-        if (action === 'get_active_subscriptions') {
-          const { data: subs, error } = await supabase
-            .from('subscriptions')
-            .select('id, user_id, plan, status, amount, created_at, users:user_id(phone_number, display_name)')
-            .eq('status', 'active')
-            .order('created_at', { ascending: false });
-
-          return {
-            success: true,
-            action: 'admin_active_subscriptions',
-            data: subs || [],
-            rawSummary: `Hay ${subs?.length || 0} suscripciones activas registradas.`,
-          };
-        }
-
-        if (action === 'get_user_count') {
-          const { count, error } = await supabase
-            .from('users')
-            .select('*', { count: 'exact', head: true });
-
-          return {
-            success: true,
-            action: 'admin_user_count',
-            data: { totalUsers: count || 0 },
-            rawSummary: `Total de usuarios en la plataforma: ${count || 0}.`,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de métricas no reconocida.' };
+      case TOOL_NAMES.MANAGE_GOOGLE_CALENDAR: {
+        const action = params?.action || 'get_connect_link';
+        result = await executeCalendarTool({ action, params, user, language });
+        break;
       }
 
-      case 'get_subscription_link':
-      case 'manage_subscription': {
-        const action = params.action || 'get_link';
-
-        if (action === 'cancel' || action === 'unsubscribe' || action === 'delete') {
-          const sub = await getUserSubscription(user.id);
-          if (!sub || sub.status === 'cancelled' || sub.plan === 'free') {
-            return {
-              success: false,
-              action: 'no_active_subscription',
-              rawSummary: 'No tienes una suscripción activa a Reminder Pro en este momento.',
-            };
-          }
-
-          const cancelRes = await cancelUserSubscription(user.id);
-          const nextPaymentDate = cancelRes.subscription?.next_payment_date;
-          const expiryNotice = nextPaymentDate
-            ? ` Conservarás todos los beneficios Pro hasta el término de tu período actual (${new Date(nextPaymentDate).toLocaleDateString('es-CO')}).`
-            : '';
-
-          return {
-            success: true,
-            action: 'subscription_cancelled',
-            data: cancelRes.subscription,
-            rawSummary: `Tu suscripción a Reminder Pro ha sido cancelada con éxito.${expiryNotice} No se realizarán nuevos cobros automáticos.`,
-          };
-        }
-
-        const plan = await getOrCreateCanonicalPlan({
-          reason: 'FiveLabs Reminder Pro',
-          amount: 49900,
-          currency: 'COP',
-          phoneNumber: user.phone_number,
-        });
-
-        const planAmount = plan.amount || 49900;
-
-        await createPendingSubscription(user.id, {
-          mpPreapprovalId: plan.id,
-          amount: planAmount,
-          plan: 'pro',
-        });
-
-        return {
-          success: true,
-          action: 'subscription_link_generated',
-          data: {
-            checkout_url: plan.init_point,
-            amount: planAmount,
-            currency: 'COP',
-            plan: 'Reminder Pro',
-          },
-          rawSummary: `🔗 Enlace de suscripción a Reminder Pro ($${planAmount.toLocaleString('es-CO')} COP/mes): ${plan.init_point}`,
-        };
-      }
-
-      case 'manage_google_calendar': {
-        const action = params.action || 'get_connect_link';
-        const integration = await getUserIntegration(user.id, 'google');
-
-        if (action === 'get_connect_link' || action === 'connect') {
-          if (integration && integration.access_token) {
-            const email = integration.account_email ? ` (${integration.account_email})` : '';
-            return {
-              success: true,
-              action: 'already_connected',
-              data: { email: integration.account_email },
-              rawSummary: `Tu Google Calendar ya está conectado${email}. Si deseas desconectarlo o cambiar de cuenta, solo dímelo.`,
-            };
-          }
-
-          const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
-          return {
-            success: true,
-            action: 'google_auth_link_generated',
-            data: { auth_url: authUrl },
-            rawSummary: `👉 Para conectar tu Google Calendar con Reminder, entra a este enlace seguro: ${authUrl}`,
-          };
-        }
-
-        if (action === 'disconnect') {
-          if (!integration) {
-            return {
-              success: false,
-              action: 'not_connected',
-              rawSummary: 'No tienes ninguna cuenta de Google Calendar vinculada en este momento.',
-            };
-          }
-
-          await revokeGoogleIntegration(user.id);
-          return {
-            success: true,
-            action: 'google_disconnected',
-            rawSummary: 'Tu cuenta de Google Calendar ha sido desvinculada exitosamente.',
-          };
-        }
-
-        if (action === 'list_events') {
-          if (!integration || !integration.access_token) {
-            const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
-            return {
-              success: false,
-              action: 'google_not_connected',
-              data: { auth_url: authUrl },
-              rawSummary: `Para consultar tu Google Calendar, primero debes vincular tu cuenta: ${authUrl}`,
-            };
-          }
-
-          const tz = user.timezone || 'America/Bogota';
-          const timeMin = params.timeMin ? parseTargetTime(params.timeMin, tz) : new Date();
-          const timeMax = params.timeMax ? parseTargetTime(params.timeMax, tz) : null;
-
-          const events = await listCalendarEvents(user.id, {
-            timeMin,
-            timeMax,
-            timezone: tz,
-            maxResults: params.maxResults || 10,
-          });
-
-          if (!events || events.length === 0) {
-            return {
-              success: true,
-              action: 'google_events_listed',
-              data: [],
-              rawSummary: 'No tienes eventos programados en Google Calendar para este período.',
-            };
-          }
-
-          const eventsFormatted = events.map(e => {
-            const dateStr = formatLocalDateTime(new Date(e.start), tz, 'es-CO');
-            const meet = e.meetLink ? ` (Google Meet: ${e.meetLink})` : '';
-            return `• 📅 *${e.summary}* — ${dateStr}${meet}`;
-          }).join('\n');
-
-          return {
-            success: true,
-            action: 'google_events_listed',
-            data: events,
-            rawSummary: `Eventos en tu Google Calendar:\n${eventsFormatted}`,
-          };
-        }
-
-        if (action === 'create_event') {
-          if (!integration || !integration.access_token) {
-            const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: user.phone_number });
-            return {
-              success: false,
-              action: 'google_not_connected',
-              data: { auth_url: authUrl },
-              rawSummary: `Para agendar directamente en Google Calendar, primero debes conectar tu cuenta: ${authUrl}`,
-            };
-          }
-
-          const tz = user.timezone || 'America/Bogota';
-          const startDateTime = parseTargetTime(params.startDateTime || params.targetTime || '+1h', tz);
-          const endDateTime = params.endDateTime
-            ? parseTargetTime(params.endDateTime, tz)
-            : new Date(startDateTime.getTime() + (params.durationMinutes || 60) * 60 * 1000);
-
-          const event = await createCalendarEvent(user.id, {
-            summary: params.summary || params.content || 'Reunión',
-            description: params.description || '',
-            startDateTime,
-            endDateTime,
-            timezone: tz,
-            addGoogleMeet: Boolean(params.addGoogleMeet),
-          });
-
-          const meetNotice = event.meetLink ? `\n📹 *Google Meet:* ${event.meetLink}` : '';
-
-          return {
-            success: true,
-            action: 'google_event_created',
-            data: event,
-            rawSummary: `Evento agendado en Google Calendar: *${event.summary}* para ${formatLocalDateTime(startDateTime, tz, 'es-CO')}.${meetNotice}`,
-          };
-        }
-
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Acción de Google Calendar no reconocida.' };
+      case TOOL_NAMES.ADMIN_METRICS: {
+        const action = params?.action || 'get_overview';
+        result = await executeAdminTool({ action, params, user, language });
+        break;
       }
 
       default:
-        return { success: false, action: 'unknown', data: null, rawSummary: 'Herramienta no implementada.' };
+        result = {
+          success: false,
+          action: 'unknown',
+          errorCode: 'UNKNOWN_TOOL',
+          error: `Herramienta desconocida: ${toolName}`,
+        };
+        break;
     }
+
+    if (!result.success) {
+      console.warn(`${reqId} ${toolName} failed with ${result.errorCode}:`, result.error);
+      const rawSummary = result.error || 'Ocurrió un error al ejecutar la herramienta.';
+      return {
+        success: false,
+        action: result.action || 'error',
+        errorCode: result.errorCode || 'TOOL_EXECUTION_ERROR',
+        error: result.error,
+        isProFeature: result.isProFeature ?? (result.errorCode === 'PRO_TIER_REQUIRED'),
+        rawSummary,
+        confirmation: formatErrorCard(result.errorCode, result.error, language),
+        ctaUrl: result.ctaUrl || null,
+        data: result.data || null,
+      };
+    }
+
+    const rawSummary = result.data?.formattedCard || result.confirmation || result.rawSummary || 'Operación completada.';
+
+    return {
+      success: true,
+      action: result.action || params?.action || 'executed',
+      data: result.data,
+      rawSummary,
+      confirmation: rawSummary,
+      ctaUrl: result.ctaUrl || null,
+      ctaHeader: result.ctaHeader || null,
+      ctaButtonText: result.ctaButtonText || null,
+    };
   } catch (err) {
-    console.error(`[tools] error executing ${toolName}:`, err);
+    console.error(`${reqId} Unexpected exception in ${toolName}:`, err);
     return {
       success: false,
       action: 'error',
-      data: null,
-      rawSummary: 'Ocurrió un error en la ejecución de la herramienta.',
+      errorCode: 'UNEXPECTED_EXCEPTION',
+      error: err.message,
+      rawSummary: err.message,
+      confirmation: formatErrorCard('UNEXPECTED_EXCEPTION', null, language),
     };
   }
 }

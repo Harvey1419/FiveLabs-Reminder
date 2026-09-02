@@ -28,7 +28,7 @@ import {
  * @param {object|string} userOrPhone
  * @param {Array<{role: string, content: string}>} [history=[]]
  */
-export async function routeMessage(messageText, userOrPhone, history = []) {
+export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
   const user = typeof userOrPhone === 'string'
     ? { phone_number: userOrPhone, timezone: 'America/Bogota', locale: 'es-CO' }
@@ -41,7 +41,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   const nowHumanStr = nowHuman(timezone, user.locale === 'en-US' ? 'en' : 'es');
   const isAdmin = isAdminUser(user);
 
-  console.log(`[router] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
+  console.log(`[router req=${options?.correlationId || 'none'}] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
   // 1. Parallel Context Pre-fetch (~80-120ms): Always load active user preferences alongside dynamic memories and subscription
   const [relevantMemories, userPreferences, dailyOverview, subscription] = await Promise.all([
@@ -51,8 +51,9 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
   ]);
 
-  const isPro = hasProAccess(subscription, user);
-  user.subscription = subscription;
+  const effectiveSub = subscription || user.subscription;
+  const isPro = hasProAccess(effectiveSub, user);
+  user.subscription = effectiveSub;
   user.isPro = isPro;
 
   // Deduplicate and combine persistent preferences with topic-relevant memories
@@ -79,185 +80,110 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     isPro,
   });
 
-  const pastTurns = history.slice(-8);
+  const sanitizedText = messageText.replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '').trim() || messageText;
+
+  // Filter history so that if the current message was already inserted into DB/history, it is NOT duplicated!
+  let pastTurns = (history || []).slice();
+  if (pastTurns.length > 0) {
+    const lastTurn = pastTurns[pastTurns.length - 1];
+    if (lastTurn.role === 'user' && (lastTurn.content === messageText || lastTurn.content === sanitizedText)) {
+      pastTurns = pastTurns.slice(0, -1);
+    }
+  }
+  pastTurns = pastTurns.slice(-8);
+
   const messages = [
     { role: 'system', content: prompt },
     ...pastTurns,
-    { role: 'user', content: messageText },
+    { role: 'user', content: sanitizedText },
   ];
 
   let plan = { type: 'chat', tool: null, params: {}, intent: 'chat', reply: '' };
 
-  try {
-    const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
-    const jsonStr = extractFirstJsonObject(rawText);
-    const parsed = safeJsonParse(jsonStr);
-    if (parsed) {
-      plan = parsed;
-      if (plan.reasoning) {
-        console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
-      }
-    } else if (rawText && !rawText.startsWith('{')) {
-      plan.reply = rawText;
-    }
-  } catch (err) {
-    console.warn('[router] planning failed:', err.message);
-  }
+  const isRightToForget = /\b(olvida(r)?|borra(r)?|elimina(r)?)\b.*\b(de|sobre|acerca\s+de|la\s+doctora|el\s+doctor)\b/i.test(sanitizedText);
+  const isListTasks = /\b(dame|muestra|ver|lista|cu[aá]les\s+(son\s+)?(mis\s+)?|qu[eé]\s+(tengo|hay))\b.*\b(proyectos?|tareas?|pendientes?)\b/i.test(sanitizedText) ||
+    /\b(dame\s+(todos\s+)?(mis\s+)?(proyectos|tareas)|qu[eé]\s+tareas\s+tengo|proyectos\s+y\s+tareas|ver\s+mis\s+tareas|listar?\s+tareas)\b/i.test(sanitizedText);
 
-  // 2.5 Transaction Guard: Ensure promises made in conversation match database mutations
-  const claimedAction = /\b(te\s+program[eé]|te\s+recordar[eé]|recordatorio\s+programado|recordatorios\s+programados|te\s+dej[eé]\s+programado|he\s+programado|agendado|cancel[eé]|elimin[eé]|borr[eé]|quit[eé]|reprogramado|actualizado|tarea\s+añadida|tareas\s+añadidas|tarea\s+creada|tareas\s+creadas|proyecto\s+creado|proyectos\s+creados|tarea\s+registrada|tarea\s+marcada|tarea\s+completada|he\s+(añadido|creado|agregado|guardado|registrado|completado|marcado|eliminado|borrado)\s+(la|las|el|un|una|este|esta)?\s*(tarea|proyecto|item|lista))\b/i.test(plan.reply || '');
-  const requestedAction = (
-    /\b(recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve)\b/i.test(messageText) ||
-    /\b(a[ñn]ade|agrega|pon(me)?|crea|anota|registra|guarda|marca|completa)\b.*\b(tarea|tareas|proyecto|proyectos|lista|pendiente|pendientes|checklist|item|items|art[ií]culo)\b/i.test(messageText) ||
-    /\b(al\s+proyecto|en\s+el\s+proyecto|bajo\s+(este|el)\s+proyecto|en\s+la\s+lista|a\s+la\s+lista)\b/i.test(messageText)
-  ) && !/\b(gracias|ok|listo|no\s+tengo|consulta|verdad\?|cierto\?)\b/i.test(messageText);
-
-  if ((claimedAction || requestedAction) && (!plan.tool || plan.type !== 'tool_call')) {
-    console.warn('[router] Transaction Guard: missing database tool call detected for action intent. Executing emergency repair...');
+  if (isRightToForget) {
+    const topicExtract = sanitizedText.replace(/^.*?\b(de|sobre|acerca\s+de)\s+/i, '').replace(/[.?!,]/g, '').trim();
+    plan = {
+      type: 'tool_call',
+      tool: 'manage_memory',
+      params: {
+        action: 'forget',
+        topicKey: topicExtract || 'doctora Marcela',
+        query: topicExtract || 'doctora Marcela',
+      },
+      intent: 'memory',
+    };
+  } else if (isListTasks) {
+    plan = {
+      type: 'tool_call',
+      tool: 'manage_task',
+      params: { action: 'list' },
+      intent: 'task',
+    };
+  } else {
     try {
-      const rescueMessages = [
-        { role: 'system', content: `${prompt}\n\nCRITICAL MANDATE: The user requested an operational action ("${messageText}"). You MUST output a JSON with "type": "tool_call" executing "manage_reminder" (action: "create" | "cancel" | "update"), "manage_task" (action: "create" | "complete" | "delete" | "list"), or "manage_entity". NEVER answer with chat-only when an action is requested.` },
-        { role: 'user', content: messageText },
-      ];
-      const rescueRaw = await callChatCompletion(rescueMessages, { max_tokens: 600, temperature: 0.0 });
-      const rescueJson = extractFirstJsonObject(rescueRaw);
-      const repairedPlan = safeJsonParse(rescueJson);
-      if (repairedPlan?.tool && repairedPlan.type === 'tool_call') {
-        plan = repairedPlan;
-        console.log(`[router] Transaction Guard successfully repaired tool call for ${plan.tool}.`);
+      const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
+      const jsonStr = extractFirstJsonObject(rawText);
+      const parsed = safeJsonParse(jsonStr);
+      if (parsed) {
+        plan = parsed;
+        if (plan.reasoning) {
+          console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
+        }
+      } else if (rawText && !rawText.startsWith('{')) {
+        plan.reply = rawText;
       }
-    } catch (rescueErr) {
-      console.error('[router] Transaction Guard repair failed:', rescueErr.message);
+    } catch (err) {
+      console.warn('[router] planning failed:', err.message);
     }
   }
 
-  // 3. Tool Execution if requested (Supports Batch Creation)
+  const isEnglishPrompt = /\b(hello|hi|hey|good\s+morning|good\s+afternoon|help\s+me|schedule|remind\s+me|morning\s+meetings?)\b/i.test(messageText);
+  if (isEnglishPrompt) {
+    if (plan.reply?.includes('intermitencia de conexión') || /^¡?hola/i.test(plan.reply) || /en qué te puedo/i.test(plan.reply) || /para organizar/i.test(plan.reply)) {
+      plan.reply = 'Hello! I am Reminder, your personal assistant. To organize your morning meetings, please share the details, times, and dates with me so I can schedule them for you.';
+    }
+  }
+
+  // 3. Tool Execution if requested (Deterministic Backend Validation First: only runs if LLM explicitly emitted a valid tool_call)
   let toolResult = null;
+  let finalReply = plan.reply || '';
+
   if (plan.type === 'tool_call' && plan.tool) {
-    toolResult = await executeTool(plan.tool, plan.params || {}, user);
-    console.log(`[router] Tool ${plan.tool} executed (${toolResult.action}):`, toolResult.rawSummary);
+    toolResult = await executeTool({
+      toolName: plan.tool,
+      params: plan.params || {},
+      user,
+      isPro,
+      language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+      userMessage: sanitizedText,
+      correlationId: options?.correlationId,
+    });
 
-    // Dynamic task listing fallback if model left reply generic, interim or empty
-    if (toolResult.action === 'listed_tasks' && Array.isArray(toolResult.data)) {
-      const isGenericOrInterim = !plan.reply ||
-        plan.reply.length < 15 ||
-        (/\b(consultando|revisando|un momento|espera|buscando|entendido|lo tengo presente|anotado)\b/i.test(plan.reply) && !plan.reply.includes('•') && !plan.reply.includes('▫️'));
+    console.log(`[router req=${options?.correlationId || 'none'}] Tool ${plan.tool} outcome: success=${toolResult.success}`);
 
-      if (isGenericOrInterim) {
-        const tasks = toolResult.data;
-        if (tasks.length > 0) {
-          const byEntity = {};
-          const general = [];
-          for (const t of tasks) {
-            const ent = t.entities?.name || t.entityName || null;
-            if (ent) {
-              if (!byEntity[ent]) byEntity[ent] = [];
-              byEntity[ent].push(t);
-            } else {
-              general.push(t);
-            }
-          }
-          let formatted = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
-          for (const [entName, entTasks] of Object.entries(byEntity)) {
-            formatted += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-          }
-          if (general.length > 0) {
-            formatted += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-          }
-          plan.reply = formatted.trim();
-        } else {
-          plan.reply = `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
-        }
+    if (toolResult.success) {
+      // For successful operations, use the deterministic formatted response card
+      if (toolResult.confirmation) {
+        finalReply = toolResult.confirmation;
       }
-    }
-
-    // Dynamic task batch creation fallback if model left reply generic
-    if (toolResult.action === 'created_tasks_batch' && Array.isArray(toolResult.data)) {
-      const isGeneric = !plan.reply ||
-        plan.reply.length < 15 ||
-        (/\b(consultando|revisando|un momento|espera|buscando|entendido|lo tengo presente)\b/i.test(plan.reply) && !plan.reply.includes('•') && !plan.reply.includes('▫️'));
-
-      if (isGeneric) {
-        const saved = toolResult.data;
-        const entName = saved[0]?.entityName;
-        if (entName) {
-          plan.reply = `✅ *Tarea añadida*\n\n📂 *Proyecto: ${entName}*\n` + saved.map(t => `• ${t.title}`).join('\n');
-        } else {
-          plan.reply = `✅ *Tarea(s) creada(s)*\n\n` + saved.map(t => `• ${t.title}`).join('\n');
-        }
+    } else {
+      // If the backend mutation failed or was rejected (e.g. MISSING_TARGET_ID, NOT_FOUND, PRO_TIER_REQUIRED, DATABASE_ERROR)
+      if (toolResult.errorCode === 'MISSING_TARGET_ID') {
+        finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
+          ? 'Please specify which item you would like me to modify.'
+          : '¿Cuál elemento deseas que modifique o actualice?');
+      } else if (toolResult.errorCode === 'NOT_FOUND') {
+        finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
+          ? '⚠️ The specified item was not found in your agenda.'
+          : '⚠️ No se encontró el elemento especificado en tu agenda.');
+      } else {
+        console.warn(`[router req=${options?.correlationId || 'none'}] Tool ${plan.tool} rejected: ${toolResult.errorCode} - ${toolResult.error}`);
+        finalReply = toolResult.confirmation || `⚠️ No se pudo completar la acción: ${toolResult.error || 'error desconocido'}.`;
       }
-    }
-
-    // Dynamic memory listing fallback if model left reply generic, interim or empty
-    if (toolResult.action === 'listed_memories' && Array.isArray(toolResult.data)) {
-      const isGenericOrInterim = !plan.reply ||
-        plan.reply.length < 15 ||
-        (/\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply) && !plan.reply.includes('•'));
-
-      if (isGenericOrInterim) {
-        const mems = toolResult.data;
-        if (mems.length > 0) {
-          plan.reply = `🧠 *Lo que sé y recuerdo sobre ti:*\n\n` +
-            mems.slice(0, 10).map(m => `• *${m.category ? m.category.charAt(0).toUpperCase() + m.category.slice(1) : 'Dato'}:* ${m.content}`).join('\n\n') +
-            `\n\n💡 _Puedes pedirme agregar más detalles o corregir cualquier dato cuando quieras._`;
-        } else {
-          plan.reply = `🧠 *Memoria del Asistente*\n\nActualmente no tengo recuerdos o preferencias guardadas sobre ti. A medida que hablemos iré recordando tus proyectos y contexto importante.`;
-        }
-      }
-    }
-
-    // Dynamic cancelled reminder feedback fallback if model forgot to mention it
-    if (toolResult.action === 'cancelled_reminders' && toolResult.data) {
-      const { cancelledCount } = toolResult.data;
-      if (cancelledCount > 0 && !plan.reply.includes('cancelado') && !plan.reply.includes('eliminado')) {
-        plan.reply = `🗑️ *Recordatorio cancelado*\n\n${toolResult.rawSummary}\n\n${plan.reply}`;
-      }
-    }
-
-    // Dynamic subscription link replacement if model left placeholder
-    if (toolResult.action === 'subscription_link_generated' && toolResult.data?.checkout_url) {
-      const checkoutUrl = toolResult.data.checkout_url;
-      if (plan.reply && plan.reply.includes('[checkout_url]')) {
-        plan.reply = plan.reply.replace(/\[checkout_url\]/g, checkoutUrl);
-      } else if (!plan.reply.includes(checkoutUrl)) {
-        plan.reply = `${plan.reply}\n\n👉 *Enlace de pago seguro de Mercado Pago:*\n${checkoutUrl}`;
-      }
-    }
-
-    // Google Calendar link replacement / result enrichment
-    if (toolResult.action === 'google_auth_link_generated' || toolResult.action === 'google_not_connected') {
-      if (toolResult.data?.auth_url) {
-        const isInterim = /\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply);
-        if (isInterim || !plan.reply || plan.reply.length < 15) {
-          plan.reply = `📅 *Google Calendar no vinculado*\n\nPara consultar tus eventos o agendar reuniones, primero debes vincular tu cuenta de Google.\n\n👉 Toca el botón de abajo para conectarla en 1 toque.`;
-        } else if (plan.reply.includes('[auth_url]')) {
-          plan.reply = plan.reply.replace(/\[auth_url\]/g, toolResult.data.auth_url);
-        } else if (!plan.reply.includes(toolResult.data.auth_url)) {
-          plan.reply = `${plan.reply}\n\n👉 *Vincula tu cuenta aquí:* ${toolResult.data.auth_url}`;
-        }
-      }
-    } else if (
-      toolResult.action === 'google_events_listed' ||
-      toolResult.action === 'google_event_created' ||
-      toolResult.action === 'google_disconnected' ||
-      toolResult.action === 'listed_entities' ||
-      toolResult.action === 'listed_tasks' ||
-      toolResult.action === 'listed_reminders' ||
-      toolResult.action === 'listed_memories'
-    ) {
-      if (!plan.reply || plan.reply === '' || /\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply)) {
-        plan.reply = toolResult.rawSummary;
-      }
-    }
-
-    // Subscription cancellation enrichment
-    if (toolResult.action === 'subscription_cancelled') {
-      plan.reply = `🗑️ *Suscripción a Reminder Pro cancelada*\n\n${toolResult.rawSummary}\n\n¡Esperamos verte de vuelta pronto! 😊`;
-    }
-
-    // Tier limit exceeded notification
-    if (toolResult.action === 'tier_limit_exceeded') {
-      plan.reply = toolResult.rawSummary;
     }
   }
 
@@ -303,11 +229,10 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   if (isAckMessage && (!plan.tool || plan.tool !== 'manage_reminder' || plan.params?.action !== 'acknowledge')) {
     try {
       const ackRes = await acknowledgeReminders({ userId: user.id, phoneNumber });
-      if (ackRes.acknowledgedCount > 0) {
-        console.log(`[router] Auto-acknowledged ${ackRes.acknowledgedCount} pending reminder(s) from user confirmation "${messageText}".`);
-        if (!plan.reply || plan.reply.includes('intermitencia de conexión') || plan.reply.includes('¡Entendido! Lo tengo presente')) {
-          plan.reply = '¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.';
-        }
+      if (ackRes.acknowledgedCount > 0 || isAckMessage) {
+        console.log(`[router] Auto-acknowledged ${ackRes.acknowledgedCount || 1} pending reminder(s) from user confirmation "${messageText}".`);
+        finalReply = '¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.';
+        plan.reply = finalReply;
         plan.tool = 'manage_reminder';
         plan.params = { action: 'acknowledge' };
         plan.intent = 'reminder';
@@ -340,10 +265,10 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     }
   }
 
-  // Universal safety check: if user asked for task listing and the model returned generic/empty reply
+  // Universal safety check: if user asked for task listing and the model returned generic/empty/error reply
   const isTaskQuery = /\b(dame\s+(todos\s+)?(los\s+)?(proyectos|tareas)|mu[eé]stramelos|mu[eé]strame\s+(las\s+)?tareas|cu[aá]les\s+son\s+(mis\s+)?tareas|qu[eé]\s+tareas\s+tengo|proyectos\s+y\s+tareas|ver\s+mis\s+tareas|listar?\s+tareas)\b/i.test(messageText);
 
-  if (isTaskQuery && (!plan.reply || plan.reply.length < 15 || plan.reply.includes('¡Entendido! Lo tengo presente') || (!plan.reply.includes('•') && !plan.reply.includes('▫️')))) {
+  if (isTaskQuery && (!plan.reply || plan.reply.length < 15 || plan.reply.includes('¡Entendido! Lo tengo presente') || plan.reply.includes('intermitencia de conexión') || (!plan.reply.includes('•') && !plan.reply.includes('▫️')))) {
     try {
       const allPendingTasks = await getTasks({ userId: user.id, status: 'pending', limit: 50 });
       if (allPendingTasks && allPendingTasks.length > 0) {
@@ -377,9 +302,12 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     }
   }
 
-  const finalReply = plan.reply || '¡Entendido! Lo tengo presente en tus notas.';
+  const defaultNeutralReply = (user.locale && user.locale.startsWith('en'))
+    ? 'I have processed your request. How else can I assist you today?'
+    : 'He procesado tu solicitud. ¿En qué más te puedo colaborar hoy?';
+  const finalReplyText = finalReply || plan.reply || defaultNeutralReply;
   const totalDurationMs = Date.now() - startMs;
-  console.log(`[router] Out in ${totalDurationMs}ms: "${finalReply.slice(0, 80)}..."`);
+  console.log(`[router req=${options?.correlationId || 'none'}] Out in ${totalDurationMs}ms: "${finalReplyText.slice(0, 80)}..."`);
 
   let inferredIntent = plan.intent || 'chat';
   if (plan.tool === 'manage_memory') inferredIntent = 'memory';
@@ -390,18 +318,20 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   else if (plan.tool === 'manage_google_calendar') inferredIntent = 'calendar';
   else if (plan.tool === 'admin_metrics') inferredIntent = 'admin';
 
-  let ctaUrl = null;
-  let ctaHeader = null;
-  let ctaButtonText = null;
+  let ctaUrl = toolResult?.ctaUrl || null;
+  let ctaHeader = toolResult?.ctaHeader || null;
+  let ctaButtonText = toolResult?.ctaButtonText || null;
 
-  if (toolResult?.action === 'google_auth_link_generated' || toolResult?.action === 'google_not_connected') {
-    ctaUrl = toolResult.data?.auth_url || getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
-    ctaHeader = '📅 Google Calendar';
-    ctaButtonText = '🔗 Conectar Google';
-  } else if (toolResult?.action === 'subscription_link_generated' || plan.tool === 'get_subscription_link') {
-    ctaUrl = toolResult?.data?.checkout_url || null;
-    ctaHeader = '🌟 Reminder Pro';
-    ctaButtonText = '🚀 Suscribirme a Pro';
+  if (!ctaUrl) {
+    if (toolResult?.action === 'google_auth_link_generated' || toolResult?.action === 'google_not_connected') {
+      ctaUrl = toolResult.data?.auth_url || getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
+      ctaHeader = '📅 Google Calendar';
+      ctaButtonText = '🔗 Conectar Google';
+    } else if (toolResult?.action === 'subscription_link_generated' || plan.tool === 'get_subscription_link') {
+      ctaUrl = toolResult?.data?.checkout_url || null;
+      ctaHeader = '🌟 Reminder Pro';
+      ctaButtonText = '🚀 Suscribirme a Pro';
+    }
   }
 
   const isEnglish = (user.locale && user.locale.startsWith('en')) || /\b(hello|hi|good morning|schedule|remind me|please|help me|thank you|thanks)\b/i.test(messageText);
@@ -410,7 +340,7 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
     intent: inferredIntent,
     entities: plan.params || {},
     language: isEnglish ? 'en' : 'es',
-    confirmation: finalReply,
+    confirmation: finalReplyText,
     ctaUrl,
     ctaHeader,
     ctaButtonText,

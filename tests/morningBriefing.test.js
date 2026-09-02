@@ -126,13 +126,13 @@ describe('Morning Briefing & Overview Domain Separation', () => {
 
     const text = formatCompactOverview(overview);
 
-    expect(text).toContain('*Recordatorios de hoy con hora fija*:');
-    expect(text).toContain('- ⏰ 10:00 a. m.: Reunión directiva');
-    expect(text).toContain('*Tareas que vencen hoy*:');
-    expect(text).toContain('- 🎯 Pagar nómina (antes de las 12:00 p. m.) [Proyecto: Finanzas]');
-    expect(text).toContain('*Tareas y Proyectos abiertos (sin hora fija)*:');
+    expect(text).toContain('RECORDATORIOS DE HOY');
+    expect(text).toContain('[id: rem-1] ⏰ 10:00 a. m.: Reunión directiva');
+    expect(text).toContain('TAREAS QUE VENCEN HOY');
+    expect(text).toContain('[id: task-1] 🎯 Pagar nómina (antes de las 12:00 p. m.) [Proyecto: Finanzas]');
+    expect(text).toContain('TAREAS Y PROYECTOS ABIERTOS');
     expect(text).toContain('📁 [Proyecto Alpha]:');
-    expect(text).toContain('▫️ Diseñar arquitectura');
-    expect(text).toContain('- 📌 Llamar al fontanero');
+    expect(text).toContain('▫️ [id: task-2] Diseñar arquitectura');
+    expect(text).toContain('📌 [id: task-3] Llamar al fontanero');
   });
 });
