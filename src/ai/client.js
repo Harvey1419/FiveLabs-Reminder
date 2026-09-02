@@ -10,11 +10,14 @@ export const MODEL_CONFIG = Object.freeze({
     fallbackLadder: [
       'openai/gpt-oss-20b',
       'openai/gpt-oss-120b',
+      'qwen/qwen3.8-27b',
+      'qwen/qwen3.6-27b',
+      'groq/compound',
     ],
   },
   gemini: {
     primary: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    fallbackLadder: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'],
+    fallbackLadder: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'],
   },
 });
 

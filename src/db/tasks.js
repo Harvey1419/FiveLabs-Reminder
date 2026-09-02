@@ -339,6 +339,10 @@ export async function updateTask(taskId, updates = {}, userId = null) {
       updated_at: new Date().toISOString(),
     };
 
+    if (payload.status === 'completed' && !payload.completed_at) {
+      payload.completed_at = new Date().toISOString();
+    }
+
     if (payload.priority) {
       const norm = normalizeTaskPriority(payload.priority);
       if (!norm) {

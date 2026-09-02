@@ -184,20 +184,6 @@ export async function acknowledgeReminders({ userId, phoneNumber, contentQuery =
     if (updateErr && updateErr.message?.includes('column') && updateErr.message?.includes('schema cache')) {
       await supabase.from('reminders').update({ status: 'sent' }).in('id', ids);
     }
-
-    // Auto-complete any linked tasks in tasks table
-    const taskIds = candidates.filter(r => r.task_id).map(r => r.task_id);
-    if (taskIds.length > 0) {
-      await supabase
-        .from('tasks')
-        .update({
-          status: 'completed',
-          completed_at: ackTime,
-          updated_at: ackTime,
-        })
-        .in('id', taskIds);
-      console.log(`[tasks] Auto-completed ${taskIds.length} linked task(s) on reminder acknowledgement.`);
-    }
   } catch (err) {
     console.warn('[reminders] acknowledge update error:', err);
   }
@@ -212,14 +198,29 @@ export async function acknowledgeReminders({ userId, phoneNumber, contentQuery =
 /**
  * Acknowledge single reminder by its ID.
  */
-export async function acknowledgeReminder(id) {
+export async function acknowledgeReminder(id, userId = null) {
   if (!id) return null;
   const ackTime = new Date().toISOString();
   try {
+    let resolvedId = String(id).trim();
+    if (resolvedId.length < 36) {
+      let q = supabase.from('reminders').select('id');
+      if (userId) {
+        q = q.eq('user_id', userId);
+      }
+      const { data: list } = await q.limit(100);
+      const matched = list?.find(r => r.id.startsWith(resolvedId));
+      if (matched) {
+        resolvedId = matched.id;
+      } else {
+        return null;
+      }
+    }
+
     const { data, error } = await supabase
       .from('reminders')
       .update({ acknowledged_at: ackTime, status: 'sent' })
-      .eq('id', id)
+      .eq('id', resolvedId)
       .select()
       .maybeSingle();
 
@@ -591,6 +592,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const tomorrowStr = todayFormatter.format(tomorrowObj);
 
   const doneToday = [];
+  const pendingConfirmationReminders = [];
   const timedRemindersToday = [];
   const tasksDueToday = [];
   const openTasks = [];
@@ -599,7 +601,15 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const upcoming = [];
 
   for (const r of reminders) {
-    if (r.status === 'sent' || r.acknowledged_at) {
+    // Active persistent reminders that require confirmation and are not yet acknowledged
+    if (r.requires_confirmation && !r.acknowledged_at && (r.status === 'sent' || r.status === 'pending' || r.status === 'processing')) {
+      const formatted = formatItem(r, false);
+      formatted.nudgeCount = r.nudge_count || 0;
+      formatted.maxNudges = r.max_nudges || 3;
+      pendingConfirmationReminders.push(formatted);
+    }
+
+    if (r.acknowledged_at || (r.status === 'sent' && !r.requires_confirmation)) {
       const formatted = formatItem(r, true);
       if (formatted.localDate === todayStr || (!r.acknowledged_at && !r.sent_at)) {
         doneToday.push(formatted);
@@ -659,6 +669,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     todayDate: todayStr,
     tomorrowDate: tomorrowStr,
     doneToday,
+    pendingConfirmationReminders,
     pendingToday,
     timedRemindersToday,
     tasksDueToday,

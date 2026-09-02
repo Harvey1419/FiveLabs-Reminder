@@ -16,6 +16,16 @@ export function formatCompactOverview(overview) {
   if (!overview) return '(Sin pendientes ni recordatorios programados)';
   const lines = [];
 
+  // 0. Active Persistent Reminders Pending Confirmation
+  if (overview.pendingConfirmationReminders?.length > 0) {
+    lines.push(`*=== 🔔 RECORDATORIOS ACTIVOS QUE REQUIEREN CONFIRMACIÓN (Avisos / Nudges) ===*`);
+    for (const it of overview.pendingConfirmationReminders.slice(0, 10)) {
+      const idTag = it.id ? `[id: ${it.id.slice(0, 8)}] ` : '';
+      const nudgeInfo = it.nudgeCount > 0 ? ` (Aviso #${it.nudgeCount} enviado)` : ' (Esperando confirmación)';
+      lines.push(`  - ${idTag}🔔 ${it.content || it.title}${nudgeInfo}`);
+    }
+  }
+
   // 1. Timed Reminders Today
   if (overview.timedRemindersToday?.length > 0) {
     lines.push(`*=== ⏰ RECORDATORIOS DE HOY (REMINDERS - Con hora fija) ===*`);
@@ -181,9 +191,15 @@ ${compactOverviewText}
 - "En el proyecto Archivo Sonoro ponme otra tarea: modelar screenshot" -> type:'tool_call', tool:'manage_task', params:{action:'create', items:[{title:'Modelar screenshot', entityName:'Archivo Sonoro', entityCategory:'project', priority:'medium'}]}
 - "Comprar comida para el perro" -> type:'tool_call', tool:'manage_task', params:{action:'create', items:[{title:'Comprar comida para el perro', dueDate:null, priority:'medium'}]}
 - "Olvida todo lo de la doctora Marcela" -> type:'tool_call', tool:'manage_memory', params:{action:'forget', topicKey:'doctora Marcela', query:'doctora Marcela'}
+- "ya le escribí a la veterinaria [id: e64c5e4b]" -> type:'tool_call', tool:'manage_reminder', params:{action:'acknowledge', reminderId:'e64c5e4b'}
+- "Listo" / "OK" / "Ya lo hice" (con aviso de recordatorio pendiente [id: e64c5e4b]) -> type:'tool_call', tool:'manage_reminder', params:{action:'acknowledge', reminderId:'e64c5e4b'}
+- "¿ya le escribí a la veterinaria?" -> type:'chat', tool:null, reply:"Según tu agenda, ese recordatorio sigue pendiente y esperando tu confirmación."
+- "todavía no le he escrito a la veterinaria" / "No, todavía no" -> type:'chat', tool:null, reply:"Entendido, queda pendiente hasta que me avises cuando lo hagas."
+- "mañana le escribo a la veterinaria" -> type:'chat', tool:null, reply:"Entendido, ¿quieres que reprograme el recordatorio para mañana?"
+- "recuérdame escribirle a la veterinaria mañana" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Escribirle a la veterinaria', targetTime:'mañana'}]}
 - "Hello, could you help me organize my morning meetings?" -> type:'chat', tool:null, reply:"Hello! I would be happy to help you organize your morning meetings. Please share the details, times, and dates so I can schedule them for you."
 - "¿cómo así?" / "¿qué pasó?" / "No completes la tarea de ventas" -> type:'chat', tool:null, reply:"¿En qué te puedo aclarar? Cuéntame y con gusto revisamos."
-- "Ok" / "Listo" -> type:'chat', tool:null, reply:"¡Con mucho gusto! Quedo atento a lo que necesites."
+- "Ok" / "Listo" (como simple cortesía tras respuesta del asistente) -> type:'chat', tool:null, reply:"¡Con mucho gusto! Quedo atento a lo que necesites."
 - "Dame todos los proyectos y tareas que tengo" -> type:'tool_call', tool:'manage_task', params:{action:'list'}
 - "Completa la de ventas [id: 79f71c4c] / Hazlo" -> type:'tool_call', tool:'manage_task', params:{action:'complete', taskId:'79f71c4c'}
 - "Actualiza la tarea [id: 79f71c4c] a prioridad alta" -> type:'tool_call', tool:'manage_task', params:{action:'update', taskId:'79f71c4c', updates:{priority:'high'}}

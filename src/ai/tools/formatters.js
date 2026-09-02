@@ -50,15 +50,26 @@ export function formatReminderUpdatedCard(reminder, formattedTime, language = 'e
   return card;
 }
 
-export function formatReminderAcknowledgedCard(count, language = 'es') {
-  if (count <= 0) {
+export function formatReminderAcknowledgedCard(reminderOrCount, language = 'es') {
+  if (typeof reminderOrCount === 'number') {
+    if (reminderOrCount <= 0) {
+      return language === 'en'
+        ? 'There were no pending reminders to acknowledge.'
+        : 'No había recordatorios pendientes por confirmar.';
+    }
     return language === 'en'
-      ? 'There were no pending reminders to acknowledge.'
-      : 'No había recordatorios pendientes por confirmar.';
+      ? `¡Ready! ✅ Completed ${reminderOrCount} reminder(s) and stopped follow-up nudges.`
+      : `¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.`;
   }
-  return language === 'en'
-    ? `¡Ready! ✅ Completed reminder and stopped follow-up nudges.`
-    : `¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.`;
+
+  const content = reminderOrCount?.content
+    ? String(reminderOrCount.content).replace(/^(?:Recordatorio\s*(?:diario)?:\s*|🔔\s*Recordatorio\s*pendiente:\s*)/i, '').trim()
+    : '';
+
+  if (language === 'en') {
+    return `✅ *Reminder Confirmed*\n\n🔔 *${content || 'Task completed'}*\nMarked as completed and notifications deactivated.`;
+  }
+  return `✅ *Recordatorio confirmado*\n\n🔔 *${content || 'Completado'}*\nQueda registrado y se desactivan los avisos pendientes.`;
 }
 
 export function formatTaskCreatedCard(savedTasks, language = 'es') {
