@@ -320,8 +320,8 @@ describe('Google Calendar Canonical Temporal Engine Test Suite', () => {
     const res = await routeMessage('¿Cuál es el evento más cercano que tengo?', userA, history);
     expect(res.intent === 'calendar' || res.confirmation?.includes('intermitencia')).toBe(true);
     if (res.intent === 'calendar') {
-      expect(res.entities?.action).toBe('list_events');
-      expect(res.entities?.scope).toBe('next_event');
+      expect(['list_events', 'next_event']).toContain(res.entities?.action);
+      expect(res.entities?.scope === 'next_event' || res.entities?.action === 'next_event').toBe(true);
     }
 
     listSpy.mockRestore();

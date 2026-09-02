@@ -1,5 +1,21 @@
+import crypto from 'crypto';
 import { google } from 'googleapis';
 import { getAuthenticatedGoogleClient } from './googleAuth.js';
+
+/**
+ * Generate a deterministic base32hex/hex event ID for Google Calendar API idempotency.
+ * Google Calendar event IDs must match /^[a-v0-9]{5,1024}$/ (lowercase only).
+ *
+ * @param {string} userId
+ * @param {string} summary
+ * @param {string} startIso
+ * @returns {string} 32-character deterministic ID
+ */
+export function generateDeterministicCalendarEventId(userId, summary, startIso) {
+  const seed = `${userId}::${String(summary || '').toLowerCase().trim()}::${startIso}`;
+  const rawHash = crypto.createHash('sha256').update(seed).digest('hex');
+  return `hermes${rawHash.slice(0, 26)}`;
+}
 
 /**
  * List events from user's primary Google Calendar.
@@ -10,6 +26,7 @@ import { getAuthenticatedGoogleClient } from './googleAuth.js';
  * @param {string|Date} [options.timeMax] - ISO string or Date
  * @param {number} [options.maxResults=15]
  * @param {string} [options.timezone='America/Bogota']
+ * @param {string} [options.q] - Free-text search term
  * @returns {Promise<Array<object>|null>} List of events, or null if Google is not connected
  */
 export async function listCalendarEvents(userId, {
@@ -17,6 +34,7 @@ export async function listCalendarEvents(userId, {
   timeMax = null,
   maxResults = 15,
   timezone = 'America/Bogota',
+  q = null,
 } = {}) {
   const auth = await getAuthenticatedGoogleClient(userId);
   if (!auth) return null;
@@ -38,20 +56,30 @@ export async function listCalendarEvents(userId, {
       params.timeMax = timeMax instanceof Date ? timeMax.toISOString() : new Date(timeMax).toISOString();
     }
 
+    if (q && String(q).trim()) {
+      params.q = String(q).trim();
+    }
+
     const res = await calendar.events.list(params);
     const items = res.data.items || [];
 
-    return items.map(ev => ({
-      id: ev.id,
-      summary: ev.summary || '(Sin título)',
-      description: ev.description || '',
-      start: ev.start?.dateTime || ev.start?.date,
-      end: ev.end?.dateTime || ev.end?.date,
-      htmlLink: ev.htmlLink,
-      hangoutLink: ev.hangoutLink || ev.conferenceData?.entryPoints?.[0]?.uri || null,
-      location: ev.location || null,
-      attendees: (ev.attendees || []).map(a => a.email),
-    }));
+    return items
+      .filter(ev => ev.status !== 'cancelled')
+      .map(ev => ({
+        id: ev.id,
+        summary: ev.summary || '(Sin título)',
+        description: ev.description || '',
+        start: ev.start?.dateTime || ev.start?.date,
+        end: ev.end?.dateTime || ev.end?.date,
+        isAllDay: Boolean(ev.start?.date && !ev.start?.dateTime),
+        rawStartDate: ev.start?.date || null,
+        rawStartDateTime: ev.start?.dateTime || null,
+        status: ev.status || 'confirmed',
+        htmlLink: ev.htmlLink,
+        hangoutLink: ev.hangoutLink || ev.conferenceData?.entryPoints?.[0]?.uri || null,
+        location: ev.location || null,
+        attendees: (ev.attendees || []).map(a => a.email),
+      }));
   } catch (err) {
     console.error(`[googleCalendar] listCalendarEvents error for user ${userId}:`, err.message);
     throw err;
@@ -59,7 +87,7 @@ export async function listCalendarEvents(userId, {
 }
 
 /**
- * Create a new event in user's primary Google Calendar.
+ * Create a new event in user's primary Google Calendar with deterministic ID idempotency.
  *
  * @param {string} userId
  * @param {object} params
@@ -69,6 +97,7 @@ export async function listCalendarEvents(userId, {
  * @param {string|Date} [params.endDateTime] - End ISO string (defaults to +1h)
  * @param {string} [params.timezone='America/Bogota']
  * @param {boolean} [params.addGoogleMeet=false] - Whether to generate Google Meet link
+ * @param {string|null} [params.customEventId=null]
  * @returns {Promise<object|null>} Created event details, or null if Google is not connected
  */
 export async function createCalendarEvent(userId, {
@@ -78,6 +107,7 @@ export async function createCalendarEvent(userId, {
   endDateTime = null,
   timezone = 'America/Bogota',
   addGoogleMeet = false,
+  customEventId = null,
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
   if (!auth) return null;
@@ -86,12 +116,14 @@ export async function createCalendarEvent(userId, {
     const calendar = google.calendar({ version: 'v3', auth });
 
     const startDate = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
-    // If no end time, default to 1 hour after start
     const endDate = endDateTime
       ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
       : new Date(startDate.getTime() + 60 * 60 * 1000);
 
+    const eventId = customEventId || generateDeterministicCalendarEventId(userId, summary, startDate.toISOString());
+
     const eventResource = {
+      id: eventId,
       summary: summary.trim(),
       description: description ? description.trim() : 'Agendado por Hermes TempleLabs',
       start: {
@@ -119,23 +151,102 @@ export async function createCalendarEvent(userId, {
       requestParams.conferenceDataVersion = 1;
     }
 
-    const res = await calendar.events.insert(requestParams);
-    const ev = res.data;
+    let ev;
+    try {
+      const res = await calendar.events.insert(requestParams);
+      ev = res.data;
+    } catch (insertErr) {
+      // If event with deterministic ID already exists (409 Conflict), retrieve existing event idempotently
+      if (insertErr.code === 409 || insertErr.status === 409 || insertErr.message?.includes('already exists')) {
+        console.log(`[googleCalendar] Event ${eventId} already exists (409 Conflict), retrieving existing event.`);
+        const existingRes = await calendar.events.get({
+          calendarId: 'primary',
+          eventId,
+        });
+        ev = existingRes.data;
+      } else {
+        throw insertErr;
+      }
+    }
 
     const meetLink = ev.hangoutLink || ev.conferenceData?.entryPoints?.[0]?.uri || null;
 
-    console.log(`[googleCalendar] Created event "${summary}" (${ev.id}) for user ${userId}`);
+    console.log(`[googleCalendar] Handled event "${summary}" (${ev.id}) for user ${userId}`);
 
     return {
       id: ev.id,
       summary: ev.summary,
       start: ev.start?.dateTime || ev.start?.date,
       end: ev.end?.dateTime || ev.end?.date,
+      isAllDay: Boolean(ev.start?.date && !ev.start?.dateTime),
       htmlLink: ev.htmlLink,
       meetLink,
     };
   } catch (err) {
     console.error(`[googleCalendar] createCalendarEvent error for user ${userId}:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Update an existing event in user's primary Google Calendar.
+ *
+ * @param {string} userId
+ * @param {object} params
+ * @param {string} params.eventId
+ * @param {string} [params.summary]
+ * @param {string} [params.description]
+ * @param {string|Date} [params.startDateTime]
+ * @param {string|Date} [params.endDateTime]
+ * @param {string} [params.timezone='America/Bogota']
+ * @returns {Promise<object|null>}
+ */
+export async function updateCalendarEvent(userId, {
+  eventId,
+  summary,
+  description,
+  startDateTime,
+  endDateTime = null,
+  timezone = 'America/Bogota',
+}) {
+  const auth = await getAuthenticatedGoogleClient(userId);
+  if (!auth) return null;
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth });
+    const existing = await calendar.events.get({
+      calendarId: 'primary',
+      eventId,
+    });
+
+    const eventResource = { ...existing.data };
+    if (summary !== undefined) eventResource.summary = summary.trim();
+    if (description !== undefined) eventResource.description = description.trim();
+    if (startDateTime) {
+      const startDate = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
+      eventResource.start = { dateTime: startDate.toISOString(), timeZone: timezone };
+      const endDate = endDateTime
+        ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
+        : new Date(startDate.getTime() + 60 * 60 * 1000);
+      eventResource.end = { dateTime: endDate.toISOString(), timeZone: timezone };
+    }
+
+    const res = await calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      requestBody: eventResource,
+    });
+
+    return {
+      id: res.data.id,
+      summary: res.data.summary,
+      start: res.data.start?.dateTime || res.data.start?.date,
+      end: res.data.end?.dateTime || res.data.end?.date,
+      isAllDay: Boolean(res.data.start?.date && !res.data.start?.dateTime),
+      htmlLink: res.data.htmlLink,
+    };
+  } catch (err) {
+    console.error(`[googleCalendar] updateCalendarEvent error for user ${userId}:`, err.message);
     throw err;
   }
 }

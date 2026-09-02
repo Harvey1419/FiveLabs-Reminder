@@ -254,6 +254,8 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
     else if (params.dateFrom && params.dateTo) scope = 'explicit_range';
     else if (params.date || (rawMin && /^\d{4}-\d{2}-\d{2}/.test(rawMin))) scope = 'explicit_date';
     else if (params.month) scope = 'month';
+    else if (rawMin === 'este_ano' || rawMin === 'este_año' || rawMin === 'this_year' || rawMin === 'full_year') scope = 'full_year';
+    else if (rawMin === 'resto_del_ano' || rawMin === 'resto_del_año' || rawMin === 'remaining_year') scope = 'remaining_year';
     else if (rawMin && rawMax) scope = 'custom_range';
     else if (rawMin) scope = 'from_time';
     else scope = 'default_upcoming';
@@ -401,6 +403,29 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       const timeMin = zonedTimeToUtc(targetYearNum, targetMonthNum, 1, 0, 0, 0, timezone);
       const timeMax = zonedTimeToUtc(targetYearNum, targetMonthNum + 1, 1, 0, 0, 0, timezone);
       return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'month' };
+    }
+
+    case 'full_year':
+    case 'este_ano':
+    case 'este_año':
+    case 'todo_el_ano':
+    case 'todo_el_año':
+    case 'this_year': {
+      // 01 de enero 00:00 local -> 01 de enero del siguiente año 00:00 local
+      const timeMin = zonedTimeToUtc(year, 1, 1, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year + 1, 1, 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'full_year' };
+    }
+
+    case 'remaining_year':
+    case 'resto_del_ano':
+    case 'resto_del_año':
+    case 'lo_que_queda_del_ano':
+    case 'lo_que_queda_del_año': {
+      // now -> 01 de enero del siguiente año 00:00 local
+      const timeMin = now;
+      const timeMax = zonedTimeToUtc(year + 1, 1, 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'remaining_year' };
     }
 
     case 'custom_range': {

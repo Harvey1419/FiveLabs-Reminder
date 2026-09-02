@@ -723,9 +723,6 @@ export async function claimNextDueReminder(workerId = 'worker-1', lockDurationSe
     if (!error && data && data.length > 0) {
       return data[0];
     }
-    if (!error && data && data.length === 0) {
-      return null;
-    }
   } catch (rpcErr) {
     // Continue to atomic client fallback
   }

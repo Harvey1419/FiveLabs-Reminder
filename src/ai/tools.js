@@ -124,8 +124,10 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
         error: result.error,
         isProFeature: result.isProFeature ?? (result.errorCode === 'PRO_TIER_REQUIRED'),
         rawSummary,
-        confirmation: formatErrorCard(result.errorCode, result.error, language),
+        confirmation: result.formattedCard || formatErrorCard(result.errorCode, result.error, language),
         ctaUrl: result.ctaUrl || null,
+        ctaHeader: result.ctaHeader || null,
+        ctaButtonText: result.ctaButtonText || null,
         data: result.data || null,
       };
     }
