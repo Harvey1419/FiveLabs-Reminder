@@ -520,7 +520,13 @@ export async function executeTool(toolName, params, user) {
         }
 
         if (action === 'list') {
-          const tasks = await getTasks({ userId: user.id, status: params.status || 'pending', limit: params.limit || 15 });
+          const tasks = await getTasks({
+            userId: user.id,
+            status: params.status || 'pending',
+            entityId: params.entityId || null,
+            entityName: params.entityName || params.project || params.projectName || null,
+            limit: params.limit || 50,
+          });
           return {
             success: true,
             action: 'listed_tasks',

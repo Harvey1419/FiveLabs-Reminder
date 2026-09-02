@@ -9,6 +9,7 @@ import {
   createPendingSubscription,
   acknowledgeReminders,
   cancelUserSubscription,
+  getTasks,
 } from '../db/index.js';
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { generateGoogleAuthUrl, getGoogleConnectUrl } from '../services/googleAuth.js';
@@ -104,15 +105,18 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   }
 
   // 2.5 Transaction Guard: Ensure promises made in conversation match database mutations
-  const claimedAction = /\b(te\s+program[eé]|te\s+recordar[eé]|recordatorio\s+programado|te\s+dej[eé]\s+programado|he\s+programado|agendado|cancel[eé]|elimin[eé]|borr[eé]|quit[eé]|reprogramado|actualizado)\b/i.test(plan.reply || '');
-  const requestedAction = /\b(recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve)\b/i.test(messageText) &&
-    !/\b(gracias|ok|listo|no\s+tengo|consulta|cu[aá]les|qu[eé]\s+tengo|verdad\?|cierto\?)\b/i.test(messageText);
+  const claimedAction = /\b(te\s+program[eé]|te\s+recordar[eé]|recordatorio\s+programado|recordatorios\s+programados|te\s+dej[eé]\s+programado|he\s+programado|agendado|cancel[eé]|elimin[eé]|borr[eé]|quit[eé]|reprogramado|actualizado|tarea\s+añadida|tareas\s+añadidas|tarea\s+creada|tareas\s+creadas|proyecto\s+creado|proyectos\s+creados|tarea\s+registrada|tarea\s+marcada|tarea\s+completada|he\s+(añadido|creado|agregado|guardado|registrado|completado|marcado|eliminado|borrado)\s+(la|las|el|un|una|este|esta)?\s*(tarea|proyecto|item|lista))\b/i.test(plan.reply || '');
+  const requestedAction = (
+    /\b(recu[eé]rdame|acu[eé]rdame|av[ií]same|remind\s+me|quita|cancela|elimina|borra|cambia|mueve)\b/i.test(messageText) ||
+    /\b(a[ñn]ade|agrega|pon(me)?|crea|anota|registra|guarda|marca|completa)\b.*\b(tarea|tareas|proyecto|proyectos|lista|pendiente|pendientes|checklist|item|items|art[ií]culo)\b/i.test(messageText) ||
+    /\b(al\s+proyecto|en\s+el\s+proyecto|bajo\s+(este|el)\s+proyecto|en\s+la\s+lista|a\s+la\s+lista)\b/i.test(messageText)
+  ) && !/\b(gracias|ok|listo|no\s+tengo|consulta|verdad\?|cierto\?)\b/i.test(messageText);
 
   if ((claimedAction || requestedAction) && (!plan.tool || plan.type !== 'tool_call')) {
     console.warn('[router] Transaction Guard: missing database tool call detected for action intent. Executing emergency repair...');
     try {
       const rescueMessages = [
-        { role: 'system', content: `${prompt}\n\nCRITICAL MANDATE: The user requested an operational action ("${messageText}"). You MUST output a JSON with "type": "tool_call" executing "manage_reminder" (action: "create" | "cancel" | "update"), "manage_task", or "manage_entity". NEVER answer with chat-only when an action is requested.` },
+        { role: 'system', content: `${prompt}\n\nCRITICAL MANDATE: The user requested an operational action ("${messageText}"). You MUST output a JSON with "type": "tool_call" executing "manage_reminder" (action: "create" | "cancel" | "update"), "manage_task" (action: "create" | "complete" | "delete" | "list"), or "manage_entity". NEVER answer with chat-only when an action is requested.` },
         { role: 'user', content: messageText },
       ];
       const rescueRaw = await callChatCompletion(rescueMessages, { max_tokens: 600, temperature: 0.0 });
@@ -132,6 +136,57 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
   if (plan.type === 'tool_call' && plan.tool) {
     toolResult = await executeTool(plan.tool, plan.params || {}, user);
     console.log(`[router] Tool ${plan.tool} executed (${toolResult.action}):`, toolResult.rawSummary);
+
+    // Dynamic task listing fallback if model left reply generic, interim or empty
+    if (toolResult.action === 'listed_tasks' && Array.isArray(toolResult.data)) {
+      const isGenericOrInterim = !plan.reply ||
+        plan.reply.length < 15 ||
+        (/\b(consultando|revisando|un momento|espera|buscando|entendido|lo tengo presente|anotado)\b/i.test(plan.reply) && !plan.reply.includes('•') && !plan.reply.includes('▫️'));
+
+      if (isGenericOrInterim) {
+        const tasks = toolResult.data;
+        if (tasks.length > 0) {
+          const byEntity = {};
+          const general = [];
+          for (const t of tasks) {
+            const ent = t.entities?.name || t.entityName || null;
+            if (ent) {
+              if (!byEntity[ent]) byEntity[ent] = [];
+              byEntity[ent].push(t);
+            } else {
+              general.push(t);
+            }
+          }
+          let formatted = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
+          for (const [entName, entTasks] of Object.entries(byEntity)) {
+            formatted += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+          }
+          if (general.length > 0) {
+            formatted += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+          }
+          plan.reply = formatted.trim();
+        } else {
+          plan.reply = `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
+        }
+      }
+    }
+
+    // Dynamic task batch creation fallback if model left reply generic
+    if (toolResult.action === 'created_tasks_batch' && Array.isArray(toolResult.data)) {
+      const isGeneric = !plan.reply ||
+        plan.reply.length < 15 ||
+        (/\b(consultando|revisando|un momento|espera|buscando|entendido|lo tengo presente)\b/i.test(plan.reply) && !plan.reply.includes('•') && !plan.reply.includes('▫️'));
+
+      if (isGeneric) {
+        const saved = toolResult.data;
+        const entName = saved[0]?.entityName;
+        if (entName) {
+          plan.reply = `✅ *Tarea añadida*\n\n📂 *Proyecto: ${entName}*\n` + saved.map(t => `• ${t.title}`).join('\n');
+        } else {
+          plan.reply = `✅ *Tarea(s) creada(s)*\n\n` + saved.map(t => `• ${t.title}`).join('\n');
+        }
+      }
+    }
 
     // Dynamic memory listing fallback if model left reply generic, interim or empty
     if (toolResult.action === 'listed_memories' && Array.isArray(toolResult.data)) {
@@ -242,6 +297,12 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       const ackRes = await acknowledgeReminders({ userId: user.id, phoneNumber });
       if (ackRes.acknowledgedCount > 0) {
         console.log(`[router] Auto-acknowledged ${ackRes.acknowledgedCount} pending reminder(s) from user confirmation "${messageText}".`);
+        if (!plan.reply || plan.reply.includes('intermitencia de conexión') || plan.reply.includes('¡Entendido! Lo tengo presente')) {
+          plan.reply = '¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.';
+        }
+        plan.tool = 'manage_reminder';
+        plan.params = { action: 'acknowledge' };
+        plan.intent = 'reminder';
       }
     } catch (ackErr) {
       console.warn('[router] Auto-acknowledgement safety net error:', ackErr.message);
@@ -268,6 +329,43 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
       }
     } catch (cancelErr) {
       console.warn('[router] Auto-cancel subscription error:', cancelErr.message);
+    }
+  }
+
+  // Universal safety check: if user asked for task listing and the model returned generic/empty reply
+  const isTaskQuery = /\b(dame\s+(todos\s+)?(los\s+)?(proyectos|tareas)|mu[eé]stramelos|mu[eé]strame\s+(las\s+)?tareas|cu[aá]les\s+son\s+(mis\s+)?tareas|qu[eé]\s+tareas\s+tengo|proyectos\s+y\s+tareas|ver\s+mis\s+tareas|listar?\s+tareas)\b/i.test(messageText);
+
+  if (isTaskQuery && (!plan.reply || plan.reply.length < 15 || plan.reply.includes('¡Entendido! Lo tengo presente') || (!plan.reply.includes('•') && !plan.reply.includes('▫️')))) {
+    try {
+      const allPendingTasks = await getTasks({ userId: user.id, status: 'pending', limit: 50 });
+      if (allPendingTasks && allPendingTasks.length > 0) {
+        const byEntity = {};
+        const general = [];
+        for (const t of allPendingTasks) {
+          const ent = t.entities?.name || t.entityName || null;
+          if (ent) {
+            if (!byEntity[ent]) byEntity[ent] = [];
+            byEntity[ent].push(t);
+          } else {
+            general.push(t);
+          }
+        }
+        let formatted = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
+        for (const [entName, entTasks] of Object.entries(byEntity)) {
+          formatted += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+        }
+        if (general.length > 0) {
+          formatted += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+        }
+        plan.reply = formatted.trim();
+        plan.tool = 'manage_task';
+        plan.params = { action: 'list' };
+        plan.intent = 'task';
+      } else {
+        plan.reply = `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
+      }
+    } catch (err) {
+      console.warn('[router] fallback getTasks failed:', err.message);
     }
   }
 

@@ -75,14 +75,36 @@ export async function createTask({
  * @param {string} params.userId
  * @param {'pending'|'in_progress'|'completed'|'cancelled'|'all'} [params.status='pending']
  * @param {string} [params.entityId]
- * @param {number} [params.limit=20]
+ * @param {string} [params.entityName]
+ * @param {number} [params.limit=50]
  * @returns {Promise<Array<object>>}
  */
-export async function getTasks({ userId, status = 'pending', entityId = null, limit = 20 }) {
+export async function getTasks({ userId, status = 'pending', entityId = null, entityName = null, limit = 50 }) {
   if (!userId) return [];
-  const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 50);
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 50), 100);
 
   try {
+    const matchingEntityIds = new Set();
+    if (entityId) matchingEntityIds.add(entityId);
+
+    if (entityName && !entityId) {
+      const { data: allEntities } = await supabase
+        .from('entities')
+        .select('id, name')
+        .eq('user_id', userId);
+
+      if (allEntities && allEntities.length > 0) {
+        for (const ent of allEntities) {
+          if (
+            ent.name.toLowerCase() === entityName.toLowerCase() ||
+            entityMatchScore(ent.name, entityName) >= 0.70
+          ) {
+            matchingEntityIds.add(ent.id);
+          }
+        }
+      }
+    }
+
     let q = supabase
       .from('tasks')
       .select('*, entities:entity_id(name, category)')
@@ -93,8 +115,10 @@ export async function getTasks({ userId, status = 'pending', entityId = null, li
       q = q.eq('status', status);
     }
 
-    if (entityId) {
-      q = q.eq('entity_id', entityId);
+    if (matchingEntityIds.size === 1) {
+      q = q.eq('entity_id', Array.from(matchingEntityIds)[0]);
+    } else if (matchingEntityIds.size > 1) {
+      q = q.in('entity_id', Array.from(matchingEntityIds));
     }
 
     // Order by priority and due_date ASC
