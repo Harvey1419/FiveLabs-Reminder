@@ -120,7 +120,7 @@ export function renderPrivacyPolicyPage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
+            <img src="/Logo.png" alt="Hermes TempleLabs" />
             <div>
               <h2>Hermes TempleLabs</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>
@@ -293,7 +293,7 @@ export function renderTermsOfServicePage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
+            <img src="/Logo.png" alt="Hermes TempleLabs" />
             <div>
               <h2>Hermes TempleLabs</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>

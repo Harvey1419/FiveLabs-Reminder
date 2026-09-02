@@ -262,7 +262,7 @@ export function renderHomePage() {
       <body>
         <nav>
           <a href="/" class="nav-brand">
-            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
+            <img src="/Logo.png" alt="Hermes TempleLabs" />
             Hermes TempleLabs
           </a>
           <div class="nav-links">
