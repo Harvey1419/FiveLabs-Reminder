@@ -302,6 +302,32 @@ export function renderHomePage() {
           </div>
         </div>
 
+        <section class="purpose-section" style="max-width: 900px; margin: 3rem auto; padding: 2.25rem; background: rgba(24, 24, 27, 0.65); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1.25rem;">
+          <h2 style="font-size: 1.6rem; font-weight: 800; color: #ffffff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem;">
+            <span>💡</span> Propósito de la Aplicación
+          </h2>
+          <p style="font-size: 1.05rem; color: #d4d4d8; line-height: 1.7; margin-bottom: 1.25rem;">
+            <strong>Hermes TempleLabs</strong> es una plataforma de software de productividad y asistencia personal impulsada por inteligencia artificial que opera directamente a través de WhatsApp. El <strong>propósito de Hermes TempleLabs</strong> es optimizar la gestión del tiempo y la productividad personal y profesional mediante:
+          </p>
+          <ul style="list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; padding: 0;">
+            <li style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem; border-radius: 0.85rem;">
+              <strong style="color: #4ade80; display: block; margin-bottom: 0.35rem; font-size: 1rem;">📋 Gestión de Tareas</strong>
+              <span style="color: #a1a1aa; font-size: 0.9rem;">Creación, seguimiento y organización de proyectos y tareas pendientes desde conversaciones de chat.</span>
+            </li>
+            <li style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem; border-radius: 0.85rem;">
+              <strong style="color: #60a5fa; display: block; margin-bottom: 0.35rem; font-size: 1rem;">⏰ Recordatorios Inteligentes</strong>
+              <span style="color: #a1a1aa; font-size: 0.9rem;">Programación de avisos únicos, recurrentes y con confirmación para compromisos importantes.</span>
+            </li>
+            <li style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem; border-radius: 0.85rem;">
+              <strong style="color: #facc15; display: block; margin-bottom: 0.35rem; font-size: 1rem;">📅 Sincronización de Calendario</strong>
+              <span style="color: #a1a1aa; font-size: 0.9rem;">Integración segura con Google Calendar para consultar tu disponibilidad, registrar reuniones y prevenir cruces de agenda.</span>
+            </li>
+          </ul>
+          <p style="font-size: 0.95rem; color: #a1a1aa; line-height: 1.6; margin-bottom: 0;">
+            El objetivo del servicio es actuar como un asistente personal ejecutivo accesible las 24 horas del día, facilitando la captura de información mediante texto y audios sin necesidad de abrir múltiples herramientas de gestión.
+          </p>
+        </section>
+
         <section class="google-section">
           <div class="google-box">
             <h2>
