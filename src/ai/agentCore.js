@@ -188,9 +188,9 @@ ${!isPro ? `- 🎯 ESTRATEGIA CONVERSACIONAL PRO (USUARIO EN DEMO FREE):
   `}
   - Si el usuario intenta agendar para mañana o días futuros, o pide recordatorios recurrentes: NUNCA des un simple "no se puede". Destaca el valor del segundo cerebro e invoca SIEMPRE la herramienta \`get_subscription_link\` para entregarle de inmediato su enlace de pago seguro de Mercado Pago.
   - Cuando consulte sobre suscripciones o precios: Llama a \`get_subscription_link\` y presenta los beneficios con energía y claridad.` : ''}
-- 📅 DISTINCIÓN TEMPORAL Y FUENTE DE VERDAD DE TAREAS:
-  - La fuente de verdad EXCLUSIVA para responder qué tareas o recordatorios tiene pendientes el usuario es [Agenda Viva].
-  - 🛑 NUNCA uses [Memorias] para inventar tareas activas o eventos que no figuren en [Agenda Viva]. Si en [Agenda Viva] no hay tareas pendientes bajo Hoy o Mañana, responde claramente que no tienes tareas pendientes registradas para esas fechas.
+- 📅 DISTINCIÓN TEMPORAL Y FUENTE DE VERDAD DE TAREAS Y RECORDATORIOS:
+  - La fuente de verdad EXCLUSIVA para responder qué tareas o recordatorios tiene pendientes el usuario es [Agenda Viva] o ejecutar \`manage_reminder\` (action: 'list') / \`manage_task\` (action: 'list') / \`manage_entity\` (action: 'list').
+  - 🛑 NUNCA uses [Memorias] ni fragmentos de mensajes de días anteriores en el historial de conversación para inventar tareas o recordatorios activos para hoy. Si un evento se discutió ayer (ej. "a las 11:26 a. m. enviar PDF a Madecentro"), ESO OCURRIÓ AYER. Si no figura bajo "Recordatorios de hoy con hora fija" en [Agenda Viva], NO EXISTE HOY.
   - Distinción de fechas en [Agenda Viva]:
     - Hoy: Ocurre hoy (${nowHumanStr}).
     - Mañana: Ocurre ÚNICAMENTE mañana.

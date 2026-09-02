@@ -315,13 +315,33 @@ export async function executeTool(toolName, params, user) {
         }
 
         if (action === 'list') {
-          const reminders = await getRecentRemindersForPhone(user.phone_number, 10);
-          const active = reminders.filter(r => r.status === 'pending');
+          const overview = await getDailyOverview({ userId: user.id, phoneNumber: user.phone_number, timezone });
+          const todayReminders = overview.timedRemindersToday || [];
+          const tomorrowReminders = overview.tomorrowReminders || [];
+          const upcoming = overview.upcoming || [];
+
+          let formattedSummary = '';
+          if (todayReminders.length > 0 || tomorrowReminders.length > 0 || upcoming.length > 0) {
+            formattedSummary = '📅 *Tus recordatorios programados*\n\n';
+            if (todayReminders.length > 0) {
+              formattedSummary += '*Hoy*:\n' + todayReminders.map(r => `• ⏰ ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
+            }
+            if (tomorrowReminders.length > 0) {
+              formattedSummary += '*Mañana*:\n' + tomorrowReminders.map(r => `• ⏰ ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
+            }
+            if (upcoming.length > 0) {
+              formattedSummary += '*Próximos días*:\n' + upcoming.slice(0, 5).map(r => `• ⏰ [${r.localDate}] ${r.localTime} — ${r.content || r.title}`).join('\n') + '\n\n';
+            }
+            formattedSummary = formattedSummary.trim();
+          } else {
+            formattedSummary = '📅 *Recordatorios*\n\nNo tienes recordatorios pendientes programados en tu agenda.';
+          }
+
           return {
             success: true,
             action: 'listed_reminders',
-            data: active,
-            rawSummary: `Hay ${active.length} recordatorios pendientes.`,
+            data: overview,
+            rawSummary: formattedSummary,
           };
         }
 
@@ -405,11 +425,22 @@ export async function executeTool(toolName, params, user) {
             limit,
           });
 
+          let formattedSummary = '';
+          if (entities && entities.length > 0) {
+            const isProjectsOnly = category === 'project';
+            const title = isProjectsOnly ? '📁 *Tus proyectos activos*' : '📂 *Tus proyectos y listas activas*';
+            formattedSummary = `${title}\n\n` + entities.map(e => `• ${e.name}`).join('\n');
+          } else {
+            formattedSummary = category === 'project'
+              ? '📂 *Proyectos activos*\n\nActualmente no tienes proyectos registrados en tu agenda.'
+              : '📂 *Entidades y proyectos*\n\nActualmente no tienes entidades registradas en tu agenda.';
+          }
+
           return {
             success: true,
             action: 'listed_entities',
             data: entities,
-            rawSummary: `Se encontraron ${entities.length} entidades.`,
+            rawSummary: formattedSummary,
           };
         }
 
@@ -527,11 +558,45 @@ export async function executeTool(toolName, params, user) {
             entityName: params.entityName || params.project || params.projectName || null,
             limit: params.limit || 50,
           });
+
+          let formattedSummary = '';
+          if (tasks && tasks.length > 0) {
+            const byEntity = {};
+            const general = [];
+            for (const t of tasks) {
+              const ent = t.entities?.name || t.entityName || null;
+              if (ent) {
+                if (!byEntity[ent]) byEntity[ent] = [];
+                byEntity[ent].push(t);
+              } else {
+                general.push(t);
+              }
+            }
+
+            if (params.entityName || params.project || params.projectName) {
+              const pName = params.entityName || params.project || params.projectName;
+              formattedSummary = `📁 *Tareas en ${pName}*\n\n` + tasks.map(t => `• ${t.title || t.content}`).join('\n');
+            } else {
+              formattedSummary = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
+              for (const [entName, entTasks] of Object.entries(byEntity)) {
+                formattedSummary += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+              }
+              if (general.length > 0) {
+                formattedSummary += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
+              }
+              formattedSummary = formattedSummary.trim();
+            }
+          } else {
+            formattedSummary = (params.entityName || params.project || params.projectName)
+              ? `📁 *${params.entityName || params.project || params.projectName}*\n\nNo hay tareas pendientes en este proyecto.`
+              : `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
+          }
+
           return {
             success: true,
             action: 'listed_tasks',
             data: tasks,
-            rawSummary: `Hay ${tasks.length} tareas pendientes.`,
+            rawSummary: formattedSummary,
           };
         }
 

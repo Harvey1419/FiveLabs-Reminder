@@ -22,7 +22,7 @@ export async function generateEmbedding(text) {
         content: { parts: [{ text: text.trim() }] },
         outputDimensionality: 768,
       }),
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (res.ok) {

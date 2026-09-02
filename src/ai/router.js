@@ -236,7 +236,15 @@ export async function routeMessage(messageText, userOrPhone, history = []) {
           plan.reply = `${plan.reply}\n\n👉 *Vincula tu cuenta aquí:* ${toolResult.data.auth_url}`;
         }
       }
-    } else if (toolResult.action === 'google_events_listed' || toolResult.action === 'google_event_created' || toolResult.action === 'google_disconnected') {
+    } else if (
+      toolResult.action === 'google_events_listed' ||
+      toolResult.action === 'google_event_created' ||
+      toolResult.action === 'google_disconnected' ||
+      toolResult.action === 'listed_entities' ||
+      toolResult.action === 'listed_tasks' ||
+      toolResult.action === 'listed_reminders' ||
+      toolResult.action === 'listed_memories'
+    ) {
       if (!plan.reply || plan.reply === '' || /\b(consultando|revisando|un momento|espera|buscando)\b/i.test(plan.reply)) {
         plan.reply = toolResult.rawSummary;
       }
