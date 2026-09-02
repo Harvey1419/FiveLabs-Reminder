@@ -41,6 +41,15 @@ export function formatReminderCancelledCard(cancelledCount, remainingCount, deta
   return `🗑️ *Recordatorio cancelado*\n\nSe eliminaron ${cancelledCount} recordatorio(s). Restan ${remainingCount} pendientes en tu agenda.${details ? `\n\n${details}` : ''}`;
 }
 
+export function formatReminderUpdatedCard(reminder, formattedTime, language = 'es') {
+  const header = language === 'en' ? '🔄 *Reminder updated*' : '🔄 *Recordatorio actualizado*';
+  let card = `${header}\n\n⏰ *${reminder.content || 'Recordatorio'}*`;
+  if (formattedTime) {
+    card += `\n📅 ${formattedTime}`;
+  }
+  return card;
+}
+
 export function formatReminderAcknowledgedCard(count, language = 'es') {
   if (count <= 0) {
     return language === 'en'

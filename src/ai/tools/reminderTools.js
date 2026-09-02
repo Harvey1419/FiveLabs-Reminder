@@ -5,6 +5,7 @@ import {
   acknowledgeReminder,
   acknowledgeReminders,
   markReminderAsCancelled,
+  updateReminder,
   createTask,
   getUserSubscription,
   hasProAccess,
@@ -14,7 +15,12 @@ import {
   formatLocalDateTime,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
-import { formatReminderCreatedCard, formatReminderCancelledCard, formatReminderAcknowledgedCard } from './formatters.js';
+import {
+  formatReminderCreatedCard,
+  formatReminderCancelledCard,
+  formatReminderAcknowledgedCard,
+  formatReminderUpdatedCard,
+} from './formatters.js';
 
 /**
  * Domain tool for managing reminders.
@@ -264,6 +270,162 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         },
         rawSummary: formattedCard,
         formattedCard,
+      };
+    }
+
+    case 'update': {
+      const {
+        reminderId = null,
+        updates = {},
+        targetTime = null,
+        sendAt = null,
+        content = null,
+        text = null,
+        recurrence = null,
+        recurrenceRule = null,
+      } = params;
+
+      const targetReminderId = reminderId || params.id || updates.reminderId || updates.id;
+
+      // 1. Missing Target Guard: single-reminder update strictly REQUIRES reminderId
+      if (!targetReminderId) {
+        return {
+          success: false,
+          action: 'missing_target_id',
+          errorCode: 'MISSING_TARGET_ID',
+          error: language === 'en'
+            ? 'Missing reminder ID to update. Please specify which reminder you want to update.'
+            : 'Falta el ID del recordatorio a actualizar. Por favor especifica cuál recordatorio deseas actualizar.',
+          rawSummary: language === 'en'
+            ? 'Which reminder would you like me to update?'
+            : '¿Cuál recordatorio deseas que actualice?',
+          confirmation: language === 'en'
+            ? 'Which reminder would you like me to update?'
+            : '¿Cuál recordatorio deseas que actualice?',
+        };
+      }
+
+      const dbUpdates = {};
+
+      // Content update (if specified)
+      const newContent = content || text || updates.content || updates.text;
+      if (newContent) {
+        dbUpdates.content = String(newContent).trim();
+      }
+
+      // Time / Date update (if specified)
+      const rawTargetTime = targetTime || sendAt || updates.targetTime || updates.sendAt || updates.time || updates.date;
+      if (rawTargetTime) {
+        const parsedDate = parseTargetTime(rawTargetTime, timezone);
+        if (!parsedDate || isNaN(parsedDate.getTime())) {
+          return {
+            success: false,
+            action: 'invalid_time',
+            errorCode: 'INVALID_TIME',
+            error: language === 'en'
+              ? `Could not parse date/time: "${rawTargetTime}"`
+              : `No pude entender la fecha/hora: "${rawTargetTime}"`,
+            rawSummary: language === 'en'
+              ? `Could not parse date/time: "${rawTargetTime}"`
+              : `No pude entender la fecha/hora: "${rawTargetTime}"`,
+          };
+        }
+
+        // Pro tier check for future days
+        const todayDateStr = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+        const reminderDateStr = parsedDate.toLocaleDateString('en-CA', { timeZone: timezone });
+        const isFutureDay = reminderDateStr > todayDateStr;
+
+        if (isFutureDay && !userHasPro) {
+          const errorMsg = language === 'en'
+            ? 'Scheduling reminders for future days requires a Reminder Pro subscription.'
+            : 'Para programar recordatorios para días futuros, se requiere una suscripción a Reminder Pro.';
+          return {
+            success: false,
+            action: 'pro_tier_required',
+            errorCode: 'PRO_TIER_REQUIRED',
+            isProFeature: true,
+            error: errorMsg,
+            rawSummary: errorMsg,
+            data: {
+              reason: 'pro_tier_limit',
+              targetDate: parsedDate.toISOString(),
+            },
+          };
+        }
+
+        dbUpdates.send_at = parsedDate.toISOString();
+        dbUpdates.status = 'pending';
+      }
+
+      // Recurrence update (if specified)
+      const newRecurrence = recurrence || recurrenceRule || updates.recurrence || updates.recurrenceRule || updates.recurrence_rule;
+      if (newRecurrence !== undefined) {
+        if (newRecurrence && !userHasPro) {
+          const errorMsg = language === 'en'
+            ? 'Recurring reminders require a Reminder Pro subscription.'
+            : 'Para programar recordatorios recurrentes, se requiere una suscripción a Reminder Pro.';
+          return {
+            success: false,
+            action: 'pro_tier_required',
+            errorCode: 'PRO_TIER_REQUIRED',
+            isProFeature: true,
+            error: errorMsg,
+            rawSummary: errorMsg,
+          };
+        }
+        dbUpdates.recurrence_rule = newRecurrence;
+      }
+
+      if (Object.keys(dbUpdates).length === 0) {
+        return {
+          success: false,
+          action: 'no_updates_provided',
+          errorCode: 'INVALID_PARAMETERS',
+          error: language === 'en'
+            ? 'No update fields provided.'
+            : 'No se especificaron cambios para el recordatorio.',
+          rawSummary: language === 'en'
+            ? 'No update fields provided.'
+            : 'No se especificaron cambios para el recordatorio.',
+        };
+      }
+
+      const updated = await updateReminder(targetReminderId, dbUpdates, userId, phoneNumber);
+
+      if (!updated) {
+        return {
+          success: false,
+          action: 'reminder_not_found',
+          errorCode: 'NOT_FOUND',
+          error: language === 'en'
+            ? 'Reminder not found or access denied.'
+            : 'No se encontró el recordatorio o no tienes permisos sobre él.',
+          rawSummary: language === 'en'
+            ? 'Reminder not found.'
+            : 'No se encontró el recordatorio especificado.',
+          confirmation: language === 'en'
+            ? '⚠️ Reminder not found.'
+            : '⚠️ No se encontró el recordatorio especificado.',
+        };
+      }
+
+      const formattedTime = formatLocalDateTime(new Date(updated.send_at), timezone);
+      const formattedCard = formatReminderUpdatedCard(updated, formattedTime, language);
+
+      return {
+        success: true,
+        action: 'updated_reminder',
+        data: {
+          id: updated.id,
+          content: updated.content,
+          sendAt: updated.send_at,
+          formattedTime,
+          recurrenceRule: updated.recurrence_rule,
+        },
+        rawSummary: formattedCard,
+        formattedCard,
+        confirmation: formattedCard,
       };
     }
 

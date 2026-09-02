@@ -286,4 +286,101 @@ describe('Coherence & Target Contract Safety Test Suite (Hermes Agent)', () => {
     const { data: checkRem } = await supabase.from('reminders').select('status').eq('id', rem.id).single();
     expect(checkRem.status).toBe('cancelled');
   });
+
+  it('TEST 11: update reminder with valid reminderId updates date/time without creating duplicate', async () => {
+    const rem = await saveReminder({
+      userId: testUser.id,
+      phoneNumber: testPhone,
+      content: 'Escribirle a la veterinaria para comprarle más vendaje a Borona',
+      sendAt: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+    });
+    expect(rem).toBeDefined();
+
+    const newTargetTime = new Date(Date.now() + 1800000).toISOString(); // In 30 mins
+
+    const updateRes = await executeTool({
+      toolName: 'manage_reminder',
+      params: {
+        action: 'update',
+        reminderId: rem.id.slice(0, 8),
+        updates: { targetTime: newTargetTime },
+      },
+      user: testUser,
+    });
+
+    expect(updateRes.success).toBe(true);
+    expect(updateRes.action).toBe('updated_reminder');
+    expect(updateRes.data.content).toBe('Escribirle a la veterinaria para comprarle más vendaje a Borona');
+
+    // Confirm in DB that date updated in place and NO duplicate reminder exists
+    const { data: dbReminders } = await supabase
+      .from('reminders')
+      .select('*')
+      .eq('user_id', testUser.id)
+      .eq('status', 'pending');
+
+    const matching = dbReminders.filter(r => r.content.includes('Borona'));
+    expect(matching.length).toBe(1);
+    expect(matching[0].id).toBe(rem.id);
+    expect(new Date(matching[0].send_at).getTime()).toBe(new Date(newTargetTime).getTime());
+  });
+
+  it('TEST 12: update reminder without reminderId returns MISSING_TARGET_ID', async () => {
+    const res = await executeTool({
+      toolName: 'manage_reminder',
+      params: {
+        action: 'update',
+        updates: { targetTime: '10:00' },
+      },
+      user: testUser,
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.errorCode).toBe('MISSING_TARGET_ID');
+  });
+
+  it('TEST 13: update reminder belonging to other user returns NOT_FOUND (ownership guard)', async () => {
+    const rem = await saveReminder({
+      userId: testUser.id,
+      phoneNumber: testPhone,
+      content: 'Recordatorio privado de Usuario A',
+      sendAt: new Date(Date.now() + 3600000).toISOString(),
+    });
+
+    const res = await executeTool({
+      toolName: 'manage_reminder',
+      params: {
+        action: 'update',
+        reminderId: rem.id.slice(0, 8),
+        updates: { targetTime: '15:00' },
+      },
+      user: otherUser,
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.errorCode).toBe('NOT_FOUND');
+  });
+
+  it('TEST 14: partial update only modifies requested fields and preserves all other fields', async () => {
+    const rem = await saveReminder({
+      userId: testUser.id,
+      phoneNumber: testPhone,
+      content: 'Comprar boletos de concierto',
+      sendAt: new Date(Date.now() + 7200000).toISOString(),
+    });
+
+    const res = await executeTool({
+      toolName: 'manage_reminder',
+      params: {
+        action: 'update',
+        reminderId: rem.id,
+        content: 'Comprar boletos VIP de concierto',
+      },
+      user: testUser,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data.content).toBe('Comprar boletos VIP de concierto');
+    expect(new Date(res.data.sendAt).getTime()).toBe(new Date(rem.send_at).getTime());
+  });
 });

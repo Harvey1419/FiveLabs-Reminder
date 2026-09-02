@@ -372,6 +372,57 @@ export async function markReminderAsCancelled(id, userId = null, phoneNumber = n
 }
 
 /**
+ * Update an existing reminder with user ownership guard and prefix-ID support.
+ *
+ * @param {string} reminderId - 36-char UUID or 8-char prefix
+ * @param {object} updates - Fields to update (e.g. send_at, content, recurrence_rule, status)
+ * @param {string} [userId] - User ID for ownership isolation
+ * @param {string} [phoneNumber] - Fallback phone number
+ * @returns {Promise<object|null>} Updated reminder object or null
+ */
+export async function updateReminder(reminderId, updates, userId = null, phoneNumber = null) {
+  if (!reminderId || !updates) return null;
+  try {
+    let resolvedId = reminderId;
+    if (reminderId.length < 36) {
+      let q = supabase.from('reminders').select('id');
+      if (userId) {
+        q = q.eq('user_id', userId);
+      } else if (phoneNumber) {
+        q = q.eq('phone_number', phoneNumber);
+      }
+      const { data: reminders } = await q;
+      const matched = (reminders || []).find(r => r.id.startsWith(reminderId.toLowerCase()));
+      if (matched) resolvedId = matched.id;
+      else return null;
+    }
+
+    let q = supabase
+      .from('reminders')
+      .update(updates)
+      .eq('id', resolvedId);
+
+    if (userId) {
+      q = q.eq('user_id', userId);
+    } else if (phoneNumber) {
+      q = q.eq('phone_number', phoneNumber);
+    }
+
+    const { data, error } = await q.select().limit(1);
+
+    if (error) {
+      console.error('[reminders] updateReminder failed:', error);
+      return null;
+    }
+
+    return data && data.length > 0 ? data[0] : null;
+  } catch (err) {
+    console.error('[reminders] updateReminder threw:', err);
+    return null;
+  }
+}
+
+/**
  * Cancel pending reminders by criteria (all, keepLatest, content matching).
  */
 export async function cancelReminders({ userId, phoneNumber, contentQuery = null, cancelAll = false, keepLatest = false }) {

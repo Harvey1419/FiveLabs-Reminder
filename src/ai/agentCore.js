@@ -174,6 +174,7 @@ ${compactOverviewText}
 - "Dame todos los proyectos y tareas que tengo" -> type:'tool_call', tool:'manage_task', params:{action:'list'}
 - "Completa la de ventas [id: 79f71c4c] / Hazlo" -> type:'tool_call', tool:'manage_task', params:{action:'complete', taskId:'79f71c4c'}
 - "Cancela el de las 10 [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'cancel', reminderId:'r1e2m345'}
+- "Perdón, el recordatorio es para hoy a las 8am [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'update', reminderId:'r1e2m345', updates:{targetTime:'hoy a las 8am'}}
 - "Reunión a las 12, avísame 15 min antes" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Reunión (Aviso previo)', targetTime:'11:45'}, {content:'Reunión', targetTime:'12:00'}]}
 
 ## 4. RESPUESTA JSON ESTRICTA
