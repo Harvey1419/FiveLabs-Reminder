@@ -18,7 +18,7 @@ export function renderGoogleSuccessPage({ email = null, theme = 'obsidian' } = {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Google Calendar Conectado — FiveLabs Reminder</title>
+        <title>Google Calendar Conectado — Hermes TempleLabs</title>
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -180,7 +180,7 @@ export function renderGoogleSuccessPage({ email = null, theme = 'obsidian' } = {
             </svg>
             Volver a WhatsApp
           </a>
-          <div class="footer">FiveLabs Reminder • Todos los derechos reservados</div>
+          <div class="footer">Hermes TempleLabs • Todos los derechos reservados</div>
         </div>
       </body>
     </html>
@@ -205,7 +205,7 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>¡Suscripción Exitosa! — FiveLabs Reminder Pro</title>
+        <title>¡Suscripción Exitosa! — Hermes TempleLabs Pro</title>
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -221,6 +221,7 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             background: radial-gradient(circle at 50% 0%, #1e1e24 0%, #09090b 60%, #000000 100%);
             color: #ffffff;
             padding: 1.5rem;
+            overflow-x: hidden;
           }
           .container {
             background: rgba(18, 18, 22, 0.85);
@@ -229,54 +230,44 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 1.75rem;
             padding: 2.75rem 2rem;
-            text-align: center;
             max-width: 440px;
             width: 100%;
-            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.9), 0 0 50px rgba(37, 211, 102, 0.1);
-            animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            text-align: center;
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.9), 0 0 50px rgba(255, 255, 255, 0.04);
+            animation: scaleUp 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
           }
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(16px) scale(0.95); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+          @keyframes scaleUp {
+            from { opacity: 0; transform: scale(0.94) translateY(12px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
           }
-          .brand-logo-wrapper {
+          .crown-icon {
             width: 80px;
             height: 80px;
             margin: 0 auto 1.5rem auto;
             border-radius: 50%;
-            background: rgba(37, 211, 102, 0.1);
-            border: 1px solid rgba(37, 211, 102, 0.3);
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.05) 100%);
+            border: 1px solid rgba(234, 179, 8, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(37, 211, 102, 0.25);
+            font-size: 2.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(234, 179, 8, 0.2);
           }
-          .brand-logo-wrapper svg {
-            width: 44px;
-            height: 44px;
-            fill: #25D366;
-          }
-          .badge {
+          .status-badge {
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
-            background: rgba(255, 255, 255, 0.06);
-            color: #e4e4e7;
-            border: 1px solid rgba(255, 255, 255, 0.15);
             padding: 0.35rem 0.9rem;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.25);
             border-radius: 9999px;
             font-size: 0.78rem;
             font-weight: 700;
+            color: #facc15;
             letter-spacing: 0.06em;
             text-transform: uppercase;
             margin-bottom: 1.2rem;
-          }
-          .badge-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 10px #22c55e;
           }
           h1 {
             font-size: 1.75rem;
@@ -291,23 +282,24 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             line-height: 1.55;
             margin-bottom: 1.75rem;
           }
-          .features {
+          .features-box {
             background: rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 1rem;
-            padding: 1.25rem 1rem;
-            margin-bottom: 2rem;
+            padding: 1.25rem;
+            margin-bottom: 1.75rem;
             text-align: left;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
           }
           .feature-item {
-            font-size: 0.88rem;
-            color: #d4d4d8;
             display: flex;
             align-items: center;
-            gap: 0.65rem;
+            gap: 0.6rem;
+            font-size: 0.88rem;
+            color: #d4d4d8;
+            margin-bottom: 0.6rem;
+          }
+          .feature-item:last-child {
+            margin-bottom: 0;
           }
           .btn-whatsapp {
             display: flex;
@@ -339,24 +331,20 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             margin-top: 1.75rem;
             font-size: 0.75rem;
             color: #71717a;
+            letter-spacing: 0.02em;
           }
         </style>
       </head>
       <body>
         <div class="container">
-          <div class="brand-logo-wrapper">
-            <svg viewBox="0 0 24 24">
-              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-            </svg>
+          <div class="crown-icon">👑</div>
+          <div class="status-badge">
+            Hermes TempleLabs Pro Activo
           </div>
-          <div class="badge">
-            <span class="badge-dot"></span>
-            Reminder Pro Activo
-          </div>
-          <h1>¡Pago Confirmado!</h1>
-          <p>Tu suscripción se ha procesado con éxito. Tu segundo cerebro ahora tiene superpoderes sin restricciones.</p>
-          
-          <div class="features">
+          <h1>¡Bienvenido a Pro!</h1>
+          <p>Tu cuenta ahora tiene acceso ilimitado a todas las funciones avanzadas de tu asistente.</p>
+
+          <div class="features-box">
             <div class="feature-item"><span>📅</span> Recordatorios para cualquier día y fecha</div>
             <div class="feature-item"><span>🔄</span> Recurrencias automáticas e intervalos</div>
             <div class="feature-item"><span>🌅</span> Morning briefing matutino en WhatsApp</div>
@@ -369,7 +357,7 @@ export function renderSubscriptionSuccessPage({ theme = 'obsidian' } = {}) {
             </svg>
             Volver a WhatsApp
           </a>
-          <div class="footer">FiveLabs Reminder Assistant • Todos los derechos reservados</div>
+          <div class="footer">Hermes TempleLabs Assistant • Todos los derechos reservados</div>
         </div>
       </body>
     </html>
@@ -383,7 +371,7 @@ function renderLegacyGooglePage(email) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>¡Google Calendar Conectado! — FiveLabs Reminder</title>
+        <title>¡Google Calendar Conectado! — Hermes TempleLabs</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -470,7 +458,7 @@ function renderLegacySubscriptionPage() {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>¡Suscripción Exitosa! — FiveLabs Reminder Pro</title>
+        <title>¡Suscripción Exitosa! — Hermes TempleLabs Pro</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -496,6 +484,17 @@ function renderLegacySubscriptionPage() {
             max-width: 440px;
             width: 100%;
           }
+          .badge {
+            display: inline-block;
+            padding: 0.35rem 0.85rem;
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #4ade80;
+            margin-bottom: 1rem;
+          }
           .btn-whatsapp {
             display: flex;
             align-items: center;
@@ -513,7 +512,7 @@ function renderLegacySubscriptionPage() {
       </head>
       <body>
         <div class="container">
-          <div class="badge">🌟 Reminder Pro Activo</div>
+          <div class="badge">🌟 Hermes TempleLabs Pro Activo</div>
           <h1>¡Pago Confirmado!</h1>
           <p>Tu suscripción se ha procesado con éxito.</p>
           <a href="https://api.whatsapp.com/send" class="btn-whatsapp">Volver a WhatsApp</a>

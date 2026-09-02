@@ -168,7 +168,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   if (finalReply && finalReply.includes('[checkout_url]')) {
     try {
       const planRes = await getOrCreateCanonicalPlan({
-        reason: 'FiveLabs Reminder Pro',
+        reason: 'Hermes TempleLabs Pro',
         amount: 49900,
         currency: 'COP',
         phoneNumber: phoneNumber || user.phone_number,

@@ -1,5 +1,5 @@
 /**
- * Render Public Home / Landing Page for FiveLabs Reminder.
+ * Render Public Home / Landing Page for Hermes TempleLabs.
  * Fully compliant with Google OAuth Verification Guidelines.
  * @returns {string} HTML document
  */
@@ -10,7 +10,7 @@ export function renderHomePage() {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>FiveLabs Reminder — Asistente Inteligente de Productividad en WhatsApp</title>
+        <title>Hermes TempleLabs — Asistente Inteligente de Productividad en WhatsApp</title>
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -99,78 +99,93 @@ export function renderHomePage() {
             -webkit-text-fill-color: transparent;
           }
           .hero p {
-            font-size: 1.15rem;
+            font-size: 1.2rem;
             color: #a1a1aa;
+            margin-bottom: 2.25rem;
             max-width: 650px;
-            margin: 0 auto 2.5rem auto;
+            margin-left: auto;
+            margin-right: auto;
           }
           .btn-primary {
             display: inline-flex;
             align-items: center;
             gap: 0.6rem;
-            background: #ffffff;
+            background: #22c55e;
             color: #000000;
-            font-weight: 800;
-            font-size: 1.05rem;
-            padding: 1rem 2rem;
-            border-radius: 1rem;
             text-decoration: none;
-            box-shadow: 0 4px 25px rgba(255, 255, 255, 0.2);
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            font-weight: 700;
+            font-size: 1.05rem;
+            padding: 0.85rem 1.75rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 0 25px rgba(34, 197, 94, 0.35);
+            transition: all 0.2s;
           }
           .btn-primary:hover {
+            background: #16a34a;
             transform: translateY(-2px);
-            background: #f4f4f5;
-            box-shadow: 0 8px 35px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 35px rgba(34, 197, 94, 0.5);
           }
           .btn-primary svg {
             width: 22px;
             height: 22px;
-            fill: #25D366;
+            fill: currentColor;
           }
           .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
             max-width: 1100px;
-            margin: 4rem auto;
+            margin: 3rem auto;
             padding: 0 1.5rem;
           }
           .card {
-            background: rgba(18, 18, 22, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.25rem;
+            background: #18181b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
             padding: 2rem;
-            backdrop-filter: blur(16px);
+            transition: border-color 0.2s;
+          }
+          .card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
           }
           .card .icon {
             font-size: 2rem;
             margin-bottom: 1rem;
           }
           .card h3 {
-            font-size: 1.2rem;
+            font-size: 1.25rem;
             font-weight: 700;
             color: #ffffff;
             margin-bottom: 0.5rem;
           }
           .card p {
             color: #a1a1aa;
-            font-size: 0.92rem;
-            line-height: 1.55;
+            font-size: 0.95rem;
           }
           .google-section {
             max-width: 1100px;
-            margin: 3rem auto 6rem auto;
+            margin: 4rem auto;
             padding: 0 1.5rem;
           }
           .google-box {
-            background: linear-gradient(135deg, rgba(66, 133, 244, 0.08) 0%, rgba(18, 18, 22, 0.9) 100%);
-            border: 1px solid rgba(66, 133, 244, 0.25);
-            border-radius: 1.5rem;
-            padding: 3rem 2.5rem;
+            background: linear-gradient(180deg, #18181b 0%, #121215 100%);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 1.25rem;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+          }
+          .google-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #4285F4, #EA4335, #FBBC05, #34A853);
           }
           .google-box h2 {
-            font-size: 1.75rem;
+            font-size: 1.6rem;
             font-weight: 800;
             color: #ffffff;
             margin-bottom: 1rem;
@@ -179,23 +194,35 @@ export function renderHomePage() {
             gap: 0.75rem;
           }
           .google-box p {
-            color: #cbd5e1;
+            color: #d4d4d8;
+            font-size: 1rem;
             margin-bottom: 1.25rem;
-            font-size: 0.98rem;
           }
           .google-box ul {
-            padding-left: 1.5rem;
-            color: #94a3b8;
-            font-size: 0.92rem;
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
           }
           .google-box li {
-            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.9rem;
+            color: #a1a1aa;
+          }
+          .google-box li strong {
+            color: #ffffff;
+            display: block;
+            margin-bottom: 0.25rem;
           }
           footer {
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 2.5rem 1.5rem;
             max-width: 1100px;
-            margin: 0 auto;
+            margin: 4rem auto 2rem auto;
+            padding: 2rem 1.5rem 0 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -217,8 +244,8 @@ export function renderHomePage() {
       <body>
         <nav>
           <a href="/" class="nav-brand">
-            <img src="/Logo.png" alt="FiveLabs Logo" />
-            FiveLabs Reminder
+            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
+            Hermes TempleLabs
           </a>
           <div class="nav-links">
             <a href="/privacy">Privacidad</a>
@@ -229,13 +256,13 @@ export function renderHomePage() {
 
         <section class="hero">
           <div class="badge-hero">⚡ Asistente Inteligente en WhatsApp</div>
-          <h1><span>FiveLabs Reminder</span><br/>Tu Segundo Cerebro en Tiempo Real</h1>
+          <h1><span>Hermes TempleLabs</span><br/>Tu Segundo Cerebro en Tiempo Real</h1>
           <p>Organiza tu día, gestiona tareas y sincroniza tus citas de Google Calendar de forma natural mediante mensajes de texto y notas de voz.</p>
           <a href="https://api.whatsapp.com/send" class="btn-primary">
             <svg viewBox="0 0 24 24">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
             </svg>
-            Probar FiveLabs Reminder en WhatsApp
+            Probar Hermes TempleLabs en WhatsApp
           </a>
         </section>
 
@@ -262,7 +289,7 @@ export function renderHomePage() {
             <h2>
               <span>📅</span> Integración Oficial con Google Calendar
             </h2>
-            <p><strong>FiveLabs Reminder</strong> se conecta de forma segura con la API de Google Calendar bajo el estándar OAuth 2.0 para potenciar tu productividad:</p>
+            <p><strong>Hermes TempleLabs</strong> se conecta de forma segura con la API de Google Calendar bajo el estándar OAuth 2.0 para potenciar tu productividad:</p>
             <ul>
               <li><strong>Lectura de eventos:</strong> Consultamos tu calendario únicamente cuando solicitas ver tu agenda o en la generación de tu <em>Morning Briefing</em>.</li>
               <li><strong>Creación de eventos:</strong> Añadimos eventos a tu Google Calendar sólo cuando tú lo pides explícitamente en el chat.</li>
@@ -273,7 +300,7 @@ export function renderHomePage() {
         </section>
 
         <footer>
-          <div>© 2026 FiveLabs Co. Todos los derechos reservados.</div>
+          <div>© 2026 TempleLabs. Todos los derechos reservados.</div>
           <div>
             <a href="/privacy">Política de Privacidad</a>
             <a href="/terms">Condiciones del Servicio</a>

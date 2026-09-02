@@ -302,7 +302,7 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
           headerText: '📅 Google Calendar',
           bodyText: 'Para consultar tu calendario, vincula tu cuenta en 1 toque.',
           buttonText: '🔗 Conectar Google',
-          url: 'https://fivelabs-reminder-production.up.railway.app/auth/google?phone=573046154163',
+          url: 'https://hermes.templelabs.co/auth/google?phone=573046154163',
         });
 
         expect(res.success).toBe(true);

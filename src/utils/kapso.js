@@ -232,7 +232,7 @@ export async function sendWhatsAppCtaUrl({
   bsuid = null,
   headerText = null,
   bodyText,
-  footerText = 'FiveLabs Reminder Assistant',
+  footerText = 'Hermes TempleLabs',
   buttonText = '🔗 Conectar',
   url,
 }) {

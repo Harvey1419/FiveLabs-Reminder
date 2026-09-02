@@ -2,7 +2,7 @@
   "name": "whatsapp-reminder-assistant",
   "version": "1.0.0",
   "type": "module",
-  "description": "AI-powered WhatsApp reminder assistant with Kapso, Supabase, Groq, and Gemini",
+  "description": "Hermes TempleLabs — AI-powered WhatsApp executive personal assistant and second brain",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

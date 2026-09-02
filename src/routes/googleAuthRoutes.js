@@ -50,7 +50,7 @@ googleAuthRouter.get('/callback', async (req, res) => {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Conexión Cancelada — FiveLabs Reminder</title>
+          <title>Conexión Cancelada — Hermes TempleLabs</title>
           <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
           <style>
             body { font-family: 'Plus Jakarta Sans', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; color: #f8fafc; padding: 1.5rem; text-align: center; }
@@ -108,7 +108,7 @@ googleAuthRouter.get('/callback', async (req, res) => {
       const emailNotice = email ? ` (*${email}*)` : '';
       const whatsappMsg =
         `🎉 *¡Google Calendar conectado con éxito!*\n\n` +
-        `Tu cuenta de Google${emailNotice} ha sido vinculada con FiveLabs Reminder.\n\n` +
+        `Tu cuenta de Google${emailNotice} ha sido vinculada con Hermes TempleLabs.\n\n` +
         `A partir de ahora puedo:\n` +
         `• 📅 *Agendar eventos directamente en tu Google Calendar*\n` +
         `• 🔄 *Sincronizar tus eventos en el Morning Briefing diario*\n` +

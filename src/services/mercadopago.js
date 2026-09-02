@@ -19,14 +19,14 @@ let cachedCanonicalPlan = null;
  * Get existing active plan or create one canonically (Idempotent single plan pattern).
  *
  * @param {object} [params]
- * @param {string} [params.reason='FiveLabs Reminder Pro']
+ * @param {string} [params.reason='Hermes TempleLabs Pro']
  * @param {number} [params.amount=49900]
  * @param {string} [params.currency='COP']
  * @param {string} [params.backUrl]
  * @returns {Promise<{id: string, init_point: string, status: string}>}
  */
 export async function getOrCreateCanonicalPlan({
-  reason = 'FiveLabs Reminder Pro',
+  reason = 'Hermes TempleLabs Pro',
   amount = 49900,
   currency = 'COP',
   backUrl = null,
@@ -38,52 +38,75 @@ export async function getOrCreateCanonicalPlan({
       id: 'a4406391b5914bfeaf0f3d708cbcf869',
       init_point: 'https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=a4406391b5914bfeaf0f3d708cbcf869',
       amount: 1600,
-      reason: 'Reminder Pro Plan Test',
+      currency: 'COP',
       status: 'active',
     };
   }
 
-  if (process.env.MP_PLAN_ID) {
+  const explicitPlanId = process.env.MP_PLAN_ID;
+  if (explicitPlanId) {
     return {
-      id: process.env.MP_PLAN_ID,
-      init_point: `https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=${process.env.MP_PLAN_ID}`,
+      id: explicitPlanId,
+      init_point: `https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=${explicitPlanId}`,
+      amount,
+      currency,
       status: 'active',
     };
   }
 
-  if (cachedCanonicalPlan) {
+  if (cachedCanonicalPlan?.id) {
     return cachedCanonicalPlan;
   }
 
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const res = await fetch(`${MP_API_BASE}/preapproval_plan/search?status=active`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      const existing = (data.results || []).find(p =>
-        (p.reason === reason || p.reason?.includes('Reminder Pro')) &&
-        p.auto_recurring?.transaction_amount === Number(amount)
-      );
-
-      if (existing) {
-        cachedCanonicalPlan = {
-          id: existing.id,
-          init_point: existing.init_point,
-          status: existing.status,
-        };
-        console.log(`[mercadopago] Reusing canonical active plan: ${existing.id} (${existing.reason})`);
-        return cachedCanonicalPlan;
-      }
-    } catch (err) {
-      console.warn('[mercadopago] plan lookup warning:', err.message);
-    }
+  const existing = await findActivePlanByReason(reason);
+  if (existing) {
+    console.log(`[mercadopago] Reusing canonical active plan: ${existing.id} (${existing.reason})`);
+    cachedCanonicalPlan = existing;
+    return existing;
   }
 
+  console.log(`[mercadopago] Creating new canonical plan: "${reason}" (${amount} ${currency})...`);
   const created = await createPreapprovalPlan({ reason, amount, currency, backUrl });
   cachedCanonicalPlan = created;
   return created;
+}
+
+/**
+ * Search existing active preapproval plans by exact or prefix reason.
+ *
+ * @param {string} reason
+ * @returns {Promise<{id: string, init_point: string, reason: string, status: string}|null>}
+ */
+export async function findActivePlanByReason(reason = 'Hermes TempleLabs Pro') {
+  const token = getAccessToken();
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`${MP_API_BASE}/preapproval_plan/search?status=active&limit=50`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const results = data.results || [];
+
+    const norm = reason.toLowerCase().trim();
+    const match = results.find(p => p.status === 'active' && p.reason?.toLowerCase().trim() === norm)
+      || results.find(p => p.status === 'active' && (p.reason?.toLowerCase().includes('hermes') || p.reason?.toLowerCase().includes('reminder') || p.reason?.toLowerCase().includes('pro')));
+
+    if (match) {
+      return {
+        id: match.id,
+        init_point: match.init_point,
+        reason: match.reason,
+        status: match.status,
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('[mercadopago] findActivePlanByReason error:', err.message);
+    return null;
+  }
 }
 
 /**
@@ -91,14 +114,14 @@ export async function getOrCreateCanonicalPlan({
  * Customers can subscribe and enter any email in the MercadoPago checkout.
  *
  * @param {object} [params]
- * @param {string} [params.reason='FiveLabs Reminder Pro']
+ * @param {string} [params.reason='Hermes TempleLabs Pro']
  * @param {number} [params.amount=49900]
  * @param {string} [params.currency='COP']
  * @param {string} [params.backUrl]
  * @returns {Promise<{id: string, init_point: string, status: string}>}
  */
 export async function createPreapprovalPlan({
-  reason = 'FiveLabs Reminder Pro',
+  reason = 'Hermes TempleLabs Pro',
   amount = 49900,
   currency = 'COP',
   backUrl = null,
@@ -110,7 +133,7 @@ export async function createPreapprovalPlan({
 
   const defaultBackUrl = process.env.APP_BASE_URL
     ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/subscription/callback`
-    : 'https://fivelabs-reminder-production.up.railway.app/subscription/callback';
+    : 'https://hermes.templelabs.co/subscription/callback';
 
   const body = {
     reason,
@@ -152,7 +175,7 @@ export async function createPreapprovalPlan({
  *
  * @param {object} params
  * @param {string} params.userId - User UUID (stored in external_reference)
- * @param {string} [params.reason='FiveLabs Reminder Pro'] - Plan title shown to customer
+ * @param {string} [params.reason='Hermes TempleLabs Pro'] - Plan title shown to customer
  * @param {number} [params.amount=49900] - Subscription price per month (COP)
  * @param {string} [params.currency='COP'] - Currency code
  * @param {string} [params.backUrl] - Redirect URL after checkout completion
@@ -162,7 +185,7 @@ export async function createPreapprovalPlan({
 export async function createPreapproval({
   userId,
   phoneNumber = null,
-  reason = 'FiveLabs Reminder Pro',
+  reason = 'Hermes TempleLabs Pro',
   amount = 49900,
   currency = 'COP',
   backUrl = null,
@@ -175,14 +198,14 @@ export async function createPreapproval({
 
   const defaultBackUrl = process.env.APP_BASE_URL
     ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/subscription/callback`
-    : 'https://fivelabs-reminder-production.up.railway.app/subscription/callback';
+    : 'https://hermes.templelabs.co/subscription/callback';
 
   // MercadoPago requires a payer_email format string in the API payload.
   // The customer can change/confirm their actual personal email in the MercadoPago checkout UI.
   const cleanPhone = phoneNumber ? String(phoneNumber).replace(/\D/g, '') : '';
   const fallbackEmail = cleanPhone
-    ? `user_${cleanPhone}@reminder.fivelabs.co`
-    : `user_${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}@reminder.fivelabs.co`;
+    ? `user_${cleanPhone}@hermes.templelabs.co`
+    : `user_${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}@hermes.templelabs.co`;
   const emailToUse = payerEmail || fallbackEmail;
 
   const body = {

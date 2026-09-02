@@ -93,7 +93,7 @@ describe('Subscription Access Control (hasProAccess)', () => {
 describe('MercadoPago Service Client', () => {
   beforeEach(() => {
     process.env.MP_ACCESS_TOKEN = 'TEST-TOKEN-12345';
-    process.env.APP_BASE_URL = 'https://fivelabs-reminder-production.up.railway.app';
+    process.env.APP_BASE_URL = 'https://hermes.templelabs.co';
   });
 
   it('should call MercadoPago API to create preapproval checkout', async () => {
@@ -320,7 +320,7 @@ describe('AI Tools & Plan Tier Gating', () => {
           json: async () => ({
             results: [{
               id: 'test_sub_123',
-              reason: 'FiveLabs Reminder Pro',
+              reason: 'Hermes TempleLabs Pro',
               init_point: mockInitPoint,
               status: 'active',
               auto_recurring: { transaction_amount: 49900 },

@@ -9,7 +9,7 @@ export function renderPrivacyPolicyPage() {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Política de Privacidad — FiveLabs Reminder</title>
+        <title>Política de Privacidad — Hermes TempleLabs</title>
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -117,9 +117,9 @@ export function renderPrivacyPolicyPage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/Logo.png" alt="FiveLabs Logo" />
+            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
             <div>
-              <h2>FiveLabs Reminder</h2>
+              <h2>Hermes TempleLabs</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>
             </div>
           </div>
@@ -127,7 +127,7 @@ export function renderPrivacyPolicyPage() {
           <h1>Política de Privacidad</h1>
           <div class="last-updated">Última actualización: 1 de septiembre de 2026</div>
 
-          <p>En <strong>FiveLabs Reminder</strong> respetamos tu privacidad y nos comprometemos a proteger los datos personales que compartes con nosotros para la operación de nuestro asistente inteligente de productividad y recordatorios a través de WhatsApp y herramientas asociadas.</p>
+          <p>En <strong>Hermes TempleLabs</strong> respetamos tu privacidad y nos comprometemos a proteger los datos personales que compartes con nosotros para la operación de nuestro asistente inteligente de productividad y recordatorios a través de WhatsApp y herramientas asociadas.</p>
 
           <h2>1. Información que recopilamos</h2>
           <p>Para brindarte el servicio de asistente de recordatorios, recopilamos la siguiente información mínima necesaria:</p>
@@ -139,7 +139,7 @@ export function renderPrivacyPolicyPage() {
 
           <div class="highlight-box">
             <h3>🔒 Cláusula de Uso Limitado de las APIs de Google</h3>
-            <p style="margin-bottom: 0;">El uso y la transferencia que <strong>FiveLabs Reminder</strong> haga de la información recibida a través de las APIs de Google hacia cualquier otra aplicación se adhiere a la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Política de Datos de Usuario de los Servicios de las APIs de Google</a>, incluidos los requisitos de <strong>Uso Limitado (Limited Use Requirements)</strong>. No utilizamos tus datos de Google para publicidad de terceros ni entrenamos modelos públicos con tu información privada.</p>
+            <p style="margin-bottom: 0;">El uso y la transferencia que <strong>Hermes TempleLabs</strong> haga de la información recibida a través de las APIs de Google hacia cualquier otra aplicación se adhiere a la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Política de Datos de Usuario de los Servicios de las APIs de Google</a>, incluidos los requisitos de <strong>Uso Limitado (Limited Use Requirements)</strong>. No utilizamos tus datos de Google para publicidad de terceros ni entrenamos modelos públicos con tu información privada.</p>
           </div>
 
           <h2>2. Cómo utilizamos tu información</h2>
@@ -166,10 +166,10 @@ export function renderPrivacyPolicyPage() {
           </ul>
 
           <h2>5. Contacto</h2>
-          <p>Si tienes preguntas sobre esta Política de Privacidad o el tratamiento de tus datos, puedes contactarnos a través de WhatsApp o escribiendo a <strong>soporte@fivelabs.co</strong>.</p>
+          <p>Si tienes preguntas sobre esta Política de Privacidad o el tratamiento de tus datos, puedes contactarnos a través de WhatsApp o escribiendo a <strong>soporte@templelabs.co</strong>.</p>
 
           <div class="footer">
-            <div>© 2026 FiveLabs Co. Todos los derechos reservados.</div>
+            <div>© 2026 TempleLabs. Todos los derechos reservados.</div>
             <div>
               <a href="/terms">Condiciones del Servicio</a>
             </div>
@@ -191,7 +191,7 @@ export function renderTermsOfServicePage() {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Condiciones del Servicio — FiveLabs Reminder</title>
+        <title>Condiciones del Servicio — Hermes TempleLabs</title>
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -287,9 +287,9 @@ export function renderTermsOfServicePage() {
       <body>
         <div class="wrapper">
           <div class="brand-header">
-            <img src="/Logo.png" alt="FiveLabs Logo" />
+            <img src="/Logo.png" alt="Hermes TempleLabs Logo" />
             <div>
-              <h2>FiveLabs Reminder</h2>
+              <h2>Hermes TempleLabs</h2>
               <span style="font-size: 0.8rem; color: #71717a;">Intelligent Personal Assistant</span>
             </div>
           </div>
@@ -297,16 +297,16 @@ export function renderTermsOfServicePage() {
           <h1>Condiciones del Servicio</h1>
           <div class="last-updated">Última actualización: 1 de septiembre de 2026</div>
 
-          <p>Bienvenido a <strong>FiveLabs Reminder</strong>. Al interactuar con nuestro asistente a través de WhatsApp, conectar servicios externos o suscribirte a nuestros planes, aceptas cumplir y regirte por las siguientes Condiciones del Servicio.</p>
+          <p>Bienvenido a <strong>Hermes TempleLabs</strong>. Al interactuar con nuestro asistente a través de WhatsApp, conectar servicios externos o suscribirte a nuestros planes, aceptas cumplir y regirte por las siguientes Condiciones del Servicio.</p>
 
           <h2>1. Descripción del Servicio</h2>
-          <p>FiveLabs Reminder proporciona un asistente automatizado con inteligencia artificial para la gestión de recordatorios, tareas, agendas y sincronización de calendarios vía WhatsApp.</p>
+          <p>Hermes TempleLabs proporciona un asistente automatizado con inteligencia artificial para la gestión de recordatorios, tareas, agendas y sincronización de calendarios vía WhatsApp.</p>
 
           <h2>2. Integración con Google Calendar</h2>
-          <p>El servicio permite a los usuarios conectar su cuenta de Google Calendar mediante el protocolo estándar de autenticación OAuth 2.0. Al conectar tu cuenta, autorizas a FiveLabs Reminder a leer eventos existentes y crear nuevos eventos únicamente bajo tus instrucciones explícitas.</p>
+          <p>El servicio permite a los usuarios conectar su cuenta de Google Calendar mediante el protocolo estándar de autenticación OAuth 2.0. Al conectar tu cuenta, autorizas a Hermes TempleLabs a leer eventos existentes y crear nuevos eventos únicamente bajo tus instrucciones explícitas.</p>
 
-          <h2>3. Planes y Pagos (Reminder Pro)</h2>
-          <p>Ofrecemos planes gratuitos y suscripciones premium (Reminder Pro). Las suscripciones se procesan mediante pasarelas de pago certificadas (como Mercado Pago) de forma recurrente y pueden ser canceladas en cualquier momento por el usuario sin penalidad.</p>
+          <h2>3. Planes y Pagos (Hermes TempleLabs Pro)</h2>
+          <p>Ofrecemos planes gratuitos y suscripciones premium (Hermes TempleLabs Pro). Las suscripciones se procesan mediante pasarelas de pago certificadas (como Mercado Pago) de forma recurrente y pueden ser canceladas en cualquier momento por el usuario sin penalidad.</p>
 
           <h2>4. Uso Aceptable</h2>
           <p>Te comprometes a utilizar el servicio de manera lícita, absteniéndote de enviar contenido abusivo, spam, o que vulnere derechos de propiedad intelectual de terceros.</p>
@@ -315,7 +315,7 @@ export function renderTermsOfServicePage() {
           <p>Nos reservamos el derecho de actualizar o modificar estas condiciones periódicamente para reflejar mejoras operativas o regulatorias.</p>
 
           <div class="footer">
-            <div>© 2026 FiveLabs Co. Todos los derechos reservados.</div>
+            <div>© 2026 TempleLabs. Todos los derechos reservados.</div>
             <div>
               <a href="/privacy">Política de Privacidad</a>
             </div>

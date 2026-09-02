@@ -20,7 +20,7 @@ export function createOAuth2Client(redirectUri = null) {
   const defaultRedirect = process.env.GOOGLE_REDIRECT_URI ||
     (process.env.APP_BASE_URL
       ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/auth/google/callback`
-      : 'https://fivelabs-reminder-production.up.railway.app/auth/google/callback');
+      : 'https://hermes.templelabs.co/auth/google/callback');
 
   if (!clientId || !clientSecret) {
     throw new Error('Google OAuth credentials not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)');
@@ -75,7 +75,7 @@ export function generateGoogleAuthUrl({ userId, phoneNumber = null, redirectUri 
 export function getGoogleConnectUrl({ userId, phoneNumber = null }) {
   const baseUrl = process.env.APP_BASE_URL
     ? process.env.APP_BASE_URL.replace(/\/$/, '')
-    : 'https://fivelabs-reminder-production.up.railway.app';
+    : 'https://hermes.templelabs.co';
 
   const query = phoneNumber
     ? `phone=${encodeURIComponent(phoneNumber)}`

@@ -93,7 +93,7 @@ export async function createCalendarEvent(userId, {
 
     const eventResource = {
       summary: summary.trim(),
-      description: description ? description.trim() : 'Agendado por FiveLabs Reminder',
+      description: description ? description.trim() : 'Agendado por Hermes TempleLabs',
       start: {
         dateTime: startDate.toISOString(),
         timeZone: timezone,

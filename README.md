@@ -1,12 +1,14 @@
-# WhatsApp Reminder Assistant
+# Hermes TempleLabs
 
-AI-powered WhatsApp reminder bot using Kapso, Supabase (PostgreSQL + pg_cron), and MiniMax.
+AI-powered WhatsApp executive personal assistant and second brain using Kapso, Supabase (PostgreSQL + pgvector), Groq (Llama 3 / GPT-OSS), and Google Gemini.
 
 ## Stack
 
-- **WhatsApp**: Kapso Cloud API
-- **AI**: MiniMax (NLU for intent detection and entity extraction)
-- **Database**: Supabase (PostgreSQL + pg_cron)
+- **WhatsApp**: Kapso Cloud API (Meta Cloud WhatsApp Business)
+- **AI Engine**: Groq & Google Gemini (Multi-model high availability fallback)
+- **Database**: Supabase (PostgreSQL + pgvector + pg_cron)
+- **Calendar**: Google Calendar API (OAuth 2.0)
+- **Payments**: Mercado Pago Preapproval Subscriptions
 - **Runtime**: Node.js (ESM)
 
 ## Setup

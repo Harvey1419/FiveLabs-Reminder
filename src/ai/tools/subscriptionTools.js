@@ -17,7 +17,7 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
     case 'get_subscription_link': {
       try {
         const plan = await getOrCreateCanonicalPlan({
-          reason: 'FiveLabs Reminder Pro',
+          reason: 'Hermes TempleLabs Pro',
           amount: 49900,
           currency: 'COP',
           phoneNumber,
