@@ -31,16 +31,19 @@ app.use(express.json({
 }));
 
 // Public Home / Landing Page (Required by Google OAuth Verification)
-app.get('/', (req, res) => {
+app.get(['/', '/about', '/app'], (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.status(200).send(renderHomePage());
 });
 
 // Privacy Policy & Terms of Service (Required by Google OAuth Consent Screen)
 app.get(['/privacy', '/politica-de-privacidad'], (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.status(200).send(renderPrivacyPolicyPage());
 });
 
 app.get(['/terms', '/terminos-y-condiciones'], (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.status(200).send(renderTermsOfServicePage());
 });
 
