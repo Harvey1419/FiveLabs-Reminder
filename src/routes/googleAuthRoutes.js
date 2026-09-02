@@ -62,7 +62,7 @@ googleAuthRouter.get('/callback', async (req, res) => {
           <div class="card">
             <h1 style="font-size: 1.5rem; margin-bottom: 0.5rem;">Conexión Cancelada</h1>
             <p style="color: #94a3b8;">No se completó la vinculación con Google. Puedes volver a intentarlo cuando desees desde WhatsApp.</p>
-            <a href="https://api.whatsapp.com/send" class="btn">Volver a WhatsApp</a>
+            <a href="https://wa.link/iekvou" class="btn">Volver a WhatsApp</a>
           </div>
         </body>
       </html>
