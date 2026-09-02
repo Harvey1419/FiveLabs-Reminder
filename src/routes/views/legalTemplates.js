@@ -10,6 +10,9 @@ export function renderPrivacyPolicyPage() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Política de Privacidad — Hermes TempleLabs</title>
+        <meta name="application-name" content="Hermes TempleLabs" />
+        <meta property="og:site_name" content="Hermes TempleLabs" />
+        <meta property="og:title" content="Política de Privacidad — Hermes TempleLabs" />
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -192,6 +195,9 @@ export function renderTermsOfServicePage() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Condiciones del Servicio — Hermes TempleLabs</title>
+        <meta name="application-name" content="Hermes TempleLabs" />
+        <meta property="og:site_name" content="Hermes TempleLabs" />
+        <meta property="og:title" content="Condiciones del Servicio — Hermes TempleLabs" />
         <link rel="icon" type="image/png" href="/Logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
