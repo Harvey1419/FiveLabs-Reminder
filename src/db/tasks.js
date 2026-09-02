@@ -159,6 +159,8 @@ export async function completeTasks({
   userId,
   taskId = null,
   titleQuery = null,
+  titles = null,
+  items = null,
   entityName = null,
   entityId = null,
   completeAll = false,
@@ -167,6 +169,30 @@ export async function completeTasks({
 
   try {
     const nowIso = new Date().toISOString();
+    const targetTitles = [
+      ...(Array.isArray(titles) ? titles : titles ? [titles] : []),
+      ...(Array.isArray(items) ? items : items ? [items] : []),
+      ...(Array.isArray(titleQuery) ? titleQuery : titleQuery ? [titleQuery] : []),
+    ].map(t => String(t).trim()).filter(Boolean);
+
+    // If multiple titles are provided, iterate and complete them all
+    if (targetTitles.length > 1) {
+      let totalCompleted = 0;
+      const allUpdated = [];
+      for (const singleTitle of targetTitles) {
+        const subRes = await completeTasks({
+          userId,
+          titleQuery: singleTitle,
+          entityName,
+          entityId,
+        });
+        totalCompleted += subRes.completedCount;
+        allUpdated.push(...subRes.tasks);
+      }
+      return { completedCount: totalCompleted, tasks: allUpdated };
+    }
+
+    const effectiveTitleQuery = targetTitles.length === 1 ? targetTitles[0] : null;
     const matchingEntityIds = new Set();
 
     if (entityId) {
@@ -174,7 +200,7 @@ export async function completeTasks({
     }
 
     // 1. Resolve all entities matching entityName or titleQuery
-    const searchEntityTerm = entityName || (!taskId && !completeAll ? titleQuery : null);
+    const searchEntityTerm = entityName || (!taskId && !completeAll ? effectiveTitleQuery : null);
     if (searchEntityTerm) {
       const { data: allEntities } = await supabase
         .from('entities')
@@ -204,8 +230,8 @@ export async function completeTasks({
       q = q.eq('id', taskId);
     } else if (matchingEntityIds.size > 0) {
       q = q.in('entity_id', Array.from(matchingEntityIds));
-    } else if (!completeAll && titleQuery) {
-      q = q.ilike('title', `%${String(titleQuery).trim()}%`);
+    } else if (!completeAll && (effectiveTitleQuery || titleQuery)) {
+      q = q.ilike('title', `%${String(effectiveTitleQuery || titleQuery).trim()}%`);
     }
 
     const { data: candidates, error: selectErr } = await q;

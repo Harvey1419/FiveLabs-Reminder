@@ -538,8 +538,9 @@ export async function executeTool(toolName, params, user) {
         if (action === 'complete' || action === 'done' || action === 'finish') {
           const result = await completeTasks({
             userId: user.id,
-            taskId: params.taskId,
+            taskId: params.taskId || params.id,
             titleQuery: title || params.query || params.titleQuery,
+            titles: params.titles || params.items || params.tasks,
             entityName: entityName || params.projectName || params.project,
             completeAll: Boolean(params.completeAll || params.all),
           });
