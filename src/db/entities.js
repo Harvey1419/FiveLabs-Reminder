@@ -734,6 +734,8 @@ export async function findEntities({ userId, query, category, limit = 10 }) {
   }
 }
 
+export const getEntitiesByUser = findEntities;
+
 /**
  * Get entity by ID for a specific user.
  *

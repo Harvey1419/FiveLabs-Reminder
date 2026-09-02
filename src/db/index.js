@@ -447,6 +447,8 @@ export async function cancelReminders({ userId, phoneNumber, contentQuery = null
   };
 }
 
+export const cancelPendingRemindersByContent = cancelReminders;
+
 /**
  * Fetch rich daily overview formatted directly in the User's local timezone.
  */

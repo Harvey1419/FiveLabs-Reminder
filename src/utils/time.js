@@ -1,4 +1,4 @@
-const DEFAULT_TIMEZONE = 'America/Bogota';
+export const DEFAULT_TIMEZONE = 'America/Bogota';
 
 const UNIT_WORDS = {
   es: { minutes: 'minuto', hours: 'hora', days: 'día', weeks: 'semana' },
