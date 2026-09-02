@@ -240,6 +240,21 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     return new Date(Date.now() + ms);
   }
 
+  // Normalize dots in meridians (e.g. "p. m." -> "pm", "a. m." -> "am")
+  let normalizedStr = s
+    .replace(/p\.\s*m\./gi, 'pm')
+    .replace(/a\.\s*m\./gi, 'am')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  let isExplicitTomorrow = false;
+  if (/^(?:mañana|tomorrow)(?:\s+(?:a\s+las?|at))?\s+/i.test(normalizedStr)) {
+    isExplicitTomorrow = true;
+    normalizedStr = normalizedStr.replace(/^(?:mañana|tomorrow)(?:\s+(?:a\s+las?|at))?\s+/i, '').trim();
+  } else if (/^(?:hoy|today)(?:\s+(?:a\s+las?|at))?\s+/i.test(normalizedStr)) {
+    normalizedStr = normalizedStr.replace(/^(?:hoy|today)(?:\s+(?:a\s+las?|at))?\s+/i, '').trim();
+  }
+
   // Get current date components in the user's timezone
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -251,7 +266,7 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
   const [todayYear, todayMonth, todayDay] = formatter.format(now).split('-').map(Number);
 
   // 2. Full Date + Time ISO or Date string (e.g. "2026-09-02T17:00:00Z", "2026-09-02 17:00", "2026-09-02T17:00:00-05:00")
-  const fullIsoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s*(am|pm))?(?:([Zz])|([+-]\d{2}:?\d{2}))?$/i);
+  const fullIsoMatch = normalizedStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?(?:\s*(am|pm))?(?:([Zz])|([+-]\d{2}:?\d{2}))?$/i);
   if (fullIsoMatch) {
     const y = parseInt(fullIsoMatch[1], 10);
     const m = parseInt(fullIsoMatch[2], 10);
@@ -270,14 +285,14 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
       return new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
     }
     if (explicitOffset) {
-      return new Date(s);
+      return new Date(normalizedStr);
     }
     // No explicit offset -> interpret in user's timezone
     return zonedTimeToUtc(y, m, d, hh, mm, ss, timezone);
   }
 
   // 3. 12-hour AM/PM format (e.g. "5:00 PM", "5 PM", "06:30 am", "11 am", "5am")
-  const ampmMatch = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  const ampmMatch = normalizedStr.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
   if (ampmMatch) {
     let hours = parseInt(ampmMatch[1], 10);
     const minutes = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0;
@@ -286,30 +301,32 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
     if (meridian === 'am' && hours === 12) hours = 0;
 
     let targetUtc = zonedTimeToUtc(todayYear, todayMonth, todayDay, hours, minutes, 0, timezone);
-    // If the scheduled time is already in the past today, move to tomorrow
-    if (targetUtc.getTime() <= Date.now()) {
+    if (isExplicitTomorrow) {
+      targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
+    } else if (targetUtc.getTime() <= Date.now()) {
       targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
     }
     return targetUtc;
   }
 
   // 4. Time-only 24h format (e.g. "08:00", "18:30:00", "17:00")
-  const timeOnlyMatch = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const timeOnlyMatch = normalizedStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (timeOnlyMatch) {
     const hours = parseInt(timeOnlyMatch[1], 10);
     const minutes = parseInt(timeOnlyMatch[2], 10);
     const seconds = timeOnlyMatch[3] ? parseInt(timeOnlyMatch[3], 10) : 0;
 
     let targetUtc = zonedTimeToUtc(todayYear, todayMonth, todayDay, hours, minutes, seconds, timezone);
-    // If the time is already in the past today, advance to tomorrow (deterministic, no AM/PM guessing)
-    if (targetUtc.getTime() <= Date.now()) {
+    if (isExplicitTomorrow) {
+      targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
+    } else if (targetUtc.getTime() <= Date.now()) {
       targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
     }
     return targetUtc;
   }
 
   // 5. Explicit ISO string fallback
-  const parsedDirect = new Date(s);
+  const parsedDirect = new Date(normalizedStr);
   if (!isNaN(parsedDirect.getTime())) {
     return parsedDirect;
   }

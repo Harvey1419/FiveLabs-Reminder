@@ -100,55 +100,23 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   let plan = { type: 'chat', tool: null, params: {}, intent: 'chat', reply: '' };
 
-  const isRightToForget = /\b(olvida(r)?|borra(r)?|elimina(r)?)\b.*\b(de|sobre|acerca\s+de|la\s+doctora|el\s+doctor)\b/i.test(sanitizedText);
-  const isListTasks = /\b(dame|muestra|ver|lista|cu[aá]les\s+(son\s+)?(mis\s+)?|qu[eé]\s+(tengo|hay))\b.*\b(proyectos?|tareas?|pendientes?)\b/i.test(sanitizedText) ||
-    /\b(dame\s+(todos\s+)?(mis\s+)?(proyectos|tareas)|qu[eé]\s+tareas\s+tengo|proyectos\s+y\s+tareas|ver\s+mis\s+tareas|listar?\s+tareas)\b/i.test(sanitizedText);
-
-  if (isRightToForget) {
-    const topicExtract = sanitizedText.replace(/^.*?\b(de|sobre|acerca\s+de)\s+/i, '').replace(/[.?!,]/g, '').trim();
-    plan = {
-      type: 'tool_call',
-      tool: 'manage_memory',
-      params: {
-        action: 'forget',
-        topicKey: topicExtract || 'doctora Marcela',
-        query: topicExtract || 'doctora Marcela',
-      },
-      intent: 'memory',
-    };
-  } else if (isListTasks) {
-    plan = {
-      type: 'tool_call',
-      tool: 'manage_task',
-      params: { action: 'list' },
-      intent: 'task',
-    };
-  } else {
-    try {
-      const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
-      const jsonStr = extractFirstJsonObject(rawText);
-      const parsed = safeJsonParse(jsonStr);
-      if (parsed) {
-        plan = parsed;
-        if (plan.reasoning) {
-          console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
-        }
-      } else if (rawText && !rawText.startsWith('{')) {
-        plan.reply = rawText;
+  try {
+    const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
+    const jsonStr = extractFirstJsonObject(rawText);
+    const parsed = safeJsonParse(jsonStr);
+    if (parsed) {
+      plan = parsed;
+      if (plan.reasoning) {
+        console.log(`[router] Deliberation: "${plan.reasoning.slice(0, 140)}..."`);
       }
-    } catch (err) {
-      console.warn('[router] planning failed:', err.message);
+    } else if (rawText && !rawText.startsWith('{')) {
+      plan.reply = rawText;
     }
+  } catch (err) {
+    console.warn('[router] planning failed:', err.message);
   }
 
-  const isEnglishPrompt = /\b(hello|hi|hey|good\s+morning|good\s+afternoon|help\s+me|schedule|remind\s+me|morning\s+meetings?)\b/i.test(messageText);
-  if (isEnglishPrompt) {
-    if (plan.reply?.includes('intermitencia de conexión') || /^¡?hola/i.test(plan.reply) || /en qué te puedo/i.test(plan.reply) || /para organizar/i.test(plan.reply)) {
-      plan.reply = 'Hello! I am Reminder, your personal assistant. To organize your morning meetings, please share the details, times, and dates with me so I can schedule them for you.';
-    }
-  }
-
-  // 3. Tool Execution if requested (Deterministic Backend Validation First: only runs if LLM explicitly emitted a valid tool_call)
+  // 3. Tool Execution if requested (Deterministic Backend Validation: only runs if LLM emitted tool_call)
   let toolResult = null;
   let finalReply = plan.reply || '';
 
@@ -167,38 +135,37 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
     if (toolResult.success) {
       // For successful operations, use the deterministic formatted response card
-      if (toolResult.confirmation) {
-        finalReply = toolResult.confirmation;
+      if (toolResult.confirmation || toolResult.formattedCard || toolResult.rawSummary) {
+        finalReply = toolResult.confirmation || toolResult.formattedCard || toolResult.rawSummary;
       }
     } else {
-      // If the backend mutation failed or was rejected (e.g. MISSING_TARGET_ID, NOT_FOUND, PRO_TIER_REQUIRED, DATABASE_ERROR)
+      // If the backend mutation failed or was rejected
       if (toolResult.errorCode === 'MISSING_TARGET_ID') {
         finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
           ? 'Please specify which item you would like me to modify.'
           : '¿Cuál elemento deseas que modifique o actualice?');
       } else if (toolResult.errorCode === 'NOT_FOUND') {
         finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
-          ? '⚠️ The specified item was not found in your agenda.'
+          ? 'Item not found in your agenda.'
           : '⚠️ No se encontró el elemento especificado en tu agenda.');
       } else {
-        console.warn(`[router req=${options?.correlationId || 'none'}] Tool ${plan.tool} rejected: ${toolResult.errorCode} - ${toolResult.error}`);
-        finalReply = toolResult.confirmation || `⚠️ No se pudo completar la acción: ${toolResult.error || 'error desconocido'}.`;
+        finalReply = toolResult.confirmation || toolResult.error || `⚠️ No se pudo completar la acción: ${toolResult.error || 'error desconocido'}.`;
       }
     }
   }
 
   // Universal safety check: if reply has [auth_url] anywhere (even in type: 'chat'), replace with clean short link
-  if (plan.reply && plan.reply.includes('[auth_url]')) {
+  if (finalReply && finalReply.includes('[auth_url]')) {
     try {
       const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
-      plan.reply = plan.reply.replace(/\[auth_url\]/g, authUrl);
+      finalReply = finalReply.replace(/\[auth_url\]/g, authUrl);
     } catch (authErr) {
       console.warn('[router] generating auth_url for reply replacement failed:', authErr.message);
     }
   }
 
-  // Universal safety check: if reply has [checkout_url] anywhere (even in type: 'chat'), replace with real link
-  if (plan.reply && plan.reply.includes('[checkout_url]')) {
+  // Universal check: if reply has [checkout_url] anywhere (even in type: 'chat'), replace with real link
+  if (finalReply && finalReply.includes('[checkout_url]')) {
     try {
       const planRes = await getOrCreateCanonicalPlan({
         reason: 'FiveLabs Reminder Pro',
@@ -214,91 +181,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
           plan: 'pro',
         }).catch(() => {});
       }
-      plan.reply = plan.reply.replace(/\[checkout_url\]/g, planRes.init_point);
+      finalReply = finalReply.replace(/\[checkout_url\]/g, planRes.init_point);
     } catch (err) {
       console.error('[router] auto-generating checkout_url failed:', err);
-    }
-  }
-
-  // Universal safety check: if user message is an acknowledgement ("ok", "listo", "hecho", "done", "ya", "listo ya lo envie", etc.)
-  // and manage_reminder acknowledge wasn't already executed, auto-acknowledge pending reminders to stop nudges immediately
-  const cleanAckText = messageText.trim().toLowerCase().replace(/[.,!¡?¿]/g, '');
-  const isAckMessage = /^(ok|listo|hecho|ya|done|perfecto|completado|ya quedo|ya quedo|listo ya|ya lo envie|ya lo mande|ya termine|terminado|listo ya quedo)$/i.test(cleanAckText) ||
-    /^(listo\b|ya est[aá]\b|ya lo hice\b|ya qued[oó]\b|ya se envi[oó]\b|ya enviad[ao]\b)/i.test(cleanAckText);
-
-  if (isAckMessage && (!plan.tool || plan.tool !== 'manage_reminder' || plan.params?.action !== 'acknowledge')) {
-    try {
-      const ackRes = await acknowledgeReminders({ userId: user.id, phoneNumber });
-      if (ackRes.acknowledgedCount > 0 || isAckMessage) {
-        console.log(`[router] Auto-acknowledged ${ackRes.acknowledgedCount || 1} pending reminder(s) from user confirmation "${messageText}".`);
-        finalReply = '¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.';
-        plan.reply = finalReply;
-        plan.tool = 'manage_reminder';
-        plan.params = { action: 'acknowledge' };
-        plan.intent = 'reminder';
-      }
-    } catch (ackErr) {
-      console.warn('[router] Auto-acknowledgement safety net error:', ackErr.message);
-    }
-  }
-
-  // Universal safety check: if user explicitly requests subscription cancellation and manage_subscription wasn't executed
-  const isCancelSubMessage = /\b(cancela(r)?|desactiva(r)?|dar(me)?\s+de\s+baja|no\s+quiero\s+(m[aá]s\s+)?(renovar|pagar))\b/i.test(messageText) &&
-    /\b(sub|suscripci[oó]n|pro|plan)\b/i.test(messageText);
-
-  if (isCancelSubMessage && (!plan.tool || (plan.tool !== 'manage_subscription' && plan.tool !== 'get_subscription_link') || plan.params?.action !== 'cancel')) {
-    try {
-      const cancelRes = await cancelUserSubscription(user.id);
-      if (cancelRes?.success) {
-        const nextPaymentDate = cancelRes.subscription?.next_payment_date;
-        const expiryNotice = nextPaymentDate
-          ? ` Conservarás el acceso a tus funciones Pro hasta el término de tu período actual (${new Date(nextPaymentDate).toLocaleDateString('es-CO')}).`
-          : '';
-
-        plan.reply = `🗑️ *Suscripción a Reminder Pro cancelada*\n\nHemos cancelado la renovación automática de tu suscripción con éxito. No se realizarán más cobros a tu tarjeta.${expiryNotice}\n\n¡Esperamos verte de vuelta pronto! 😊`;
-        plan.tool = 'manage_subscription';
-        plan.params = { action: 'cancel' };
-        plan.intent = 'subscription';
-      }
-    } catch (cancelErr) {
-      console.warn('[router] Auto-cancel subscription error:', cancelErr.message);
-    }
-  }
-
-  // Universal safety check: if user asked for task listing and the model returned generic/empty/error reply
-  const isTaskQuery = /\b(dame\s+(todos\s+)?(los\s+)?(proyectos|tareas)|mu[eé]stramelos|mu[eé]strame\s+(las\s+)?tareas|cu[aá]les\s+son\s+(mis\s+)?tareas|qu[eé]\s+tareas\s+tengo|proyectos\s+y\s+tareas|ver\s+mis\s+tareas|listar?\s+tareas)\b/i.test(messageText);
-
-  if (isTaskQuery && (!plan.reply || plan.reply.length < 15 || plan.reply.includes('¡Entendido! Lo tengo presente') || plan.reply.includes('intermitencia de conexión') || (!plan.reply.includes('•') && !plan.reply.includes('▫️')))) {
-    try {
-      const allPendingTasks = await getTasks({ userId: user.id, status: 'pending', limit: 50 });
-      if (allPendingTasks && allPendingTasks.length > 0) {
-        const byEntity = {};
-        const general = [];
-        for (const t of allPendingTasks) {
-          const ent = t.entities?.name || t.entityName || null;
-          if (ent) {
-            if (!byEntity[ent]) byEntity[ent] = [];
-            byEntity[ent].push(t);
-          } else {
-            general.push(t);
-          }
-        }
-        let formatted = `📂 *Tus proyectos y tareas pendientes* 📋\n\n`;
-        for (const [entName, entTasks] of Object.entries(byEntity)) {
-          formatted += `📁 *${entName}*:\n` + entTasks.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-        }
-        if (general.length > 0) {
-          formatted += `📌 *Tareas generales*:\n` + general.map(t => `• ${t.title || t.content}`).join('\n') + `\n\n`;
-        }
-        plan.reply = formatted.trim();
-        plan.tool = 'manage_task';
-        plan.params = { action: 'list' };
-        plan.intent = 'task';
-      } else {
-        plan.reply = `📂 *Tareas pendientes*\n\nActualmente no tienes tareas pendientes registradas en tu agenda.`;
-      }
-    } catch (err) {
-      console.warn('[router] fallback getTasks failed:', err.message);
     }
   }
 

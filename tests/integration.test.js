@@ -174,7 +174,7 @@ describe('Reminder Assistant - Production Integration Test Suite', () => {
       const { executeTool } = await import('../src/ai/tools.js');
       const res = await executeTool('manage_reminder', {
         action: 'create',
-        items: [{ content: 'Echar gotas en los ojos cada hora' }],
+        items: [{ content: 'Echar gotas en los ojos cada hora', recurrence: 'hourly' }],
       }, user);
 
       expect(res.success).toBe(true);

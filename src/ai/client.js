@@ -9,10 +9,7 @@ export const MODEL_CONFIG = Object.freeze({
     reasoning: 'openai/gpt-oss-120b',
     fallbackLadder: [
       'openai/gpt-oss-20b',
-      'qwen/qwen3.6-27b',
-      'groq/compound-mini',
       'openai/gpt-oss-120b',
-      'qwen/qwen3.8-27b',
     ],
   },
   gemini: {
@@ -49,13 +46,13 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
     // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
     if (geminiKey) {
       console.log(`${logPrefix} Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
-      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 7000, logPrefix });
+      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 12000, logPrefix });
       if (geminiRes) return geminiRes;
     }
   } else {
     // 1. PRIMARY: Google Gemini Native API
     if (geminiKey) {
-      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 7000, logPrefix });
+      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 12000, logPrefix });
       if (geminiRes) return geminiRes;
     }
 
@@ -63,7 +60,7 @@ export async function callChatCompletion(messages, { temperature = 0.0, max_toke
     if (groqKey) {
       console.log(`${logPrefix} Gemini primary (${primaryModel}) unavailable, executing fallback to Groq...`);
       const backupGroqModel = MODEL_CONFIG.groq.primary;
-      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 4000, logPrefix });
+      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 6000, logPrefix });
       if (groqRes) return groqRes;
     }
   }

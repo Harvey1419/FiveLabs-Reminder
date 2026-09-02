@@ -69,25 +69,6 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         const replacePending = item.replacePending || item.replace_pending || false;
         const checklist = item.checklist || null;
 
-        // Auto-detect recurrence from content text if not explicitly provided
-        if (!recurrenceRule && content) {
-          if (/\b(cada\s+hora|hourly)\b/i.test(content)) {
-            recurrenceRule = 'hourly';
-            if (!targetTime) targetTime = '+1h';
-          } else if (/\b(cada\s+\d+\s*horas?)\b/i.test(content)) {
-            const hMatch = content.match(/cada\s+(\d+)\s*horas?/i);
-            recurrenceRule = `hourly:${hMatch ? hMatch[1] : 2}`;
-            if (!targetTime) targetTime = `+${hMatch ? hMatch[1] : 2}h`;
-          } else if (/\b(cada\s+\d+\s*minutos?)\b/i.test(content)) {
-            const mMatch = content.match(/cada\s+(\d+)\s*minutos?/i);
-            recurrenceRule = `interval:${mMatch ? mMatch[1] : 30}m`;
-            if (!targetTime) targetTime = `+${mMatch ? mMatch[1] : 30}m`;
-          } else if (/\b(todos\s+los\s+d[ií]as|diario|daily)\b/i.test(content)) {
-            recurrenceRule = 'daily';
-            if (!targetTime) targetTime = '08:00';
-          }
-        }
-
         if (!targetTime) {
           targetTime = '+1h';
         }

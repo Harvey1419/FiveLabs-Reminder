@@ -460,18 +460,8 @@ export async function cancelReminders({ userId, phoneNumber, contentQuery = null
       return queries.some(q => lower.includes(q));
     });
   } else if (typeof contentQuery === 'string' && contentQuery.trim()) {
-    // Split by comma, "y", or "and" to catch compound phrases
-    const raw = contentQuery.trim();
-    const parts = raw.split(/\s*,\s*|\s+y\s+|\s+and\s+/i).map(q => q.toLowerCase().trim()).filter(Boolean);
-    if (parts.length > 1) {
-      toCancel = list.filter(r => {
-        const lower = r.content.toLowerCase();
-        return parts.some(p => lower.includes(p));
-      });
-    }
-    if (toCancel.length === 0) {
-      toCancel = list.filter(r => r.content.toLowerCase().includes(raw.toLowerCase()));
-    }
+    const raw = contentQuery.trim().toLowerCase();
+    toCancel = list.filter(r => r.content.toLowerCase().includes(raw));
   } else {
     toCancel = list.slice(0, 1);
   }

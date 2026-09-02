@@ -4,11 +4,18 @@ import {
   getTasksWithEntities,
   completeTasksByQuery,
   updateTask,
+  deleteTask,
   saveReminder,
   getTasks,
 } from '../../db/index.js';
+import { normalizeTaskPriority } from '../../db/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
-import { formatTaskCreatedCard, formatTaskListCard, formatTaskCompletedCard } from './formatters.js';
+import {
+  formatTaskCreatedCard,
+  formatTaskListCard,
+  formatTaskCompletedCard,
+  formatTaskUpdatedCard,
+} from './formatters.js';
 
 /**
  * Domain tool for managing tasks.
@@ -29,6 +36,23 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
           : [params]);
 
       const createdTasks = [];
+      let lastFailure = null;
+
+      // Check if at least one item has a non-empty title
+      const hasAnyTitle = rawItems.some(item => {
+        const t = item.title || item.content || item.name || item.text || '';
+        return Boolean(String(t).trim());
+      });
+
+      if (!hasAnyTitle) {
+        return {
+          success: false,
+          action: 'invalid_parameters',
+          errorCode: 'INVALID_PARAMETERS',
+          error: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
+          rawSummary: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
+        };
+      }
 
       for (const item of rawItems) {
         const title = item.title || item.content || item.name || item.text || '';
@@ -41,6 +65,17 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
 
         const cleanTitle = String(title).trim();
         if (!cleanTitle) continue;
+
+        const normalizedPriority = normalizeTaskPriority(priority);
+        if (!normalizedPriority) {
+          return {
+            success: false,
+            action: 'invalid_parameters',
+            errorCode: 'INVALID_PARAMETERS',
+            error: `Prioridad inválida '${priority}'. Valores permitidos: 'low', 'medium', 'high', 'urgent'.`,
+            rawSummary: `Prioridad inválida '${priority}'.`,
+          };
+        }
 
         let entityId = null;
         let resolvedEntityName = null;
@@ -65,21 +100,29 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
           parsedDueDate = parseTargetTime(dueDate, timezone);
         }
 
-        const task = await createTask({
+        const taskRes = await createTask({
           userId,
           title: cleanTitle,
           description,
-          priority,
+          priority: normalizedPriority,
           dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
           entityId,
         });
 
-        if (task) {
+        if (taskRes?.error) {
+          lastFailure = taskRes.error;
+          continue;
+        }
+
+        const task = taskRes?.data || taskRes;
+
+        if (task?.id) {
           createdTasks.push({
             id: task.id,
             title: cleanTitle,
             entityName: resolvedEntityName || entityName,
             dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
+            priority: normalizedPriority,
           });
 
           // Auto-schedule reminder ONLY if dueDate was explicitly specified
@@ -104,12 +147,23 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       }
 
       if (createdTasks.length === 0) {
+        if (lastFailure) {
+          const isConstraint = lastFailure.code === 'DATABASE_CONSTRAINT_ERROR' || lastFailure.code === '23514';
+          return {
+            success: false,
+            action: isConstraint ? 'database_constraint_error' : 'database_error',
+            errorCode: isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : 'DATABASE_ERROR',
+            error: lastFailure.message || 'Error de base de datos al registrar la tarea.',
+            rawSummary: lastFailure.message || 'Error de base de datos.',
+          };
+        }
+
         return {
           success: false,
           action: 'invalid_parameters',
           errorCode: 'INVALID_PARAMETERS',
-          error: 'Falta el título de la tarea.',
-          rawSummary: 'Falta el título de la tarea.',
+          error: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
+          rawSummary: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
         };
       }
 
@@ -142,13 +196,14 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       let completedCount = 0;
 
       if (taskId) {
-        const updated = await updateTask(taskId, { status: 'completed' }, userId);
-        if (!updated) {
+        const updateRes = await updateTask(taskId, { status: 'completed' }, userId);
+        if (updateRes?.error || !updateRes?.id) {
+          const errCode = updateRes?.error?.code || 'NOT_FOUND';
           return {
             success: false,
-            action: 'task_not_found',
-            errorCode: 'NOT_FOUND',
-            error: language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.',
+            action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+            errorCode: errCode,
+            error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.'),
             rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
             confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
           };
@@ -160,6 +215,15 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
           entityName,
           completeAll: true,
         });
+        if (res?.error) {
+          return {
+            success: false,
+            action: 'database_error',
+            errorCode: res.error.code || 'DATABASE_ERROR',
+            error: res.error.message,
+            rawSummary: res.error.message,
+          };
+        }
         completedCount = typeof res === 'object' ? (res?.completedCount || 0) : (Number(res) || 0);
       }
 
@@ -177,7 +241,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
     }
 
     case 'update': {
-      const { taskId = null, title = null, priority = null, dueDate = null, status = null } = params;
+      const taskId = params.taskId || params.id;
       if (!taskId) {
         return {
           success: false,
@@ -189,38 +253,60 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
+      const updatesObj = params.updates || params;
+      const title = updatesObj.title;
+      const priority = updatesObj.priority;
+      const status = updatesObj.status;
+      const dueDate = updatesObj.dueDate !== undefined ? updatesObj.dueDate : updatesObj.due_date;
+
       const updates = {};
       if (title) updates.title = String(title).trim();
-      if (priority) updates.priority = priority;
+      if (priority) {
+        const normalizedPriority = normalizeTaskPriority(priority);
+        if (!normalizedPriority) {
+          return {
+            success: false,
+            action: 'invalid_parameters',
+            errorCode: 'INVALID_PARAMETERS',
+            error: `Prioridad inválida '${priority}'. Valores permitidos: 'low', 'medium', 'high', 'urgent'.`,
+            rawSummary: `Prioridad inválida '${priority}'.`,
+          };
+        }
+        updates.priority = normalizedPriority;
+      }
       if (status) updates.status = status;
       if (dueDate !== undefined) {
         const parsedDue = dueDate ? parseTargetTime(dueDate, timezone) : null;
         updates.due_date = parsedDue ? parsedDue.toISOString() : null;
       }
 
-      const updated = await updateTask(taskId, updates, userId);
-      if (!updated) {
+      const updateRes = await updateTask(taskId, updates, userId);
+      if (updateRes?.error || !updateRes?.id) {
+        const errCode = updateRes?.error?.code || 'NOT_FOUND';
         return {
           success: false,
-          action: 'task_not_found',
-          errorCode: 'NOT_FOUND',
-          error: language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.',
+          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          errorCode: errCode,
+          error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.'),
           rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
           confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
         };
       }
 
+      const updatedTask = updateRes.data || updateRes;
+      const formattedCard = formatTaskUpdatedCard(updatedTask, language);
+
       return {
         success: true,
         action: 'updated_task',
-        data: updated,
-        rawSummary: 'Tarea actualizada.',
-        formattedCard: '🔄 *Tarea actualizada*',
+        data: updatedTask,
+        rawSummary: formattedCard,
+        formattedCard,
       };
     }
 
     case 'delete': {
-      const { taskId = null } = params;
+      const taskId = params.taskId || params.id;
 
       if (!taskId) {
         return {
@@ -233,13 +319,14 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const deleted = await deleteTask(taskId, userId);
-      if (!deleted) {
+      const deleteRes = await deleteTask(taskId, userId);
+      if (deleteRes?.error || deleteRes?.success === false) {
+        const errCode = deleteRes?.error?.code || 'NOT_FOUND';
         return {
           success: false,
-          action: 'task_not_found',
-          errorCode: 'NOT_FOUND',
-          error: language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea especificada.',
+          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          errorCode: errCode,
+          error: deleteRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea especificada.'),
           rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
           confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
         };
@@ -248,8 +335,8 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       return {
         success: true,
         action: 'deleted_task',
-        rawSummary: 'Tarea eliminada.',
-        formattedCard: '🗑️ *Tarea eliminada*',
+        rawSummary: language === 'en' ? 'Task deleted.' : 'Tarea eliminada.',
+        formattedCard: language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*',
       };
     }
 
@@ -283,3 +370,4 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       };
   }
 }
+

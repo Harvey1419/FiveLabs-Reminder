@@ -141,6 +141,18 @@ export function formatTaskCompletedCard(completedCount, language = 'es') {
     : `✅ *Tarea(s) completada(s)*\n\nSe marcaron ${completedCount} tarea(s) como realizada(s).`;
 }
 
+export function formatTaskUpdatedCard(task, language = 'es') {
+  const header = language === 'en' ? '🔄 *Task updated*' : '🔄 *Tarea actualizada*';
+  let card = `${header}\n\n• *${task.title || 'Tarea'}*`;
+  if (task.dueDate || task.due_date) {
+    card += `\n📅 ${task.dueDate || task.due_date}`;
+  }
+  if (task.priority && task.priority !== 'medium') {
+    card += `\n⚡ Prioridad: ${task.priority}`;
+  }
+  return card;
+}
+
 export function formatMemoryListCard(memories, language = 'es') {
   if (!Array.isArray(memories) || memories.length === 0) {
     return language === 'en'
