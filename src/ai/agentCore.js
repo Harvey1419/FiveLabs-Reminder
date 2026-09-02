@@ -184,7 +184,7 @@ ${!isPro ? `- 🎯 FREE DEMO: Solo recordatorios para hoy. Si el usuario pide ag
 - manage_entity: create(name, category), rename(oldName, newName), merge(sourceName, targetName), list(category)
 - manage_memory: list(category), search(query), save(content, category, topicKey), forget(topicKey, query)
 - manage_subscription: {"action": "get_link" | "cancel"}
-- manage_google_calendar: {"action": "get_connect_link" | "list_events" | "create_event" | "disconnect", "timeMin"?: string, "timeMax"?: string, "summary"?: string, "startDateTime"?: string}${adminSection}
+- manage_google_calendar: {"action": "get_connect_link" | "list_events" | "create_event" | "disconnect", "scope"?: "today" | "tomorrow" | "this_week" | "next_week" | "this_weekend" | "default_upcoming" | "next_event" | "explicit_date" | "explicit_range" | "month", "date"?: string, "month"?: string, "summary"?: string, "startDateTime"?: string}${adminSection}
 
 ## 2. CONTEXTO (${timezone})
 ### [Plan del Usuario]: ${isPro ? '🌟 Pro' : '🆓 Free'}
@@ -217,10 +217,16 @@ ${compactOverviewText}
 - "Cancela el de las 10 [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'cancel', reminderId:'r1e2m345'}
 - "Perdón, el recordatorio es para hoy a las 8am [id: r1e2m345]" -> type:'tool_call', tool:'manage_reminder', params:{action:'update', reminderId:'r1e2m345', updates:{targetTime:'hoy a las 8am'}}
 - "Reunión a las 12, avísame 15 min antes" -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Reunión (Aviso previo)', targetTime:'11:45'}, {content:'Reunión', targetTime:'12:00'}]}
-- "Tengo algo en el calendario de google para hoy?" / "¿Qué tengo en mi Google Calendar hoy?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'hoy'}
-- "¿Y qué tengo en Google Calendar para mañana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'mañana'}
-- "Tráemelos" / "Entonces tráeme lo de esa cuenta porfa el google calendar" (continuación de consulta de hoy) -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', timeMin:'hoy'}
-- "¿Cuáles son mis próximos eventos en Google Calendar?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events'}
+- "Tengo algo en el calendario de google para hoy?" / "¿Qué tengo en mi Google Calendar hoy?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'today'}
+- "¿Y qué tengo en Google Calendar para mañana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'tomorrow'}
+- "¿Qué tengo esta semana en mi calendario?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'this_week'}
+- "¿Qué tengo la próxima semana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'next_week'}
+- "¿Qué tengo este fin de semana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'this_weekend'}
+- "¿Qué tengo en mi calendario?" / "¿Qué eventos tengo?" / "Muéstrame mi calendario" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'default_upcoming'}
+- "¿Cuál es el evento más cercano que tengo?" / "¿Cuál es mi próximo evento?" / "¿Qué tengo próximamente?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'next_event'}
+- "Tráemelos" / "Entonces tráeme lo de esa cuenta porfa el google calendar" (continuación) -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'today'}
+- "¿Qué tengo el 13 de octubre?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'explicit_date', date:'2026-10-13'}
+- "¿Qué tengo en octubre?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'month', month:'10'}
 - "Conectar Google Calendar" / "Vincular calendario de Google" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'get_connect_link'}
 
 ## 4. RESPUESTA JSON ESTRICTA

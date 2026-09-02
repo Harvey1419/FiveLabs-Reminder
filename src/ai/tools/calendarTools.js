@@ -12,6 +12,7 @@ import {
 import {
   parseTargetTime,
   getDayBounds,
+  resolveCalendarTemporalScope,
   formatLocalDateTime,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
@@ -92,43 +93,45 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      let timeMin = null;
-      let timeMax = null;
-
-      const rawMin = params.timeMin ? String(params.timeMin).toLowerCase().trim() : null;
-      const rawMax = params.timeMax ? String(params.timeMax).toLowerCase().trim() : null;
-
-      if (rawMin === 'hoy' || rawMin === 'today') {
-        const bounds = getDayBounds('today', tz);
-        timeMin = bounds.timeMin;
-        timeMax = bounds.timeMax;
-      } else if (rawMin === 'mañana' || rawMin === 'tomorrow') {
-        const bounds = getDayBounds('tomorrow', tz);
-        timeMin = bounds.timeMin;
-        timeMax = bounds.timeMax;
-      } else if (rawMin) {
-        timeMin = parseTargetTime(rawMin, tz);
-        timeMax = rawMax ? parseTargetTime(rawMax, tz) : null;
-      } else {
-        timeMin = new Date();
-        timeMax = rawMax ? parseTargetTime(rawMax, tz) : null;
-      }
-
+      const resolved = resolveCalendarTemporalScope(params, tz);
       const events = await listCalendarEvents(userId, {
-        timeMin,
-        timeMax,
+        timeMin: resolved.timeMin,
+        timeMax: resolved.timeMax,
         timezone: tz,
-        maxResults: params.maxResults || 15,
+        maxResults: resolved.maxResults,
       });
 
       if (!events || events.length === 0) {
-        const summary = language === 'en'
-          ? 'You have no events scheduled in Google Calendar for this period.'
-          : 'No tienes eventos programados en Google Calendar para este período.';
+        let summary = '';
+        if (resolved.isNextEvent) {
+          summary = language === 'en'
+            ? 'You have no upcoming events scheduled in your Google Calendar.'
+            : 'No tienes eventos próximos programados en tu Google Calendar.';
+        } else {
+          summary = language === 'en'
+            ? 'You have no events scheduled in Google Calendar for this period.'
+            : 'No tienes eventos programados en Google Calendar para este período.';
+        }
         return {
           success: true,
           action: 'google_events_listed',
           data: [],
+          rawSummary: summary,
+          formattedCard: summary,
+        };
+      }
+
+      if (resolved.isNextEvent) {
+        const ev = events[0];
+        const dateStr = formatLocalDateTime(new Date(ev.start), tz, language === 'en' ? 'en-US' : 'es-CO');
+        const meet = ev.meetLink ? ` (Google Meet: ${ev.meetLink})` : '';
+        const summary = language === 'en'
+          ? `Your next event in Google Calendar is:\n• 📅 *${ev.summary}* — ${dateStr}${meet}`
+          : `Tu próximo evento en Google Calendar es:\n• 📅 *${ev.summary}* — ${dateStr}${meet}`;
+        return {
+          success: true,
+          action: 'google_events_listed',
+          data: [ev],
           rawSummary: summary,
           formattedCard: summary,
         };

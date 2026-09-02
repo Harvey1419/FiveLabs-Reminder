@@ -178,6 +178,256 @@ export function zonedTimeToUtc(year, month, day, hour = 0, minute = 0, second = 
 }
 
 /**
+ * Extract local date parts (year, month 1-12, day 1-31, dayOfWeek 0-6 Sun-Sat) in the given timezone.
+ */
+export function getLocalDateParts(dateObj = new Date(), timezone = DEFAULT_TIMEZONE) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  });
+  const parts = formatter.formatToParts(dateObj instanceof Date ? dateObj : new Date(dateObj));
+  const p = {};
+  for (const { type, value } of parts) {
+    p[type] = value;
+  }
+  const year = parseInt(p.year, 10);
+  const month = parseInt(p.month, 10);
+  const day = parseInt(p.day, 10);
+  const dayOfWeekMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dayOfWeek = dayOfWeekMap[p.weekday] ?? 0;
+  return { year, month, day, dayOfWeek };
+}
+
+const MONTH_NAME_MAP = Object.freeze({
+  enero: 1, enero_: 1, jan: 1, january: 1,
+  febrero: 2, feb: 2, february: 2,
+  marzo: 3, mar: 3, march: 3,
+  abril: 4, apr: 4, april: 4,
+  mayo: 5, may: 5,
+  junio: 6, jun: 6, june: 6,
+  julio: 7, jul: 7, july: 7,
+  agosto: 8, aug: 8, august: 8,
+  septiembre: 9, setiembre: 9, sep: 9, sept: 9, september: 9,
+  octubre: 10, oct: 10, october: 10,
+  noviembre: 11, nov: 11, november: 11,
+  diciembre: 12, dec: 12, december: 12,
+});
+
+/**
+ * Resolves structured Google Calendar temporal scope into exact deterministic bounds.
+ *
+ * @param {object} [params]
+ * @param {string} [params.scope] - 'today'|'tomorrow'|'this_week'|'next_week'|'this_weekend'|'default_upcoming'|'next_event'|'explicit_date'|'explicit_range'|'month'
+ * @param {string} [params.date] - 'YYYY-MM-DD' or date string
+ * @param {string} [params.dateFrom] - 'YYYY-MM-DD'
+ * @param {string} [params.dateTo] - 'YYYY-MM-DD'
+ * @param {string|number} [params.month] - '10' or 'octubre'
+ * @param {string} [params.timeMin] - Fallback string
+ * @param {string} [params.timeMax] - Fallback string
+ * @param {string} [timezone=DEFAULT_TIMEZONE]
+ * @param {Date} [now=new Date()]
+ * @returns {{ timeMin: Date, timeMax: Date|null, isNextEvent: boolean, maxResults: number, scope: string }}
+ */
+export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIMEZONE, now = new Date()) {
+  const { year, month, day, dayOfWeek } = getLocalDateParts(now, timezone);
+
+  // Normalize requested scope or infer from parameters
+  let scope = params.scope ? String(params.scope).toLowerCase().trim() : null;
+  const rawMin = params.timeMin ? String(params.timeMin).toLowerCase().trim() : null;
+  const rawMax = params.timeMax ? String(params.timeMax).toLowerCase().trim() : null;
+
+  if (scope && /^\d{4}-\d{2}-\d{2}/.test(scope)) {
+    if (!params.date) params.date = scope;
+    scope = 'explicit_date';
+  }
+
+  if (!scope) {
+    if (rawMin === 'hoy' || rawMin === 'today') scope = 'today';
+    else if (rawMin === 'mañana' || rawMin === 'tomorrow') scope = 'tomorrow';
+    else if (rawMin === 'esta_semana' || rawMin === 'this_week') scope = 'this_week';
+    else if (rawMin === 'proxima_semana' || rawMin === 'next_week') scope = 'next_week';
+    else if (rawMin === 'este_fin_de_semana' || rawMin === 'this_weekend') scope = 'this_weekend';
+    else if (rawMin === 'proximo' || rawMin === 'next_event' || rawMin === 'mas_cercano' || rawMin === 'closest') scope = 'next_event';
+    else if (params.dateFrom && params.dateTo) scope = 'explicit_range';
+    else if (params.date || (rawMin && /^\d{4}-\d{2}-\d{2}/.test(rawMin))) scope = 'explicit_date';
+    else if (params.month) scope = 'month';
+    else if (rawMin && rawMax) scope = 'custom_range';
+    else if (rawMin) scope = 'from_time';
+    else scope = 'default_upcoming';
+  }
+
+  switch (scope) {
+    case 'today':
+    case 'hoy': {
+      const timeMin = zonedTimeToUtc(year, month, day, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'today' };
+    }
+
+    case 'tomorrow':
+    case 'mañana': {
+      const timeMin = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + 2, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'tomorrow' };
+    }
+
+    case 'this_week':
+    case 'esta_semana': {
+      // Hermes week starts on Monday (dayOfWeek = 1). Sunday is dayOfWeek = 0.
+      const distToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const distToNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+      const timeMin = zonedTimeToUtc(year, month, day - distToMonday, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + distToNextMonday, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 25, scope: 'this_week' };
+    }
+
+    case 'next_week':
+    case 'proxima_semana': {
+      const distToNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+      const distToMondayAfterNext = dayOfWeek === 0 ? 8 : 15 - dayOfWeek;
+      const timeMin = zonedTimeToUtc(year, month, day + distToNextMonday, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + distToMondayAfterNext, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 25, scope: 'next_week' };
+    }
+
+    case 'this_weekend':
+    case 'este_fin_de_semana': {
+      // Viernes: sábado mañana a lunes. Sábado: sábado hoy a lunes. Domingo: domingo hoy a lunes. Lunes-Jueves: próximo sábado a lunes.
+      let startOffset = 0;
+      let endOffset = 0;
+      if (dayOfWeek === 5) {
+        startOffset = 1;
+        endOffset = 3;
+      } else if (dayOfWeek === 6) {
+        startOffset = 0;
+        endOffset = 2;
+      } else if (dayOfWeek === 0) {
+        startOffset = 0;
+        endOffset = 1;
+      } else {
+        startOffset = 6 - dayOfWeek;
+        endOffset = 8 - dayOfWeek;
+      }
+      const timeMin = zonedTimeToUtc(year, month, day + startOffset, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + endOffset, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 20, scope: 'this_weekend' };
+    }
+
+    case 'next_event':
+    case 'proximo':
+    case 'mas_cercano':
+    case 'closest': {
+      // Sole documented exception: singleEvents=true, orderBy=startTime, maxResults=1 with timeMin=now, timeMax=null
+      return { timeMin: now, timeMax: null, isNextEvent: true, maxResults: 1, scope: 'next_event' };
+    }
+
+    case 'explicit_date': {
+      const targetStr = String(params.date || params.timeMin || '').trim();
+      let targetYear = year;
+      let targetMonth = month;
+      let targetDay = day;
+
+      const dateMatch = targetStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        targetYear = parseInt(dateMatch[1], 10);
+        targetMonth = parseInt(dateMatch[2], 10);
+        targetDay = parseInt(dateMatch[3], 10);
+      } else {
+        const parsed = parseTargetTime(targetStr, timezone);
+        if (parsed) {
+          const parts = getLocalDateParts(parsed, timezone);
+          targetYear = parts.year;
+          targetMonth = parts.month;
+          targetDay = parts.day;
+        }
+      }
+
+      const timeMin = zonedTimeToUtc(targetYear, targetMonth, targetDay, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(targetYear, targetMonth, targetDay + 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 20, scope: 'explicit_date' };
+    }
+
+    case 'explicit_range': {
+      const fromStr = String(params.dateFrom || params.timeMin || '').trim();
+      const toStr = String(params.dateTo || params.timeMax || '').trim();
+
+      let fromY = year, fromM = month, fromD = day;
+      let toY = year, toM = month, toD = day;
+
+      const matchFrom = fromStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (matchFrom) {
+        fromY = parseInt(matchFrom[1], 10);
+        fromM = parseInt(matchFrom[2], 10);
+        fromD = parseInt(matchFrom[3], 10);
+      } else {
+        const p = parseTargetTime(fromStr, timezone);
+        if (p) {
+          const parts = getLocalDateParts(p, timezone);
+          fromY = parts.year; fromM = parts.month; fromD = parts.day;
+        }
+      }
+
+      const matchTo = toStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (matchTo) {
+        toY = parseInt(matchTo[1], 10);
+        toM = parseInt(matchTo[2], 10);
+        toD = parseInt(matchTo[3], 10);
+      } else {
+        const p = parseTargetTime(toStr, timezone);
+        if (p) {
+          const parts = getLocalDateParts(p, timezone);
+          toY = parts.year; toM = parts.month; toD = parts.day;
+        }
+      }
+
+      const timeMin = zonedTimeToUtc(fromY, fromM, fromD, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(toY, toM, toD + 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 35, scope: 'explicit_range' };
+    }
+
+    case 'month': {
+      const rawMonthStr = String(params.month || '').toLowerCase().trim();
+      let targetMonthNum = MONTH_NAME_MAP[rawMonthStr] || parseInt(rawMonthStr, 10);
+      if (!targetMonthNum || isNaN(targetMonthNum) || targetMonthNum < 1 || targetMonthNum > 12) {
+        targetMonthNum = month;
+      }
+      let targetYearNum = year;
+      if (targetMonthNum < month) {
+        targetYearNum += 1;
+      }
+      const timeMin = zonedTimeToUtc(targetYearNum, targetMonthNum, 1, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(targetYearNum, targetMonthNum + 1, 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'month' };
+    }
+
+    case 'custom_range': {
+      const timeMin = parseTargetTime(params.timeMin, timezone) || now;
+      const timeMax = parseTargetTime(params.timeMax, timezone) || zonedTimeToUtc(year, month, day + 15, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 30, scope: 'custom_range' };
+    }
+
+    case 'from_time': {
+      const timeMin = parseTargetTime(params.timeMin, timezone) || now;
+      const distToMondayAfterNext = dayOfWeek === 0 ? 8 : 15 - dayOfWeek;
+      const timeMax = zonedTimeToUtc(year, month, day + distToMondayAfterNext, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 20, scope: 'from_time' };
+    }
+
+    case 'default_upcoming':
+    default: {
+      // Default: now -> start of Monday after next week (covers now through next Sunday 23:59:59.999 + 1ms)
+      const distToMondayAfterNext = dayOfWeek === 0 ? 8 : 15 - dayOfWeek;
+      const timeMin = now;
+      const timeMax = zonedTimeToUtc(year, month, day + distToMondayAfterNext, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 20, scope: 'default_upcoming' };
+    }
+  }
+}
+
+/**
  * Compute exact semi-open time bounds [timeMin, timeMax) for a local day in the given timezone.
  *
  * @param {'today'|'tomorrow'|'hoy'|'mañana'|string|Date} [target='today']
@@ -186,35 +436,12 @@ export function zonedTimeToUtc(year, month, day, hour = 0, minute = 0, second = 
  */
 export function getDayBounds(target = 'today', timezone = DEFAULT_TIMEZONE) {
   const t = String(target || 'today').toLowerCase().trim();
-  const now = new Date();
-
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const [currentYear, currentMonth, currentDay] = formatter.format(now).split('-').map(Number);
-
-  let targetYear = currentYear;
-  let targetMonth = currentMonth;
-  let targetDay = currentDay;
-
-  if (t === 'tomorrow' || t === 'mañana') {
-    targetDay += 1;
-  } else if (t !== 'today' && t !== 'hoy') {
-    const match = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      targetYear = parseInt(match[1], 10);
-      targetMonth = parseInt(match[2], 10);
-      targetDay = parseInt(match[3], 10);
-    }
-  }
-
-  const timeMin = zonedTimeToUtc(targetYear, targetMonth, targetDay, 0, 0, 0, timezone);
-  const timeMax = zonedTimeToUtc(targetYear, targetMonth, targetDay + 1, 0, 0, 0, timezone);
-
-  return { timeMin, timeMax };
+  const isDate = /^\d{4}-\d{2}-\d{2}/.test(t);
+  const resolved = resolveCalendarTemporalScope(
+    isDate ? { scope: 'explicit_date', date: t } : { scope: t },
+    timezone
+  );
+  return { timeMin: resolved.timeMin, timeMax: resolved.timeMax };
 }
 
 /**

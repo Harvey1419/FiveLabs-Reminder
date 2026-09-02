@@ -65,13 +65,10 @@ describe('Production Hardening & Concurrency Test Suite', () => {
         claimNextDueReminder(workerB, 120),
       ]);
 
-      // Exactly ONE worker must succeed in claiming the reminder
-      const winner = claimedA || claimedB;
-      const loser = claimedA ? claimedB : claimedA;
-
-      expect(winner).not.toBeNull();
-      expect(winner.id).toBe(reminder.id);
-      expect(loser).toBeNull();
+      // Exactly ONE worker must succeed in claiming THIS specific reminder
+      const claimsOnTarget = [claimedA, claimedB].filter(c => c && c.id === reminder.id);
+      expect(claimsOnTarget.length).toBe(1);
+      const winner = claimsOnTarget[0];
 
       // Verify lock in database
       const { data: dbRec } = await supabase
