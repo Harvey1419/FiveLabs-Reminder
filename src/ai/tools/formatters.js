@@ -118,6 +118,34 @@ export function formatReminderCompletedTodayCard(reminders, timezone = DEFAULT_T
   return `${header}\n\n` + lines.join('\n');
 }
 
+export function formatReminderRemainingTodayCard(reminders, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  if (!Array.isArray(reminders) || reminders.length === 0) {
+    return language === 'en'
+      ? '⏳ *Remaining reminders for today*\n\nYou have no more reminders scheduled for the rest of today.'
+      : '⏳ *Recordatorios que quedan para hoy*\n\nNo te quedan más recordatorios pendientes para el resto del día de hoy.';
+  }
+
+  const header = language === 'en'
+    ? '⏳ *Recordatorios que quedan para hoy:*'
+    : '⏳ *Recordatorios que quedan para hoy:*';
+
+  const lines = reminders.map(r => {
+    let timeDisplay = '';
+    const dateVal = r.send_at || r.sendAt;
+    if (dateVal) {
+      const friendly = formatHumanFriendlyDateTime(dateVal, timezone, language);
+      if (friendly) {
+        timeDisplay = ` — ${friendly}`;
+      }
+    }
+    const rec = (r.recurrence_rule || r.recurrenceRule) ? ' _(Recurrente)_' : '';
+    const nudge = (r.requires_confirmation || r.requiresConfirmation) ? ' _(Requiere confirmación)_' : '';
+    return `• ⏰ *${r.content || r.title || 'Recordatorio'}*${timeDisplay}${rec}${nudge}`;
+  });
+
+  return `${header}\n\n` + lines.join('\n');
+}
+
 export function formatReminderCancelledCard(cancelledCount, remainingCount, details = '', language = 'es') {
   if (language === 'en') {
     return `🗑️ *Reminder Cancelled*\n\nCancelled ${cancelledCount} reminder(s). ${remainingCount} remaining in your schedule.${details ? `\n\n${details}` : ''}`;

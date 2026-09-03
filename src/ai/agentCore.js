@@ -125,9 +125,9 @@ Hora actual: ${nowStr} (${nowHumanStr}) [${timezone}].
 - 🌐 IDIOMA: Si el usuario escribe en inglés, responde SIEMPRE 100% en inglés. Si escribe en español, en español.
 ${!isPro ? `- 🎯 FREE DEMO: Solo recordatorios para hoy. Para días futuros o recurrencia, llama a get_subscription_link.\n` : ''}
 ## 1. HERRAMIENTAS
-- get_unified_agenda: {"scope"?: "today" | "tomorrow" | "this_week" | "next_week" | "this_weekend" | "upcoming" | "month" | "full_year", "query"?: string}
+- get_unified_agenda: {"scope"?: "today" | "remaining_today" | "tomorrow" | "this_week" | "next_week" | "this_weekend" | "upcoming" | "month" | "full_year", "query"?: string}
 - manage_task: create(items:[{title, dueDate, priority, entityName}]), update(taskId|target, updates:{title, priority, status, dueDate}), complete(taskId|target|scope:'all'), delete(taskId|target), list(entityName, status)
-- manage_reminder: create(items:[{content, targetTime, recurrence, requiresConfirmation}]), update(reminderId|target, updates:{content, targetTime}), cancel(reminderId|target|scope:'all'), acknowledge(reminderId|target|scope:'all'), list(filter:'pending_today'|'created_today'|'completed_today'|'all')
+- manage_reminder: create(items:[{content, targetTime, recurrence, requiresConfirmation}]), update(reminderId|target, updates:{content, targetTime}), cancel(reminderId|target|scope:'all'), acknowledge(reminderId|target|scope:'all'), list(filter:'pending_today'|'remaining_today'|'created_today'|'completed_today'|'all')
 - manage_entity: create(name, category), rename(oldName, newName), merge(sourceName, targetName), list()
 - manage_memory: list(category), search(query), save(content, category), forget(query)
 - manage_subscription: {"action": "get_link" | "cancel"}
@@ -148,6 +148,7 @@ ${compactOverviewText}
 - "la cita que tengo el 9 de septiembre ahora es Reunión en Cerámica Italia" (fecha explícita tiene prioridad sobre Working Memory) -> type:'tool_call', tool:'manage_google_calendar', params:{action:'update_event', date:'2026-09-09', summary:'Reunión en Cerámica Italia'}
 - "¿Qué cumpleaños tengo en Google Calendar?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'search_events', scope:'full_year', query:'cumpleaños'}
 - "Dame mis pendientes de hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'pending_today'}
+- "¿Qué pendientes nos quedan hoy?" / "¿Qué nos queda pendiente hoy?" / "¿Qué falta por hacer hoy?" / "¿Qué queda para hoy?" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'remaining_today'}
 - "Qué recordatorios creamos hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'created_today'}
 - "Qué completé hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'completed_today'}
 - "¿Qué recordatorios tengo?" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'all'}

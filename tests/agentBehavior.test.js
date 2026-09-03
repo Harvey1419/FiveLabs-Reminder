@@ -1006,5 +1006,93 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     expect(resC.confirmation).not.toContain('Reminder A');
     expect(resC.confirmation).not.toContain('Reminder B');
   });
+
+  // TEST 28: "Qué pendientes nos quedan hoy" / "Qué falta por hacer hoy" strictly filters [now, todayEnd) and differentiates from "pendientes de hoy"
+  it('TEST 28: "Qué pendientes nos quedan hoy" / "Qué falta por hacer hoy" strictly filters [now, todayEnd) and differentiates from "pendientes de hoy"', async () => {
+    // Current simulated local time: 2026-09-02T21:45:00 in America/Bogota (UTC-5 -> 2026-09-03T02:45:00Z)
+    const simulatedNow = new Date('2026-09-03T02:45:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(simulatedNow);
+
+    // R1: 08:00 AM today (2026-09-02T13:00:00Z) -> past today
+    await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testPhone,
+      content: 'Reminder R1: Tomar café en la mañana 8am',
+      send_at: '2026-09-02T13:00:00.000Z',
+      status: 'pending',
+      created_at: '2026-09-02T12:00:00.000Z',
+    });
+
+    // R2: 21:41 today (2026-09-03T02:41:00Z) -> past today (4 minutes ago)
+    await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testPhone,
+      content: 'Reminder R2: Sacar basura 21:41',
+      send_at: '2026-09-03T02:41:00.000Z',
+      status: 'pending',
+      created_at: '2026-09-02T12:00:00.000Z',
+    });
+
+    // R3: 22:30 today (2026-09-03T03:30:00Z) -> future today (in 45 minutes)
+    await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testPhone,
+      content: 'Reminder R3: Bloquear puertas 22:30',
+      send_at: '2026-09-03T03:30:00.000Z',
+      status: 'pending',
+      created_at: '2026-09-02T12:00:00.000Z',
+    });
+
+    // R4: 08:00 AM tomorrow (2026-09-03T13:00:00Z) -> future tomorrow
+    await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testPhone,
+      content: 'Reminder R4: Despertador mañana 8am',
+      send_at: '2026-09-03T13:00:00.000Z',
+      status: 'pending',
+      created_at: '2026-09-02T12:00:00.000Z',
+    });
+
+    // 1. "Dame mis pendientes de hoy" -> includes all today (R1, R2, R3), excludes tomorrow (R4)
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario pide todos los recordatorios pendientes de hoy.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "list", filter: "pending_today" },
+      intent: "reminder",
+    }));
+    const resAllToday = await routeMessage('Dame mis pendientes de hoy', testUser);
+    expect(resAllToday.confirmation).toContain('Reminder R1');
+    expect(resAllToday.confirmation).toContain('Reminder R2');
+    expect(resAllToday.confirmation).toContain('Reminder R3');
+    expect(resAllToday.confirmation).not.toContain('Reminder R4');
+
+    // 2. Variations of "qué nos queda hoy" -> includes ONLY R3, excludes past today (R1, R2) and tomorrow (R4)
+    const naturalRemainingPhrases = [
+      '¿Qué pendientes nos quedan hoy?',
+      '¿Qué nos queda pendiente hoy?',
+      '¿Qué falta por hacer hoy?',
+      '¿Qué queda para hoy?',
+    ];
+
+    for (const phrase of naturalRemainingPhrases) {
+      vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+        reasoning: "Usuario pregunta qué pendientes quedan para el resto de hoy.",
+        type: "tool_call",
+        tool: "manage_reminder",
+        params: { action: "list", filter: "remaining_today" },
+        intent: "reminder",
+      }));
+      const resRemaining = await routeMessage(phrase, testUser);
+      expect(resRemaining.confirmation).toContain('Recordatorios que quedan para hoy');
+      expect(resRemaining.confirmation).toContain('Reminder R3');
+      expect(resRemaining.confirmation).not.toContain('Reminder R1');
+      expect(resRemaining.confirmation).not.toContain('Reminder R2');
+      expect(resRemaining.confirmation).not.toContain('Reminder R4');
+    }
+
+    vi.useRealTimers();
+  });
 });
 

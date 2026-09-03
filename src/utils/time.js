@@ -282,6 +282,14 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'today' };
     }
 
+    case 'remaining_today':
+    case 'rest_of_today':
+    case 'lo_que_queda_de_hoy': {
+      const timeMin = now;
+      const timeMax = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'remaining_today' };
+    }
+
     case 'tomorrow':
     case 'mañana': {
       const timeMin = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);

@@ -28,6 +28,7 @@ import {
   formatReminderListCard,
   formatReminderCreatedTodayCard,
   formatReminderCompletedTodayCard,
+  formatReminderRemainingTodayCard,
 } from './formatters.js';
 import { resolveEntityReference } from '../workingMemory.js';
 
@@ -882,7 +883,27 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         list = data || [];
         formattedCard = formatReminderCreatedTodayCard(list, timezone, language);
       }
-      // 3. "Dame mis pendientes de hoy" -> send_at in [todayStartIso, todayEndIso) AND status != cancelled AND acknowledged_at IS NULL
+      // 3. "Qué pendientes nos quedan hoy" / "¿Qué falta por hacer hoy?" / "¿Qué queda para hoy?"
+      // -> send_at in [nowIso, todayEndIso) AND status != cancelled AND acknowledged_at IS NULL
+      else if (
+        rawFilter === 'remaining_today' ||
+        rawFilter === 'pending_remaining_today' ||
+        rawFilter === 'rest_of_today' ||
+        /\b(nos quedan hoy|nos queda hoy|nos queda pendiente hoy|nos quedan pendientes hoy|nos queda para hoy|nos quedan para hoy|me queda hoy|me quedan hoy|me queda para hoy|me quedan para hoy|quedan hoy|queda hoy|queda pendiente hoy|quedan pendientes hoy|falta por hacer hoy|faltan por hacer hoy|falta hoy|faltan hoy|queda para hoy|quedan para hoy|resto de hoy|lo que queda de hoy|restante de hoy|restantes de hoy)\b/i.test(userMsg)
+      ) {
+        listType = 'remaining_today';
+        const nowIso = new Date().toISOString();
+        query = query
+          .neq('status', 'cancelled')
+          .is('acknowledged_at', null)
+          .gte('send_at', nowIso)
+          .lt('send_at', todayEndIso)
+          .order('send_at', { ascending: true });
+        const { data } = await query;
+        list = data || [];
+        formattedCard = formatReminderRemainingTodayCard(list, timezone, language);
+      }
+      // 4. "Dame mis pendientes de hoy" -> send_at in [todayStartIso, todayEndIso) AND status != cancelled AND acknowledged_at IS NULL
       else if (rawFilter === 'pending_today' || rawFilter === 'today' || /\b(pendientes de hoy|para hoy|recordatorios de hoy)\b/i.test(userMsg)) {
         listType = 'pending_today';
         query = query
@@ -895,7 +916,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         list = data || [];
         formattedCard = formatReminderListCard(list, timezone, language);
       }
-      // 4. Default / "Todos mis recordatorios pendientes"
+      // 5. Default / "Todos mis recordatorios pendientes"
       else {
         listType = 'pending_all';
         query = query
