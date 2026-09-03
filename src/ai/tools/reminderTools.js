@@ -488,10 +488,37 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       let cancelledCount = 0;
       let targetId = reminderId || params.id || params.target || params.contentQuery || params.query || null;
 
+      const cleanPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
+      const userPhoneVariants = Array.from(new Set([
+        phoneNumber,
+        cleanPhone,
+        cleanPhone ? `+${cleanPhone}` : null,
+      ].filter(Boolean)));
+
+      // Query active cancelable reminders (both pending and sent, excluding already acknowledged or cancelled)
+      let cancelableQ = supabase
+        .from('reminders')
+        .select('*')
+        .in('status', ['pending', 'sent'])
+        .is('acknowledged_at', null);
+
+      if (userId && userPhoneVariants.length > 0) {
+        const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+        cancelableQ = cancelableQ.or(`user_id.eq.${userId},${phoneConditions}`);
+      } else if (userId) {
+        cancelableQ = cancelableQ.eq('user_id', userId);
+      } else if (userPhoneVariants.length > 0) {
+        cancelableQ = cancelableQ.in('phone_number', userPhoneVariants);
+      }
+
+      const { data: cancelableReminders } = await cancelableQ.order('send_at', { ascending: false }).limit(50);
+      const candidates = cancelableReminders || [];
+
       if (!targetId && scope !== 'all' && !cancelAll) {
         const refRes = resolveEntityReference({
           userOrPhone: user || phoneNumber,
           reference: userMessage || '',
+          candidates,
           preferredType: 'reminder',
         });
         if (refRes.status === 'RESOLVED') {
@@ -524,15 +551,14 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
       if (targetId) {
         if (!isStrictUUID(targetId)) {
-          const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
-          const matched = pending ? pending.find(r => r.id === targetId || (targetId.length >= 8 && r.id.startsWith(targetId))) : null;
+          const matched = candidates.find(r => r.id === targetId || (targetId.length >= 8 && r.id.startsWith(targetId)));
           if (matched) {
             targetId = matched.id;
           } else {
             const refRes = resolveEntityReference({
               userOrPhone: user || phoneNumber,
               reference: targetId,
-              candidates: pending,
+              candidates,
               preferredType: 'reminder',
             });
             if (refRes.status === 'RESOLVED') {
@@ -560,6 +586,39 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             }
           }
         }
+
+        // Strict UUID tenant & lifecycle guard
+        const { data: existingRem } = await supabase
+          .from('reminders')
+          .select('id, user_id, phone_number, status, acknowledged_at')
+          .eq('id', targetId)
+          .maybeSingle();
+
+        if (existingRem) {
+          const isOwner = (userId && existingRem.user_id === userId) ||
+            (existingRem.phone_number && userPhoneVariants.includes(existingRem.phone_number));
+          if (!isOwner) {
+            return {
+              success: false,
+              action: 'access_denied',
+              errorCode: 'ACCESS_DENIED',
+              error: language === 'en' ? 'Access denied: this reminder belongs to another user.' : 'No tienes permisos sobre este recordatorio.',
+              rawSummary: 'Acceso denegado.',
+              confirmation: '⚠️ No tienes permisos sobre este recordatorio.',
+            };
+          }
+          if (existingRem.status === 'cancelled') {
+            return {
+              success: false,
+              action: 'reminder_not_found',
+              errorCode: 'NOT_FOUND',
+              error: language === 'en' ? 'Reminder already cancelled.' : 'El recordatorio ya fue cancelado previamente.',
+              rawSummary: 'El recordatorio ya fue cancelado previamente.',
+              confirmation: '⚠️ El recordatorio ya fue cancelado previamente.',
+            };
+          }
+        }
+
         const marked = await markReminderAsCancelled(targetId, userId, phoneNumber);
         if (!marked) {
           return {
@@ -573,14 +632,13 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         }
         cancelledCount = 1;
       } else if (scope === 'all' || cancelAll) {
-        const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
-        for (const r of pending) {
+        for (const r of candidates) {
           await markReminderAsCancelled(r.id, userId, phoneNumber);
           cancelledCount++;
         }
       }
 
-      const remaining = await getRemindersByPhone(phoneNumber, 'pending', 50);
+      const remaining = candidates.filter(c => c.id !== targetId);
       const formattedCard = formatReminderCancelledCard(cancelledCount, remaining.length, '', language);
 
       return {

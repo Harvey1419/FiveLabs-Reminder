@@ -26,21 +26,64 @@ import {
   isStandaloneAffirmative,
   calculateMatchScore,
 } from '../../utils/entityResolution.js';
+import { entityMatchScore } from '../../db/entities.js';
+
+async function resolveUserContainer(cleanQuery, normClean, userId) {
+  if (!userId || !normClean) return null;
+  const { data: userEntities } = await supabase
+    .from('entities')
+    .select('id, name, category')
+    .eq('user_id', userId);
+
+  if (userEntities && userEntities.length > 0) {
+    const matchedEntity = userEntities.find(e => {
+      const normE = normalizeTextForMatching(e.name);
+      return normE === normClean || normE.includes(normClean) || normClean.includes(normE) || entityMatchScore(e.name, cleanQuery) >= 0.70;
+    });
+    if (matchedEntity) {
+      return {
+        status: 'RESOLVED_CONTAINER',
+        entityId: matchedEntity.id,
+        entityName: matchedEntity.name,
+        entity: matchedEntity,
+      };
+    }
+  }
+  return null;
+}
 
 /**
  * Deterministic Task Identifier Resolver following the Strict Resolution Hierarchy:
  * 1. Direct 36-character UUID (isStrictUUID)
  * 2. Working Memory (Ordinal reference '1', 'el primero', 'la segunda' from previous turn)
  * 3. Database search for user's pending tasks (normalized exact title -> substring -> token match)
- * 4. Disambiguation: 1 match -> RESOLVED, >1 match -> AMBIGUOUS, 0 match -> NOT_FOUND / MISSING_CONTEXT
+ * 4. Container / Project Entity resolution
+ * 5. Disambiguation: 1 match -> RESOLVED, >1 match -> AMBIGUOUS, 0 match -> NOT_FOUND / MISSING_CONTEXT
  */
-async function resolveTargetTask({ target, userId, userOrPhone, userMessage = '' }) {
+async function resolveTargetTask({ target, userId, userOrPhone, userMessage = '', operation = 'complete', allowedStatuses = null }) {
   if (!target && !userMessage) return { status: 'MISSING' };
   const rawStr = String(target || userMessage || '').trim();
   if (!rawStr) return { status: 'MISSING' };
 
+  // Determine allowed statuses based on operation
+  const statuses = allowedStatuses || (operation === 'complete' ? ['pending'] : ['pending', 'completed']);
+
   // 1. Direct UUID
   if (isStrictUUID(rawStr)) {
+    if (operation === 'complete') {
+      const { data: directTask } = await supabase
+        .from('tasks')
+        .select('id, user_id, status')
+        .eq('id', rawStr)
+        .maybeSingle();
+      if (!directTask || (userId && directTask.user_id !== userId)) {
+        return { status: 'NOT_FOUND' };
+      }
+      if (directTask.status !== 'pending') {
+        return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
+      }
+      return { status: 'RESOLVED', taskId: directTask.id, task: directTask };
+    }
     return { status: 'RESOLVED', taskId: rawStr };
   }
 
@@ -52,24 +95,27 @@ async function resolveTargetTask({ target, userId, userOrPhone, userMessage = ''
   });
 
   if (refRes.status === 'RESOLVED' && refRes.item?.internalId) {
+    if (operation === 'complete') {
+      const { data: directTask } = await supabase
+        .from('tasks')
+        .select('id, user_id, status')
+        .eq('id', refRes.item.internalId)
+        .maybeSingle();
+      if (directTask && directTask.status !== 'pending') {
+        return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
+      }
+    }
     return { status: 'RESOLVED', taskId: refRes.item.internalId, item: refRes.item, task: refRes.item.raw || refRes.item };
+  }
+  if (refRes.status === 'RESOLVED_CONTAINER') {
+    return refRes;
   }
   if (refRes.status === 'AMBIGUOUS') {
     return { status: 'AMBIGUOUS', candidates: refRes.candidates };
   }
 
-  // 3. Database Search on user's pending tasks (tenant isolated)
+  // 3. Database Search on user's tasks (tenant isolated, matching allowed statuses)
   if (!userId) {
-    return { status: 'NOT_FOUND' };
-  }
-
-  const { data: dbTasks, error: dbErr } = await supabase
-    .from('tasks')
-    .select('*, entities:entity_id(name, category)')
-    .eq('user_id', userId)
-    .eq('status', 'pending');
-
-  if (dbErr || !dbTasks || dbTasks.length === 0) {
     return { status: 'NOT_FOUND' };
   }
 
@@ -84,6 +130,36 @@ async function resolveTargetTask({ target, userId, userOrPhone, userMessage = ''
       return { status: 'MISSING_CONTEXT', reason: 'STANDALONE_AFFIRMATIVE_WITHOUT_CONTEXT' };
     }
     return { status: 'NOT_FOUND' };
+  }
+
+  let tasksQ = supabase
+    .from('tasks')
+    .select('*, entities:entity_id(name, category)')
+    .eq('user_id', userId);
+
+  if (statuses.length === 1) {
+    tasksQ = tasksQ.eq('status', statuses[0]);
+  } else {
+    tasksQ = tasksQ.in('status', statuses);
+  }
+
+  const { data: dbTasks, error: dbErr } = await tasksQ;
+
+  if (dbErr || !dbTasks || dbTasks.length === 0) {
+    const containerRes = await resolveUserContainer(cleanQuery, normClean, userId);
+    if (containerRes) return containerRes;
+    return { status: 'NOT_FOUND' };
+  }
+
+  // Prefix UUID match (e.g. 8-character prefix ID)
+  if (rawStr.length >= 8 && /^[0-9a-fA-F-]+$/.test(rawStr)) {
+    const prefixMatches = dbTasks.filter(t => t.id.toLowerCase().startsWith(rawStr.toLowerCase()));
+    if (prefixMatches.length === 1) {
+      return { status: 'RESOLVED', taskId: prefixMatches[0].id, task: prefixMatches[0] };
+    }
+    if (prefixMatches.length > 1) {
+      return { status: 'AMBIGUOUS', candidates: prefixMatches };
+    }
   }
 
   // A. Exact normalized title match (case, accent, punctuation insensitive)
@@ -129,6 +205,10 @@ async function resolveTargetTask({ target, userId, userOrPhone, userMessage = ''
     }
     return { status: 'AMBIGUOUS', candidates: scored.map(s => s.task) };
   }
+
+  // D. Container Matching (Project / List Entity Resolution fallback)
+  const containerRes = await resolveUserContainer(cleanQuery, normClean, userId);
+  if (containerRes) return containerRes;
 
   return { status: 'NOT_FOUND' };
 }
@@ -298,10 +378,27 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       const { taskId: rawTaskId = null, scope = null, completeAll = false, entityName = null } = params;
       const targetQuery = rawTaskId || params.id || params.target || params.title || params.query || null;
 
+      // 1. Direct Complete All / Scope All (or active container in context)
       if (scope === 'all' || completeAll) {
+        let resolvedEntName = entityName;
+        if (!resolvedEntName) {
+          if (targetQuery) {
+            const entRes = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+            if (entRes.status === 'RESOLVED_CONTAINER') {
+              resolvedEntName = entRes.entityName;
+            }
+          }
+          if (!resolvedEntName) {
+            const wm = getWorkingMemory(user || phoneNumber);
+            if (wm?.activeEntity) {
+              resolvedEntName = wm.activeEntity;
+            }
+          }
+        }
+
         const res = await completeTasksByQuery({
           userId,
-          entityName,
+          entityName: resolvedEntName,
           completeAll: true,
         });
         if (res?.error) {
@@ -314,11 +411,11 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
           };
         }
         const count = typeof res === 'object' ? (res?.completedCount || 0) : (Number(res) || 0);
-        const card = formatTaskCompletedCard(count, language);
+        const card = formatTaskCompletedCard({ completedCount: count, entityName: resolvedEntName }, language);
         return {
           success: true,
           action: 'completed_tasks',
-          data: { completedCount: count },
+          data: { completedCount: count, entityName: resolvedEntName },
           rawSummary: card,
           formattedCard: card,
           confirmation: card,
@@ -336,7 +433,35 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage, operation: 'complete', allowedStatuses: ['pending'] });
+
+      // Handle Container Resolution (e.g. user said "limpia la lista de compras" and targetQuery resolved to container)
+      if (resolution.status === 'RESOLVED_CONTAINER') {
+        const res = await completeTasksByQuery({
+          userId,
+          entityName: resolution.entityName,
+          completeAll: true,
+        });
+        if (res?.error) {
+          return {
+            success: false,
+            action: 'database_error',
+            errorCode: res.error.code || 'DATABASE_ERROR',
+            error: res.error.message,
+            rawSummary: res.error.message,
+          };
+        }
+        const count = typeof res === 'object' ? (res?.completedCount || 0) : (Number(res) || 0);
+        const card = formatTaskCompletedCard({ completedCount: count, entityName: resolution.entityName }, language);
+        return {
+          success: true,
+          action: 'completed_tasks',
+          data: { completedCount: count, entityName: resolution.entityName },
+          rawSummary: card,
+          formattedCard: card,
+          confirmation: card,
+        };
+      }
 
       if (resolution.status === 'MISSING_CONTEXT') {
         const missingContextMsg = language === 'en'
@@ -425,7 +550,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage, operation: 'update', allowedStatuses: ['pending', 'completed'] });
 
       if (resolution.status === 'MISSING_CONTEXT') {
         const missingContextMsg = language === 'en'
@@ -541,7 +666,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage, operation: 'delete', allowedStatuses: ['pending', 'completed'] });
 
       if (resolution.status === 'AMBIGUOUS') {
         const ambiguityMsg = language === 'en'
@@ -598,15 +723,32 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
     }
 
     case 'list': {
-      const { entityName = null, status = 'pending', limit = 50 } = params;
+      const rawEntityParam = params.entityName || params.target || params.project || params.name || params.query || null;
+      let resolvedEntityName = null;
+      if (rawEntityParam && userId) {
+        const { data: userEntities } = await supabase
+          .from('entities')
+          .select('id, name')
+          .eq('user_id', userId);
+        if (userEntities && userEntities.length > 0) {
+          const normRaw = normalizeTextForMatching(stripConversationalWrappers(String(rawEntityParam)));
+          const matched = userEntities.find(e => {
+            const normE = normalizeTextForMatching(e.name);
+            return normE === normRaw || normE.includes(normRaw) || normRaw.includes(normE) || entityMatchScore(e.name, String(rawEntityParam)) >= 0.70;
+          });
+          if (matched) resolvedEntityName = matched.name;
+        }
+        if (!resolvedEntityName) resolvedEntityName = rawEntityParam;
+      }
+
       const tasks = await getTasksWithEntities({
         userId,
-        entityName,
-        status,
-        limit,
+        entityName: resolvedEntityName,
+        status: params.status || 'pending',
+        limit: params.limit || 50,
       });
 
-      const formattedCard = formatTaskListCard(tasks, entityName, language);
+      const formattedCard = formatTaskListCard(tasks, resolvedEntityName, language);
       const structuredItems = (tasks || []).map((t, idx) => ({
         position: idx + 1,
         type: 'task',
@@ -614,13 +756,14 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         summary: t.title || t.content,
         time: t.due_date ? formatLocalDateTime(new Date(t.due_date), timezone, language === 'en' ? 'en-US' : 'es-CO') : null,
         source: 'task',
+        entityName: t.entities?.name || t.entityName || resolvedEntityName || null,
         raw: t,
       }));
 
       return {
         success: true,
         action: 'listed_tasks',
-        data: { tasks, items: structuredItems },
+        data: { tasks, items: structuredItems, entityName: resolvedEntityName },
         rawSummary: formattedCard,
         formattedCard,
       };

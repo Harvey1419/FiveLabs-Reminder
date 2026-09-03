@@ -62,22 +62,40 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
   if (keys.length === 0) return;
 
   const rawItems = Array.isArray(memoryData.items) ? memoryData.items : [];
-  const normalizedItems = rawItems.map((it, idx) => ({
-    position: idx + 1,
-    type: it.type || 'unknown', // 'calendar_event' | 'reminder' | 'task'
-    internalId: String(it.internalId || it.id || '').trim(),
-    summary: String(it.summary || it.title || it.content || '').trim(),
-    time: it.time || it.localTime || it.localStartTime || null,
-    source: it.source || it.domain || memoryData.source || 'unknown',
-    entityName: it.entityName || it.raw?.entities?.name || it.raw?.entityName || null,
-    raw: it.raw || it,
-  })).filter(it => Boolean(it.internalId));
+  const normalizedItems = rawItems.map((it, idx) => {
+    const rawTitle = it.title || it.content || it.name || it.summary || '';
+    const rawType = (it.type && it.type !== 'unknown')
+      ? it.type
+      : (memoryData.entityType && memoryData.entityType !== 'all'
+        ? memoryData.entityType
+        : (memoryData.source === 'task' ? 'task' : (memoryData.source === 'reminder' ? 'reminder' : (memoryData.source === 'calendar' ? 'calendar_event' : 'unknown'))));
+
+    return {
+      position: idx + 1,
+      type: rawType, // 'calendar_event' | 'reminder' | 'task'
+      internalId: String(it.internalId || it.id || '').trim(),
+      summary: String(it.summary || rawTitle).trim(),
+      title: String(it.title || rawTitle).trim(),
+      time: it.time || it.localTime || it.localStartTime || null,
+      source: it.source || it.domain || memoryData.source || 'unknown',
+      entityName: it.entityName || it.raw?.entities?.name || it.raw?.entityName || null,
+      raw: it.raw || it,
+    };
+  }).filter(it => Boolean(it.internalId));
+
+  // Determine uniform or explicit active container/entity
+  const explicitEntity = memoryData.activeEntity || memoryData.entityName || null;
+  const uniformEntity = (!explicitEntity && normalizedItems.length > 0 && normalizedItems.every(it => it.entityName && it.entityName.toLowerCase() === normalizedItems[0].entityName?.toLowerCase()))
+    ? normalizedItems[0].entityName
+    : null;
+  const activeEntity = explicitEntity || uniformEntity || null;
 
   const payload = {
     source: memoryData.source || 'unified',
     scope: memoryData.scope || 'tomorrow',
     semanticQuery: memoryData.semanticQuery || null,
     entityType: memoryData.entityType || 'all',
+    activeEntity,
     lastAction: memoryData.lastAction || 'list',
     timestamp: Date.now(),
     items: normalizedItems,
@@ -147,11 +165,16 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     ? 'Agenda Unificada'
     : (wm.source === 'calendar' ? 'Google Calendar' : (wm.source === 'reminder' ? 'Recordatorios' : 'Tareas'));
 
+  const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
+  const containerInstruction = wm.activeEntity
+    ? ` Para operar sobre toda la lista/contenedor "${wm.activeEntity}": usa scope: "all", entityName: "${wm.activeEntity}".`
+    : ' Para operar sobre todo el conjunto: usa scope: "all".';
+
   return [
     `[Memoria de Trabajo del Turno Anterior]`,
-    `Origen: ${sourceDesc} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
+    `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
     ...lines,
-    `(Para operar sobre un elemento de la lista anterior, usa target: "1", target: "el primero", o el nombre; el backend resolverá el ID interno).`,
+    `(Para operar sobre un elemento de la lista anterior, usa target: "1", target: "el primero", o el nombre.${containerInstruction} El backend resolverá el ID interno).`,
   ].join('\n');
 }
 
@@ -306,6 +329,17 @@ export function resolveEntityReference({
   // If pool has exactly 1 candidate and user provided a standalone affirmative ("listo", "ya lo hice", "ya fui", "ya está", "ya quedó")
   if (pool.length === 1 && isStandaloneAffirmative(rawRefStr)) {
     return { status: 'RESOLVED', item: pool[0] };
+  }
+
+  // 6. Container / Collective Anaphora Resolution:
+  // If user refers to the entire list or uses collective/anaphoric pronouns ("la", "las", "eso", "todo", "todas", "la lista", "el proyecto")
+  const isCollectiveOrAnaphora = /^(la|las|el|eso|todo|todas|la lista|el proyecto|esa lista|ese proyecto|todas las tareas|todos|todo eso|todas esas cosas)$/i.test(cleanRef);
+  if (isCollectiveOrAnaphora && (wm?.activeEntity || pool.length > 0)) {
+    return {
+      status: 'RESOLVED_CONTAINER',
+      entityName: wm?.activeEntity || pool[0]?.entityName || null,
+      items: pool,
+    };
   }
 
   return { status: 'NOT_FOUND', reason: 'NO_MATCHING_ENTITY' };
