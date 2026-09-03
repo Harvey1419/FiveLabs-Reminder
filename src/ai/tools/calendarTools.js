@@ -415,16 +415,16 @@ export async function executeCalendarTool({ action, params = {}, user, language 
             let timeMin = new Date();
             let timeMax = null;
 
-            if (params.date || params.startDateTime) {
-              const parsedTargetDate = parseTargetTime(params.date || params.startDateTime, tz);
-              if (parsedTargetDate && !isNaN(parsedTargetDate.getTime())) {
-                const startOfDay = new Date(parsedTargetDate);
-                startOfDay.setHours(0, 0, 0, 0);
-                const endOfDay = new Date(parsedTargetDate);
-                endOfDay.setHours(23, 59, 59, 999);
-                timeMin = startOfDay;
-                timeMax = endOfDay;
-              }
+            if (params.date || params.startDateTime || params.scope) {
+              const scopeRes = resolveCalendarTemporalScope(
+                {
+                  date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
+                  scope: params.scope || (params.date || params.startDateTime ? 'explicit_date' : null),
+                },
+                tz
+              );
+              timeMin = scopeRes.timeMin;
+              timeMax = scopeRes.timeMax;
             }
 
             const liveEvents = await listCalendarEvents(userId, {
@@ -529,16 +529,16 @@ export async function executeCalendarTool({ action, params = {}, user, language 
             let timeMin = new Date();
             let timeMax = null;
 
-            if (params.date || params.startDateTime) {
-              const parsedTargetDate = parseTargetTime(params.date || params.startDateTime, tz);
-              if (parsedTargetDate && !isNaN(parsedTargetDate.getTime())) {
-                const startOfDay = new Date(parsedTargetDate);
-                startOfDay.setHours(0, 0, 0, 0);
-                const endOfDay = new Date(parsedTargetDate);
-                endOfDay.setHours(23, 59, 59, 999);
-                timeMin = startOfDay;
-                timeMax = endOfDay;
-              }
+            if (params.date || params.startDateTime || params.scope) {
+              const scopeRes = resolveCalendarTemporalScope(
+                {
+                  date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
+                  scope: params.scope || (params.date || params.startDateTime ? 'explicit_date' : null),
+                },
+                tz
+              );
+              timeMin = scopeRes.timeMin;
+              timeMax = scopeRes.timeMax;
             }
 
             const liveEvents = await listCalendarEvents(userId, {

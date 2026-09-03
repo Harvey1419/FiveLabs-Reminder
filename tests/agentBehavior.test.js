@@ -644,4 +644,89 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     expect(advance).toBeDefined();
     expect(new Date(advance.send_at).getTime()).toBe(mainTime.getTime() - 15 * 60 * 1000);
   });
+
+  // TEST 19: Explicit date in update_event bounds lookup to that specific date and ignores unrelated Working Memory from previous turn
+  it('TEST 19: "9 de septiembre" explicitly sets timeMin/timeMax of Calendar lookup and ignores Sept 3 Working Memory', async () => {
+    await saveUserIntegration(testUser.id, {
+      provider: 'google',
+      accessToken: 'valid-mock-token',
+      refreshToken: 'valid-mock-refresh',
+      accountEmail: 'calendar-date-bounds@gmail.com',
+    });
+
+    // 1. Setup Turn 1 Working Memory for September 3 (containing 2 similar meetings that previously triggered false ambiguity)
+    saveWorkingMemory(testUser, {
+      source: 'unified',
+      scope: 'tomorrow',
+      semanticQuery: 'mañana',
+      items: [
+        { position: 1, type: 'calendar_event', internalId: 'gcal-sept-3-event-1', summary: 'Reunión de trabajo', time: '09:00 AM', source: 'calendar' },
+        { position: 2, type: 'calendar_event', internalId: 'gcal-sept-3-event-2', summary: 'Reunión de trabajo', time: '09:30 AM', source: 'calendar' },
+      ],
+    });
+
+    // 2. Setup Spies on listCalendarEvents and updateCalendarEvent
+    let capturedListParams = null;
+    const listEventsSpy = vi.spyOn(googleCalendarService, 'listCalendarEvents').mockImplementation(async (userId, options) => {
+      capturedListParams = options;
+      // Google Calendar returns 1 single event on September 9
+      return [
+        { id: 'gcal-sept-9-event-uuid', summary: 'Cita previa con proveedor', start: '2026-09-09T10:00:00-05:00', end: '2026-09-09T11:00:00-05:00' },
+      ];
+    });
+
+    let capturedUpdateParams = null;
+    const updateEventSpy = vi.spyOn(googleCalendarService, 'updateCalendarEvent').mockImplementation(async (userId, options) => {
+      capturedUpdateParams = options;
+      return { id: options.eventId, summary: options.summary };
+    });
+
+    // 3. Mock LLM emitting tool_call with explicit date parameter extracted from user request
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "El usuario actualiza la cita del 9 de septiembre a Reunión en Ceramica italia de barranquilla.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: {
+        action: "update_event",
+        date: "2026-09-09",
+        target: "cita",
+        summary: "Reunión en Ceramica italia de barranquilla",
+      },
+      intent: "calendar",
+    }));
+
+    const historyTurn1 = [
+      { role: 'user', content: '¿Entonces que tenemos para mañana?' },
+      { role: 'assistant', content: 'Tienes 2 reuniones de trabajo agendadas.' },
+    ];
+
+    const res = await routeMessage(
+      'la cita que tengo el 9 de septiembre ahora es -> Reunión en Ceramica italia de barranquilla',
+      testUser,
+      historyTurn1
+    );
+
+    // 4. Strict Behavioral Assertions:
+    // Assert 1: The tool call must have queried Calendar specifically for September 9
+    expect(capturedListParams).not.toBeNull();
+    const timeMinStr = new Date(capturedListParams.timeMin).toISOString();
+    const timeMaxStr = new Date(capturedListParams.timeMax).toISOString();
+
+    // Must be bounded to 2026-09-09 (and NOT 2026-09-03)
+    expect(timeMinStr).toMatch(/^2026-09-09/);
+    expect(timeMaxStr).toMatch(/^2026-09-10/);
+
+    // Assert 2: updateCalendarEvent must be invoked with the resolved September 9 event ID (and NOT the September 3 ones)
+    expect(capturedUpdateParams).not.toBeNull();
+    expect(capturedUpdateParams.eventId).toBe('gcal-sept-9-event-uuid');
+    expect(capturedUpdateParams.summary).toBe('Reunión en Ceramica italia de barranquilla');
+
+    // Assert 3: The user confirmation must report success and NOT "Hay múltiples eventos que coinciden"
+    expect(res.confirmation).toContain('Evento actualizado en Google Calendar');
+    expect(res.confirmation).toContain('Reunión en Ceramica italia de barranquilla');
+    expect(res.confirmation).not.toContain('múltiples eventos');
+
+    listEventsSpy.mockRestore();
+    updateEventSpy.mockRestore();
+  });
 });
