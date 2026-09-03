@@ -16,6 +16,7 @@ import {
   formatTaskCompletedCard,
   formatTaskUpdatedCard,
 } from './formatters.js';
+import { resolveEntityReference } from '../workingMemory.js';
 
 /**
  * Domain tool for managing tasks.
@@ -179,7 +180,30 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
     }
 
     case 'complete': {
-      const { taskId = null, scope = null, completeAll = false, entityName = null } = params;
+      const { taskId: rawTaskId = null, scope = null, completeAll = false, entityName = null } = params;
+      let taskId = rawTaskId || params.id || params.target || params.query || null;
+
+      if (!taskId && scope !== 'all' && !completeAll) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: params.target || params.query || '',
+          preferredType: 'task',
+        });
+        if (refRes.status === 'RESOLVED') {
+          taskId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
+              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
+            rawSummary: 'Hay múltiples tareas que coinciden.',
+            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
+          };
+        }
+      }
 
       // 1. Missing Target Guard: single-task completion strictly REQUIRES taskId
       if (!taskId && scope !== 'all' && !completeAll) {
@@ -196,6 +220,28 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       let completedCount = 0;
 
       if (taskId) {
+        if (taskId.length < 36) {
+          const refRes = resolveEntityReference({
+            userOrPhone: user || phoneNumber,
+            reference: taskId,
+            preferredType: 'task',
+          });
+          if (refRes.status === 'RESOLVED') {
+            taskId = refRes.item.internalId;
+          } else if (refRes.status === 'AMBIGUOUS') {
+            return {
+              success: false,
+              action: 'ambiguous_target',
+              errorCode: 'AMBIGUOUS_TARGET',
+              error: language === 'en'
+                ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
+                : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
+              rawSummary: 'Hay múltiples tareas que coinciden.',
+              confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
+            };
+          }
+        }
+
         const updateRes = await updateTask(taskId, { status: 'completed' }, userId);
         if (updateRes?.error || !updateRes?.id) {
           const errCode = updateRes?.error?.code || 'NOT_FOUND';
@@ -241,7 +287,29 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
     }
 
     case 'update': {
-      const taskId = params.taskId || params.id;
+      let taskId = params.taskId || params.id || params.target;
+      if (!taskId || String(taskId).length < 36) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: taskId || params.target || '',
+          preferredType: 'task',
+        });
+        if (refRes.status === 'RESOLVED') {
+          taskId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple tasks match your request. Please clarify which one you want to update.'
+              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas actualizar.',
+            rawSummary: 'Hay múltiples tareas que coinciden.',
+            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas actualizar.',
+          };
+        }
+      }
+
       if (!taskId) {
         return {
           success: false,
@@ -306,7 +374,28 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
     }
 
     case 'delete': {
-      const taskId = params.taskId || params.id;
+      let taskId = params.taskId || params.id || params.target;
+      if (!taskId || String(taskId).length < 36) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: taskId || params.target || '',
+          preferredType: 'task',
+        });
+        if (refRes.status === 'RESOLVED') {
+          taskId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple tasks match your request. Please clarify which one you want to delete.'
+              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas eliminar.',
+            rawSummary: 'Hay múltiples tareas que coinciden.',
+            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas eliminar.',
+          };
+        }
+      }
 
       if (!taskId) {
         return {
@@ -350,11 +439,20 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       });
 
       const formattedCard = formatTaskListCard(tasks, entityName, language);
+      const structuredItems = (tasks || []).map((t, idx) => ({
+        position: idx + 1,
+        type: 'task',
+        internalId: t.id,
+        summary: t.title || t.content,
+        time: t.due_date ? formatLocalDateTime(new Date(t.due_date), timezone, language === 'en' ? 'en-US' : 'es-CO') : null,
+        source: 'task',
+        raw: t,
+      }));
 
       return {
         success: true,
         action: 'listed_tasks',
-        data: tasks,
+        data: { tasks, items: structuredItems },
         rawSummary: formattedCard,
         formattedCard,
       };

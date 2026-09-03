@@ -15,6 +15,13 @@ import {
 import { createPreapprovalPlan, getOrCreateCanonicalPlan } from '../services/mercadopago.js';
 import { generateGoogleAuthUrl, getGoogleConnectUrl } from '../services/googleAuth.js';
 import { buildAgentCorePrompt } from './agentCore.js';
+import {
+  getWorkingMemory,
+  saveWorkingMemory,
+  formatWorkingMemoryPrompt,
+  resolveEntityReference,
+  sanitizeResponseText,
+} from './workingMemory.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
   nowISO,
@@ -28,6 +35,7 @@ import {
  * @param {string} messageText
  * @param {object|string} userOrPhone
  * @param {Array<{role: string, content: string}>} [history=[]]
+ * @param {object} [options={}]
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
@@ -70,6 +78,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ? combinedMemories.map(m => `- [${m.category || 'memoria'}] ${m.content}`).join('\n')
     : '';
 
+  // Working Memory from previous turn
+  const workingMemoryText = formatWorkingMemoryPrompt(phoneNumber || user.id);
+
   // 2. Build Authoritative Agent Core Grounded Prompt with RBAC & Plan exposure
   const prompt = buildAgentCorePrompt({
     nowStr,
@@ -78,6 +89,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     phoneNumber,
     memoryHints,
     overview: dailyOverview,
+    workingMemoryText,
     googleIntegration,
     isAdmin,
     isPro,
@@ -137,13 +149,51 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.log(`[router req=${options?.correlationId || 'none'}] Tool ${plan.tool} outcome: success=${toolResult.success}`);
 
     if (toolResult.success) {
-      // For successful operations, use the deterministic formatted response card
       if (toolResult.confirmation || toolResult.formattedCard || toolResult.rawSummary) {
         finalReply = toolResult.confirmation || toolResult.formattedCard || toolResult.rawSummary;
       }
+
+      // Save structured items to working memory
+      let workingItems = toolResult.data?.items;
+      if (!workingItems) {
+        if (Array.isArray(toolResult.data)) workingItems = toolResult.data;
+        else if (toolResult.data?.events) workingItems = toolResult.data.events;
+        else if (toolResult.data?.reminders) workingItems = toolResult.data.reminders;
+        else if (toolResult.data?.tasks) workingItems = toolResult.data.tasks;
+      }
+      if (workingItems && workingItems.length > 0) {
+        saveWorkingMemory(user, {
+          source: plan.tool === 'get_unified_agenda' ? 'unified' : (plan.tool === 'manage_google_calendar' ? 'calendar' : (plan.tool === 'manage_reminder' ? 'reminder' : 'task')),
+          scope: plan.params?.scope || 'tomorrow',
+          semanticQuery: plan.params?.query || null,
+          entityType: 'all',
+          lastAction: plan.tool,
+          items: workingItems,
+        });
+      }
+
+      // Compound Operations: execute secondary plan if present
+      if (plan.secondary_plan && plan.secondary_plan.tool) {
+        const secondaryResult = await executeTool({
+          toolName: plan.secondary_plan.tool,
+          params: plan.secondary_plan.params || {},
+          user,
+          isPro,
+          language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+          userMessage: sanitizedText,
+          correlationId: options?.correlationId,
+        });
+        if (secondaryResult.confirmation || secondaryResult.formattedCard) {
+          finalReply += '\n\n' + (secondaryResult.confirmation || secondaryResult.formattedCard);
+        }
+      }
     } else {
       // If the backend mutation failed or was rejected
-      if (toolResult.errorCode === 'MISSING_TARGET_ID') {
+      if (toolResult.errorCode === 'AMBIGUOUS_TARGET') {
+        finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
+          ? 'Multiple items match your request. Please clarify which one you would like to modify.'
+          : 'Hay múltiples elementos que coinciden. Por favor aclara cuál de ellos deseas modificar.');
+      } else if (toolResult.errorCode === 'MISSING_TARGET_ID') {
         finalReply = toolResult.confirmation || toolResult.rawSummary || ((user.locale && user.locale.startsWith('en'))
           ? 'Please specify which item you would like me to modify.'
           : '¿Cuál elemento deseas que modifique o actualice?');
@@ -155,9 +205,47 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
         finalReply = toolResult.confirmation || toolResult.error || `⚠️ No se pudo completar la acción: ${toolResult.error || 'error desconocido'}.`;
       }
     }
+  } else {
+    // 4. Deterministic Post-LLM Acknowledge Guard:
+    // If LLM returned type: 'chat', but the user message is an explicit past-tense completion
+    // of an active pending reminder ("ya le hablé", "ya quedó", "ya compré"), resolve and acknowledge deterministically.
+    const isPastConfirmation = /\b(ya le hablé|ya le hable|ya hablé|ya hable|ya le escribí|ya le escribi|ya escribí|ya escribi|ya compré|ya compre|ya lo hice|ya está hecho|ya esta hecho|ya quedó|ya quedo|ya lo llamé|ya lo llame|ya llamé|ya llame)\b/i.test(sanitizedText) && !sanitizedText.includes('?');
+    if (isPastConfirmation) {
+      const candidates = [
+        ...(dailyOverview?.pendingConfirmationReminders || []),
+        ...(dailyOverview?.timedRemindersToday || []),
+      ];
+      if (candidates.length > 0) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user,
+          reference: sanitizedText,
+          candidates,
+          preferredType: 'reminder',
+        });
+        if (refRes.status === 'RESOLVED') {
+          const ackResult = await executeTool({
+            toolName: 'manage_reminder',
+            params: { action: 'acknowledge', reminderId: refRes.item.internalId },
+            user,
+            isPro,
+            language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+            userMessage: sanitizedText,
+            correlationId: options?.correlationId,
+          });
+          if (ackResult.success) {
+            finalReply = ackResult.confirmation || ackResult.formattedCard;
+            plan.intent = 'reminder';
+          }
+        } else if (refRes.status === 'AMBIGUOUS') {
+          finalReply = (user.locale && user.locale.startsWith('en'))
+            ? 'Multiple reminders match your request. Please clarify which one you completed.'
+            : 'Hay más de un recordatorio pendiente que coincide con tu confirmación. ¿Cuál de ellos completaste?';
+        }
+      }
+    }
   }
 
-  // Universal safety check: if reply has [auth_url] anywhere (even in type: 'chat'), replace with clean short link
+  // Universal safety check: if reply has [auth_url] anywhere, replace with clean link
   if (finalReply && finalReply.includes('[auth_url]')) {
     try {
       const authUrl = getGoogleConnectUrl({ userId: user.id, phoneNumber: phoneNumber || user.phone_number });
@@ -167,7 +255,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     }
   }
 
-  // Universal check: if reply has [checkout_url] anywhere (even in type: 'chat'), replace with real link
+  // Universal check: if reply has [checkout_url] anywhere, replace with real link
   if (finalReply && finalReply.includes('[checkout_url]')) {
     try {
       const planRes = await getOrCreateCanonicalPlan({
@@ -193,7 +281,11 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const defaultNeutralReply = (user.locale && user.locale.startsWith('en'))
     ? 'I have processed your request. How else can I assist you today?'
     : 'He procesado tu solicitud. ¿En qué más te puedo colaborar hoy?';
-  const finalReplyText = finalReply || plan.reply || defaultNeutralReply;
+  const rawReplyText = finalReply || plan.reply || defaultNeutralReply;
+
+  // 5. Strict Output Sanitization: completely strip any accidental [id: ...] or raw UUIDs before delivery
+  const finalReplyText = sanitizeResponseText(rawReplyText);
+
   const totalDurationMs = Date.now() - startMs;
   console.log(`[router req=${options?.correlationId || 'none'}] Out in ${totalDurationMs}ms: "${finalReplyText.slice(0, 80)}..."`);
 
@@ -204,6 +296,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   else if (plan.tool === 'manage_entity') inferredIntent = 'entity';
   else if (plan.tool === 'manage_subscription' || plan.tool === 'get_subscription_link') inferredIntent = 'subscription';
   else if (plan.tool === 'manage_google_calendar') inferredIntent = 'calendar';
+  else if (plan.tool === 'get_unified_agenda') inferredIntent = 'unified_agenda';
   else if (plan.tool === 'admin_metrics') inferredIntent = 'admin';
 
   let ctaUrl = toolResult?.ctaUrl || null;

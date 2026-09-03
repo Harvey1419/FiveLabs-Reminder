@@ -20,6 +20,7 @@ import {
   zonedTimeToUtc,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
+import { resolveEntityReference } from '../workingMemory.js';
 
 /**
  * Normalizes raw Google Calendar event into explicit civil or timed representation.
@@ -228,10 +229,19 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           ? 'Your next event in Google Calendar is:'
           : 'Tu próximo evento en Google Calendar es:';
         const summary = `${header}\n${eventText}`;
+        const structuredItem = {
+          position: 1,
+          type: 'calendar_event',
+          internalId: ev.id,
+          summary: ev.summary,
+          time: ev.localStartTime || (ev.isAllDay ? (language === 'en' ? 'All day' : 'Todo el día') : null),
+          source: 'calendar',
+          raw: ev,
+        };
         return {
           success: true,
           action: 'google_events_listed',
-          data: [ev],
+          data: { events: [ev], items: [structuredItem] },
           rawSummary: summary,
           formattedCard: summary,
         };
@@ -244,10 +254,20 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         : 'Eventos en tu Google Calendar:';
       const summary = `${header}\n${eventsFormatted}`;
 
+      const structuredItems = events.map((e, idx) => ({
+        position: idx + 1,
+        type: 'calendar_event',
+        internalId: e.id,
+        summary: e.summary,
+        time: e.localStartTime || (e.isAllDay ? (language === 'en' ? 'All day' : 'Todo el día') : null),
+        source: 'calendar',
+        raw: e,
+      }));
+
       return {
         success: true,
         action: 'google_events_listed',
-        data: events,
+        data: { events, items: structuredItems },
         rawSummary: summary,
         formattedCard: summary,
       };
@@ -363,7 +383,29 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const eventId = params.eventId || params.id;
+      let eventId = params.eventId || params.id;
+      if (!eventId || String(eventId).length < 8) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: eventId || params.target || params.summary || params.query || '',
+          preferredType: 'calendar_event',
+        });
+        if (refRes.status === 'RESOLVED') {
+          eventId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple calendar events match. Please clarify which one you want to update.'
+              : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas actualizar.',
+            rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
+            confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
+          };
+        }
+      }
+
       if (!eventId) {
         return {
           success: false,
@@ -417,7 +459,29 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const eventId = params.eventId || params.id;
+      let eventId = params.eventId || params.id;
+      if (!eventId || String(eventId).length < 8) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: eventId || params.target || params.summary || params.query || '',
+          preferredType: 'calendar_event',
+        });
+        if (refRes.status === 'RESOLVED') {
+          eventId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple calendar events match. Please clarify which one you want to delete.'
+              : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas eliminar.',
+            rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
+            confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
+          };
+        }
+      }
+
       if (!eventId) {
         return {
           success: false,
@@ -429,8 +493,8 @@ export async function executeCalendarTool({ action, params = {}, user, language 
 
       const deleted = await deleteCalendarEvent(userId, eventId);
       const summary = deleted
-        ? 'Evento eliminado de tu Google Calendar.'
-        : 'No se pudo eliminar el evento de Google Calendar.';
+        ? (language === 'en' ? 'Event deleted from your Google Calendar.' : 'Evento eliminado de tu Google Calendar.')
+        : (language === 'en' ? 'Could not delete event from Google Calendar.' : 'No se pudo eliminar el evento de Google Calendar.');
       return {
         success: deleted,
         action: deleted ? 'google_event_deleted' : 'google_api_error',

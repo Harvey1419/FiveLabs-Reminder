@@ -36,6 +36,8 @@ export async function getUnifiedAgenda({
   const temporal = resolveCalendarTemporalScope({ scope, date, dateFrom, dateTo }, tz);
   const timeMin = temporal.timeMin;
   const timeMax = temporal.timeMax;
+  const timeMinIso = timeMin instanceof Date ? timeMin.toISOString() : String(timeMin);
+  const timeMaxIso = timeMax instanceof Date ? timeMax.toISOString() : String(timeMax);
 
   // 1. Parallel independent fetch across the 3 domains
   const [calendarResult, remindersResult, tasksResult] = await Promise.allSettled([
@@ -77,8 +79,8 @@ export async function getUnifiedAgenda({
         .select('*')
         .neq('status', 'cancelled')
         .is('acknowledged_at', null)
-        .gte('send_at', timeMin)
-        .lt('send_at', timeMax);
+        .gte('send_at', timeMinIso)
+        .lt('send_at', timeMaxIso);
 
       if (userId && phoneNumber) {
         q = q.or(`user_id.eq.${userId},phone_number.eq.${phoneNumber}`);
@@ -122,8 +124,8 @@ export async function getUnifiedAgenda({
         .select('*, entities:entity_id(id, name, category)')
         .eq('user_id', userId)
         .eq('status', 'pending')
-        .gte('due_date', timeMin)
-        .lt('due_date', timeMax)
+        .gte('due_date', timeMinIso)
+        .lt('due_date', timeMaxIso)
         .order('due_date', { ascending: true });
 
       if (error) {
@@ -173,6 +175,42 @@ export async function getUnifiedAgenda({
     language,
   });
 
+  const orderedItems = [];
+  let pos = 1;
+  for (const ev of (calendar.events || [])) {
+    orderedItems.push({
+      position: pos++,
+      type: 'calendar_event',
+      internalId: ev.id,
+      summary: ev.summary,
+      time: ev.localStartTime || (ev.isAllDay ? (language === 'en' ? 'All day' : 'Todo el día') : null),
+      source: 'calendar',
+      raw: ev,
+    });
+  }
+  for (const r of reminders) {
+    orderedItems.push({
+      position: pos++,
+      type: 'reminder',
+      internalId: r.id,
+      summary: r.content || r.title,
+      time: r.localTime || null,
+      source: 'reminder',
+      raw: r,
+    });
+  }
+  for (const t of tasks) {
+    orderedItems.push({
+      position: pos++,
+      type: 'task',
+      internalId: t.id,
+      summary: t.title || t.content,
+      time: t.localTime || null,
+      source: 'task',
+      raw: t,
+    });
+  }
+
   return {
     scope,
     timeMin,
@@ -180,6 +218,7 @@ export async function getUnifiedAgenda({
     calendar,
     reminders,
     tasks,
+    items: orderedItems,
     formattedCard,
   };
 }

@@ -60,10 +60,8 @@ describe('Google Calendar Deterministic Grounding & Temporal Range Test Suite', 
     ]);
 
     const res = await routeMessage('Tengo algo en el calendario de google para hoy ?', userA, staleHistory);
-    expect(res.intent === 'calendar' || res.confirmation?.includes('intermitencia')).toBe(true);
-    if (res.intent === 'calendar') {
-      expect(res.entities?.action).toBe('list_events');
-    }
+    expect(res.intent).toBe('calendar');
+    expect(res.entities?.action).toBe('list_events');
 
     listSpy.mockRestore();
   });

@@ -24,6 +24,7 @@ import {
   formatReminderUpdatedCard,
   formatReminderListCard,
 } from './formatters.js';
+import { resolveEntityReference } from '../workingMemory.js';
 
 /**
  * Domain tool for managing reminders.
@@ -385,9 +386,32 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
     case 'cancel': {
       const { reminderId = null, scope = null, cancelAll = false } = params;
       let cancelledCount = 0;
+      let targetId = reminderId || params.id || params.target || params.contentQuery || params.query || null;
+
+      if (!targetId && scope !== 'all' && !cancelAll) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: userMessage || '',
+          preferredType: 'reminder',
+        });
+        if (refRes.status === 'RESOLVED') {
+          targetId = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple reminders match your request. Please clarify which one you want to cancel.'
+              : 'Hay múltiples recordatorios que coinciden. Por favor aclara cuál deseas cancelar.',
+            rawSummary: 'Hay múltiples recordatorios que coinciden. Por favor aclara cuál deseas cancelar.',
+            confirmation: 'Hay múltiples recordatorios que coinciden. Por favor aclara cuál deseas cancelar.',
+          };
+        }
+      }
 
       // 1. Missing Target Guard: single-reminder cancellation strictly REQUIRES reminderId
-      if (!reminderId && scope !== 'all' && !cancelAll) {
+      if (!targetId && scope !== 'all' && !cancelAll) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -398,21 +422,42 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         };
       }
 
-      if (reminderId) {
-        let targetId = reminderId;
+      if (targetId) {
         if (targetId.length < 36) {
           const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
-          const matched = pending.find(r => r.id.startsWith(targetId));
-          if (matched) targetId = matched.id;
-          else {
-            return {
-              success: false,
-              action: 'reminder_not_found',
-              errorCode: 'NOT_FOUND',
-              error: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
-              rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
-              confirmation: language === 'en' ? '⚠️ Reminder not found.' : '⚠️ No se encontró el recordatorio especificado.',
-            };
+          const matched = pending.find(r => r.id === targetId || r.id.startsWith(targetId));
+          if (matched) {
+            targetId = matched.id;
+          } else {
+            const refRes = resolveEntityReference({
+              userOrPhone: user || phoneNumber,
+              reference: targetId,
+              candidates: pending,
+              preferredType: 'reminder',
+            });
+            if (refRes.status === 'RESOLVED') {
+              targetId = refRes.item.internalId;
+            } else if (refRes.status === 'AMBIGUOUS') {
+              return {
+                success: false,
+                action: 'ambiguous_target',
+                errorCode: 'AMBIGUOUS_TARGET',
+                error: language === 'en'
+                  ? 'Multiple reminders match. Please clarify which one you want to cancel.'
+                  : 'Hay múltiples recordatorios que coinciden. Por favor aclara cuál deseas cancelar.',
+                rawSummary: 'Hay múltiples recordatorios que coinciden.',
+                confirmation: 'Hay múltiples recordatorios que coinciden. Por favor aclara cuál deseas cancelar.',
+              };
+            } else {
+              return {
+                success: false,
+                action: 'reminder_not_found',
+                errorCode: 'NOT_FOUND',
+                error: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
+                rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
+                confirmation: language === 'en' ? '⚠️ Reminder not found.' : '⚠️ No se encontró el recordatorio especificado.',
+              };
+            }
           }
         }
         const marked = await markReminderAsCancelled(targetId);
@@ -447,13 +492,36 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         },
         rawSummary: formattedCard,
         formattedCard,
+        confirmation: formattedCard,
       };
     }
 
     case 'acknowledge': {
       const { reminderId = null, contentQuery = null, query = null, scope = null, acknowledgeAll = false } = params;
       const userId = user?.id || null;
-      const rawTarget = reminderId || contentQuery || query || null;
+      let rawTarget = reminderId || contentQuery || query || params.target || null;
+
+      if (!rawTarget && scope !== 'all' && !acknowledgeAll) {
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: userMessage || '',
+          preferredType: 'reminder',
+        });
+        if (refRes.status === 'RESOLVED') {
+          rawTarget = refRes.item.internalId;
+        } else if (refRes.status === 'AMBIGUOUS') {
+          return {
+            success: false,
+            action: 'ambiguous_target',
+            errorCode: 'AMBIGUOUS_TARGET',
+            error: language === 'en'
+              ? 'Multiple reminders match your request. Please clarify which one you completed.'
+              : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+            rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
+            confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+          };
+        }
+      }
 
       // 1. Missing Target Guard: single-reminder acknowledge requires target
       if (!rawTarget && scope !== 'all' && !acknowledgeAll) {
@@ -469,103 +537,68 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         };
       }
 
-        if (rawTarget) {
-          const targetStr = String(rawTarget).trim();
-          let matched = null;
+      if (rawTarget) {
+        const targetStr = String(rawTarget).trim();
+        let matched = null;
 
-          // If exact 36-char UUID, try direct lookup first for maximum performance and compatibility
-          if (targetStr.length === 36) {
-            try {
-              const { data: directRem } = await supabase
-                .from('reminders')
-                .select('*')
-                .eq('id', targetStr)
-                .single();
-              if (directRem) {
-                matched = directRem;
-              }
-            } catch (_) {}
-          }
-
-          if (!matched) {
-            // Query active candidate reminders for the user
-            let pendingQ = supabase
+        // If exact 36-char UUID, try direct lookup first
+        if (targetStr.length === 36) {
+          try {
+            const { data: directRem } = await supabase
               .from('reminders')
-              .select('*');
-
-            if (userId && phoneNumber) {
-              pendingQ = pendingQ.or(`user_id.eq.${userId},phone_number.eq.${phoneNumber}`);
-            } else if (userId) {
-              pendingQ = pendingQ.eq('user_id', userId);
-            } else if (phoneNumber) {
-              pendingQ = pendingQ.eq('phone_number', phoneNumber);
+              .select('*')
+              .eq('id', targetStr)
+              .single();
+            if (directRem) {
+              matched = directRem;
             }
+          } catch (_) {}
+        }
 
-            const { data: userReminders } = await pendingQ.limit(50);
-            const candidates = (userReminders || []).filter(r => r.status !== 'cancelled');
+        if (!matched) {
+          // Query active candidate reminders for the user
+          let pendingQ = supabase
+            .from('reminders')
+            .select('*');
 
-            // 1. Exact ID / 8-char hex prefix match
-            matched = candidates.find(r => r.id === targetStr || r.id.startsWith(targetStr));
+          if (userId && phoneNumber) {
+            pendingQ = pendingQ.or(`user_id.eq.${userId},phone_number.eq.${phoneNumber}`);
+          } else if (userId) {
+            pendingQ = pendingQ.eq('user_id', userId);
+          } else if (phoneNumber) {
+            pendingQ = pendingQ.eq('phone_number', phoneNumber);
+          }
 
-            // 2. Semantic token ranking if not matched by ID
-            if (!matched) {
-              const normalizeTokens = str =>
-                String(str || '')
-                  .toLowerCase()
-                  .normalize('NFD')
-                  .replace(/[\u0300-\u036f]/g, '')
-                  .replace(/[^\w\s]/g, ' ')
-                  .split(/\s+/)
-                  .filter(w => w.length > 2 && !['para', 'los', 'las', 'con', 'que', 'por', 'del', 'una', 'uno', 'este', 'esta'].includes(w));
+          const { data: userReminders } = await pendingQ.limit(50);
+          const candidates = (userReminders || []).filter(r => r.status !== 'cancelled' && !r.acknowledged_at);
 
-              const queryTokens = normalizeTokens(targetStr);
+          // 1. Exact ID / 8-char hex prefix match
+          matched = candidates.find(r => r.id === targetStr || r.id.startsWith(targetStr));
 
-              if (queryTokens.length > 0) {
-                const scored = [];
-                for (const r of candidates) {
-                  const rTokens = normalizeTokens(r.content || r.title);
-                  if (rTokens.length === 0) continue;
-
-                  // Calculate token containment overlap
-                  const matchCount = queryTokens.filter(qt => rTokens.some(rt => rt.includes(qt) || qt.includes(rt))).length;
-                  const score = matchCount / queryTokens.length;
-
-                  if (score >= 0.5) {
-                    scored.push({ reminder: r, score });
-                  }
-                }
-
-                scored.sort((a, b) => b.score - a.score);
-
-                if (scored.length === 1 && scored[0].score >= 0.5) {
-                  matched = scored[0].reminder;
-                } else if (scored.length > 1) {
-                  const top = scored[0];
-                  const runnerUp = scored[1];
-                  // Unambiguous winner guard
-                  if (top.score >= 0.8 && (top.score - runnerUp.score) >= 0.3) {
-                    matched = top.reminder;
-                  } else {
-                    // Ambiguous match: DO NOT MUTATE DB
-                    return {
-                      success: false,
-                      action: 'ambiguous_target',
-                      errorCode: 'AMBIGUOUS_TARGET',
-                      error: language === 'en'
-                        ? 'Multiple reminders match your request. Please clarify which one you completed.'
-                        : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-                      rawSummary: language === 'en'
-                        ? 'Multiple reminders match your request. Please clarify.'
-                        : 'Hay más de un recordatorio que coincide. Por favor aclara.',
-                      confirmation: language === 'en'
-                        ? 'Multiple reminders match your request. Please specify.'
-                        : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-                    };
-                  }
-                }
-              }
+          // 2. Working Memory & Reference Resolver matching
+          if (!matched) {
+            const refRes = resolveEntityReference({
+              userOrPhone: user || phoneNumber,
+              reference: targetStr,
+              candidates: candidates,
+              preferredType: 'reminder',
+            });
+            if (refRes.status === 'RESOLVED') {
+              matched = candidates.find(r => r.id === refRes.item.internalId) || refRes.item.raw;
+            } else if (refRes.status === 'AMBIGUOUS') {
+              return {
+                success: false,
+                action: 'ambiguous_target',
+                errorCode: 'AMBIGUOUS_TARGET',
+                error: language === 'en'
+                  ? 'Multiple reminders match your request. Please clarify which one you completed.'
+                  : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+                rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
+                confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+              };
             }
           }
+        }
 
         if (matched) {
           const hasTenantInfo = Boolean(matched.user_id || matched.phone_number);
@@ -638,10 +671,19 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
     case 'list': {
       const pending = await getRemindersByPhone(phoneNumber, 'pending', 20);
       const formattedCard = formatReminderListCard(pending, timezone, language);
+      const structuredItems = (pending || []).map((r, idx) => ({
+        position: idx + 1,
+        type: 'reminder',
+        internalId: r.id,
+        summary: r.content || r.title,
+        time: r.send_at ? formatLocalDateTime(new Date(r.send_at), timezone, language === 'en' ? 'en-US' : 'es-CO') : null,
+        source: 'reminder',
+        raw: r,
+      }));
       return {
         success: true,
         action: 'listed_reminders',
-        data: pending,
+        data: { reminders: pending, items: structuredItems },
         rawSummary: formattedCard,
         formattedCard,
         confirmation: formattedCard,
