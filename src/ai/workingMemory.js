@@ -90,6 +90,8 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
     : null;
   const activeEntity = explicitEntity || uniformEntity || null;
 
+  const explicitNotifId = memoryData.notificationReminderId || ((memoryData.lastAction === 'nudge' || memoryData.lastAction === 'reminder_dispatched') ? normalizedItems[0]?.internalId : null) || null;
+
   const payload = {
     source: memoryData.source || 'unified',
     scope: memoryData.scope || 'tomorrow',
@@ -97,6 +99,8 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
     entityType: memoryData.entityType || 'all',
     activeEntity,
     lastAction: memoryData.lastAction || 'list',
+    notificationReminderId: explicitNotifId,
+    notificationContent: memoryData.notificationContent || null,
     timestamp: Date.now(),
     items: normalizedItems,
   };

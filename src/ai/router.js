@@ -22,6 +22,7 @@ import {
   resolveEntityReference,
   sanitizeResponseText,
 } from './workingMemory.js';
+import { isStandaloneAffirmative } from '../utils/entityResolution.js';
 import { isAdminUser } from '../utils/auth.js';
 import {
   nowISO,
@@ -99,38 +100,30 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   // 1.5. FAST-PATH DETERMINISTIC ROUTING (0 LLM Tokens, <10ms Latency)
   // If user sends an unambiguous affirmative confirmation to an active notification in Working Memory
-  const isDirectAffirmative = /^(ya fui|fui|ya lo hice|ya está|ya esta|ya quedó|ya quedo|listo|ok|hecho|completado|ya terminé|ya termine)$/i.test(sanitizedText);
+  const isDirectAffirmative = isStandaloneAffirmative(sanitizedText);
   if (isDirectAffirmative) {
-    const wm = getWorkingMemory(phoneNumber || user.id);
-    if (wm && wm.items && wm.items.length > 0 && (wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched')) {
-      // Use resolver instead of blindly taking items[0]
-      const refRes = resolveEntityReference({
-        userOrPhone: user || phoneNumber,
-        reference: sanitizedText,
-        preferredType: 'reminder',
+    const wm = getWorkingMemory(user || phoneNumber);
+    const targetReminderId = wm?.notificationReminderId || ((wm?.lastAction === 'nudge' || wm?.lastAction === 'reminder_dispatched') ? wm?.items?.[0]?.internalId : null);
+
+    if (targetReminderId) {
+      const fastAckResult = await executeTool({
+        toolName: 'manage_reminder',
+        params: { action: 'acknowledge', reminderId: targetReminderId },
+        user,
+        isPro,
+        language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+        userMessage: sanitizedText,
+        correlationId: options?.correlationId,
       });
-      const targetItem = refRes.status === 'RESOLVED' ? refRes.item : wm.items[0];
 
-      if (targetItem && targetItem.internalId) {
-        const fastAckResult = await executeTool({
-          toolName: 'manage_reminder',
-          params: { action: 'acknowledge', reminderId: targetItem.internalId },
-          user,
-          isPro,
-          language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
-          userMessage: sanitizedText,
-          correlationId: options?.correlationId,
-        });
-
-        if (fastAckResult.success) {
-          console.log(`[router req=${options?.correlationId || 'none'}] Fast-path deterministic acknowledge hit: 0 LLM tokens consumed.`);
-          return {
-            intent: 'reminder',
-            confirmation: fastAckResult.confirmation || fastAckResult.formattedCard,
-            data: fastAckResult.data,
-            plan: { type: 'tool_call', tool: 'manage_reminder', params: { action: 'acknowledge', reminderId: targetItem.internalId }, intent: 'reminder' },
-          };
-        }
+      if (fastAckResult.success) {
+        console.log(`[router req=${options?.correlationId || 'none'}] Fast-path deterministic acknowledge hit: 0 LLM tokens consumed for notification reminder ${targetReminderId}.`);
+        return {
+          intent: 'reminder',
+          confirmation: fastAckResult.confirmation || fastAckResult.formattedCard,
+          data: fastAckResult.data,
+          plan: { type: 'tool_call', tool: 'manage_reminder', params: { action: 'acknowledge', reminderId: targetReminderId }, intent: 'reminder' },
+        };
       }
     }
   }
@@ -251,11 +244,27 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   } else {
     // 4. Deterministic Post-LLM Acknowledge Guard:
     // If LLM returned type: 'chat', but the user message is an explicit past-tense completion
-    // of an active pending reminder or task ("ya le hablé", "ya quedó", "ya compré", "ya fui"), resolve and acknowledge deterministically.
-    const isPastConfirmation = /\b(ya le hablé|ya le hable|ya hablé|ya hable|ya le escribí|ya le escribi|ya escribí|ya escribi|ya compré|ya compre|ya lo hice|ya está hecho|ya esta hecho|ya quedó|ya quedo|ya lo llamé|ya lo llame|ya llamé|ya llame|ya fui|fui|ya terminado|ya terminé|ya termine|listo|ok|hecho)\b/i.test(sanitizedText) && !sanitizedText.includes('?');
+    // of an active pending reminder or task ("ya le hablé", "ya quedó", "ya compré", "ya fui", "ya"), resolve and acknowledge deterministically.
+    const isPastConfirmation = (isStandaloneAffirmative(sanitizedText) || /\b(ya le hablé|ya le hable|ya hablé|ya hable|ya le escribí|ya le escribi|ya escribí|ya escribi|ya compré|ya compre|ya lo hice|ya está hecho|ya esta hecho|ya quedó|ya quedo|ya lo llamé|ya lo llame|ya llamé|ya llame|ya fui|fui|ya terminado|ya terminé|ya termine|listo|ok|hecho|ya)\b/i.test(sanitizedText)) && !sanitizedText.includes('?');
     if (isPastConfirmation) {
-      const wm = getWorkingMemory(phoneNumber || user.id);
-      if (wm && wm.source === 'task' && (wm.activeEntity || wm.items.some(it => it.type === 'task'))) {
+      const wm = getWorkingMemory(user || phoneNumber);
+      const notificationReminderId = wm?.notificationReminderId || ((wm?.lastAction === 'nudge' || wm?.lastAction === 'reminder_dispatched') ? wm?.items?.[0]?.internalId : null);
+
+      if (notificationReminderId) {
+        const ackResult = await executeTool({
+          toolName: 'manage_reminder',
+          params: { action: 'acknowledge', reminderId: notificationReminderId },
+          user,
+          isPro,
+          language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+          userMessage: sanitizedText,
+          correlationId: options?.correlationId,
+        });
+        if (ackResult.success) {
+          finalReply = ackResult.confirmation || ackResult.formattedCard;
+          plan.intent = 'reminder';
+        }
+      } else if (wm && wm.source === 'task' && (wm.activeEntity || wm.items.some(it => it.type === 'task'))) {
         const taskAckRes = await executeTool({
           toolName: 'manage_task',
           params: { action: 'complete', scope: 'all', entityName: wm.activeEntity || null, target: sanitizedText },

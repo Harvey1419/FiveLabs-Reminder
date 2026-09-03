@@ -79,6 +79,8 @@ export async function checkAndDispatchNudges() {
         source: 'reminder',
         scope: 'today',
         lastAction: 'nudge',
+        notificationReminderId: reminder.id,
+        notificationContent: cleanText,
         items: [{
           position: 1,
           type: 'reminder',
@@ -142,6 +144,8 @@ export async function processReminder(reminder) {
       source: 'reminder',
       scope: 'today',
       lastAction: 'reminder_dispatched',
+      notificationReminderId: reminder.id,
+      notificationContent: cleanSummary,
       items: [{
         position: 1,
         type: 'reminder',

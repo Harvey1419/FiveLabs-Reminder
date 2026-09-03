@@ -699,7 +699,24 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       // 2. Working Memory Notification Context (Hermes just sent a notification/nudge or relative ref)
       if (!matched) {
         const wm = getWorkingMemory(user || phoneNumber);
-        if (wm && wm.items && wm.items.length > 0) {
+        const notificationId = wm?.notificationReminderId || ((wm?.lastAction === 'nudge' || wm?.lastAction === 'reminder_dispatched') ? wm?.items?.[0]?.internalId : null);
+
+        // If user responds to an active notification context with an affirmative ("Ya", "Listo", "OK") or userMessage is affirmative:
+        // Bind strictly to the originating notification reminder ID, never search candidate titles!
+        if (notificationId && (isAffirmative || !rawTarget || isStandaloneAffirmative(userMessage))) {
+          try {
+            const { data: notifRem } = await supabase
+              .from('reminders')
+              .select('*')
+              .eq('id', notificationId)
+              .maybeSingle();
+            if (notifRem && notifRem.status !== 'cancelled') {
+              matched = notifRem;
+            }
+          } catch (_) {}
+        }
+
+        if (!matched && wm && wm.items && wm.items.length > 0) {
           const stripped = stripConversationalWrappers(targetStr);
           const hasExplicitTarget = Boolean(stripped && !isAffirmative && !isOrdinal);
 
@@ -801,13 +818,11 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             const sortedCandidates = candidates.slice().sort((a, b) => {
               const timeA = Math.max(
                 a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0,
-                a.sent_at ? new Date(a.sent_at).getTime() : 0,
-                a.send_at ? new Date(a.send_at).getTime() : 0
+                a.sent_at ? new Date(a.sent_at).getTime() : 0
               );
               const timeB = Math.max(
                 b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0,
-                b.sent_at ? new Date(b.sent_at).getTime() : 0,
-                b.send_at ? new Date(b.send_at).getTime() : 0
+                b.sent_at ? new Date(b.sent_at).getTime() : 0
               );
               return timeB - timeA;
             });
