@@ -17,6 +17,7 @@ import {
   getDayBounds,
   resolveCalendarTemporalScope,
   formatLocalDateTime,
+  formatHumanFriendlyDateTime,
   zonedTimeToUtc,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
@@ -54,7 +55,7 @@ export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
 
   const startIso = rawStartDateTime || (typeof ev.start === 'string' ? ev.start : (rawStartDate ? `${rawStartDate}T00:00:00Z` : new Date().toISOString()));
   const sortTimestamp = new Date(startIso).getTime();
-  const dateStr = formatLocalDateTime(new Date(startIso), timezone, 'es-CO');
+  const dateStr = formatHumanFriendlyDateTime(new Date(startIso), timezone, 'es');
   return {
     id: ev.id,
     summary: ev.summary || '(Sin título)',
@@ -363,15 +364,15 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         }
       }
 
-      const meetNotice = event.meetLink ? `\n📹 *Google Meet:* ${event.meetLink}` : '';
-      const formattedStartDate = formatLocalDateTime(startDateTime, tz, 'es-CO');
-      let summary = `📅 *Evento agendado en Google Calendar*\n• *${event.summary}* — ${formattedStartDate}${meetNotice}`;
+      const meetNotice = event.meetLink ? `\n• 📹 *Google Meet:* ${event.meetLink}` : '';
+      const formattedStartDate = formatHumanFriendlyDateTime(startDateTime, tz, language);
+      let summary = `📅 *Evento agendado en Google Calendar*\n\n• 🏢 *${event.summary}*\n• 📅 ${formattedStartDate}${meetNotice}`;
 
       if (reminderCreated) {
         if (advanceMinutes > 0) {
-          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatLocalDateTime(new Date(reminderSendAt), tz, 'es-CO')})`;
+          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatHumanFriendlyDateTime(new Date(reminderSendAt), tz, language)})`;
         } else {
-          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• A la misma hora (${formatLocalDateTime(startDateTime, tz, 'es-CO')})`;
+          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• A la misma hora (${formatHumanFriendlyDateTime(startDateTime, tz, language)})`;
         }
       }
 

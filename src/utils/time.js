@@ -665,6 +665,67 @@ export function formatLocalDateTime(date, timezone = DEFAULT_TIMEZONE, locale = 
   }
 }
 
+/**
+ * Format a Date or ISO string into a human-friendly natural date & 12-hour time string.
+ * Examples:
+ * - "Hoy a las 8:45 PM"
+ * - "Mañana a las 8:00 AM"
+ * - "Viernes, 4 de septiembre a las 10:00 AM"
+ * - In English: "Today at 8:45 PM", "Tomorrow at 8:00 AM", "Friday, September 4 at 10:00 AM"
+ *
+ * @param {string|Date} date
+ * @param {string} [timezone=DEFAULT_TIMEZONE]
+ * @param {string} [language='es']
+ * @returns {string}
+ */
+export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+
+  const now = new Date();
+
+  // Get local date string for target date and current date
+  const targetDateStr = d.toLocaleDateString('en-CA', { timeZone: timezone }); // 'YYYY-MM-DD'
+  const nowDateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  // Calculate tomorrow local date string
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowDateStr = tomorrow.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  // Format 12h time (e.g. "8:45 PM" or "8:45 AM")
+  const time12 = d.toLocaleTimeString('en-US', {
+    timeZone: timezone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const isEs = !language || !language.startsWith('en');
+
+  if (targetDateStr === nowDateStr) {
+    return isEs ? `Hoy a las ${time12}` : `Today at ${time12}`;
+  }
+
+  if (targetDateStr === tomorrowDateStr) {
+    return isEs ? `Mañana a las ${time12}` : `Tomorrow at ${time12}`;
+  }
+
+  // For future/past dates, format as "Día, D de mes a las HH:MM AM/PM"
+  if (isEs) {
+    const weekday = d.toLocaleDateString('es-CO', { timeZone: timezone, weekday: 'long' });
+    const dayNum = d.toLocaleDateString('es-CO', { timeZone: timezone, day: 'numeric' });
+    const monthName = d.toLocaleDateString('es-CO', { timeZone: timezone, month: 'long' });
+    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    return `${capitalizedWeekday}, ${dayNum} de ${monthName} a las ${time12}`;
+  } else {
+    const weekday = d.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+    const monthName = d.toLocaleDateString('en-US', { timeZone: timezone, month: 'long' });
+    const dayNum = d.toLocaleDateString('en-US', { timeZone: timezone, day: 'numeric' });
+    return `${weekday}, ${monthName} ${dayNum} at ${time12}`;
+  }
+}
+
 export function addMinutes(localStr, minutes, timezone = DEFAULT_TIMEZONE) {
   const offset = computeOffsetMinutes(timezone);
   const d = new Date(localStr + offset);

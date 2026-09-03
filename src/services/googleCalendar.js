@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 import { google } from 'googleapis';
 import { getAuthenticatedGoogleClient } from './googleAuth.js';
-import { formatLocalDateTime, zonedTimeToUtc, DEFAULT_TIMEZONE } from '../utils/time.js';
+import {
+  formatLocalDateTime,
+  formatHumanFriendlyDateTime,
+  zonedTimeToUtc,
+  DEFAULT_TIMEZONE,
+} from '../utils/time.js';
 
 /**
  * Normalizes raw Google Calendar event into explicit civil or timed representation.
@@ -36,7 +41,7 @@ export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
 
   const startIso = rawStartDateTime || (typeof ev.start === 'string' ? ev.start : (rawStartDate ? `${rawStartDate}T00:00:00Z` : new Date().toISOString()));
   const sortTimestamp = new Date(startIso).getTime();
-  const dateStr = formatLocalDateTime(new Date(startIso), timezone, 'es-CO');
+  const dateStr = formatHumanFriendlyDateTime(new Date(startIso), timezone, 'es');
   return {
     id: ev.id,
     summary: ev.summary || '(Sin título)',

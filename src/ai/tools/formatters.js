@@ -1,10 +1,18 @@
+import { formatHumanFriendlyDateTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
+
 /**
  * Executive WhatsApp Response Formatters.
  * Generates natural, deterministic, executive cards in the user's language.
  * Never generates interim "processing" messages.
  */
 
-export function formatReminderCreatedCard(savedReminders, language = 'es') {
+export function formatReminderCreatedCard(savedReminders, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  // Support both (savedReminders, language) and (savedReminders, timezone, language) signatures
+  if (typeof timezone === 'string' && (timezone === 'es' || timezone === 'en' || timezone === 'pt')) {
+    language = timezone;
+    timezone = DEFAULT_TIMEZONE;
+  }
+
   if (!Array.isArray(savedReminders) || savedReminders.length === 0) {
     return language === 'en'
       ? '✅ *Reminder scheduled successfully.*'
@@ -13,7 +21,7 @@ export function formatReminderCreatedCard(savedReminders, language = 'es') {
 
   if (savedReminders.length === 1) {
     const r = savedReminders[0];
-    const timeDisplay = r.formattedTime || r.sendAt || '';
+    const timeDisplay = r.formattedTime || (r.sendAt ? formatHumanFriendlyDateTime(r.sendAt, timezone, language) : '');
     const header = language === 'en' ? '✅ *Scheduled Reminder*' : '✅ *Recordatorio programado*';
     let card = `${header}\n\n⏰ *${r.content || 'Recordatorio'}*`;
     if (timeDisplay) {
@@ -25,16 +33,16 @@ export function formatReminderCreatedCard(savedReminders, language = 'es') {
   // Multiple reminders (e.g. advance notice + main meeting)
   const header = language === 'en' ? '✅ *Scheduled Reminders*' : '✅ *Recordatorios programados*';
   const lines = savedReminders.map(r => {
-    const timeDisplay = r.formattedTime || r.sendAt || '';
+    const timeDisplay = r.formattedTime || (r.sendAt ? formatHumanFriendlyDateTime(r.sendAt, timezone, language) : '');
     const isNotice = /\b(aviso\s+previo|advance\s+notice)\b/i.test(r.content || '');
     const icon = isNotice ? '🔔' : '⏰';
-    return `${icon} *${r.content}* — ${timeDisplay}`;
+    return `• ${icon} *${r.content}* — ${timeDisplay}`;
   });
 
   return `${header}\n\n` + lines.join('\n');
 }
 
-export function formatReminderListCard(reminders, timezone = 'America/Bogota', language = 'es') {
+export function formatReminderListCard(reminders, timezone = DEFAULT_TIMEZONE, language = 'es') {
   if (!Array.isArray(reminders) || reminders.length === 0) {
     return language === 'en'
       ? '🔔 *Pending Reminders*\n\nYou currently have no pending reminders scheduled.'
@@ -48,19 +56,9 @@ export function formatReminderListCard(reminders, timezone = 'America/Bogota', l
   const lines = reminders.map(r => {
     let timeDisplay = '';
     if (r.send_at || r.sendAt) {
-      try {
-        const dateObj = new Date(r.send_at || r.sendAt);
-        const timeFormatter = new Intl.DateTimeFormat('es-CO', {
-          timeZone: timezone,
-          day: 'numeric',
-          month: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        });
-        timeDisplay = ` — ${timeFormatter.format(dateObj)}`;
-      } catch {
-        timeDisplay = '';
+      const friendly = formatHumanFriendlyDateTime(r.send_at || r.sendAt, timezone, language);
+      if (friendly) {
+        timeDisplay = ` — ${friendly}`;
       }
     }
     const rec = (r.recurrence_rule || r.recurrenceRule) ? ' _(Recurrente)_' : '';
@@ -78,11 +76,12 @@ export function formatReminderCancelledCard(cancelledCount, remainingCount, deta
   return `🗑️ *Recordatorio cancelado*\n\nSe eliminaron ${cancelledCount} recordatorio(s). Restan ${remainingCount} pendientes en tu agenda.${details ? `\n\n${details}` : ''}`;
 }
 
-export function formatReminderUpdatedCard(reminder, formattedTime, language = 'es') {
+export function formatReminderUpdatedCard(reminder, formattedTime, timezone = DEFAULT_TIMEZONE, language = 'es') {
   const header = language === 'en' ? '🔄 *Reminder updated*' : '🔄 *Recordatorio actualizado*';
   let card = `${header}\n\n⏰ *${reminder.content || 'Recordatorio'}*`;
-  if (formattedTime) {
-    card += `\n📅 ${formattedTime}`;
+  const timeDisplay = formattedTime || (reminder.send_at ? formatHumanFriendlyDateTime(reminder.send_at, timezone, language) : '');
+  if (timeDisplay) {
+    card += `\n📅 ${timeDisplay}`;
   }
   return card;
 }

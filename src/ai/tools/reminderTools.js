@@ -15,6 +15,7 @@ import {
 import {
   parseTargetTime,
   formatLocalDateTime,
+  formatHumanFriendlyDateTime,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
 import {
@@ -162,7 +163,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
                 id: advReminder.id,
                 content: advContent,
                 sendAt: advDate.toISOString(),
-                formattedTime: formatLocalDateTime(advDate, timezone),
+                formattedTime: formatHumanFriendlyDateTime(advDate, timezone, language),
               });
             }
           }
@@ -194,7 +195,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
           id: mainReminder.id,
           content,
           sendAt: mainDate.toISOString(),
-          formattedTime: formatLocalDateTime(mainDate, timezone),
+          formattedTime: formatHumanFriendlyDateTime(mainDate, timezone, language),
           recurrenceRule,
           recurrence_rule: recurrenceRule,
           requiresConfirmation,
@@ -215,7 +216,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         }
       }
 
-      const formattedCard = formatReminderCreatedCard(savedReminders, language);
+      const formattedCard = formatReminderCreatedCard(savedReminders, timezone, language);
 
       return {
         success: true,
@@ -295,7 +296,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             });
 
             if (advReminder) {
-              const formattedTime = formatLocalDateTime(advDate, timezone);
+              const formattedTime = formatHumanFriendlyDateTime(advDate, timezone, language);
               const summary = `🔔 *Aviso previo programado en WhatsApp*\n\n⏰ *${advContent}*\n📅 ${formattedTime} (${advMins} minutos antes de tu recordatorio principal)`;
               return {
                 success: true,
@@ -434,8 +435,8 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         };
       }
 
-      const formattedTime = formatLocalDateTime(new Date(updated.send_at), timezone);
-      const formattedCard = formatReminderUpdatedCard(updated, formattedTime, language);
+      const formattedTime = formatHumanFriendlyDateTime(new Date(updated.send_at), timezone, language);
+      const formattedCard = formatReminderUpdatedCard(updated, formattedTime, timezone, language);
 
       return {
         success: true,
@@ -746,7 +747,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         type: 'reminder',
         internalId: r.id,
         summary: r.content || r.title,
-        time: r.send_at ? formatLocalDateTime(new Date(r.send_at), timezone, language === 'en' ? 'en-US' : 'es-CO') : null,
+        time: r.send_at ? formatHumanFriendlyDateTime(new Date(r.send_at), timezone, language) : null,
         source: 'reminder',
         raw: r,
       }));

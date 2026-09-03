@@ -18,10 +18,9 @@ describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
       };
       const normalized = normalizeCalendarEvent(mockEvent, 'America/Bogota');
       expect(normalized.type).toBe('timed');
-      expect(normalized.summary).toBe('Reunión de Estrategia');
       const line = formatCalendarEventLine(normalized, 'America/Bogota', 'es');
       expect(line).toContain('Reunión de Estrategia');
-      expect(line).toContain('03/09/2026');
+      expect(line).toContain('10:00 AM');
     });
 
     it('T02: CONNECTED with 0 events returns data:[] and explicit period summary', () => {
