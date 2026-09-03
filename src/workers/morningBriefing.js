@@ -1,6 +1,7 @@
-import { supabase, getDailyOverview } from '../db/index.js';
+import { supabase, getDailyOverview, getUserIntegration } from '../db/index.js';
 import { sendReminderConfirmation, isWithin24HourWindow } from '../utils/kapso.js';
-import { callChatCompletion } from '../ai/client.js';
+import { resolveCalendarTemporalScope } from '../utils/time.js';
+import { listCalendarEvents, normalizeCalendarEvent } from '../services/googleCalendar.js';
 
 const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
 
@@ -80,28 +81,40 @@ export function formatBriefingDate(dateObj = new Date(), timezone = 'America/Bog
 }
 
 /**
- * Build rich, structured morning briefing message strictly separating timed reminders from open project tasks.
+ * Build rich, structured morning briefing message integrating Google Calendar, timed reminders, and open tasks.
+ * Preserves canonical Google Calendar states (CONNECTED, DISCONNECTED, ERROR) without failing the briefing.
  *
  * @param {object} params
  * @param {object} params.overview
+ * @param {object} [params.calendar={ state: 'DISCONNECTED', events: [] }]
  * @param {string} [params.timezone='America/Bogota']
  * @param {object} [params.user]
  * @returns {string}
  */
-export function formatMorningBriefingMessage({ overview, timezone = 'America/Bogota', user = null }) {
+export function formatMorningBriefingMessage({
+  overview = {},
+  calendar = { state: 'DISCONNECTED', events: [] },
+  timezone = 'America/Bogota',
+  user = null,
+}) {
+  const calendarEvents = (calendar && calendar.events) ? calendar.events : [];
   const timedReminders = overview.timedRemindersToday || [];
   const tasksDueToday = overview.tasksDueToday || [];
   const openTasksByEntity = overview.openTasksByEntity || {};
   const openTasksGeneral = overview.openTasksGeneral || [];
 
   const entityKeys = Object.keys(openTasksByEntity);
-  const totalItems = timedReminders.length + tasksDueToday.length + entityKeys.length + openTasksGeneral.length;
+  const totalItems = calendarEvents.length + timedReminders.length + tasksDueToday.length + entityKeys.length + openTasksGeneral.length;
   const dateFormatted = formatBriefingDate(new Date(), timezone);
 
   if (totalItems === 0) {
+    let errorNote = '';
+    if (calendar.state === 'ERROR') {
+      errorNote = `\n\n_(Nota: No pudimos consultar tu Google Calendar por una intermitencia temporal)._`;
+    }
     return (
       `🌅 *¡Buenos días!* ☕\n\n` +
-      `Hoy (*${dateFormatted}*) no tienes citas programadas ni tareas pendientes.\n\n` +
+      `Hoy (*${dateFormatted}*) no tienes citas programadas ni tareas pendientes.${errorNote}\n\n` +
       `¡Que tengas una jornada productiva y excelente! 🚀`
     );
   }
@@ -109,7 +122,19 @@ export function formatMorningBriefingMessage({ overview, timezone = 'America/Bog
   const sections = [];
   sections.push(`🌅 *¡Buenos días!* ☕\nAquí tienes tu panorama para hoy (*${dateFormatted}*):`);
 
-  // 1. Timed Reminders section (real scheduled alarms for today)
+  // 1. Google Calendar section (if connected and has events)
+  if (calendar.state === 'CONNECTED' && calendarEvents.length > 0) {
+    const lines = calendarEvents.map(ev => {
+      const timeStr = ev.isAllDay ? 'Todo el día' : (ev.localStartTime || '');
+      const timeDisplay = timeStr ? ` — ${timeStr}` : '';
+      return `• 📅 *${ev.summary || 'Evento'}*${timeDisplay}`;
+    });
+    sections.push(`📅 *Compromisos en Google Calendar:*\n${lines.join('\n')}`);
+  } else if (calendar.state === 'ERROR') {
+    sections.push(`📅 *Google Calendar:*\n⚠️ _(No pudimos sincronizar con Google Calendar temporalmente)_`);
+  }
+
+  // 2. Timed Reminders section (real scheduled alarms for today)
   if (timedReminders.length > 0) {
     const lines = timedReminders.map(r => {
       const rec = r.recurrenceRule ? ` _(Recurrente)_` : '';
@@ -118,7 +143,7 @@ export function formatMorningBriefingMessage({ overview, timezone = 'America/Bog
     sections.push(`⏰ *Compromisos con hora fija:*\n${lines.join('\n')}`);
   }
 
-  // 2. Tasks Due Today
+  // 3. Tasks Due Today
   if (tasksDueToday.length > 0) {
     const lines = tasksDueToday.map(t => {
       const time = t.localTime ? ` _(antes de las ${t.localTime})_` : '';
@@ -128,7 +153,7 @@ export function formatMorningBriefingMessage({ overview, timezone = 'America/Bog
     sections.push(`📌 *Tareas para completar hoy:*\n${lines.join('\n')}`);
   }
 
-  // 3. Open Tasks & Projects (no deadline/dateless)
+  // 4. Open Tasks & Projects (no deadline/dateless)
   if (entityKeys.length > 0 || openTasksGeneral.length > 0) {
     const lines = [];
 
@@ -150,7 +175,7 @@ export function formatMorningBriefingMessage({ overview, timezone = 'America/Bog
       }
     }
 
-    const title = timedReminders.length === 0 && tasksDueToday.length === 0
+    const title = timedReminders.length === 0 && tasksDueToday.length === 0 && calendarEvents.length === 0
       ? `📋 *Tus tareas y pendientes abiertos:*`
       : `📋 *Tareas y proyectos en curso:*`;
 
@@ -165,8 +190,32 @@ export function formatMorningBriefingMessage({ overview, timezone = 'America/Bog
 
 async function dispatchBriefingForUser(user, todayStr, timezone) {
   try {
-    const overview = await getDailyOverview({ userId: user.id, phoneNumber: user.phone_number, timezone });
-    const messageText = formatMorningBriefingMessage({ overview, timezone, user });
+    const [overview, calendar] = await Promise.all([
+      getDailyOverview({ userId: user.id, phoneNumber: user.phone_number, timezone }),
+      (async () => {
+        if (!user.id) return { state: 'DISCONNECTED', events: [] };
+        const integration = await getUserIntegration(user.id, 'google');
+        if (!integration || !integration.access_token) {
+          return { state: 'DISCONNECTED', events: [] };
+        }
+        try {
+          const temporal = resolveCalendarTemporalScope({ scope: 'today' }, timezone);
+          const rawEvents = await listCalendarEvents(user.id, {
+            timeMin: temporal.timeMin,
+            timeMax: temporal.timeMax,
+            timezone,
+            maxResults: 20,
+          });
+          const events = (rawEvents || []).map(ev => normalizeCalendarEvent(ev, timezone));
+          return { state: 'CONNECTED', events };
+        } catch (err) {
+          console.error(`[morningBriefing] calendar read error for user ${user.id}:`, err.message);
+          return { state: 'ERROR', error: err.message, events: [] };
+        }
+      })(),
+    ]);
+
+    const messageText = formatMorningBriefingMessage({ overview, calendar, timezone, user });
 
     await sendReminderConfirmation(user.phone_number, messageText);
     console.log(`[morningBriefing] sent morning briefing to ${user.phone_number}`);

@@ -5,6 +5,7 @@ import { executeMemoryTool } from './tools/memoryTools.js';
 import { executeSubscriptionTool } from './tools/subscriptionTools.js';
 import { executeCalendarTool } from './tools/calendarTools.js';
 import { executeAdminTool } from './tools/adminTools.js';
+import { executeUnifiedAgendaTool } from './tools/unifiedAgendaTools.js';
 import { formatErrorCard } from './tools/formatters.js';
 
 export const TOOL_NAMES = {
@@ -15,6 +16,7 @@ export const TOOL_NAMES = {
   MANAGE_SUBSCRIPTION: 'manage_subscription',
   GET_SUBSCRIPTION_LINK: 'get_subscription_link',
   MANAGE_GOOGLE_CALENDAR: 'manage_google_calendar',
+  GET_UNIFIED_AGENDA: 'get_unified_agenda',
   ADMIN_METRICS: 'admin_metrics',
 };
 
@@ -95,6 +97,12 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
       case TOOL_NAMES.MANAGE_GOOGLE_CALENDAR: {
         const action = params?.action || 'get_connect_link';
         result = await executeCalendarTool({ action, params, user, language });
+        break;
+      }
+
+      case TOOL_NAMES.GET_UNIFIED_AGENDA: {
+        const action = params?.action || 'get_agenda';
+        result = await executeUnifiedAgendaTool({ action, params, user, language });
         break;
       }
 

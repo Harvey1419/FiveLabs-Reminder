@@ -34,6 +34,43 @@ export function formatReminderCreatedCard(savedReminders, language = 'es') {
   return `${header}\n\n` + lines.join('\n');
 }
 
+export function formatReminderListCard(reminders, timezone = 'America/Bogota', language = 'es') {
+  if (!Array.isArray(reminders) || reminders.length === 0) {
+    return language === 'en'
+      ? '🔔 *Pending Reminders*\n\nYou currently have no pending reminders scheduled.'
+      : '🔔 *Recordatorios pendientes*\n\nNo tienes recordatorios pendientes en este momento.';
+  }
+
+  const header = language === 'en'
+    ? '🔔 *Your Pending Reminders*'
+    : '🔔 *Tus recordatorios pendientes*';
+
+  const lines = reminders.map(r => {
+    let timeDisplay = '';
+    if (r.send_at || r.sendAt) {
+      try {
+        const dateObj = new Date(r.send_at || r.sendAt);
+        const timeFormatter = new Intl.DateTimeFormat('es-CO', {
+          timeZone: timezone,
+          day: 'numeric',
+          month: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        timeDisplay = ` — ${timeFormatter.format(dateObj)}`;
+      } catch {
+        timeDisplay = '';
+      }
+    }
+    const rec = (r.recurrence_rule || r.recurrenceRule) ? ' _(Recurrente)_' : '';
+    const nudge = (r.requires_confirmation || r.requiresConfirmation) ? ' _(Requiere confirmación)_' : '';
+    return `• ⏰ *${r.content || r.title || 'Recordatorio'}*${timeDisplay}${rec}${nudge}`;
+  });
+
+  return `${header}\n\n` + lines.join('\n');
+}
+
 export function formatReminderCancelledCard(cancelledCount, remainingCount, details = '', language = 'es') {
   if (language === 'en') {
     return `🗑️ *Reminder Cancelled*\n\nCancelled ${cancelledCount} reminder(s). ${remainingCount} remaining in your schedule.${details ? `\n\n${details}` : ''}`;

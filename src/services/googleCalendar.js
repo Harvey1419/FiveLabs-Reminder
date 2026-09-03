@@ -1,6 +1,58 @@
 import crypto from 'crypto';
 import { google } from 'googleapis';
 import { getAuthenticatedGoogleClient } from './googleAuth.js';
+import { formatLocalDateTime, zonedTimeToUtc, DEFAULT_TIMEZONE } from '../utils/time.js';
+
+/**
+ * Normalizes raw Google Calendar event into explicit civil or timed representation.
+ * Guarantees All-Day events remain civil dates without UTC timezone shift.
+ */
+export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
+  const rawStartDate = ev.rawStartDate || (typeof ev.start === 'object' ? ev.start?.date : null) || (typeof ev.start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ev.start) ? ev.start : null);
+  const rawStartDateTime = ev.rawStartDateTime || (typeof ev.start === 'object' ? ev.start?.dateTime : null) || (typeof ev.start === 'string' && ev.start.includes('T') ? ev.start : null);
+  const isAllDay = Boolean(ev.isAllDay || (rawStartDate && !rawStartDateTime));
+
+  if (isAllDay && rawStartDate) {
+    const match = rawStartDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const y = match ? match[1] : '2026';
+    const m = match ? match[2] : '01';
+    const d = match ? match[3] : '01';
+    const sortTimestamp = zonedTimeToUtc(parseInt(y, 10), parseInt(m, 10), parseInt(d, 10), 0, 0, 0, timezone).getTime();
+    return {
+      id: ev.id,
+      summary: ev.summary || '(Sin título)',
+      description: ev.description || '',
+      location: ev.location || null,
+      meetLink: ev.hangoutLink || ev.meetLink || null,
+      type: 'all_day',
+      isAllDay: true,
+      localDate: `${y}-${m}-${d}`,
+      formattedDate: `${d}/${m}/${y}`,
+      displayDate: `${d}/${m}/${y} (Todo el día)`,
+      sortTimestamp,
+      status: ev.status || 'confirmed',
+    };
+  }
+
+  const startIso = rawStartDateTime || (typeof ev.start === 'string' ? ev.start : (rawStartDate ? `${rawStartDate}T00:00:00Z` : new Date().toISOString()));
+  const sortTimestamp = new Date(startIso).getTime();
+  const dateStr = formatLocalDateTime(new Date(startIso), timezone, 'es-CO');
+  return {
+    id: ev.id,
+    summary: ev.summary || '(Sin título)',
+    description: ev.description || '',
+    location: ev.location || null,
+    meetLink: ev.hangoutLink || ev.meetLink || null,
+    type: 'timed',
+    isAllDay: false,
+    startIso,
+    endIso: typeof ev.end === 'object' ? (ev.end?.dateTime || ev.end?.date) : ev.end,
+    localStartTime: dateStr,
+    displayDate: dateStr,
+    sortTimestamp,
+    status: ev.status || 'confirmed',
+  };
+}
 
 /**
  * Generate a deterministic base32hex/hex event ID for Google Calendar API idempotency.
