@@ -119,7 +119,7 @@ Hora actual: ${nowStr} (${nowHumanStr}) [${timezone}].
   • RECORDATORIOS (manage_reminder): Recordatorios con hora fija ("recuérdame a las 5", "qué recordatorios tengo", "ya lo hice").
   • TAREAS (manage_task): Tareas y proyectos sin hora fija ("anota comprar leche", "mis tareas", "completar tarea").
   • MEMORIA (manage_memory): Datos de contexto persistente ("recuerda que mi perro se llama Borona").
-- ⚡ CONFIRMACIÓN DE RECORDATORIOS (Acknowledge): Si el usuario confirma en pasado una acción pendiente ("ya le escribí", "ya hablé", "ya lo hice", "listo"), invoca manage_reminder (action: 'acknowledge', target: '<descripción o posición>'). El backend resolverá el ID interno.
+- ⚡ CONFIRMACIÓN DE RECORDATORIOS / AVISOS (Acknowledge): Si el usuario responde a un aviso ("Aviso #1", "Aviso #2") o confirma una acción ("ya fui", "ya le escribí", "ya hablé", "listo", "ok", "ya lo hice"), invoca SIEMPRE manage_reminder (action: 'acknowledge', target: '1' o descripción). El backend resolverá el ID interno.
 - ⏰ AVISOS PREVIOS ("avísame 15 minutos antes", "recuérdame 30 mins antes de [evento/recordatorio]"): SIEMPRE crea un NUEVO recordatorio (type: 'tool_call', tool: 'manage_reminder', action: 'create') con la hora calculada y contenido '[Aviso previo] ...'. NUNCA uses update para sobrescribir la hora del recordatorio principal.
 - 🔗 REFERENCIAS RELATIVAS & WORKING MEMORY: Para referirte a elementos del turno anterior ("el primero", "la segunda", "cancélalo", "el más temprano"), usa target: "1", target: "el primero", o el nombre. El backend mapea la referencia a la entidad interna real.
 - 🌐 IDIOMA: Si el usuario escribe en inglés, responde SIEMPRE 100% en inglés. Si escribe en español, en español.

@@ -18,6 +18,7 @@ import {
   formatHumanFriendlyDateTime,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
+import { normalizePhoneNumber } from '../../utils/kapso.js';
 import {
   formatReminderCreatedCard,
   formatReminderCancelledCard,
@@ -572,25 +573,55 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       const userId = user?.id || null;
       let rawTarget = reminderId || contentQuery || query || params.target || null;
 
+      const cleanPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
+      const userPhoneVariants = Array.from(new Set([
+        phoneNumber,
+        cleanPhone,
+        cleanPhone ? `+${cleanPhone}` : null,
+      ].filter(Boolean)));
+
       if (!rawTarget && scope !== 'all' && !acknowledgeAll) {
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
-          reference: userMessage || '',
-          preferredType: 'reminder',
-        });
-        if (refRes.status === 'RESOLVED') {
-          rawTarget = refRes.item.internalId;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple reminders match your request. Please clarify which one you completed.'
-              : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-            rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
-            confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-          };
+        // First check if there is an active nudge in DB
+        let nudgeQ = supabase.from('reminders').select('*').neq('status', 'cancelled').is('acknowledged_at', null);
+        if (userId && userPhoneVariants.length > 0) {
+          const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+          nudgeQ = nudgeQ.or(`user_id.eq.${userId},${phoneConditions}`);
+        } else if (userId) {
+          nudgeQ = nudgeQ.eq('user_id', userId);
+        } else if (userPhoneVariants.length > 0) {
+          nudgeQ = nudgeQ.in('phone_number', userPhoneVariants);
+        }
+        const { data: userActiveNudges } = await nudgeQ.limit(20);
+        const activeNudged = (userActiveNudges || [])
+          .filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at)
+          .sort((a, b) => {
+            const nudgeA = a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0;
+            const nudgeB = b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0;
+            return nudgeB - nudgeA;
+          });
+
+        if (activeNudged.length > 0) {
+          rawTarget = activeNudged[0].id;
+        } else {
+          const refRes = resolveEntityReference({
+            userOrPhone: user || phoneNumber,
+            reference: userMessage || '',
+            preferredType: 'reminder',
+          });
+          if (refRes.status === 'RESOLVED') {
+            rawTarget = refRes.item.internalId;
+          } else if (refRes.status === 'AMBIGUOUS') {
+            return {
+              success: false,
+              action: 'ambiguous_target',
+              errorCode: 'AMBIGUOUS_TARGET',
+              error: language === 'en'
+                ? 'Multiple reminders match your request. Please clarify which one you completed.'
+                : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+              rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
+              confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+            };
+          }
         }
       }
 
@@ -632,12 +663,13 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             .from('reminders')
             .select('*');
 
-          if (userId && phoneNumber) {
-            pendingQ = pendingQ.or(`user_id.eq.${userId},phone_number.eq.${phoneNumber}`);
+          if (userId && userPhoneVariants.length > 0) {
+            const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+            pendingQ = pendingQ.or(`user_id.eq.${userId},${phoneConditions}`);
           } else if (userId) {
             pendingQ = pendingQ.eq('user_id', userId);
-          } else if (phoneNumber) {
-            pendingQ = pendingQ.eq('phone_number', phoneNumber);
+          } else if (userPhoneVariants.length > 0) {
+            pendingQ = pendingQ.in('phone_number', userPhoneVariants);
           }
 
           const { data: userReminders } = await pendingQ.limit(50);
@@ -685,28 +717,32 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
           // 3. Conversational Nudge Fallback:
           // If reference did not match specific tokens (e.g. affirmative confirmation like "ya fui", "listo", "ok", "hecho"),
-          // check if there is an active nudged reminder or a recent single candidate.
+          // check if there is an active nudged reminder or a recent candidate.
           if (!matched && candidates.length > 0) {
             const isAffirmative = /^(listo|ok|ya|hecho|completado|ya\s+lo\s+hice|ya\s+fui|fui|ya\s+hable|ya\s+hablé|ya\s+escribi|ya\s+escribí|ya\s+compre|ya\s+compré|ya\s+esta|ya\s+está|terminado|ya\s+termine|ya\s+terminé|si|sí)$/i.test(targetStr);
             const activeNudged = candidates.filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at);
 
             if (isAffirmative) {
-              if (activeNudged.length === 1) {
+              if (activeNudged.length >= 1) {
                 matched = activeNudged[0];
-              } else if (candidates.length === 1) {
+              } else if (candidates.length >= 1) {
                 matched = candidates[0];
-              } else if (activeNudged.length > 1) {
-                matched = activeNudged[0];
               }
-            } else if (activeNudged.length === 1) {
+            } else if (activeNudged.length >= 1) {
               matched = activeNudged[0];
+            } else if (candidates.length === 1) {
+              matched = candidates[0];
             }
           }
         }
 
         if (matched) {
           const hasTenantInfo = Boolean(matched.user_id || matched.phone_number);
-          const isOwner = (userId && matched.user_id === userId) || (phoneNumber && matched.phone_number === phoneNumber);
+          const matchedPhoneNorm = normalizePhoneNumber(matched.phone_number) || matched.phone_number;
+          const userPhoneNorm = normalizePhoneNumber(phoneNumber) || phoneNumber;
+          const isOwner = (userId && matched.user_id === userId) ||
+                          (userPhoneNorm && matchedPhoneNorm && userPhoneNorm === matchedPhoneNorm) ||
+                          (phoneNumber && matched.phone_number === phoneNumber);
           if (hasTenantInfo && !isOwner) {
             matched = null;
           }
