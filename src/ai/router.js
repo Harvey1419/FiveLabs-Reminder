@@ -208,38 +208,60 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   } else {
     // 4. Deterministic Post-LLM Acknowledge Guard:
     // If LLM returned type: 'chat', but the user message is an explicit past-tense completion
-    // of an active pending reminder ("ya le hablé", "ya quedó", "ya compré"), resolve and acknowledge deterministically.
-    const isPastConfirmation = /\b(ya le hablé|ya le hable|ya hablé|ya hable|ya le escribí|ya le escribi|ya escribí|ya escribi|ya compré|ya compre|ya lo hice|ya está hecho|ya esta hecho|ya quedó|ya quedo|ya lo llamé|ya lo llame|ya llamé|ya llame)\b/i.test(sanitizedText) && !sanitizedText.includes('?');
+    // of an active pending reminder ("ya le hablé", "ya quedó", "ya compré", "ya fui"), resolve and acknowledge deterministically.
+    const isPastConfirmation = /\b(ya le hablé|ya le hable|ya hablé|ya hable|ya le escribí|ya le escribi|ya escribí|ya escribi|ya compré|ya compre|ya lo hice|ya está hecho|ya esta hecho|ya quedó|ya quedo|ya lo llamé|ya lo llame|ya llamé|ya llame|ya fui|fui|ya terminado|ya terminé|ya termine|listo|ok|hecho)\b/i.test(sanitizedText) && !sanitizedText.includes('?');
     if (isPastConfirmation) {
-      const candidates = [
-        ...(dailyOverview?.pendingConfirmationReminders || []),
-        ...(dailyOverview?.timedRemindersToday || []),
-      ];
-      if (candidates.length > 0) {
-        const refRes = resolveEntityReference({
-          userOrPhone: user,
-          reference: sanitizedText,
-          candidates,
-          preferredType: 'reminder',
+      const wm = getWorkingMemory(phoneNumber || user.id);
+      let targetReminderId = null;
+      if (wm && wm.items && wm.items.length > 0 && wm.items[0].internalId) {
+        targetReminderId = wm.items[0].internalId;
+      }
+
+      if (targetReminderId) {
+        const ackResult = await executeTool({
+          toolName: 'manage_reminder',
+          params: { action: 'acknowledge', reminderId: targetReminderId },
+          user,
+          isPro,
+          language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+          userMessage: sanitizedText,
+          correlationId: options?.correlationId,
         });
-        if (refRes.status === 'RESOLVED') {
-          const ackResult = await executeTool({
-            toolName: 'manage_reminder',
-            params: { action: 'acknowledge', reminderId: refRes.item.internalId },
-            user,
-            isPro,
-            language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
-            userMessage: sanitizedText,
-            correlationId: options?.correlationId,
+        if (ackResult.success) {
+          finalReply = ackResult.confirmation || ackResult.formattedCard;
+          plan.intent = 'reminder';
+        }
+      } else {
+        const candidates = [
+          ...(dailyOverview?.pendingConfirmationReminders || []),
+          ...(dailyOverview?.timedRemindersToday || []),
+        ];
+        if (candidates.length > 0) {
+          const refRes = resolveEntityReference({
+            userOrPhone: user,
+            reference: sanitizedText,
+            candidates,
+            preferredType: 'reminder',
           });
-          if (ackResult.success) {
-            finalReply = ackResult.confirmation || ackResult.formattedCard;
-            plan.intent = 'reminder';
+          if (refRes.status === 'RESOLVED') {
+            const ackResult = await executeTool({
+              toolName: 'manage_reminder',
+              params: { action: 'acknowledge', reminderId: refRes.item.internalId },
+              user,
+              isPro,
+              language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+              userMessage: sanitizedText,
+              correlationId: options?.correlationId,
+            });
+            if (ackResult.success) {
+              finalReply = ackResult.confirmation || ackResult.formattedCard;
+              plan.intent = 'reminder';
+            }
+          } else if (refRes.status === 'AMBIGUOUS') {
+            finalReply = (user.locale && user.locale.startsWith('en'))
+              ? 'Multiple reminders match your request. Please clarify which one you completed.'
+              : 'Hay más de un recordatorio pendiente que coincide con tu confirmación. ¿Cuál de ellos completaste?';
           }
-        } else if (refRes.status === 'AMBIGUOUS') {
-          finalReply = (user.locale && user.locale.startsWith('en'))
-            ? 'Multiple reminders match your request. Please clarify which one you completed.'
-            : 'Hay más de un recordatorio pendiente que coincide con tu confirmación. ¿Cuál de ellos completaste?';
         }
       }
     }

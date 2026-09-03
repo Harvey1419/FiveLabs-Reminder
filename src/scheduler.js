@@ -126,22 +126,6 @@ export async function processReminder(reminder) {
           delivery_id: deliveryId,
         })
         .eq('id', reminder.id);
-
-      const cleanSummary = stripReminderPrefix(reminder.content);
-      const wmPayload = {
-        source: 'reminder',
-        scope: 'today',
-        lastAction: 'reminder_dispatched',
-        items: [{
-          position: 1,
-          type: 'reminder',
-          internalId: reminder.id,
-          summary: cleanSummary,
-          raw: reminder,
-        }],
-      };
-      if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
-      if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
     } else {
       await supabase
         .from('reminders')
@@ -152,6 +136,22 @@ export async function processReminder(reminder) {
         })
         .eq('id', reminder.id);
     }
+
+    const cleanSummary = stripReminderPrefix(reminder.content);
+    const wmPayload = {
+      source: 'reminder',
+      scope: 'today',
+      lastAction: 'reminder_dispatched',
+      items: [{
+        position: 1,
+        type: 'reminder',
+        internalId: reminder.id,
+        summary: cleanSummary,
+        raw: reminder,
+      }],
+    };
+    if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
+    if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
 
     console.log(`[scheduler worker=${WORKER_ID}] reminder sent ok: ${reminder.id} ("${reminder.content}") deliveryId=${deliveryId}`);
 

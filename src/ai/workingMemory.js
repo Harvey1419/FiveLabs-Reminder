@@ -14,12 +14,35 @@ const workingMemoryStore = new Map();
 const WORKING_MEMORY_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Normalize phone number or user ID for key lookup
+ * Extract all normalized lookup keys for a user identifier or user object.
  */
-function toKey(userOrPhone) {
-  if (!userOrPhone) return 'anonymous';
-  if (typeof userOrPhone === 'string') return userOrPhone.trim().replace(/[^\w]/g, '');
-  return (userOrPhone.id || userOrPhone.phone_number || 'anonymous').trim();
+function getLookupKeys(userOrPhone) {
+  if (!userOrPhone) return [];
+  const keys = new Set();
+
+  if (typeof userOrPhone === 'string') {
+    const raw = userOrPhone.trim();
+    if (raw && raw !== 'anonymous') {
+      keys.add(raw);
+      const digitsOnly = raw.replace(/[^\w]/g, '');
+      if (digitsOnly) keys.add(digitsOnly);
+    }
+  } else if (typeof userOrPhone === 'object') {
+    if (userOrPhone.id && typeof userOrPhone.id === 'string') {
+      const idStr = userOrPhone.id.trim();
+      if (idStr) keys.add(idStr);
+    }
+    if (userOrPhone.phone_number && typeof userOrPhone.phone_number === 'string') {
+      const pRaw = userOrPhone.phone_number.trim();
+      if (pRaw) {
+        keys.add(pRaw);
+        const pDigits = pRaw.replace(/[^\w]/g, '');
+        if (pDigits) keys.add(pDigits);
+      }
+    }
+  }
+
+  return Array.from(keys);
 }
 
 /**
@@ -35,8 +58,8 @@ function toKey(userOrPhone) {
  * @param {Array<object>} memoryData.items - Ordered list of structured items
  */
 export function saveWorkingMemory(userOrPhone, memoryData = {}) {
-  const key = toKey(userOrPhone);
-  if (!key || key === 'anonymous') return;
+  const keys = getLookupKeys(userOrPhone);
+  if (keys.length === 0) return;
 
   const rawItems = Array.isArray(memoryData.items) ? memoryData.items : [];
   const normalizedItems = rawItems.map((it, idx) => ({
@@ -49,7 +72,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
     raw: it.raw || it,
   })).filter(it => Boolean(it.internalId));
 
-  workingMemoryStore.set(key, {
+  const payload = {
     source: memoryData.source || 'unified',
     scope: memoryData.scope || 'tomorrow',
     semanticQuery: memoryData.semanticQuery || null,
@@ -57,7 +80,11 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
     lastAction: memoryData.lastAction || 'list',
     timestamp: Date.now(),
     items: normalizedItems,
-  });
+  };
+
+  for (const k of keys) {
+    workingMemoryStore.set(k, payload);
+  }
 }
 
 /**
@@ -67,26 +94,31 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
  * @returns {object|null}
  */
 export function getWorkingMemory(userOrPhone) {
-  const key = toKey(userOrPhone);
-  if (!key || key === 'anonymous') return null;
+  const keys = getLookupKeys(userOrPhone);
+  if (keys.length === 0) return null;
 
-  const entry = workingMemoryStore.get(key);
-  if (!entry) return null;
-
-  if (Date.now() - entry.timestamp > WORKING_MEMORY_TTL_MS) {
-    workingMemoryStore.delete(key);
-    return null;
+  for (const k of keys) {
+    const entry = workingMemoryStore.get(k);
+    if (entry) {
+      if (Date.now() - entry.timestamp > WORKING_MEMORY_TTL_MS) {
+        workingMemoryStore.delete(k);
+        continue;
+      }
+      return entry;
+    }
   }
 
-  return entry;
+  return null;
 }
 
 /**
  * Clear working memory for a user.
  */
 export function clearWorkingMemory(userOrPhone) {
-  const key = toKey(userOrPhone);
-  workingMemoryStore.delete(key);
+  const keys = getLookupKeys(userOrPhone);
+  for (const k of keys) {
+    workingMemoryStore.delete(k);
+  }
 }
 
 /**

@@ -1094,5 +1094,105 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
 
     vi.useRealTimers();
   });
+
+  // TEST 29: Production Bug E2E: Notification "Ir al baño" -> "Ya fui" strictly preserves reminderId, confirms "Ir al baño", and NEVER mentions another existing reminder
+  it('TEST 29: Production Bug E2E: "Ir al baño" notification -> "Ya fui" acknowledges exact reminderId and never mentions other existing reminders', async () => {
+    // Clear reminders
+    await supabase.from('reminders').delete().eq('user_id', testUser.id);
+
+    // Insert Reminder 1: "Eres muy importante y podemos controlar nuestros impulsos" (older pending reminder with earlier nudge)
+    const { data: remOther } = await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testUser.phone_number,
+      content: 'Eres muy importante y podemos controlar nuestros impulsos',
+      send_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      status: 'sent',
+      requires_confirmation: true,
+      nudge_count: 1,
+      last_nudged_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    }).select().single();
+
+    // Insert Reminder 2: "Ir al baño" (active notified reminder)
+    const { data: remTarget } = await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testUser.phone_number,
+      content: 'Ir al baño',
+      send_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      status: 'sent',
+      requires_confirmation: true,
+      nudge_count: 1,
+      last_nudged_at: new Date().toISOString(),
+      created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    }).select().single();
+
+    // 1. Simulate Notification Context in Working Memory from Scheduler
+    saveWorkingMemory(testUser.phone_number, {
+      source: 'reminder',
+      scope: 'today',
+      lastAction: 'nudge',
+      items: [{
+        position: 1,
+        type: 'reminder',
+        internalId: remTarget.id,
+        summary: 'Ir al baño',
+        raw: remTarget,
+      }],
+    });
+    saveWorkingMemory(testUser.id, {
+      source: 'reminder',
+      scope: 'today',
+      lastAction: 'nudge',
+      items: [{
+        position: 1,
+        type: 'reminder',
+        internalId: remTarget.id,
+        summary: 'Ir al baño',
+        raw: remTarget,
+      }],
+    });
+
+    // 2. User responds "Ya fui" with LLM emitting target: "1" (or "fui")
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario confirma haber completado el recordatorio activo de ir al baño.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "acknowledge", target: "1" },
+      intent: "reminder",
+    }));
+
+    const historyWithNotification = [
+      { role: 'assistant', content: '🔔 Recordatorio pendiente: Ir al baño (Aviso #1). Escribe "Listo" o "OK" cuando lo hayas completado.' },
+    ];
+
+    const res = await routeMessage('Ya fui', testUser, historyWithNotification);
+
+    // Strict E2E Asserts
+    expect(res.intent).toBe('reminder');
+    expect(res.confirmation).toContain('Recordatorio confirmado');
+    expect(res.confirmation).toContain('Ir al baño');
+    expect(res.confirmation).not.toContain('Eres muy importante');
+    expect(res.confirmation).not.toContain('controlar nuestros impulsos');
+
+    // DB Verification: remTarget is acknowledged, remOther remains unacknowledged
+    const { data: updatedTarget } = await supabase.from('reminders').select('*').eq('id', remTarget.id).single();
+    expect(updatedTarget.acknowledged_at).not.toBeNull();
+
+    const { data: updatedOther } = await supabase.from('reminders').select('*').eq('id', remOther.id).single();
+    expect(updatedOther.acknowledged_at).toBeNull();
+
+    // 3. Repeated Acknowledge Idempotency: "Ya fui" again
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario repite confirmación.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "acknowledge", target: "1" },
+      intent: "reminder",
+    }));
+    const resRepeat = await routeMessage('Ya fui', testUser, historyWithNotification);
+    expect(resRepeat.confirmation).toContain('Recordatorio confirmado');
+    expect(resRepeat.confirmation).toContain('Ir al baño');
+    expect(resRepeat.confirmation).not.toContain('Eres muy importante');
+  });
 });
 

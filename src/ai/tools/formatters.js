@@ -1,4 +1,5 @@
 import { formatHumanFriendlyDateTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
+import { stripReminderPrefix } from '../../utils/kapso.js';
 
 /**
  * Executive WhatsApp Response Formatters.
@@ -175,9 +176,10 @@ export function formatReminderAcknowledgedCard(reminderOrCount, language = 'es')
       : `¡Listo! ✅ Recordatorio completado y desactivados los avisos pendientes.`;
   }
 
-  const content = reminderOrCount?.content
-    ? String(reminderOrCount.content).replace(/^(?:Recordatorio\s*(?:diario)?:\s*|🔔\s*Recordatorio\s*pendiente:\s*)/i, '').trim()
-    : '';
+  const rawContent = reminderOrCount?.content || reminderOrCount?.title || '';
+  const content = stripReminderPrefix(String(rawContent))
+    .replace(/^(?:Recordatorio\s*(?:diario)?:\s*|🔔\s*Recordatorio\s*pendiente:\s*)/i, '')
+    .trim();
 
   if (language === 'en') {
     return `✅ *Reminder Confirmed*\n\n🔔 *${content || 'Task completed'}*\nMarked as completed and notifications deactivated.`;

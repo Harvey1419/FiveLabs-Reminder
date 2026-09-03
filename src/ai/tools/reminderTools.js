@@ -19,7 +19,7 @@ import {
   getDayBounds,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
-import { normalizePhoneNumber } from '../../utils/kapso.js';
+import { normalizePhoneNumber, stripReminderPrefix } from '../../utils/kapso.js';
 import {
   formatReminderCreatedCard,
   formatReminderCancelledCard,
@@ -30,7 +30,7 @@ import {
   formatReminderCompletedTodayCard,
   formatReminderRemainingTodayCard,
 } from './formatters.js';
-import { resolveEntityReference } from '../workingMemory.js';
+import { resolveEntityReference, getWorkingMemory } from '../workingMemory.js';
 
 /**
  * Domain tool for managing reminders.
@@ -586,119 +586,93 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         cleanPhone ? `+${cleanPhone}` : null,
       ].filter(Boolean)));
 
-      if (!rawTarget && scope !== 'all' && !acknowledgeAll) {
-        // First check if there is an active nudge in DB
-        let nudgeQ = supabase.from('reminders').select('*').neq('status', 'cancelled').is('acknowledged_at', null);
-        if (userId && userPhoneVariants.length > 0) {
-          const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
-          nudgeQ = nudgeQ.or(`user_id.eq.${userId},${phoneConditions}`);
-        } else if (userId) {
-          nudgeQ = nudgeQ.eq('user_id', userId);
-        } else if (userPhoneVariants.length > 0) {
-          nudgeQ = nudgeQ.in('phone_number', userPhoneVariants);
-        }
-        const { data: userActiveNudges } = await nudgeQ.limit(20);
-        const activeNudged = (userActiveNudges || [])
-          .filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at)
-          .sort((a, b) => {
-            const nudgeA = a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0;
-            const nudgeB = b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0;
-            return nudgeB - nudgeA;
-          });
-
-        if (activeNudged.length > 0) {
-          rawTarget = activeNudged[0].id;
-        } else {
-          const refRes = resolveEntityReference({
-            userOrPhone: user || phoneNumber,
-            reference: userMessage || '',
-            preferredType: 'reminder',
-          });
-          if (refRes.status === 'RESOLVED') {
-            rawTarget = refRes.item.internalId;
-          } else if (refRes.status === 'AMBIGUOUS') {
-            return {
-              success: false,
-              action: 'ambiguous_target',
-              errorCode: 'AMBIGUOUS_TARGET',
-              error: language === 'en'
-                ? 'Multiple reminders match your request. Please clarify which one you completed.'
-                : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-              rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
-              confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-            };
-          }
-        }
-      }
-
-      // 1. Missing Target Guard: single-reminder acknowledge requires target
-      if (!rawTarget && scope !== 'all' && !acknowledgeAll) {
+      if (scope === 'all' || acknowledgeAll) {
+        const ackRes = await acknowledgeReminders({ userId, phoneNumber });
         return {
-          success: false,
-          action: 'missing_target_id',
-          errorCode: 'MISSING_TARGET_ID',
-          error: language === 'en'
-            ? 'Missing reminder ID or description to acknowledge. Please specify which reminder you completed.'
-            : 'Falta el ID o descripción del recordatorio a confirmar. Por favor especifica cuál recordatorio completaste.',
-          rawSummary: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?',
-          confirmation: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?',
+          success: true,
+          action: 'acknowledged_reminders_batch',
+          data: ackRes,
+          rawSummary: `Se confirmaron ${ackRes.acknowledgedCount} recordatorio(s).`,
+          confirmation: `✅ Se confirmaron ${ackRes.acknowledgedCount} recordatorio(s) pendiente(s).`,
         };
       }
 
-      if (rawTarget) {
-        const targetStr = String(rawTarget).trim();
-        let matched = null;
+      let matched = null;
+      const targetStr = String(rawTarget || userMessage || '').trim();
+      const isAffirmative = /^(listo|ok|ya|hecho|completado|ya\s+lo\s+hice|ya\s+fui|fui|ya\s+hable|ya\s+hablé|ya\s+escribi|ya\s+escribí|ya\s+compre|ya\s+compré|ya\s+esta|ya\s+está|terminado|ya\s+termine|ya\s+terminé|si|sí)$/i.test(targetStr);
+      const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetStr);
 
-        // If exact 36-char UUID, try direct lookup first
-        if (targetStr.length === 36) {
-          try {
-            const { data: directRem } = await supabase
-              .from('reminders')
-              .select('*')
-              .eq('id', targetStr)
-              .single();
-            if (directRem) {
-              matched = directRem;
+      // 1. Direct UUID Lookup: If explicit 36-char UUID is given
+      if (rawTarget && String(rawTarget).trim().length === 36) {
+        try {
+          const { data: directRem } = await supabase
+            .from('reminders')
+            .select('*')
+            .eq('id', String(rawTarget).trim())
+            .maybeSingle();
+          if (directRem) {
+            matched = directRem;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Working Memory Notification Context (Hermes just sent a notification/nudge or relative ref)
+      if (!matched) {
+        const wm = getWorkingMemory(user || phoneNumber);
+        if (wm && wm.items && wm.items.length > 0) {
+          if (isAffirmative || isOrdinal || !rawTarget || wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched') {
+            let targetWmId = null;
+            if (isOrdinal) {
+              const ordRes = resolveEntityReference({ userOrPhone: user || phoneNumber, reference: targetStr });
+              if (ordRes.status === 'RESOLVED' && ordRes.item?.internalId) {
+                targetWmId = ordRes.item.internalId;
+              }
+            } else {
+              targetWmId = wm.items[0].internalId;
             }
-          } catch (_) {}
+
+            if (targetWmId) {
+              try {
+                const { data: wmRem } = await supabase
+                  .from('reminders')
+                  .select('*')
+                  .eq('id', targetWmId)
+                  .maybeSingle();
+                if (wmRem && wmRem.status !== 'cancelled') {
+                  matched = wmRem;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      }
+
+      // 3. Database Candidates Lookup
+      if (!matched && (rawTarget || isAffirmative)) {
+        let pendingQ = supabase
+          .from('reminders')
+          .select('*')
+          .neq('status', 'cancelled')
+          .is('acknowledged_at', null);
+
+        if (userId && userPhoneVariants.length > 0) {
+          const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+          pendingQ = pendingQ.or(`user_id.eq.${userId},${phoneConditions}`);
+        } else if (userId) {
+          pendingQ = pendingQ.eq('user_id', userId);
+        } else if (userPhoneVariants.length > 0) {
+          pendingQ = pendingQ.in('phone_number', userPhoneVariants);
         }
 
-        if (!matched) {
-          // Query active candidate reminders for the user
-          let pendingQ = supabase
-            .from('reminders')
-            .select('*');
+        const { data: userReminders } = await pendingQ.limit(50);
+        const candidates = userReminders || [];
 
-          if (userId && userPhoneVariants.length > 0) {
-            const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
-            pendingQ = pendingQ.or(`user_id.eq.${userId},${phoneConditions}`);
-          } else if (userId) {
-            pendingQ = pendingQ.eq('user_id', userId);
-          } else if (userPhoneVariants.length > 0) {
-            pendingQ = pendingQ.in('phone_number', userPhoneVariants);
-          }
+        if (candidates.length > 0) {
+          // A. Exact ID or prefix match
+          matched = candidates.find(r => r.id === targetStr || (targetStr.length >= 8 && r.id.startsWith(targetStr)));
 
-          const { data: userReminders } = await pendingQ.limit(50);
-          const candidates = (userReminders || []).filter(r => r.status !== 'cancelled' && !r.acknowledged_at);
-
-          // Sort candidates so that active nudges and most recently notified reminders are first
-          candidates.sort((a, b) => {
-            const nudgeA = a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0;
-            const nudgeB = b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0;
-            if (nudgeA !== nudgeB) return nudgeB - nudgeA;
-            const sentA = a.sent_at ? new Date(a.sent_at).getTime() : 0;
-            const sentB = b.sent_at ? new Date(b.sent_at).getTime() : 0;
-            if (sentA !== sentB) return sentB - sentA;
-            const sendA = a.send_at ? new Date(a.send_at).getTime() : 0;
-            const sendB = b.send_at ? new Date(b.send_at).getTime() : 0;
-            return sendB - sendA;
-          });
-
-          // 1. Exact ID / 8-char hex prefix match
-          matched = candidates.find(r => r.id === targetStr || r.id.startsWith(targetStr));
-
-          // 2. Working Memory & Reference Resolver matching
-          if (!matched) {
+          // B. Semantic query matching on reminder content (e.g. "veterinaria", "comprar vendaje")
+          if (!matched && targetStr && !isAffirmative && !isOrdinal) {
             const refRes = resolveEntityReference({
               userOrPhone: user || phoneNumber,
               reference: targetStr,
@@ -715,87 +689,97 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
                 error: language === 'en'
                   ? 'Multiple reminders match your request. Please clarify which one you completed.'
                   : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
-                rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
-                confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
+                rawSummary: 'Hay más de un recordatorio que coincide.',
+                confirmation: 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
               };
             }
           }
 
-          // 3. Conversational Nudge Fallback:
-          // If reference did not match specific tokens (e.g. affirmative confirmation like "ya fui", "listo", "ok", "hecho"),
-          // check if there is an active nudged reminder or a recent candidate.
-          if (!matched && candidates.length > 0) {
-            const isAffirmative = /^(listo|ok|ya|hecho|completado|ya\s+lo\s+hice|ya\s+fui|fui|ya\s+hable|ya\s+hablé|ya\s+escribi|ya\s+escribí|ya\s+compre|ya\s+compré|ya\s+esta|ya\s+está|terminado|ya\s+termine|ya\s+terminé|si|sí)$/i.test(targetStr);
-            const activeNudged = candidates.filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at);
+          // C. If affirmative / single candidate fallback
+          if (!matched) {
+            const sortedCandidates = candidates.slice().sort((a, b) => {
+              const timeA = Math.max(
+                a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0,
+                a.sent_at ? new Date(a.sent_at).getTime() : 0,
+                a.send_at ? new Date(a.send_at).getTime() : 0
+              );
+              const timeB = Math.max(
+                b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0,
+                b.sent_at ? new Date(b.sent_at).getTime() : 0,
+                b.send_at ? new Date(b.send_at).getTime() : 0
+              );
+              return timeB - timeA;
+            });
 
-            if (isAffirmative) {
-              if (activeNudged.length >= 1) {
-                matched = activeNudged[0];
-              } else if (candidates.length >= 1) {
-                matched = candidates[0];
-              }
-            } else if (activeNudged.length >= 1) {
+            const activeNudged = sortedCandidates.filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at);
+            if (activeNudged.length === 1) {
+              matched = activeNudged[0];
+            } else if (isAffirmative && activeNudged.length > 1) {
               matched = activeNudged[0];
             } else if (candidates.length === 1) {
               matched = candidates[0];
             }
           }
+        }
+      }
 
-          // 4. Idempotency Fallback: check already-acknowledged reminders if no pending match was found
-          if (!matched) {
-            const alreadyAcked = (userReminders || []).filter(r => r.status !== 'cancelled' && r.acknowledged_at);
-            const refResAck = resolveEntityReference({
-              userOrPhone: user || phoneNumber,
-              reference: targetStr,
-              candidates: alreadyAcked,
-              preferredType: 'reminder',
-            });
-            if (refResAck.status === 'RESOLVED') {
-              matched = alreadyAcked.find(r => r.id === refResAck.item.internalId) || refResAck.item.raw;
-            } else {
-              matched = alreadyAcked.find(r => r.id === targetStr || r.id.startsWith(targetStr) || (r.content && r.content.toLowerCase().includes(targetStr.toLowerCase())));
-            }
+      // 4. Idempotency Fallback: if already acknowledged
+      if (!matched && (rawTarget || isAffirmative)) {
+        let ackQ = supabase
+          .from('reminders')
+          .select('*')
+          .neq('status', 'cancelled')
+          .not('acknowledged_at', 'is', null);
+
+        if (userId && userPhoneVariants.length > 0) {
+          const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+          ackQ = ackQ.or(`user_id.eq.${userId},${phoneConditions}`);
+        } else if (userId) {
+          ackQ = ackQ.eq('user_id', userId);
+        } else if (userPhoneVariants.length > 0) {
+          ackQ = ackQ.in('phone_number', userPhoneVariants);
+        }
+
+        const { data: ackedReminders } = await ackQ.order('acknowledged_at', { ascending: false }).limit(20);
+        const alreadyAcked = ackedReminders || [];
+        if (alreadyAcked.length > 0) {
+          matched = alreadyAcked.find(r => r.id === targetStr || (targetStr.length >= 8 && r.id.startsWith(targetStr)))
+            || alreadyAcked.find(r => r.content && targetStr && r.content.toLowerCase().includes(targetStr.toLowerCase()));
+
+          if (!matched && isAffirmative) {
+            matched = alreadyAcked[0];
           }
         }
+      }
 
-        if (matched) {
-          const hasTenantInfo = Boolean(matched.user_id || matched.phone_number);
-          const matchedPhoneNorm = normalizePhoneNumber(matched.phone_number) || matched.phone_number;
-          const userPhoneNorm = normalizePhoneNumber(phoneNumber) || phoneNumber;
-          const isOwner = (userId && matched.user_id === userId) ||
-                          (userPhoneNorm && matchedPhoneNorm && userPhoneNorm === matchedPhoneNorm) ||
-                          (phoneNumber && matched.phone_number === phoneNumber);
-          if (hasTenantInfo && !isOwner) {
-            matched = null;
-          }
+      // 5. Tenant Validation Guard
+      if (matched) {
+        const hasTenantInfo = Boolean(matched.user_id || matched.phone_number);
+        const matchedPhoneNorm = normalizePhoneNumber(matched.phone_number) || matched.phone_number;
+        const userPhoneNorm = normalizePhoneNumber(phoneNumber) || phoneNumber;
+        const isOwner = (userId && matched.user_id === userId) ||
+                        (userPhoneNorm && matchedPhoneNorm && userPhoneNorm === matchedPhoneNorm) ||
+                        (phoneNumber && matched.phone_number === phoneNumber);
+        if (hasTenantInfo && !isOwner) {
+          matched = null;
         }
+      }
 
-        if (!matched) {
-          return {
-            success: false,
-            action: 'reminder_not_found',
-            errorCode: 'NOT_FOUND',
-            error: language === 'en' ? 'Reminder not found or access denied.' : 'No se encontró el recordatorio o acceso denegado.',
-            rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
-            confirmation: language === 'en' ? '⚠️ Reminder not found.' : '⚠️ No se encontró el recordatorio especificado.',
-          };
-        }
+      // Missing Target / Not Found Guard
+      if (!matched) {
+        return {
+          success: false,
+          action: 'reminder_not_found',
+          errorCode: 'NOT_FOUND',
+          error: language === 'en' ? 'Reminder not found or access denied.' : 'No se encontró el recordatorio o acceso denegado.',
+          rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
+          confirmation: language === 'en' ? '⚠️ Reminder not found.' : '⚠️ No se encontró el recordatorio especificado.',
+        };
+      }
 
-        const targetId = matched.id;
-
-        // Idempotency: if already acknowledged, return idempotent success
-        if (matched.acknowledged_at) {
-          const formattedCard = formatReminderAcknowledgedCard(matched, language);
-          return {
-            success: true,
-            action: 'acknowledged_reminder',
-            data: matched,
-            rawSummary: formattedCard,
-            formattedCard,
-            confirmation: formattedCard,
-          };
-        }
-
+      const targetId = matched.id;
+      let confirmedReminder = matched;
+      if (!matched.acknowledged_at) {
         const acknowledged = await acknowledgeReminder(targetId, userId);
         if (!acknowledged) {
           return {
@@ -803,31 +787,25 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             action: 'database_error',
             errorCode: 'DATABASE_ERROR',
             error: 'Error de base de datos al confirmar el recordatorio.',
-            rawSummary: 'Error al confirmar el recordatorio.',
             confirmation: '⚠️ Ocurrió un error al confirmar el recordatorio.',
           };
         }
-
-        const formattedCard = formatReminderAcknowledgedCard(acknowledged, language);
-        return {
-          success: true,
-          action: 'acknowledged_reminder',
-          data: acknowledged,
-          rawSummary: formattedCard,
-          formattedCard,
-          confirmation: formattedCard,
-        };
-      } else {
-        // Scope all
-        const ackRes = await acknowledgeReminders({ userId, phoneNumber });
-        return {
-          success: true,
-          action: 'acknowledged_reminders_batch',
-          data: ackRes,
-          rawSummary: `Se confirmaron ${ackRes.acknowledgedCount} recordatorio(s).`,
-          confirmation: `✅ Se confirmaron ${ackRes.acknowledgedCount} recordatorio(s) pendiente(s).`,
-        };
+        confirmedReminder = acknowledged;
       }
+
+      const cleanTitle = stripReminderPrefix(confirmedReminder.content || confirmedReminder.title || '');
+      const formattedCard = formatReminderAcknowledgedCard(confirmedReminder, language);
+
+      return {
+        success: true,
+        action: 'acknowledged_reminder',
+        reminderId: confirmedReminder.id,
+        title: cleanTitle,
+        data: confirmedReminder,
+        rawSummary: formattedCard,
+        formattedCard,
+        confirmation: formattedCard,
+      };
     }
 
     case 'list': {
