@@ -16,6 +16,7 @@ import {
   parseTargetTime,
   formatLocalDateTime,
   formatHumanFriendlyDateTime,
+  getDayBounds,
   DEFAULT_TIMEZONE,
 } from '../../utils/time.js';
 import { normalizePhoneNumber } from '../../utils/kapso.js';
@@ -25,6 +26,8 @@ import {
   formatReminderAcknowledgedCard,
   formatReminderUpdatedCard,
   formatReminderListCard,
+  formatReminderCreatedTodayCard,
+  formatReminderCompletedTodayCard,
 } from './formatters.js';
 import { resolveEntityReference } from '../workingMemory.js';
 
@@ -50,6 +53,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
+  const userMessage = optionsOrAction?.userMessage || optionsOrAction?.message || optionsOrAction?.text || '';
   const subscription = user?.subscription || (userId ? await getUserSubscription(userId) : null);
   const userHasPro = isPro || user?.is_admin === true || hasProAccess(subscription, user);
 
@@ -496,8 +500,9 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
       if (targetId) {
         if (targetId.length < 36) {
-          const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
-          const matched = pending.find(r => r.id === targetId || r.id.startsWith(targetId));
+          const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetId);
+          const pending = !isOrdinal ? await getRemindersByPhone(phoneNumber, 'pending', 50) : null;
+          const matched = pending ? pending.find(r => r.id === targetId || r.id.startsWith(targetId)) : null;
           if (matched) {
             targetId = matched.id;
           } else {
@@ -734,6 +739,22 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
               matched = candidates[0];
             }
           }
+
+          // 4. Idempotency Fallback: check already-acknowledged reminders if no pending match was found
+          if (!matched) {
+            const alreadyAcked = (userReminders || []).filter(r => r.status !== 'cancelled' && r.acknowledged_at);
+            const refResAck = resolveEntityReference({
+              userOrPhone: user || phoneNumber,
+              reference: targetStr,
+              candidates: alreadyAcked,
+              preferredType: 'reminder',
+            });
+            if (refResAck.status === 'RESOLVED') {
+              matched = alreadyAcked.find(r => r.id === refResAck.item.internalId) || refResAck.item.raw;
+            } else {
+              matched = alreadyAcked.find(r => r.id === targetStr || r.id.startsWith(targetStr) || (r.content && r.content.toLowerCase().includes(targetStr.toLowerCase())));
+            }
+          }
         }
 
         if (matched) {
@@ -809,9 +830,85 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
     }
 
     case 'list': {
-      const pending = await getRemindersByPhone(phoneNumber, 'pending', 20);
-      const formattedCard = formatReminderListCard(pending, timezone, language);
-      const structuredItems = (pending || []).map((r, idx) => ({
+      const cleanPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
+      const userPhoneVariants = Array.from(new Set([
+        phoneNumber,
+        cleanPhone,
+        cleanPhone ? `+${cleanPhone}` : null,
+      ].filter(Boolean)));
+
+      const bounds = getDayBounds('today', timezone);
+      const todayStartIso = bounds.timeMin.toISOString();
+      const todayEndIso = bounds.timeMax.toISOString();
+
+      let query = supabase.from('reminders').select('*');
+      if (userId && userPhoneVariants.length > 0) {
+        const phoneConditions = userPhoneVariants.map(p => `phone_number.eq.${p}`).join(',');
+        query = query.or(`user_id.eq.${userId},${phoneConditions}`);
+      } else if (userId) {
+        query = query.eq('user_id', userId);
+      } else if (userPhoneVariants.length > 0) {
+        query = query.in('phone_number', userPhoneVariants);
+      }
+
+      const rawFilter = String(params.filter || params.type || params.scope || '').toLowerCase().trim();
+      const userMsg = (userMessage || '').toLowerCase();
+
+      let listType = 'pending';
+      let formattedCard = '';
+      let list = [];
+
+      // 1. "Qué completé hoy" -> acknowledged_at in [todayStartIso, todayEndIso)
+      if (rawFilter === 'completed_today' || params.status === 'completed' || /\b(complete|completé|completados|hice hoy|confirmados hoy)\b/i.test(userMsg)) {
+        listType = 'completed_today';
+        query = query
+          .not('acknowledged_at', 'is', null)
+          .gte('acknowledged_at', todayStartIso)
+          .lt('acknowledged_at', todayEndIso)
+          .order('acknowledged_at', { ascending: true });
+        const { data } = await query;
+        list = data || [];
+        formattedCard = formatReminderCompletedTodayCard(list, timezone, language);
+      }
+      // 2. "Qué recordatorios creamos hoy" -> created_at in [todayStartIso, todayEndIso)
+      else if (rawFilter === 'created_today' || /\b(creamos hoy|cree hoy|creé hoy|creados hoy|agendamos hoy)\b/i.test(userMsg)) {
+        listType = 'created_today';
+        query = query
+          .neq('status', 'cancelled')
+          .gte('created_at', todayStartIso)
+          .lt('created_at', todayEndIso)
+          .order('created_at', { ascending: true });
+        const { data } = await query;
+        list = data || [];
+        formattedCard = formatReminderCreatedTodayCard(list, timezone, language);
+      }
+      // 3. "Dame mis pendientes de hoy" -> send_at in [todayStartIso, todayEndIso) AND status != cancelled AND acknowledged_at IS NULL
+      else if (rawFilter === 'pending_today' || rawFilter === 'today' || /\b(pendientes de hoy|para hoy|recordatorios de hoy)\b/i.test(userMsg)) {
+        listType = 'pending_today';
+        query = query
+          .neq('status', 'cancelled')
+          .is('acknowledged_at', null)
+          .gte('send_at', todayStartIso)
+          .lt('send_at', todayEndIso)
+          .order('send_at', { ascending: true });
+        const { data } = await query;
+        list = data || [];
+        formattedCard = formatReminderListCard(list, timezone, language);
+      }
+      // 4. Default / "Todos mis recordatorios pendientes"
+      else {
+        listType = 'pending_all';
+        query = query
+          .neq('status', 'cancelled')
+          .is('acknowledged_at', null)
+          .order('send_at', { ascending: true })
+          .limit(50);
+        const { data } = await query;
+        list = data || [];
+        formattedCard = formatReminderListCard(list, timezone, language);
+      }
+
+      const structuredItems = list.map((r, idx) => ({
         position: idx + 1,
         type: 'reminder',
         internalId: r.id,
@@ -820,10 +917,12 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         source: 'reminder',
         raw: r,
       }));
+
       return {
         success: true,
         action: 'listed_reminders',
-        data: { reminders: pending, items: structuredItems },
+        filter: listType,
+        data: { reminders: list, items: structuredItems, filter: listType },
         rawSummary: formattedCard,
         formattedCard,
         confirmation: formattedCard,

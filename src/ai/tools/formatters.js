@@ -69,6 +69,55 @@ export function formatReminderListCard(reminders, timezone = DEFAULT_TIMEZONE, l
   return `${header}\n\n` + lines.join('\n');
 }
 
+export function formatReminderCreatedTodayCard(reminders, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  if (!Array.isArray(reminders) || reminders.length === 0) {
+    return language === 'en'
+      ? '📝 *Reminders created today*\n\nYou have not created any reminders today.'
+      : '📝 *Recordatorios creados hoy*\n\nNo has creado recordatorios el día de hoy.';
+  }
+
+  const header = language === 'en'
+    ? '📝 *Reminders created today:*'
+    : '📝 *Recordatorios creados hoy:*';
+
+  const lines = reminders.map(r => {
+    let timeDisplay = '';
+    const dateVal = r.send_at || r.sendAt;
+    if (dateVal) {
+      const friendly = formatHumanFriendlyDateTime(dateVal, timezone, language);
+      if (friendly) timeDisplay = ` — Programado para: ${friendly}`;
+    }
+    const statusTag = r.acknowledged_at ? ' _(Completado)_' : '';
+    return `• 📝 *${r.content || r.title || 'Recordatorio'}*${timeDisplay}${statusTag}`;
+  });
+
+  return `${header}\n\n` + lines.join('\n');
+}
+
+export function formatReminderCompletedTodayCard(reminders, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  if (!Array.isArray(reminders) || reminders.length === 0) {
+    return language === 'en'
+      ? '✅ *Reminders completed today*\n\nYou have not completed any reminders today.'
+      : '✅ *Recordatorios completados hoy*\n\nNo tienes recordatorios completados el día de hoy.';
+  }
+
+  const header = language === 'en'
+    ? '✅ *Recordatorios completados hoy:*'
+    : '✅ *Recordatorios completados hoy:*';
+
+  const lines = reminders.map(r => {
+    let timeDisplay = '';
+    const dateVal = r.acknowledged_at || r.acknowledgedAt;
+    if (dateVal) {
+      const friendly = formatHumanFriendlyDateTime(dateVal, timezone, language);
+      if (friendly) timeDisplay = ` — ${friendly}`;
+    }
+    return `• ✅ *${r.content || r.title || 'Recordatorio'}*${timeDisplay}`;
+  });
+
+  return `${header}\n\n` + lines.join('\n');
+}
+
 export function formatReminderCancelledCard(cancelledCount, remainingCount, details = '', language = 'es') {
   if (language === 'en') {
     return `🗑️ *Reminder Cancelled*\n\nCancelled ${cancelledCount} reminder(s). ${remainingCount} remaining in your schedule.${details ? `\n\n${details}` : ''}`;

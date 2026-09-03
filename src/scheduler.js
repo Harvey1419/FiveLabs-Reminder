@@ -10,6 +10,7 @@ import {
   supabase,
 } from './db/index.js';
 import { sendReminderMessage, sendReminderConfirmation, stripReminderPrefix } from './utils/kapso.js';
+import { saveWorkingMemory } from './ai/workingMemory.js';
 
 const CHECK_INTERVAL_MS = 15 * 1000;
 const MAX_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours: reminders older than 2h after downtime are marked missed
@@ -73,6 +74,22 @@ export async function checkAndDispatchNudges() {
 
       await sendReminderMessage(reminder.phone_number, nudgeMessage);
       await incrementReminderNudge(reminder.id, nextCount);
+
+      const wmPayload = {
+        source: 'reminder',
+        scope: 'today',
+        lastAction: 'nudge',
+        items: [{
+          position: 1,
+          type: 'reminder',
+          internalId: reminder.id,
+          summary: cleanText,
+          raw: reminder,
+        }],
+      };
+      if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
+      if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
+
       console.log(`[scheduler worker=${WORKER_ID}] Nudge #${nextCount} sent for reminder ${reminder.id} ("${reminder.content}") to ${reminder.phone_number}`);
     }
   } catch (err) {
@@ -109,6 +126,22 @@ export async function processReminder(reminder) {
           delivery_id: deliveryId,
         })
         .eq('id', reminder.id);
+
+      const cleanSummary = stripReminderPrefix(reminder.content);
+      const wmPayload = {
+        source: 'reminder',
+        scope: 'today',
+        lastAction: 'reminder_dispatched',
+        items: [{
+          position: 1,
+          type: 'reminder',
+          internalId: reminder.id,
+          summary: cleanSummary,
+          raw: reminder,
+        }],
+      };
+      if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
+      if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
     } else {
       await supabase
         .from('reminders')

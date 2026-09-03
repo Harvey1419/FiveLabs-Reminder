@@ -521,7 +521,7 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
       userId: testUser.id,
       phoneNumber: testPhone,
       content: 'Comprar café',
-      sendAt: new Date().toISOString(),
+      sendAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
 
     vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
@@ -799,4 +799,212 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     const { data: updatedDb } = await supabase.from('reminders').select('*').eq('id', insertedRem.id).single();
     expect(updatedDb.acknowledged_at).not.toBeNull();
   });
+
+  // TEST 22: Natural completion variations ("Ya lo hice", "Ya está", "Ya quedó", "Lo terminé", "Ya terminé")
+  it('TEST 22: Natural completion variations acknowledge the active notified reminder correctly', async () => {
+    const variations = ['Ya lo hice', 'Ya está', 'Ya quedó', 'Lo terminé', 'Ya terminé'];
+
+    for (const expr of variations) {
+      const { data: rem } = await supabase.from('reminders').insert({
+        user_id: testUser.id,
+        phone_number: testUser.phone_number,
+        content: `Tomar medicamento ${expr}`,
+        send_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        status: 'sent',
+        requires_confirmation: true,
+        nudge_count: 1,
+        last_nudged_at: new Date().toISOString(),
+      }).select('*').single();
+
+      vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+        reasoning: `Usuario confirma con expresión ${expr}`,
+        type: "tool_call",
+        tool: "manage_reminder",
+        params: { action: "acknowledge", target: "1" },
+        intent: "reminder",
+      }));
+
+      const res = await routeMessage(expr, testUser);
+      expect(res.confirmation).toContain('Recordatorio confirmado');
+      expect(res.confirmation).toContain(`Tomar medicamento ${expr}`);
+
+      const { data: updated } = await supabase.from('reminders').select('*').eq('id', rem.id).single();
+      expect(updated.acknowledged_at).not.toBeNull();
+    }
+  });
+
+  // TEST 23: "Ya fui" without notification context and without active reminder returns clean NOT_FOUND and does not mutate arbitrarily
+  it('TEST 23: "Ya fui" without notification context or pending reminders returns clean NOT_FOUND without arbitrary mutation', async () => {
+    // Clear reminders
+    await supabase.from('reminders').delete().eq('user_id', testUser.id);
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario dice ya fui pero no hay contexto ni recordatorio pendiente.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "acknowledge", target: "fui" },
+      intent: "reminder",
+    }));
+
+    const res = await routeMessage('Ya fui', testUser);
+    expect(res.confirmation).toContain('No se encontró el recordatorio');
+  });
+
+  // TEST 24: Repeated acknowledge returns idempotent success and does not produce NOT_FOUND
+  it('TEST 24: Repeated acknowledge returns idempotent confirmation and does not error', async () => {
+    const { data: rem } = await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testUser.phone_number,
+      content: 'Comprar fruta',
+      send_at: new Date().toISOString(),
+      status: 'sent',
+      requires_confirmation: true,
+      acknowledged_at: new Date().toISOString(),
+    }).select('*').single();
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario confirma recordatorio ya confirmado previamente.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "acknowledge", target: "Comprar fruta" },
+      intent: "reminder",
+    }));
+
+    const res = await routeMessage('Listo fruta', testUser);
+    expect(res.confirmation).toContain('Recordatorio confirmado');
+    expect(res.confirmation).toContain('Comprar fruta');
+    expect(res.confirmation).not.toContain('No se encontró');
+  });
+
+  // TEST 25: Acknowledged reminder is never returned by getRemindersDueForNudge
+  it('TEST 25: Acknowledged reminder is excluded from getRemindersDueForNudge (scheduler stops nudges)', async () => {
+    const { getRemindersDueForNudge } = await import('../src/db/index.js');
+
+    const { data: rem } = await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testUser.phone_number,
+      content: 'Ejercicio matutino',
+      send_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      sent_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      status: 'sent',
+      requires_confirmation: true,
+      nudge_interval_minutes: 15,
+      acknowledged_at: new Date().toISOString(), // Already acknowledged
+    }).select('*').single();
+
+    const due = await getRemindersDueForNudge();
+    const isDue = due.some(r => r.id === rem.id);
+    expect(isDue).toBe(false);
+  });
+
+  // TEST 26: Explicit date in Google Calendar lookup with 0 candidates offers creation without creating automatically
+  it('TEST 26: Explicit date update with 0 candidates on Google Calendar informs user and does NOT mutate or auto-create', async () => {
+    await saveUserIntegration(testUser.id, { accessToken: 'fake_token', refreshToken: 'fake_refresh_token', email: 'test@gmail.com' });
+
+    vi.spyOn(googleCalendarService, 'listCalendarEvents').mockResolvedValue([]);
+    const createSpy = vi.spyOn(googleCalendarService, 'createCalendarEvent');
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario pide actualizar cita del 9 de septiembre pero no existe evento.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: {
+        action: "update_event",
+        date: "2026-09-09",
+        summary: "Reunión en Cerámica Italia",
+      },
+      intent: "google_calendar",
+    }));
+
+    const res = await routeMessage('la cita que tengo el 9 de septiembre ahora es Reunión en Cerámica Italia', testUser);
+
+    expect(res.confirmation).toContain('No encontré ningún evento en Google Calendar para esa fecha');
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  // TEST 27: List Reminders Semantics ("Dame mis pendientes de hoy", "Qué recordatorios creamos hoy", "Qué completé hoy")
+  it('TEST 27: List reminders correctly distinguishes pending_today (A), created_today (B+C), and completed_today (C)', async () => {
+    // A: creado ayer, programado hoy, pendiente
+    // B: creado hoy, programado mañana, pendiente
+    // C: creado hoy, programado hoy, completado
+
+    const yesterday = new Date('2026-09-01T10:00:00Z').toISOString();
+    const todayScheduled = new Date('2026-09-02T15:00:00-05:00').toISOString();
+    const tomorrowScheduled = new Date('2026-09-03T15:00:00-05:00').toISOString();
+    const todayAck = new Date('2026-09-02T16:00:00-05:00').toISOString();
+
+    await supabase.from('reminders').delete().eq('user_id', testUser.id);
+
+    await supabase.from('reminders').insert([
+      {
+        user_id: testUser.id,
+        phone_number: testUser.phone_number,
+        content: 'Reminder A: Creado ayer programado hoy',
+        created_at: yesterday,
+        send_at: todayScheduled,
+        status: 'pending',
+        acknowledged_at: null,
+      },
+      {
+        user_id: testUser.id,
+        phone_number: testUser.phone_number,
+        content: 'Reminder B: Creado hoy programado mañana',
+        created_at: new Date().toISOString(),
+        send_at: tomorrowScheduled,
+        status: 'pending',
+        acknowledged_at: null,
+      },
+      {
+        user_id: testUser.id,
+        phone_number: testUser.phone_number,
+        content: 'Reminder C: Creado hoy programado hoy completado',
+        created_at: new Date().toISOString(),
+        send_at: todayScheduled,
+        status: 'sent',
+        acknowledged_at: todayAck,
+      },
+    ]);
+
+    // 1. "Dame mis pendientes de hoy" -> only A
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario pide recordatorios pendientes de hoy.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "list", filter: "pending_today" },
+      intent: "reminder",
+    }));
+    const resA = await routeMessage('Dame mis pendientes de hoy', testUser);
+    expect(resA.confirmation).toContain('Reminder A');
+    expect(resA.confirmation).not.toContain('Reminder B');
+    expect(resA.confirmation).not.toContain('Reminder C');
+
+    // 2. "Qué recordatorios creamos hoy" -> B + C
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario pregunta qué recordatorios se crearon hoy.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "list", filter: "created_today" },
+      intent: "reminder",
+    }));
+    const resB = await routeMessage('Qué recordatorios creamos hoy', testUser);
+    expect(resB.confirmation).toContain('Recordatorios creados hoy');
+    expect(resB.confirmation).toContain('Reminder B');
+    expect(resB.confirmation).toContain('Reminder C');
+    expect(resB.confirmation).not.toContain('Reminder A');
+
+    // 3. "Qué completé hoy" -> C
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario pregunta qué completó hoy.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "list", filter: "completed_today" },
+      intent: "reminder",
+    }));
+    const resC = await routeMessage('Qué completé hoy', testUser);
+    expect(resC.confirmation).toContain('Recordatorios completados hoy');
+    expect(resC.confirmation).toContain('Reminder C');
+    expect(resC.confirmation).not.toContain('Reminder A');
+    expect(resC.confirmation).not.toContain('Reminder B');
+  });
 });
+

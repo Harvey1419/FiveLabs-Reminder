@@ -127,7 +127,7 @@ ${!isPro ? `- 🎯 FREE DEMO: Solo recordatorios para hoy. Para días futuros o 
 ## 1. HERRAMIENTAS
 - get_unified_agenda: {"scope"?: "today" | "tomorrow" | "this_week" | "next_week" | "this_weekend" | "upcoming" | "month" | "full_year", "query"?: string}
 - manage_task: create(items:[{title, dueDate, priority, entityName}]), update(taskId|target, updates:{title, priority, status, dueDate}), complete(taskId|target|scope:'all'), delete(taskId|target), list(entityName, status)
-- manage_reminder: create(items:[{content, targetTime, recurrence, requiresConfirmation}]), update(reminderId|target, updates:{content, targetTime}), cancel(reminderId|target|scope:'all'), acknowledge(reminderId|target|scope:'all'), list()
+- manage_reminder: create(items:[{content, targetTime, recurrence, requiresConfirmation}]), update(reminderId|target, updates:{content, targetTime}), cancel(reminderId|target|scope:'all'), acknowledge(reminderId|target|scope:'all'), list(filter:'pending_today'|'created_today'|'completed_today'|'all')
 - manage_entity: create(name, category), rename(oldName, newName), merge(sourceName, targetName), list()
 - manage_memory: list(category), search(query), save(content, category), forget(query)
 - manage_subscription: {"action": "get_link" | "cancel"}
@@ -145,10 +145,14 @@ ${compactOverviewText}
 ## 3. PATRONES CANÓNICOS
 - "¿Qué tengo mañana?" / "¿Qué tengo hoy?" / "¿Qué hay esta semana?" / "Dame todos mis pendientes" -> type:'tool_call', tool:'get_unified_agenda', params:{scope:'tomorrow'|'today'|'this_week'|'upcoming'}
 - "¿Qué tengo en Google Calendar mañana?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'list_events', scope:'tomorrow'}
+- "la cita que tengo el 9 de septiembre ahora es Reunión en Cerámica Italia" (fecha explícita tiene prioridad sobre Working Memory) -> type:'tool_call', tool:'manage_google_calendar', params:{action:'update_event', date:'2026-09-09', summary:'Reunión en Cerámica Italia'}
 - "¿Qué cumpleaños tengo en Google Calendar?" -> type:'tool_call', tool:'manage_google_calendar', params:{action:'search_events', scope:'full_year', query:'cumpleaños'}
-- "¿Qué recordatorios tengo?" -> type:'tool_call', tool:'manage_reminder', params:{action:'list'}
+- "Dame mis pendientes de hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'pending_today'}
+- "Qué recordatorios creamos hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'created_today'}
+- "Qué completé hoy" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'completed_today'}
+- "¿Qué recordatorios tengo?" -> type:'tool_call', tool:'manage_reminder', params:{action:'list', filter:'all'}
 - "¿Cuáles son mis tareas?" -> type:'tool_call', tool:'manage_task', params:{action:'list'}
-- "Ya hablé con la veterinaria" / "Ya le escribí" / "Ya compré el vendaje" / "Ya fui" / "Listo" (con recordatorio o aviso pendiente) -> type:'tool_call', tool:'manage_reminder', params:{action:'acknowledge', target:'veterinaria'|'ir al baño'|'1'}
+- "Ya hablé con la veterinaria" / "Ya le escribí" / "Ya compré el vendaje" / "Ya fui" / "Listo" (con recordatorio o aviso pendiente) -> type:'tool_call', tool:'manage_reminder', params:{action:'acknowledge', target:'1'}
 - "Avísame 15 minutos antes" (tras agendar reunión a las 10:00 AM) -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'[Aviso previo] Reunión a las 10:00 AM', targetTime:'9:45 AM'}]}
 - "Cancela el primero" / "Cancélalo" (tras listar agenda) -> type:'tool_call', tool:'manage_google_calendar' | 'manage_reminder', params:{action:'delete_event'|'cancel', target:'1'}
 - "Recuérdame a las 5pm llamar a Juan y anota la tarea reporte en Proyecto X" (Operación compuesta) -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Llamar a Juan', targetTime:'5:00 PM'}]}, secondary_plan:{tool:'manage_task', params:{action:'create', items:[{title:'Reporte', entityName:'Proyecto X'}]}}

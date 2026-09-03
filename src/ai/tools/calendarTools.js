@@ -404,6 +404,8 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       let eventId = params.eventId || params.id;
+      const hasExplicitScope = Boolean(params.date || params.startDateTime || params.scope);
+
       if (!eventId || String(eventId).length < 8) {
         let domainCandidates = null;
         const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
@@ -411,12 +413,12 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         // If target is a search query (not an ordinal position "1", "primero"), retrieve domain candidates from Google Calendar
         const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
 
-        if (!isOrdinal) {
+        if (!isOrdinal || hasExplicitScope) {
           try {
             let timeMin = new Date();
             let timeMax = null;
 
-            if (params.date || params.startDateTime || params.scope) {
+            if (hasExplicitScope) {
               const scopeRes = resolveCalendarTemporalScope(
                 {
                   date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
@@ -435,9 +437,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
               timezone: tz,
             });
 
-            if (liveEvents && liveEvents.length > 0) {
-              domainCandidates = liveEvents;
-            }
+            domainCandidates = liveEvents || [];
           } catch (fetchErr) {
             console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
           }
@@ -466,11 +466,25 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       if (!eventId) {
+        if (hasExplicitScope) {
+          const notFoundMsg = language === 'en'
+            ? 'No event found on Google Calendar for that date. Would you like me to schedule a new one?'
+            : 'No encontré ningún evento en Google Calendar para esa fecha. ¿Deseas que lo agende como uno nuevo?';
+          return {
+            success: false,
+            action: 'event_not_found',
+            errorCode: 'NOT_FOUND',
+            error: notFoundMsg,
+            rawSummary: notFoundMsg,
+            confirmation: notFoundMsg,
+          };
+        }
         return {
           success: false,
           action: 'missing_event_id',
           errorCode: 'MISSING_TARGET_ID',
           error: 'Falta el ID del evento a actualizar en Google Calendar.',
+          confirmation: '⚠️ No encontré el evento a actualizar. Por favor indica la fecha o el nombre del evento.',
         };
       }
 
@@ -519,18 +533,20 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       let eventId = params.eventId || params.id;
+      const hasExplicitScope = Boolean(params.date || params.startDateTime || params.scope);
+
       if (!eventId || String(eventId).length < 8) {
         let domainCandidates = null;
         const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
 
         const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
 
-        if (!isOrdinal) {
+        if (!isOrdinal || hasExplicitScope) {
           try {
             let timeMin = new Date();
             let timeMax = null;
 
-            if (params.date || params.startDateTime || params.scope) {
+            if (hasExplicitScope) {
               const scopeRes = resolveCalendarTemporalScope(
                 {
                   date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
@@ -549,9 +565,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
               timezone: tz,
             });
 
-            if (liveEvents && liveEvents.length > 0) {
-              domainCandidates = liveEvents;
-            }
+            domainCandidates = liveEvents || [];
           } catch (fetchErr) {
             console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
           }
@@ -580,11 +594,25 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       if (!eventId) {
+        if (hasExplicitScope) {
+          const notFoundMsg = language === 'en'
+            ? 'No event found on Google Calendar for that date.'
+            : 'No encontré ningún evento en Google Calendar para esa fecha.';
+          return {
+            success: false,
+            action: 'event_not_found',
+            errorCode: 'NOT_FOUND',
+            error: notFoundMsg,
+            rawSummary: notFoundMsg,
+            confirmation: notFoundMsg,
+          };
+        }
         return {
           success: false,
           action: 'missing_event_id',
           errorCode: 'MISSING_TARGET_ID',
           error: 'Falta el ID del evento a eliminar en Google Calendar.',
+          confirmation: '⚠️ No encontré el evento a eliminar. Por favor indica la fecha o el nombre del evento.',
         };
       }
 

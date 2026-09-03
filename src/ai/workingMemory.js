@@ -162,8 +162,8 @@ export function resolveEntityReference({
 
   let pool = wmItems.slice();
 
-  // If explicit candidate items are provided (e.g. active pending reminders in DB), prioritize them
-  if (candidates && Array.isArray(candidates) && candidates.length > 0) {
+  // If explicit candidate items are provided (e.g. active pending reminders in DB or date-bounded search), prioritize them
+  if (candidates && Array.isArray(candidates)) {
     const normCandidates = candidates.map((c, idx) => ({
       position: idx + 1,
       type: c.type || (c.due_date ? 'task' : (c.content || c.title ? 'reminder' : 'calendar_event')),
@@ -174,9 +174,7 @@ export function resolveEntityReference({
       raw: c.raw || c,
     })).filter(c => Boolean(c.internalId));
 
-    if (normCandidates.length > 0) {
-      pool = normCandidates;
-    }
+    pool = normCandidates;
   }
 
   if (pool.length === 0) {
@@ -286,8 +284,9 @@ export function resolveEntityReference({
     }
   }
 
-  // If pool has exactly 1 item and user said something affirmative/referential ("cancélalo", "borralo", "eliminalo", "eso", "listo")
-  if (pool.length === 1 && /\b(cancelalo|cancélalo|borralo|bórralo|eliminalo|elimínalo|eso|el|la|listo|hecho)\b/i.test(cleanRef)) {
+  // If pool has exactly 1 item and user said something affirmative/referential ("cancélalo", "borralo", "eliminalo", "eso", "listo", "ya fui", "ya lo hice", "ya está", "ya quedó", "lo terminé", "ya terminé", "ok", "hecho")
+  const isAffirmative = /\b(cancelalo|cancélalo|borralo|bórralo|eliminalo|elimínalo|eso|el|la|listo|hecho|ya|fui|ya\s+fui|ya\s+lo\s+hice|lo\s+hice|ya\s+esta|ya\s+está|ya\s+quedo|ya\s+quedó|lo\s+termine|lo\s+terminé|ya\s+termine|ya\s+terminé|ok|completado|completada)\b/i.test(cleanRef);
+  if (pool.length === 1 && isAffirmative) {
     return { status: 'RESOLVED', item: pool[0] };
   }
 
