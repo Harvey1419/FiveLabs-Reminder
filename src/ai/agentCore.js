@@ -48,6 +48,14 @@ export function formatCompactOverview(overview) {
     }
   }
 
+  // 4. Active Projects with Pending Tasks
+  if (overview.openTasksByEntity && Object.keys(overview.openTasksByEntity).length > 0) {
+    lines.push(`*[Proyectos/Listas Activas]*:`);
+    for (const [entName, entTasks] of Object.entries(overview.openTasksByEntity).slice(0, 5)) {
+      lines.push(`  • 📁 ${entName} (${entTasks.length} pendiente${entTasks.length === 1 ? '' : 's'})`);
+    }
+  }
+
   return lines.length > 0 ? lines.join('\n') : '';
 }
 
@@ -96,7 +104,7 @@ export function buildAgentCorePrompt({
 Fecha/Hora: ${nowStr} (${nowHumanStr}) [${timezone}]. Plan: ${isPro ? '🌟 Pro' : '🆓 Free'} | Google Calendar: ${googleStatus}
 ${!isPro ? 'Nota Free: Solo recordatorios para hoy. Para días futuros/recurrencia -> get_subscription_link.\n' : ''}
 ## REGLAS CRÍTICAS
-1. 🛡️ CERO ALUCINACIONES: NUNCA confirmes haber creado, modificado, completado o cancelado nada sin type: "tool_call". En type: "chat", solo responde dudas o aclara.
+1. 🛡️ CERO ALUCINACIONES: NUNCA confirmes haber creado, modificado, completado o cancelado nada sin type: "tool_call". NUNCA afirmes en chat que una lista o proyecto no tiene tareas sin invocar manage_task(action: 'list'). En type: "chat", solo responde dudas o aclara.
 2. 🚫 PREGUNTA ≠ MUTACIÓN: Preguntas ("¿cómo así?", "¿qué pasó?") son type: "chat" o list.
 3. 🎯 ENRUTAMIENTO:
    • get_unified_agenda: Consultas temporales generales ("¿Qué tengo mañana/hoy/esta semana?", "Dame todos mis pendientes").
@@ -140,6 +148,7 @@ ${compactOverview ? `### Contexto Inmediato:\n${compactOverview}\n` : ''}
 - "¿Qué cumpleaños tengo en Google Calendar?" -> tool:'manage_google_calendar', params:{action:'search_events', scope:'full_year', query:'cumpleaños'}
 - "Dame mis pendientes de hoy" / "nos quedan hoy" / "creamos hoy" / "completé hoy" -> tool:'manage_reminder', params:{action:'list', filter:'pending_today'|'remaining_today'|'created_today'|'completed_today'}
 - "¿Qué recordatorios tengo?" / "¿Cuáles son mis tareas?" / "Dame todos mis proyectos y tareas" -> tool:'manage_reminder'|'manage_task', params:{action:'list'}
+- "¿Qué tenemos pendientes de [X]?" / "¿Qué tareas pendientes tenemos en [X]?" / "En el proyecto [X]" -> tool:'manage_task', params:{action:'list', entityName:'X'}
 - "Muéstrame mi lista de compras" / "¿Qué queda en la lista?" -> tool:'manage_task', params:{action:'list', entityName:'Lista de compras'}
 - "Limpia la lista de compras" / "Ya compré todo" -> tool:'manage_task', params:{action:'complete', entityName:'Lista de compras', scope:'all'}
 - "Limpiala" / "Complétalas" (con lista en contexto) -> tool:'manage_task', params:{action:'complete', scope:'all'}
@@ -152,6 +161,7 @@ ${compactOverview ? `### Contexto Inmediato:\n${compactOverview}\n` : ''}
 - "Recuérdame a las 5pm llamar a Juan y anota la tarea reporte en Proyecto X" -> tool:'manage_reminder', params:{action:'create', items:[{content:'Llamar a Juan', targetTime:'5:00 PM'}]}, secondary_plan:{tool:'manage_task', params:{action:'create', items:[{title:'Reporte', entityName:'Proyecto X'}]}}
 - "¿Qué sabes de mi cumpleaños?" -> type:'chat', reply:"Según lo que recuerdo, tu cumpleaños es el 14 de octubre."
 - "¿cómo así?" / "¿qué pasó?" -> type:'chat', reply:"¿En qué te puedo aclarar? Cuéntame y con gusto revisamos."
+- "Estoy en [país/ciudad]" / "Actualmente me encuentro en [país/ciudad]" / "actualiza mis recordatorios para [país]" -> type:'chat', reply:"¡Listo! Tu zona horaria ha sido ajustada a la hora local de ese destino y todos tus recordatorios se muestran en tu horario actual."
 
 ## SALIDA JSON ESTRICTA
 {

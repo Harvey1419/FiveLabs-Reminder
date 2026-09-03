@@ -253,10 +253,15 @@ export async function handleWebhook(req, res) {
     const recipientIdentifier = phoneNumber || bsuid;
     const phoneNumberId = extractPhoneNumberId(body);
 
+    const queueEnqueueTime = Date.now();
     // Enqueue processing sequentially for this recipient to prevent context race conditions
     await enqueueForUser(recipientIdentifier, async () => {
+      const queueWaitMs = Date.now() - queueEnqueueTime;
+
       // 1. Resolve User Record
+      const tUser0 = Date.now();
       const user = await getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName);
+      const userResolveMs = Date.now() - tUser0;
 
       let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
       const caption = message.caption || message.image?.caption || message.document?.caption || '';
@@ -352,7 +357,7 @@ export async function handleWebhook(req, res) {
         await updateUserTimezone(user.id, locationTz);
         user.timezone = locationTz;
       } else {
-        const isTravelPhrase = /\b(estoy en|llegue a|llegué a|viaje a|viajé a|me mude a|me mudé a|ahora en|desde|ubicado en|ando por|de viaje en|de viaje por|visitando)\b/i.test(messageText);
+        const isTravelPhrase = /\b(estoy en|llegue a|llegué a|viaje a|viajé a|me mude a|me mudé a|ahora en|desde|ubicado en|ando por|de viaje en|de viaje por|visitando|me encuentro en|viviendo en|radicado en|actualmente en|pasando por)\b/i.test(messageText);
         const textTz = detectTimezoneFromLocationText(messageText);
         if (textTz && isTravelPhrase && user.timezone !== textTz) {
           console.log(`[webhook req=${correlationId}] Dynamic timezone switch via conversational text: ${user.timezone} -> ${textTz}`);
@@ -362,6 +367,7 @@ export async function handleWebhook(req, res) {
       }
 
       // 3. PERSIST USER MESSAGE FIRST AND AWAIT (Guarantees chronological order and DB-level deduplication)
+      const tSave0 = Date.now();
       const savedUserMsg = await saveMessage({
         userId: user.id,
         phoneNumber: recipientIdentifier,
@@ -369,6 +375,7 @@ export async function handleWebhook(req, res) {
         content: messageText,
         messageId: messageId || null,
       });
+      const dbSaveUserMs = Date.now() - tSave0;
 
       // If concurrent request won the DB insert on the same message_id, abort duplicate processing
       if (messageId && !savedUserMsg) {
@@ -378,7 +385,9 @@ export async function handleWebhook(req, res) {
       touchUserLastActive(user.id, recipientIdentifier);
 
       // 4. Fetch updated conversation history including this message
+      const tHist0 = Date.now();
       const history = await getRecentMessages(recipientIdentifier, 10);
+      const dbHistoryMs = Date.now() - tHist0;
 
       // 5. Route to AI with full batch & natural reply generation
       const routeStart = Date.now();
@@ -411,7 +420,7 @@ export async function handleWebhook(req, res) {
       }
 
       const totalElapsed = Date.now() - startTime;
-      console.log(`[webhook req=${correlationId}] Turn delivered in ${totalElapsed}ms (audio: ${audioElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
+      console.log(`[webhook req=${correlationId}] Turn delivered in ${totalElapsed}ms (queue: ${queueWaitMs}ms, dbPrep: ${userResolveMs + dbSaveUserMs + dbHistoryMs}ms, audio: ${audioElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
 
       // 7. PERSIST ASSISTANT MESSAGE AND AWAIT
       await saveMessage({

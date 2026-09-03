@@ -22,3 +22,6 @@ scratch/
 # Coverage
 coverage/
 .codegraph/
+# Local Pi runtime state
+.atl/
+.pi/

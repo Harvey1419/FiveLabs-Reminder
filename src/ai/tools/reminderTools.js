@@ -71,8 +71,12 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
   switch (normalizedAction) {
     case 'create': {
-      const rawItems = Array.isArray(params.items) && params.items.length > 0
-        ? params.items
+      let itemsCandidate = params.items || params.create || params.reminders || (Array.isArray(params) ? params : null);
+      if (itemsCandidate && typeof itemsCandidate === 'object' && !Array.isArray(itemsCandidate) && itemsCandidate.items) {
+        itemsCandidate = itemsCandidate.items;
+      }
+      const rawItems = Array.isArray(itemsCandidate) && itemsCandidate.length > 0
+        ? itemsCandidate
         : [params];
 
       const savedReminders = [];

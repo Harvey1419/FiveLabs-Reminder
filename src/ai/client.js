@@ -1,200 +1,140 @@
 /**
- * High-Speed Multi-Provider AI Client.
- * Routes dynamically based on AI_MODEL (Groq LPUs vs Gemini Native) with seamless fallback.
+ * High-Speed OpenRouter Multi-Model AI Client.
+ * - Primary: openai/gpt-oss-120b routed to Groq LPUs (with Cerebras fallback).
+ * - Fallback & Memory Engine: google/gemini-2.5-flash-lite routed to Google AI Studio via OpenRouter.
  */
 
 export const MODEL_CONFIG = Object.freeze({
-  groq: {
-    primary: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
-    reasoning: 'openai/gpt-oss-120b',
-    fallbackLadder: [
-      'openai/gpt-oss-20b',
-      'openai/gpt-oss-120b',
-      'qwen/qwen3.8-27b',
-      'qwen/qwen3.6-27b',
-      'groq/compound',
-    ],
-  },
-  gemini: {
-    primary: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    fallbackLadder: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'],
+  openrouter: {
+    primary: process.env.OPENROUTER_MODEL || 'openai/gpt-oss-120b',
+    primaryProviders: ['Groq', 'Cerebras'],
+    fallback: 'google/gemini-2.5-flash-lite',
+    fallbackProviders: ['Google AI Studio', 'Google'],
   },
 });
 
-export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 1200, correlationId = null } = {}) {
-  const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
-  const groqKey = process.env.GROQ_API_KEY || (process.env.AI_API_KEY?.startsWith('gsk_') ? process.env.AI_API_KEY : null);
-
-  const primaryModel = process.env.AI_MODEL || (groqKey ? MODEL_CONFIG.groq.primary : MODEL_CONFIG.gemini.primary);
-  const fallbackModel = MODEL_CONFIG.gemini.primary;
-
+export async function callChatCompletion(messages, { temperature = 0.0, max_tokens = 800, correlationId = null } = {}) {
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.replace(/\"/g, '').trim()
+    || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY : null);
   const logPrefix = correlationId ? `[ai-client req=${correlationId}]` : '[ai-client]';
+  const primaryModel = process.env.OPENROUTER_MODEL || MODEL_CONFIG.openrouter.primary;
 
-  // Determine if primary target is a Groq-hosted model
-  const isGroqPrimary = Boolean(
-    groqKey && (
-      primaryModel.includes('/') ||
-      primaryModel.includes('gpt-oss') ||
-      primaryModel.includes('llama') ||
-      primaryModel.includes('qwen') ||
-      primaryModel.includes('compound')
-    )
-  );
-
-  if (isGroqPrimary) {
-    // 1. PRIMARY: Groq Ultra-Fast LPUs (~0.1s - 0.5s)
-    const groqRes = await callGroqChat(messages, primaryModel, groqKey, { temperature, max_tokens, timeoutMs: 4000, logPrefix });
-    if (groqRes) return groqRes;
-
-    // 2. RESILIENT FALLBACK: Google Gemini Native API (High Quota)
-    if (geminiKey) {
-      console.log(`${logPrefix} Groq primary (${primaryModel}) unavailable, executing fallback to Gemini (${fallbackModel})...`);
-      const geminiRes = await callGeminiChat(messages, fallbackModel, geminiKey, { temperature, max_tokens, timeoutMs: 12000, logPrefix });
-      if (geminiRes) return geminiRes;
-    }
-  } else {
-    // 1. PRIMARY: Google Gemini Native API
-    if (geminiKey) {
-      const geminiRes = await callGeminiChat(messages, primaryModel, geminiKey, { temperature, max_tokens, timeoutMs: 12000, logPrefix });
-      if (geminiRes) return geminiRes;
-    }
-
-    // 2. RESILIENT FALLBACK: Groq LPUs
-    if (groqKey) {
-      console.log(`${logPrefix} Gemini primary (${primaryModel}) unavailable, executing fallback to Groq...`);
-      const backupGroqModel = MODEL_CONFIG.groq.primary;
-      const groqRes = await callGroqChat(messages, backupGroqModel, groqKey, { temperature, max_tokens, timeoutMs: 6000, logPrefix });
-      if (groqRes) return groqRes;
-    }
+  if (!openrouterKey) {
+    console.error(`${logPrefix} OPENROUTER_API_KEY is not configured.`);
+    return JSON.stringify({
+      type: 'chat',
+      tool: null,
+      params: {},
+      intent: 'chat',
+      reply: 'Error de configuración: no se encontró la clave de OpenRouter.',
+    });
   }
 
-  // 3. Graceful fallback when all providers are unavailable
+  // 1. Primary: openai/gpt-oss-120b on Groq LPUs
+  const orRes = await callOpenRouterChat(messages, primaryModel, openrouterKey, {
+    temperature,
+    max_tokens,
+    timeoutMs: 9000,
+    providers: MODEL_CONFIG.openrouter.primaryProviders,
+    logPrefix,
+  });
+  if (orRes) return orRes;
+
+  // 2. Resilient Fallback: google/gemini-2.5-flash-lite via Google AI Studio on OpenRouter
+  if (primaryModel !== MODEL_CONFIG.openrouter.fallback) {
+    console.warn(`${logPrefix} Primary (${primaryModel}) failed, executing fallback to ${MODEL_CONFIG.openrouter.fallback} (Google AI Studio)...`);
+    const fallbackRes = await callOpenRouterChat(messages, MODEL_CONFIG.openrouter.fallback, openrouterKey, {
+      temperature,
+      max_tokens: 400,
+      timeoutMs: 7000,
+      providers: MODEL_CONFIG.openrouter.fallbackProviders,
+      logPrefix,
+    });
+    if (fallbackRes) return fallbackRes;
+  }
+
   return JSON.stringify({
     type: 'chat',
     tool: null,
     params: {},
     intent: 'chat',
-    reply: 'Tuve una pequeña intermitencia de conexión en este momento. Por favor, envíame tu mensaje de nuevo.',
+    reply: 'Tuve una pequeña intermitencia de conexión con el proveedor de IA. Por favor, envíame tu mensaje de nuevo.',
   });
 }
 
-async function callGroqChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 4000, logPrefix = '[ai-client]' } = {}) {
-  const candidateModels = Array.from(new Set([model, ...MODEL_CONFIG.groq.fallbackLadder])).filter(Boolean);
+async function callOpenRouterChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 9000, providers = null, logPrefix = '[ai-client]' } = {}) {
+  const startMs = Date.now();
+  try {
+    const isOssReasoning = model.includes('oss');
+    const payload = {
+      model,
+      messages,
+      temperature,
+      max_tokens,
+      response_format: { type: 'json_object' },
+    };
 
-  for (const targetModel of candidateModels) {
-    try {
-      const isReasoningModel = targetModel.includes('gpt-oss') || targetModel.includes('r1');
-      const payload = {
-        model: targetModel,
-        messages,
-        temperature,
-        max_tokens: isReasoningModel ? undefined : max_tokens,
-        max_completion_tokens: isReasoningModel ? max_tokens : undefined,
-        response_format: { type: 'json_object' },
+    if (providers && Array.isArray(providers) && providers.length > 0) {
+      payload.provider = {
+        order: providers,
+        allow_fallbacks: true,
       };
-
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.choices?.[0]?.message?.content;
-        if (raw) {
-          return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
-        }
-      } else {
-        const errBody = await res.text().catch(() => '');
-        console.warn(`${logPrefix} Groq (${targetModel}) returned ${res.status}:`, errBody.slice(0, 90));
-      }
-    } catch (err) {
-      console.warn(`${logPrefix} Groq (${targetModel}) failed:`, err.message);
     }
-  }
-  return null;
-}
 
-async function callGeminiChat(messages, model, apiKey, { temperature, max_tokens, timeoutMs = 7000, logPrefix = '[ai-client]' } = {}) {
-  const candidateModels = Array.from(new Set([model, ...MODEL_CONFIG.gemini.fallbackLadder])).filter(Boolean);
-  const tried = new Set();
-
-  for (const targetModel of candidateModels) {
-    if (tried.has(targetModel)) continue;
-    tried.add(targetModel);
-
-    try {
-      let systemInstruction = null;
-      const contents = [];
-
-      for (const m of messages) {
-        if (m.role === 'system') {
-          systemInstruction = { parts: [{ text: m.content }] };
-        } else if (m.role === 'user') {
-          contents.push({ role: 'user', parts: [{ text: m.content }] });
-        } else if (m.role === 'assistant') {
-          contents.push({ role: 'model', parts: [{ text: m.content }] });
-        }
-      }
-
-      const payload = {
-        contents,
-        generationConfig: {
-          temperature,
-          maxOutputTokens: max_tokens,
-          responseMimeType: 'application/json',
-        },
-      };
-
-      if (systemInstruction) {
-        payload.systemInstruction = systemInstruction;
-      }
-
-      const cleanModel = targetModel.replace(/^models\//, '');
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const candidate = data.candidates?.[0];
-        const raw = candidate?.content?.parts?.[0]?.text;
-        if (raw) {
-          return raw.trim();
-        }
-      } else {
-        const errBody = await res.text().catch(() => '');
-        console.warn(`${logPrefix} Gemini (${targetModel}) returned ${res.status}:`, errBody.slice(0, 90));
-      }
-    } catch (err) {
-      console.warn(`${logPrefix} Gemini (${targetModel}) failed:`, err.message);
+    if (isOssReasoning) {
+      payload.reasoning = { effort: 'low' };
     }
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://fivelabs.co',
+        'X-Title': 'Hermes Assistant',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.choices?.[0]?.message?.content;
+      const actualProvider = data.provider || providers?.[0] || 'default';
+      if (raw && raw.trim().length > 0) {
+        console.log(`${logPrefix} [OpenRouter] model=${model} provider=${actualProvider} responded in ${Date.now() - startMs}ms`);
+        return raw.replace(/<\/?think>[\s\S]*?<\/?think>/g, '').replace(/<\/?think>/g, '').trim();
+      } else {
+        console.warn(`${logPrefix} [OpenRouter] model=${model} returned empty content (finish_reason: ${data.choices?.[0]?.finish_reason})`);
+      }
+    } else {
+      const errBody = await res.text().catch(() => '');
+      console.warn(`${logPrefix} [OpenRouter] model=${model} returned ${res.status}:`, errBody.slice(0, 120));
+    }
+  } catch (err) {
+    console.warn(`${logPrefix} [OpenRouter] model=${model} failed:`, err.message);
   }
 
   return null;
 }
 
-export async function callGeminiDirect(messages, { temperature = 0.1, max_tokens = 800, timeoutMs = 8000 } = {}) {
-  const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIza') ? process.env.AI_API_KEY : null);
-  if (!geminiKey) {
-    console.warn('[ai-client] Gemini API key not configured for direct call.');
+/**
+ * Memory Extraction & Direct Calls: uses google/gemini-2.5-flash-lite on Google AI Studio via OpenRouter.
+ * Guarantees zero 429 errors and eliminates finish_reason: error.
+ */
+export async function callGeminiDirect(messages, { temperature = 0.1, max_tokens = 600, timeoutMs = 8000 } = {}) {
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.replace(/\"/g, '').trim()
+    || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY : null);
+  if (!openrouterKey) {
+    console.warn('[ai-client] OpenRouter API key not configured for direct call.');
     return null;
   }
-  const defaultModel = MODEL_CONFIG.gemini.primary || 'gemini-2.5-flash';
-  return callGeminiChat(messages, defaultModel, geminiKey, {
+  const model = MODEL_CONFIG.openrouter.fallback;
+  return callOpenRouterChat(messages, model, openrouterKey, {
     temperature,
     max_tokens,
     timeoutMs,
-    logPrefix: '[gemini-direct]',
+    providers: MODEL_CONFIG.openrouter.fallbackProviders,
+    logPrefix: '[openrouter-memory]',
   });
 }

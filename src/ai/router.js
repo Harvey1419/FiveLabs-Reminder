@@ -147,7 +147,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let plan = { type: 'chat', tool: null, params: {}, intent: 'chat', reply: '' };
 
   try {
-    const rawText = await callChatCompletion(messages, { max_tokens: 1200 });
+    const rawText = await callChatCompletion(messages, { max_tokens: 800, correlationId: options?.correlationId });
     const jsonStr = extractFirstJsonObject(rawText);
     const parsed = safeJsonParse(jsonStr);
     if (parsed) {
