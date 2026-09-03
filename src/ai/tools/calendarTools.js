@@ -404,9 +404,48 @@ export async function executeCalendarTool({ action, params = {}, user, language 
 
       let eventId = params.eventId || params.id;
       if (!eventId || String(eventId).length < 8) {
+        let domainCandidates = null;
+        const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
+
+        // If target is a search query (not an ordinal position "1", "primero"), retrieve domain candidates from Google Calendar
+        const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
+
+        if (!isOrdinal) {
+          try {
+            let timeMin = new Date();
+            let timeMax = null;
+
+            if (params.date || params.startDateTime) {
+              const parsedTargetDate = parseTargetTime(params.date || params.startDateTime, tz);
+              if (parsedTargetDate && !isNaN(parsedTargetDate.getTime())) {
+                const startOfDay = new Date(parsedTargetDate);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(parsedTargetDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                timeMin = startOfDay;
+                timeMax = endOfDay;
+              }
+            }
+
+            const liveEvents = await listCalendarEvents(userId, {
+              timeMin,
+              timeMax,
+              q: params.query || params.target || null,
+              timezone: tz,
+            });
+
+            if (liveEvents && liveEvents.length > 0) {
+              domainCandidates = liveEvents;
+            }
+          } catch (fetchErr) {
+            console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
+          }
+        }
+
         const refRes = resolveEntityReference({
           userOrPhone: user || phoneNumber,
-          reference: eventId || params.target || params.summary || params.query || '',
+          reference: targetRef,
+          candidates: domainCandidates,
           preferredType: 'calendar_event',
         });
         if (refRes.status === 'RESOLVED') {
@@ -480,9 +519,47 @@ export async function executeCalendarTool({ action, params = {}, user, language 
 
       let eventId = params.eventId || params.id;
       if (!eventId || String(eventId).length < 8) {
+        let domainCandidates = null;
+        const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
+
+        const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
+
+        if (!isOrdinal) {
+          try {
+            let timeMin = new Date();
+            let timeMax = null;
+
+            if (params.date || params.startDateTime) {
+              const parsedTargetDate = parseTargetTime(params.date || params.startDateTime, tz);
+              if (parsedTargetDate && !isNaN(parsedTargetDate.getTime())) {
+                const startOfDay = new Date(parsedTargetDate);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(parsedTargetDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                timeMin = startOfDay;
+                timeMax = endOfDay;
+              }
+            }
+
+            const liveEvents = await listCalendarEvents(userId, {
+              timeMin,
+              timeMax,
+              q: params.query || params.target || null,
+              timezone: tz,
+            });
+
+            if (liveEvents && liveEvents.length > 0) {
+              domainCandidates = liveEvents;
+            }
+          } catch (fetchErr) {
+            console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
+          }
+        }
+
         const refRes = resolveEntityReference({
           userOrPhone: user || phoneNumber,
-          reference: eventId || params.target || params.summary || params.query || '',
+          reference: targetRef,
+          candidates: domainCandidates,
           preferredType: 'calendar_event',
         });
         if (refRes.status === 'RESOLVED') {

@@ -249,18 +249,24 @@ export function resolveEntityReference({
       const matchCount = matchedTokens.length;
       if (matchCount === 0) continue;
 
-      const queryScore = matchCount / refTokens.length;
-      const hasStrongMatch = matchedTokens.some(t => t.length >= 5);
-      const finalScore = hasStrongMatch ? Math.max(queryScore, 0.8) : queryScore;
+      // Token coverage relative to reference tokens
+      const queryCoverage = matchCount / refTokens.length;
 
-      if (finalScore >= 0.4) {
-        scored.push({ item: it, score: finalScore });
+      // Candidate must match at least 50% of reference tokens (or 100% for single-word queries)
+      if (queryCoverage >= 0.5 || refTokens.length === 1) {
+        const itemPrecision = matchCount / itTokens.length;
+        const f1Score = (2 * queryCoverage * itemPrecision) / (queryCoverage + itemPrecision) || queryCoverage;
+        const finalScore = Math.max(queryCoverage, f1Score);
+
+        if (finalScore >= 0.5) {
+          scored.push({ item: it, score: finalScore });
+        }
       }
     }
 
     scored.sort((a, b) => b.score - a.score);
 
-    if (scored.length === 1 && scored[0].score >= 0.4) {
+    if (scored.length === 1 && scored[0].score >= 0.5) {
       return { status: 'RESOLVED', item: scored[0].item };
     }
 
