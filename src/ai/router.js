@@ -97,7 +97,35 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   const sanitizedText = messageText.replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '').trim() || messageText;
 
-  // Filter history so that if the current message was already inserted into DB/history, it is NOT duplicated!
+  // 1.5. FAST-PATH DETERMINISTIC ROUTING (0 LLM Tokens, <10ms Latency)
+  // If user sends an unambiguous affirmative confirmation to an active notification in Working Memory
+  const isDirectAffirmative = /^(ya fui|fui|ya lo hice|ya está|ya esta|ya quedó|ya quedo|listo|ok|hecho|completado|ya terminé|ya termine)$/i.test(sanitizedText);
+  if (isDirectAffirmative) {
+    const wm = getWorkingMemory(phoneNumber || user.id);
+    if (wm && wm.items && wm.items.length > 0 && wm.items[0].internalId && (wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched')) {
+      const fastAckResult = await executeTool({
+        toolName: 'manage_reminder',
+        params: { action: 'acknowledge', reminderId: wm.items[0].internalId },
+        user,
+        isPro,
+        language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+        userMessage: sanitizedText,
+        correlationId: options?.correlationId,
+      });
+
+      if (fastAckResult.success) {
+        console.log(`[router req=${options?.correlationId || 'none'}] Fast-path deterministic acknowledge hit: 0 LLM tokens consumed.`);
+        return {
+          intent: 'reminder',
+          confirmation: fastAckResult.confirmation || fastAckResult.formattedCard,
+          data: fastAckResult.data,
+          plan: { type: 'tool_call', tool: 'manage_reminder', params: { action: 'acknowledge', reminderId: wm.items[0].internalId }, intent: 'reminder' },
+        };
+      }
+    }
+  }
+
+  // Filter history: remove current turn duplication and window to last 5 turns
   let pastTurns = (history || []).slice();
   if (pastTurns.length > 0) {
     const lastTurn = pastTurns[pastTurns.length - 1];
@@ -105,7 +133,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       pastTurns = pastTurns.slice(0, -1);
     }
   }
-  pastTurns = pastTurns.slice(-8);
+  pastTurns = pastTurns.slice(-5);
 
   const messages = [
     { role: 'system', content: prompt },
