@@ -31,6 +31,15 @@ import {
   formatReminderRemainingTodayCard,
 } from './formatters.js';
 import { resolveEntityReference, getWorkingMemory } from '../workingMemory.js';
+import {
+  isStrictUUID,
+  UUID_REGEX,
+  normalizeTextForMatching,
+  stripConversationalWrappers,
+  isStandaloneAffirmative,
+  parseOrdinalReference,
+  calculateMatchScore,
+} from '../../utils/entityResolution.js';
 
 /**
  * Domain tool for managing reminders.
@@ -257,7 +266,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         let targetId = targetReminderId;
         const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
 
-        if (targetId && targetId.length < 36 && pending.length > 0) {
+        if (targetId && !isStrictUUID(targetId) && pending.length > 0) {
           const refRes = resolveEntityReference({
             userOrPhone: user || phoneNumber,
             reference: String(targetId),
@@ -333,6 +342,20 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             ? 'Which reminder would you like me to update?'
             : '¿Cuál recordatorio deseas que actualice?',
         };
+      }
+
+      let resolvedTargetReminderId = targetReminderId;
+      if (!isStrictUUID(resolvedTargetReminderId)) {
+        const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
+        const refRes = resolveEntityReference({
+          userOrPhone: user || phoneNumber,
+          reference: String(resolvedTargetReminderId),
+          candidates: pending,
+          preferredType: 'reminder',
+        });
+        if (refRes.status === 'RESOLVED') {
+          resolvedTargetReminderId = refRes.item.internalId;
+        }
       }
 
       const dbUpdates = {};
@@ -422,7 +445,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         };
       }
 
-      const updated = await updateReminder(targetReminderId, dbUpdates, userId, phoneNumber);
+      const updated = await updateReminder(resolvedTargetReminderId, dbUpdates, userId, phoneNumber);
 
       if (!updated) {
         return {
@@ -500,10 +523,9 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       }
 
       if (targetId) {
-        if (targetId.length < 36) {
-          const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetId);
-          const pending = !isOrdinal ? await getRemindersByPhone(phoneNumber, 'pending', 50) : null;
-          const matched = pending ? pending.find(r => r.id === targetId || r.id.startsWith(targetId)) : null;
+        if (!isStrictUUID(targetId)) {
+          const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
+          const matched = pending ? pending.find(r => r.id === targetId || (targetId.length >= 8 && r.id.startsWith(targetId))) : null;
           if (matched) {
             targetId = matched.id;
           } else {
@@ -538,7 +560,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
             }
           }
         }
-        const marked = await markReminderAsCancelled(targetId);
+        const marked = await markReminderAsCancelled(targetId, userId, phoneNumber);
         if (!marked) {
           return {
             success: false,
@@ -553,7 +575,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       } else if (scope === 'all' || cancelAll) {
         const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
         for (const r of pending) {
-          await markReminderAsCancelled(r.id);
+          await markReminderAsCancelled(r.id, userId, phoneNumber);
           cancelledCount++;
         }
       }
@@ -599,11 +621,11 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
       let matched = null;
       const targetStr = String(rawTarget || userMessage || '').trim();
-      const isAffirmative = /^(listo|ok|ya|hecho|completado|ya\s+lo\s+hice|ya\s+fui|fui|ya\s+hable|ya\s+hablé|ya\s+escribi|ya\s+escribí|ya\s+compre|ya\s+compré|ya\s+esta|ya\s+está|terminado|ya\s+termine|ya\s+terminé|si|sí)$/i.test(targetStr);
-      const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetStr);
+      const isAffirmative = isStandaloneAffirmative(targetStr);
+      const isOrdinal = parseOrdinalReference(targetStr) !== null;
 
-      // 1. Direct UUID Lookup: If explicit 36-char UUID is given
-      if (rawTarget && String(rawTarget).trim().length === 36) {
+      // 1. Direct UUID Lookup: If explicit UUID is given
+      if (rawTarget && isStrictUUID(String(rawTarget).trim())) {
         try {
           const { data: directRem } = await supabase
             .from('reminders')
@@ -620,10 +642,31 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
       if (!matched) {
         const wm = getWorkingMemory(user || phoneNumber);
         if (wm && wm.items && wm.items.length > 0) {
-          if (isAffirmative || isOrdinal || !rawTarget || wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched') {
+          const stripped = stripConversationalWrappers(targetStr);
+          const hasExplicitTarget = Boolean(stripped && !isAffirmative && !isOrdinal);
+
+          if (hasExplicitTarget) {
+            const ordRes = resolveEntityReference({
+              userOrPhone: user || phoneNumber,
+              reference: targetStr,
+              preferredType: 'reminder',
+            });
+            if (ordRes.status === 'RESOLVED' && ordRes.item?.internalId) {
+              try {
+                const { data: wmRem } = await supabase
+                  .from('reminders')
+                  .select('*')
+                  .eq('id', ordRes.item.internalId)
+                  .maybeSingle();
+                if (wmRem && wmRem.status !== 'cancelled') {
+                  matched = wmRem;
+                }
+              } catch (_) {}
+            }
+          } else if (isAffirmative || isOrdinal || !rawTarget || wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched') {
             let targetWmId = null;
             if (isOrdinal) {
-              const ordRes = resolveEntityReference({ userOrPhone: user || phoneNumber, reference: targetStr });
+              const ordRes = resolveEntityReference({ userOrPhone: user || phoneNumber, reference: targetStr, preferredType: 'reminder' });
               if (ordRes.status === 'RESOLVED' && ordRes.item?.internalId) {
                 targetWmId = ordRes.item.internalId;
               }
@@ -743,8 +786,9 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
         const { data: ackedReminders } = await ackQ.order('acknowledged_at', { ascending: false }).limit(20);
         const alreadyAcked = ackedReminders || [];
         if (alreadyAcked.length > 0) {
+          const normTarget = normalizeTextForMatching(stripConversationalWrappers(targetStr));
           matched = alreadyAcked.find(r => r.id === targetStr || (targetStr.length >= 8 && r.id.startsWith(targetStr)))
-            || alreadyAcked.find(r => r.content && targetStr && r.content.toLowerCase().includes(targetStr.toLowerCase()));
+            || alreadyAcked.find(r => r.content && normTarget && normalizeTextForMatching(r.content).includes(normTarget));
 
           if (!matched && isAffirmative) {
             matched = alreadyAcked[0];
@@ -761,7 +805,14 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
                         (userPhoneNorm && matchedPhoneNorm && userPhoneNorm === matchedPhoneNorm) ||
                         (phoneNumber && matched.phone_number === phoneNumber);
         if (hasTenantInfo && !isOwner) {
-          matched = null;
+          return {
+            success: false,
+            action: 'access_denied',
+            errorCode: 'ACCESS_DENIED',
+            error: language === 'en' ? 'Access denied: this reminder belongs to another user.' : 'No tienes permisos sobre este recordatorio.',
+            rawSummary: 'Acceso denegado.',
+            confirmation: '⚠️ No tienes permisos sobre este recordatorio.',
+          };
         }
       }
 
@@ -771,7 +822,7 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
           success: false,
           action: 'reminder_not_found',
           errorCode: 'NOT_FOUND',
-          error: language === 'en' ? 'Reminder not found or access denied.' : 'No se encontró el recordatorio o acceso denegado.',
+          error: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
           rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
           confirmation: language === 'en' ? '⚠️ Reminder not found.' : '⚠️ No se encontró el recordatorio especificado.',
         };

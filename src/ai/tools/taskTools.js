@@ -17,24 +17,30 @@ import {
   formatTaskCompletedCard,
   formatTaskUpdatedCard,
 } from './formatters.js';
-import { resolveEntityReference, tokenizeText } from '../workingMemory.js';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { resolveEntityReference } from '../workingMemory.js';
+import {
+  isStrictUUID,
+  UUID_REGEX,
+  normalizeTextForMatching,
+  stripConversationalWrappers,
+  isStandaloneAffirmative,
+  calculateMatchScore,
+} from '../../utils/entityResolution.js';
 
 /**
  * Deterministic Task Identifier Resolver following the Strict Resolution Hierarchy:
- * 1. Direct 36-character UUID
+ * 1. Direct 36-character UUID (isStrictUUID)
  * 2. Working Memory (Ordinal reference '1', 'el primero', 'la segunda' from previous turn)
- * 3. Database search for user's pending tasks (exact title -> substring -> token match)
- * 4. Disambiguation: 1 match -> RESOLVED, >1 match -> AMBIGUOUS, 0 match -> NOT_FOUND
+ * 3. Database search for user's pending tasks (normalized exact title -> substring -> token match)
+ * 4. Disambiguation: 1 match -> RESOLVED, >1 match -> AMBIGUOUS, 0 match -> NOT_FOUND / MISSING_CONTEXT
  */
-async function resolveTargetTask({ target, userId, userOrPhone }) {
-  if (!target) return { status: 'MISSING' };
-  const rawStr = String(target).trim();
+async function resolveTargetTask({ target, userId, userOrPhone, userMessage = '' }) {
+  if (!target && !userMessage) return { status: 'MISSING' };
+  const rawStr = String(target || userMessage || '').trim();
   if (!rawStr) return { status: 'MISSING' };
 
   // 1. Direct UUID
-  if (UUID_REGEX.test(rawStr)) {
+  if (isStrictUUID(rawStr)) {
     return { status: 'RESOLVED', taskId: rawStr };
   }
 
@@ -45,8 +51,8 @@ async function resolveTargetTask({ target, userId, userOrPhone }) {
     preferredType: 'task',
   });
 
-  if (refRes.status === 'RESOLVED') {
-    return { status: 'RESOLVED', taskId: refRes.item.internalId, item: refRes.item };
+  if (refRes.status === 'RESOLVED' && refRes.item?.internalId) {
+    return { status: 'RESOLVED', taskId: refRes.item.internalId, item: refRes.item, task: refRes.item.raw || refRes.item };
   }
   if (refRes.status === 'AMBIGUOUS') {
     return { status: 'AMBIGUOUS', candidates: refRes.candidates };
@@ -68,12 +74,20 @@ async function resolveTargetTask({ target, userId, userOrPhone }) {
   }
 
   // Clean raw reference string: strip completion phrases and prefixes
-  const cleanQuery = rawStr
-    .replace(/(?::|,)?\s*(?:ya\s+lo\s+hice|ya\s+la\s+hice|lo\s+hice|ya\s+está|ya\s+esta|ya\s+quedó|ya\s+quedo|ya\s+terminé|ya\s+termine|listo|ok|hecho|completado|completada|eso\s+ya\s+lo\s+hice)\b.*$/i, '')
-    .trim();
+  const cleanQuery = stripConversationalWrappers(rawStr);
+  const normClean = normalizeTextForMatching(cleanQuery);
 
-  // A. Exact title match (case insensitive)
-  const exact = dbTasks.filter(t => t.title.toLowerCase().trim() === cleanQuery.toLowerCase().trim());
+  // If cleanQuery is empty (e.g. user just said "ya la hice" with no task title and no Working Memory context):
+  // Rule 8: Do NOT guess an arbitrary task, ask clarification!
+  if (!normClean) {
+    if (isStandaloneAffirmative(rawStr)) {
+      return { status: 'MISSING_CONTEXT', reason: 'STANDALONE_AFFIRMATIVE_WITHOUT_CONTEXT' };
+    }
+    return { status: 'NOT_FOUND' };
+  }
+
+  // A. Exact normalized title match (case, accent, punctuation insensitive)
+  const exact = dbTasks.filter(t => normalizeTextForMatching(t.title) === normClean);
   if (exact.length === 1) {
     return { status: 'RESOLVED', taskId: exact[0].id, task: exact[0] };
   }
@@ -81,11 +95,10 @@ async function resolveTargetTask({ target, userId, userOrPhone }) {
     return { status: 'AMBIGUOUS', candidates: exact };
   }
 
-  // B. Substring match
+  // B. Substring match on normalized title
   const sub = dbTasks.filter(t => {
-    const tTitle = t.title.toLowerCase().trim();
-    const q = cleanQuery.toLowerCase().trim();
-    return tTitle.includes(q) || q.includes(tTitle);
+    const normT = normalizeTextForMatching(t.title);
+    return normT.includes(normClean) || normClean.includes(normT);
   });
   if (sub.length === 1) {
     return { status: 'RESOLVED', taskId: sub[0].id, task: sub[0] };
@@ -94,30 +107,27 @@ async function resolveTargetTask({ target, userId, userOrPhone }) {
     return { status: 'AMBIGUOUS', candidates: sub };
   }
 
-  // C. Tokenized matching
-  const refTokens = tokenizeText(cleanQuery);
-  if (refTokens.length > 0) {
-    const scored = [];
-    for (const t of dbTasks) {
-      const tTokens = tokenizeText(t.title);
-      const matches = refTokens.filter(rt => tTokens.some(tt => tt.includes(rt) || rt.includes(tt)));
-      if (matches.length > 0) {
-        const score = matches.length / refTokens.length;
-        if (score >= 0.5) {
-          scored.push({ task: t, score });
-        }
-      }
+  // C. Tokenized matching with deterministic scoring
+  const scored = [];
+  for (const t of dbTasks) {
+    const score = calculateMatchScore(cleanQuery, t.title);
+    if (score >= 0.5) {
+      scored.push({ task: t, score });
     }
-    scored.sort((a, b) => b.score - a.score);
-    if (scored.length === 1) {
-      return { status: 'RESOLVED', taskId: scored[0].task.id, task: scored[0].task };
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  if (scored.length === 1) {
+    return { status: 'RESOLVED', taskId: scored[0].task.id, task: scored[0].task };
+  }
+  if (scored.length > 1) {
+    const top = scored[0];
+    const runnerUp = scored[1];
+    if (top.score >= 0.75 && (top.score - runnerUp.score) >= 0.20) {
+      return { status: 'RESOLVED', taskId: top.task.id, task: top.task };
     }
-    if (scored.length > 1) {
-      if (scored[0].score >= 0.75 && scored[0].score - scored[1].score >= 0.25) {
-        return { status: 'RESOLVED', taskId: scored[0].task.id, task: scored[0].task };
-      }
-      return { status: 'AMBIGUOUS', candidates: scored.map(s => s.task) };
-    }
+    return { status: 'AMBIGUOUS', candidates: scored.map(s => s.task) };
   }
 
   return { status: 'NOT_FOUND' };
@@ -126,7 +136,7 @@ async function resolveTargetTask({ target, userId, userOrPhone }) {
 /**
  * Domain tool for managing tasks.
  */
-export async function executeTaskTool({ action, params = {}, user, language = 'es' }) {
+export async function executeTaskTool({ action, params = {}, user, language = 'es', userMessage = '' }) {
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
@@ -315,7 +325,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      if (!targetQuery) {
+      if (!targetQuery && !userMessage) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -326,7 +336,21 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+
+      if (resolution.status === 'MISSING_CONTEXT') {
+        const missingContextMsg = language === 'en'
+          ? 'Which task would you like me to complete? Please specify the task title.'
+          : '¿Cuál tarea deseas que complete? Por favor especifica el nombre de la tarea.';
+        return {
+          success: false,
+          action: 'missing_target_id',
+          errorCode: 'MISSING_TARGET_ID',
+          error: missingContextMsg,
+          rawSummary: missingContextMsg,
+          confirmation: missingContextMsg,
+        };
+      }
 
       if (resolution.status === 'AMBIGUOUS') {
         const ambiguityMsg = language === 'en'
@@ -359,13 +383,17 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       const updateRes = await updateTask(resolution.taskId, { status: 'completed' }, userId);
       if (updateRes?.error || !updateRes?.id) {
         const errCode = updateRes?.error?.code || 'NOT_FOUND';
+        const isAccessDenied = errCode === 'ACCESS_DENIED';
+        const defaultMsg = isAccessDenied
+          ? (language === 'en' ? 'Access denied: this task belongs to another user.' : 'No tienes permisos sobre esta tarea.')
+          : (errCode === 'NOT_FOUND' ? (language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.') : 'Error de base de datos.');
         return {
           success: false,
-          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          action: isAccessDenied ? 'access_denied' : (errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error'),
           errorCode: errCode,
-          error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea especificada.'),
-          rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
-          confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
+          error: updateRes?.error?.message || defaultMsg,
+          rawSummary: defaultMsg,
+          confirmation: `⚠️ ${defaultMsg}`,
         };
       }
 
@@ -386,7 +414,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
 
     case 'update': {
       const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
-      if (!targetQuery) {
+      if (!targetQuery && !userMessage) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -397,7 +425,21 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
+
+      if (resolution.status === 'MISSING_CONTEXT') {
+        const missingContextMsg = language === 'en'
+          ? 'Which task would you like me to update? Please specify the task title.'
+          : '¿Cuál tarea deseas que actualice? Por favor especifica el nombre de la tarea.';
+        return {
+          success: false,
+          action: 'missing_target_id',
+          errorCode: 'MISSING_TARGET_ID',
+          error: missingContextMsg,
+          rawSummary: missingContextMsg,
+          confirmation: missingContextMsg,
+        };
+      }
 
       if (resolution.status === 'AMBIGUOUS') {
         const ambiguityMsg = language === 'en'
@@ -457,13 +499,17 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       const updateRes = await updateTask(resolution.taskId, updates, userId);
       if (updateRes?.error || !updateRes?.id) {
         const errCode = updateRes?.error?.code || 'NOT_FOUND';
+        const isAccessDenied = errCode === 'ACCESS_DENIED';
+        const defaultMsg = isAccessDenied
+          ? (language === 'en' ? 'Access denied: this task belongs to another user.' : 'No tienes permisos sobre esta tarea.')
+          : (errCode === 'NOT_FOUND' ? (language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.') : 'Error de base de datos.');
         return {
           success: false,
-          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          action: isAccessDenied ? 'access_denied' : (errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error'),
           errorCode: errCode,
-          error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.'),
-          rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
-          confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
+          error: updateRes?.error?.message || defaultMsg,
+          rawSummary: defaultMsg,
+          confirmation: `⚠️ ${defaultMsg}`,
         };
       }
 
@@ -484,7 +530,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
 
     case 'delete': {
       const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
-      if (!targetQuery) {
+      if (!targetQuery && !userMessage) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -495,7 +541,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber, userMessage });
 
       if (resolution.status === 'AMBIGUOUS') {
         const ambiguityMsg = language === 'en'
@@ -528,13 +574,17 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       const deleteRes = await deleteTask(resolution.taskId, userId);
       if (deleteRes?.error || deleteRes?.success === false) {
         const errCode = deleteRes?.error?.code || 'NOT_FOUND';
+        const isAccessDenied = errCode === 'ACCESS_DENIED';
+        const defaultMsg = isAccessDenied
+          ? (language === 'en' ? 'Access denied: this task belongs to another user.' : 'No tienes permisos sobre esta tarea.')
+          : (errCode === 'NOT_FOUND' ? (language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.') : 'Error de base de datos.');
         return {
           success: false,
-          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          action: isAccessDenied ? 'access_denied' : (errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error'),
           errorCode: errCode,
-          error: deleteRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea especificada.'),
-          rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
-          confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
+          error: deleteRes?.error?.message || defaultMsg,
+          rawSummary: defaultMsg,
+          confirmation: `⚠️ ${defaultMsg}`,
         };
       }
 

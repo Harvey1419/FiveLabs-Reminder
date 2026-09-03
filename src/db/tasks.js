@@ -196,6 +196,12 @@ export async function getTasks({ userId, status = 'pending', entityId = null, en
   }
 }
 
+import {
+  isStrictUUID,
+  UUID_REGEX,
+  normalizeTextForMatching,
+} from '../utils/entityResolution.js';
+
 /**
  * Mark one or more tasks as completed.
  * Strictly requires taskId or completeAll / entity scope. Eliminates fuzzy NLP searching.
@@ -227,23 +233,38 @@ export async function completeTasks({
     const nowIso = new Date().toISOString();
     let q = supabase
       .from('tasks')
-      .select('id, title, entity_id')
+      .select('id, title, entity_id, user_id')
       .eq('user_id', userId)
       .eq('status', 'pending');
 
     if (taskId) {
-      if (taskId.length === 36) {
+      if (isStrictUUID(taskId)) {
         q = q.eq('id', taskId);
       } else {
         const { data: userPending } = await supabase
           .from('tasks')
-          .select('id')
+          .select('id, title')
           .eq('user_id', userId)
           .eq('status', 'pending');
-        const matched = (userPending || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+        const normTarget = normalizeTextForMatching(taskId);
+        const matched = (userPending || []).find(t =>
+          t.id.toLowerCase().startsWith(taskId.toLowerCase()) ||
+          normalizeTextForMatching(t.title) === normTarget
+        );
         if (matched) {
           q = q.eq('id', matched.id);
         } else {
+          // Check if taskId is a strict UUID belonging to another user to return ACCESS_DENIED
+          if (isStrictUUID(taskId)) {
+            const { data: otherUserTask } = await supabase
+              .from('tasks')
+              .select('id, user_id')
+              .eq('id', taskId)
+              .maybeSingle();
+            if (otherUserTask && otherUserTask.user_id !== userId) {
+              return { completedCount: 0, tasks: [], error: { code: 'ACCESS_DENIED', message: 'No tienes permisos sobre esta tarea.' } };
+            }
+          }
           return { completedCount: 0, tasks: [], error: { code: 'NOT_FOUND', message: 'Task not found or access denied.' } };
         }
       }
@@ -271,6 +292,12 @@ export async function completeTasks({
     }
 
     if (!candidates || candidates.length === 0) {
+      if (taskId && isStrictUUID(taskId)) {
+        const { data: exists } = await supabase.from('tasks').select('id, user_id, status').eq('id', taskId).maybeSingle();
+        if (exists && exists.user_id !== userId) {
+          return { completedCount: 0, tasks: [], error: { code: 'ACCESS_DENIED', message: 'No tienes permisos sobre esta tarea.' } };
+        }
+      }
       return { completedCount: 0, tasks: [] };
     }
 
@@ -319,19 +346,22 @@ export async function updateTask(taskId, updates = {}, userId = null) {
   }
 
   try {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedId = taskId;
-    if (!UUID_REGEX.test(taskId)) {
+    if (!isStrictUUID(taskId)) {
       let q = supabase.from('tasks').select('id, title');
       if (userId) q = q.eq('user_id', userId);
       const { data: tasks, error: selectErr } = await q;
       if (selectErr) {
         return { data: null, error: { code: 'DATABASE_ERROR', message: selectErr.message, source: 'database' } };
       }
-      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()) || t.title.toLowerCase() === taskId.toLowerCase().trim());
+      const normTarget = normalizeTextForMatching(taskId);
+      const matched = (tasks || []).find(t =>
+        t.id.toLowerCase().startsWith(taskId.toLowerCase()) ||
+        normalizeTextForMatching(t.title) === normTarget
+      );
       if (matched) resolvedId = matched.id;
       else {
-        return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found or access denied.', source: 'domain' } };
+        return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
       }
     }
 
@@ -384,7 +414,13 @@ export async function updateTask(taskId, updates = {}, userId = null) {
     }
 
     if (!data || data.length === 0) {
-      return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found or access denied.', source: 'domain' } };
+      if (userId && isStrictUUID(resolvedId)) {
+        const { data: exists } = await supabase.from('tasks').select('id, user_id').eq('id', resolvedId).maybeSingle();
+        if (exists && exists.user_id !== userId) {
+          return { data: null, error: { code: 'ACCESS_DENIED', message: 'No tienes permisos sobre esta tarea.', source: 'domain' } };
+        }
+      }
+      return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
     }
 
     return { ...data[0], data: data[0], error: null };
@@ -408,17 +444,21 @@ export async function deleteTask(taskId, userId = null) {
 
   try {
     let resolvedId = taskId;
-    if (taskId.length < 36) {
-      let q = supabase.from('tasks').select('id');
+    if (!isStrictUUID(taskId)) {
+      let q = supabase.from('tasks').select('id, title');
       if (userId) q = q.eq('user_id', userId);
       const { data: tasks, error: selectErr } = await q;
       if (selectErr) {
         return { success: false, error: { code: 'DATABASE_ERROR', message: selectErr.message, source: 'database' } };
       }
-      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+      const normTarget = normalizeTextForMatching(taskId);
+      const matched = (tasks || []).find(t =>
+        t.id.toLowerCase().startsWith(taskId.toLowerCase()) ||
+        normalizeTextForMatching(t.title) === normTarget
+      );
       if (matched) resolvedId = matched.id;
       else {
-        return { success: false, error: { code: 'NOT_FOUND', message: 'Task not found or access denied.', source: 'domain' } };
+        return { success: false, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
       }
     }
 
@@ -439,7 +479,13 @@ export async function deleteTask(taskId, userId = null) {
     }
 
     if (!data || data.length === 0) {
-      return { success: false, error: { code: 'NOT_FOUND', message: 'Task not found or access denied.', source: 'domain' } };
+      if (userId && isStrictUUID(resolvedId)) {
+        const { data: exists } = await supabase.from('tasks').select('id, user_id').eq('id', resolvedId).maybeSingle();
+        if (exists && exists.user_id !== userId) {
+          return { success: false, error: { code: 'ACCESS_DENIED', message: 'No tienes permisos sobre esta tarea.', source: 'domain' } };
+        }
+      }
+      return { success: false, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
     }
 
     return { success: true, error: null };
@@ -451,3 +497,4 @@ export async function deleteTask(taskId, userId = null) {
 
 export const completeTasksByQuery = completeTasks;
 export const getTasksWithEntities = getTasks;
+

@@ -102,25 +102,35 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const isDirectAffirmative = /^(ya fui|fui|ya lo hice|ya está|ya esta|ya quedó|ya quedo|listo|ok|hecho|completado|ya terminé|ya termine)$/i.test(sanitizedText);
   if (isDirectAffirmative) {
     const wm = getWorkingMemory(phoneNumber || user.id);
-    if (wm && wm.items && wm.items.length > 0 && wm.items[0].internalId && (wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched')) {
-      const fastAckResult = await executeTool({
-        toolName: 'manage_reminder',
-        params: { action: 'acknowledge', reminderId: wm.items[0].internalId },
-        user,
-        isPro,
-        language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
-        userMessage: sanitizedText,
-        correlationId: options?.correlationId,
+    if (wm && wm.items && wm.items.length > 0 && (wm.lastAction === 'nudge' || wm.lastAction === 'reminder_dispatched')) {
+      // Use resolver instead of blindly taking items[0]
+      const refRes = resolveEntityReference({
+        userOrPhone: user || phoneNumber,
+        reference: sanitizedText,
+        preferredType: 'reminder',
       });
+      const targetItem = refRes.status === 'RESOLVED' ? refRes.item : wm.items[0];
 
-      if (fastAckResult.success) {
-        console.log(`[router req=${options?.correlationId || 'none'}] Fast-path deterministic acknowledge hit: 0 LLM tokens consumed.`);
-        return {
-          intent: 'reminder',
-          confirmation: fastAckResult.confirmation || fastAckResult.formattedCard,
-          data: fastAckResult.data,
-          plan: { type: 'tool_call', tool: 'manage_reminder', params: { action: 'acknowledge', reminderId: wm.items[0].internalId }, intent: 'reminder' },
-        };
+      if (targetItem && targetItem.internalId) {
+        const fastAckResult = await executeTool({
+          toolName: 'manage_reminder',
+          params: { action: 'acknowledge', reminderId: targetItem.internalId },
+          user,
+          isPro,
+          language: (user.locale && user.locale.startsWith('en')) ? 'en' : 'es',
+          userMessage: sanitizedText,
+          correlationId: options?.correlationId,
+        });
+
+        if (fastAckResult.success) {
+          console.log(`[router req=${options?.correlationId || 'none'}] Fast-path deterministic acknowledge hit: 0 LLM tokens consumed.`);
+          return {
+            intent: 'reminder',
+            confirmation: fastAckResult.confirmation || fastAckResult.formattedCard,
+            data: fastAckResult.data,
+            plan: { type: 'tool_call', tool: 'manage_reminder', params: { action: 'acknowledge', reminderId: targetItem.internalId }, intent: 'reminder' },
+          };
+        }
       }
     }
   }

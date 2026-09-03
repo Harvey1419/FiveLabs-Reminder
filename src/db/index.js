@@ -195,6 +195,8 @@ export async function acknowledgeReminders({ userId, phoneNumber, contentQuery =
   };
 }
 
+import { isStrictUUID } from '../utils/entityResolution.js';
+
 /**
  * Acknowledge single reminder by its ID.
  */
@@ -203,7 +205,7 @@ export async function acknowledgeReminder(id, userId = null) {
   const ackTime = new Date().toISOString();
   try {
     let resolvedId = String(id).trim();
-    if (resolvedId.length < 36) {
+    if (!isStrictUUID(resolvedId)) {
       let q = supabase.from('reminders').select('id');
       if (userId) {
         q = q.eq('user_id', userId);
@@ -349,10 +351,21 @@ export async function markReminderAsMissed(id) {
 export async function markReminderAsCancelled(id, userId = null, phoneNumber = null) {
   if (!id) return false;
   try {
+    let resolvedId = String(id).trim();
+    if (!isStrictUUID(resolvedId)) {
+      let lookupQ = supabase.from('reminders').select('id');
+      if (userId) lookupQ = lookupQ.eq('user_id', userId);
+      else if (phoneNumber) lookupQ = lookupQ.eq('phone_number', phoneNumber);
+      const { data: rems } = await lookupQ.limit(50);
+      const matched = (rems || []).find(r => r.id.startsWith(resolvedId.toLowerCase()));
+      if (matched) resolvedId = matched.id;
+      else return false;
+    }
+
     let q = supabase
       .from('reminders')
       .update({ status: 'cancelled' })
-      .eq('id', id);
+      .eq('id', resolvedId);
 
     if (userId) {
       q = q.eq('user_id', userId);
@@ -360,9 +373,9 @@ export async function markReminderAsCancelled(id, userId = null, phoneNumber = n
       q = q.eq('phone_number', phoneNumber);
     }
 
-    const { error } = await q;
-    if (error) {
-      console.error('[reminders] markReminderAsCancelled failed:', error);
+    const { data, error } = await q.select('id');
+    if (error || !data || data.length === 0) {
+      if (error) console.error('[reminders] markReminderAsCancelled failed:', error);
       return false;
     }
     return true;
@@ -385,7 +398,7 @@ export async function updateReminder(reminderId, updates, userId = null, phoneNu
   if (!reminderId || !updates) return null;
   try {
     let resolvedId = reminderId;
-    if (reminderId.length < 36) {
+    if (!isStrictUUID(reminderId)) {
       let q = supabase.from('reminders').select('id');
       if (userId) {
         q = q.eq('user_id', userId);

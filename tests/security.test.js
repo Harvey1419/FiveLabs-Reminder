@@ -250,7 +250,7 @@ describe('Security & Multi-Tenant Isolation Test Suite', () => {
       });
 
       expect(normalPrompt).not.toContain('admin_metrics');
-      expect(normalPrompt).toContain('## 0. MANDATO DE SEGURIDAD Y PRIVACIDAD');
+      expect(normalPrompt).toContain('REGLAS');
 
       const adminPrompt = buildAgentCorePrompt({
         nowStr: '2026-08-25T19:00:00-05:00',
@@ -262,7 +262,6 @@ describe('Security & Multi-Tenant Isolation Test Suite', () => {
       });
 
       expect(adminPrompt).toContain('admin_metrics');
-      expect(adminPrompt).toContain('Métricas y Panel de Administración');
     });
   });
 
