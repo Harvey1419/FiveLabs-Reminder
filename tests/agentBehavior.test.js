@@ -729,4 +729,74 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     listEventsSpy.mockRestore();
     updateEventSpy.mockRestore();
   });
+
+  // TEST 20: "Dame todos mis pendientes" uses upcoming scope, excludes past morning reminders, and includes future dates
+  it('TEST 20: "Dame todos mis pendientes porfa" routes to scope: upcoming and presents multi-day chronological schedule', async () => {
+    // 1. Create a past morning reminder (8:00 AM today), a future reminder (tomorrow 8:00 AM), and a far future reminder (Sept 9)
+    const now = new Date();
+    const pastSendAt = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(); // 2 hours ago
+    const tomorrowSendAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(); // tomorrow
+    const sept9SendAt = new Date('2026-09-09T10:00:00-05:00').toISOString();
+
+    await supabase.from('reminders').insert([
+      { user_id: testUser.id, phone_number: testUser.phone_number, content: 'Recordatorio pasado de la mañana', send_at: pastSendAt, status: 'pending' },
+      { user_id: testUser.id, phone_number: testUser.phone_number, content: 'Cita médica mañana', send_at: tomorrowSendAt, status: 'pending' },
+      { user_id: testUser.id, phone_number: testUser.phone_number, content: 'Reunión en Cerámica Italia', send_at: sept9SendAt, status: 'pending' },
+    ]);
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "El usuario pide todos sus pendientes en general.",
+      type: "tool_call",
+      tool: "get_unified_agenda",
+      params: { scope: "upcoming" },
+      intent: "query",
+    }));
+
+    const res = await routeMessage('Dame todos mis pendientes porfa', testUser);
+
+    expect(res.intent).toBe('unified_agenda');
+    expect(res.confirmation).toContain('Tu agenda');
+    expect(res.confirmation).toContain('Cita médica mañana');
+    expect(res.confirmation).toContain('Reunión en Cerámica Italia');
+    // Past reminder is excluded from upcoming agenda
+    expect(res.confirmation).not.toContain('Recordatorio pasado de la mañana');
+  });
+
+  // TEST 21: Conversational affirmation "Ya fui" acknowledges the active nudge reminder without error
+  it('TEST 21: Conversational confirmation "Ya fui" to a nudge acknowledges the active reminder in DB', async () => {
+    // Insert an active nudged reminder for the user
+    const { data: insertedRem } = await supabase.from('reminders').insert({
+      user_id: testUser.id,
+      phone_number: testUser.phone_number,
+      content: 'Ir al baño',
+      send_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      status: 'sent',
+      requires_confirmation: true,
+      nudge_count: 1,
+      last_nudged_at: new Date().toISOString(),
+    }).select('*').single();
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "El usuario responde al aviso de ir al baño confirmando que ya fue.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: { action: "acknowledge", target: "fui" },
+      intent: "reminder",
+    }));
+
+    const historyWithNudge = [
+      { role: 'assistant', content: '🔔 Recordatorio pendiente: Ir al baño (Aviso #1). Escribe "Listo" o "OK" cuando lo hayas completado.' },
+    ];
+
+    const res = await routeMessage('Ya fui', testUser, historyWithNudge);
+
+    expect(res.intent).toBe('reminder');
+    expect(res.confirmation).toContain('Recordatorio confirmado');
+    expect(res.confirmation).toContain('Ir al baño');
+    expect(res.confirmation).not.toContain('No se encontró el recordatorio');
+
+    // Verify DB: reminder is acknowledged
+    const { data: updatedDb } = await supabase.from('reminders').select('*').eq('id', insertedRem.id).single();
+    expect(updatedDb.acknowledged_at).not.toBeNull();
+  });
 });

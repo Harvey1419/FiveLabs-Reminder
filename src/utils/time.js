@@ -256,12 +256,25 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
     else if (params.month) scope = 'month';
     else if (rawMin === 'este_ano' || rawMin === 'este_año' || rawMin === 'this_year' || rawMin === 'full_year') scope = 'full_year';
     else if (rawMin === 'resto_del_ano' || rawMin === 'resto_del_año' || rawMin === 'remaining_year') scope = 'remaining_year';
+    else if (rawMin === 'todos' || rawMin === 'pendientes' || rawMin === 'upcoming' || rawMin === 'all') scope = 'upcoming';
     else if (rawMin && rawMax) scope = 'custom_range';
     else if (rawMin) scope = 'from_time';
     else scope = 'default_upcoming';
   }
 
   switch (scope) {
+    case 'upcoming':
+    case 'all':
+    case 'all_pending':
+    case 'todos':
+    case 'pendientes':
+    case 'todos_los_pendientes': {
+      // From now until the end of next month / year (covers all upcoming items in chronological order)
+      const timeMin = now;
+      const timeMax = zonedTimeToUtc(year + 1, 1, 1, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'upcoming' };
+    }
+
     case 'today':
     case 'hoy': {
       const timeMin = zonedTimeToUtc(year, month, day, 0, 0, 0, timezone);

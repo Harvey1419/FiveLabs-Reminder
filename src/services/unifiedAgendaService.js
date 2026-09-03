@@ -1,5 +1,9 @@
 import { supabase, getUserIntegration } from '../db/index.js';
-import { resolveCalendarTemporalScope, formatLocalDateTime } from '../utils/time.js';
+import {
+  resolveCalendarTemporalScope,
+  formatLocalDateTime,
+  formatHumanFriendlyDateTime,
+} from '../utils/time.js';
 import { listCalendarEvents, normalizeCalendarEvent } from './googleCalendar.js';
 
 const DEFAULT_TIMEZONE = 'America/Bogota';
@@ -253,6 +257,7 @@ export function formatUnifiedAgendaCard({
   else if (scope === 'this_week') scopeLabel = isEn ? 'this week' : 'esta semana';
   else if (scope === 'next_week') scopeLabel = isEn ? 'next week' : 'la próxima semana';
   else if (scope === 'this_weekend') scopeLabel = isEn ? 'this weekend' : 'este fin de semana';
+  else if (scope === 'upcoming' || scope === 'all' || scope === 'all_pending') scopeLabel = isEn ? 'upcoming schedule' : 'los próximos días';
 
   if (totalCount === 0) {
     if (calendar.state === 'ERROR') {
@@ -268,10 +273,14 @@ export function formatUnifiedAgendaCard({
   const sections = [];
   sections.push(isEn ? `📅 *Your schedule for ${scopeLabel}:*` : `📅 *Tu agenda para ${scopeLabel}:*`);
 
+  const isMultiDay = scope !== 'today' && scope !== 'tomorrow';
+
   // 1. Google Calendar Section
   if (calendar.state === 'CONNECTED' && calendarEvents.length > 0) {
     const lines = calendarEvents.map(ev => {
-      const timeStr = ev.isAllDay ? (isEn ? 'All day' : 'Todo el día') : (ev.localStartTime || '');
+      const timeStr = ev.isAllDay
+        ? (isEn ? 'All day' : 'Todo el día')
+        : (isMultiDay ? (ev.displayDate || ev.localStartTime || '') : (ev.localStartTime || ''));
       const timeDisplay = timeStr ? ` — ${timeStr}` : '';
       return `• 📅 *${ev.summary || 'Evento'}*${timeDisplay}`;
     });
@@ -283,7 +292,10 @@ export function formatUnifiedAgendaCard({
   // 2. Reminders Section
   if (reminders.length > 0) {
     const lines = reminders.map(r => {
-      const timeDisplay = r.localTime ? ` — ${r.localTime}` : '';
+      const timeStr = isMultiDay
+        ? (r.sendAt ? formatHumanFriendlyDateTime(r.sendAt, timezone, language) : r.localTime)
+        : r.localTime;
+      const timeDisplay = timeStr ? ` — ${timeStr}` : '';
       const rec = r.recurrenceRule ? ` _(Recurrente)_` : '';
       return `• 🔔 *${r.content || r.title || 'Recordatorio'}*${timeDisplay}${rec}`;
     });
@@ -294,7 +306,10 @@ export function formatUnifiedAgendaCard({
   if (tasks.length > 0) {
     const lines = tasks.map(t => {
       const ent = t.entityName ? ` [${t.entityName}]` : '';
-      const timeDisplay = t.localTime ? ` (antes de ${t.localTime})` : '';
+      const timeStr = isMultiDay
+        ? (t.dueDate ? formatHumanFriendlyDateTime(t.dueDate, timezone, language) : t.localTime)
+        : t.localTime;
+      const timeDisplay = timeStr ? ` (${timeStr})` : '';
       return `• ☑️ *${t.title || t.content}*${ent}${timeDisplay}`;
     });
     sections.push(`☑️ *TAREAS*\n${lines.join('\n')}`);

@@ -643,6 +643,19 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
           const { data: userReminders } = await pendingQ.limit(50);
           const candidates = (userReminders || []).filter(r => r.status !== 'cancelled' && !r.acknowledged_at);
 
+          // Sort candidates so that active nudges and most recently notified reminders are first
+          candidates.sort((a, b) => {
+            const nudgeA = a.last_nudged_at ? new Date(a.last_nudged_at).getTime() : 0;
+            const nudgeB = b.last_nudged_at ? new Date(b.last_nudged_at).getTime() : 0;
+            if (nudgeA !== nudgeB) return nudgeB - nudgeA;
+            const sentA = a.sent_at ? new Date(a.sent_at).getTime() : 0;
+            const sentB = b.sent_at ? new Date(b.sent_at).getTime() : 0;
+            if (sentA !== sentB) return sentB - sentA;
+            const sendA = a.send_at ? new Date(a.send_at).getTime() : 0;
+            const sendB = b.send_at ? new Date(b.send_at).getTime() : 0;
+            return sendB - sendA;
+          });
+
           // 1. Exact ID / 8-char hex prefix match
           matched = candidates.find(r => r.id === targetStr || r.id.startsWith(targetStr));
 
@@ -667,6 +680,26 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
                 rawSummary: language === 'en' ? 'Multiple reminders match your request. Please clarify.' : 'Hay más de un recordatorio que coincide.',
                 confirmation: language === 'en' ? 'Multiple reminders match your request. Please specify.' : 'Hay más de un recordatorio que coincide con tu solicitud. Por favor aclara cuál de ellos completaste.',
               };
+            }
+          }
+
+          // 3. Conversational Nudge Fallback:
+          // If reference did not match specific tokens (e.g. affirmative confirmation like "ya fui", "listo", "ok", "hecho"),
+          // check if there is an active nudged reminder or a recent single candidate.
+          if (!matched && candidates.length > 0) {
+            const isAffirmative = /^(listo|ok|ya|hecho|completado|ya\s+lo\s+hice|ya\s+fui|fui|ya\s+hable|ya\s+hablé|ya\s+escribi|ya\s+escribí|ya\s+compre|ya\s+compré|ya\s+esta|ya\s+está|terminado|ya\s+termine|ya\s+terminé|si|sí)$/i.test(targetStr);
+            const activeNudged = candidates.filter(r => (r.nudge_count && r.nudge_count > 0) || r.last_nudged_at);
+
+            if (isAffirmative) {
+              if (activeNudged.length === 1) {
+                matched = activeNudged[0];
+              } else if (candidates.length === 1) {
+                matched = candidates[0];
+              } else if (activeNudged.length > 1) {
+                matched = activeNudged[0];
+              }
+            } else if (activeNudged.length === 1) {
+              matched = activeNudged[0];
             }
           }
         }
