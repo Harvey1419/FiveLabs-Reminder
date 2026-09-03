@@ -554,4 +554,94 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     expect(toolRes.errorCode).toBe('NOT_FOUND');
     expect(toolRes.confirmation).toContain('No se encontró');
   });
+
+  // TEST 17: Creating Google Calendar event automatically creates a linked WhatsApp reminder
+  it('TEST 17: Creating Google Calendar event creates synchronized WhatsApp reminder', async () => {
+    await saveUserIntegration(testUser.id, {
+      provider: 'google',
+      accessToken: 'valid-mock-token',
+      refreshToken: 'valid-mock-refresh',
+      accountEmail: 'calendar-sync@gmail.com',
+    });
+
+    const createEventSpy = vi.spyOn(googleCalendarService, 'createCalendarEvent').mockResolvedValue({
+      id: 'gcal-event-12345',
+      summary: 'Reunión de trabajo',
+      startDateTime: '2026-09-03T14:00:00.000Z',
+      endDateTime: '2026-09-03T15:00:00.000Z',
+      meetLink: 'https://meet.google.com/abc-defg-hij',
+    });
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "El usuario agenda una reunión en Google Calendar.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: { action: "create_event", summary: "Reunión de trabajo", startDateTime: "2026-09-03T14:00:00-05:00" },
+      intent: "calendar",
+    }));
+
+    const res = await routeMessage('mañana tengo una reunión del trabajo a las 9am', testUser);
+
+    expect(res.intent).toBe('calendar');
+    expect(res.confirmation).toContain('Evento agendado en Google Calendar');
+    expect(res.confirmation).toContain('Recordatorio programado en WhatsApp');
+
+    // Verify reminder was created in DB
+    const { data: rems } = await supabase.from('reminders').select('*').eq('user_id', testUser.id);
+    expect(rems.length).toBeGreaterThanOrEqual(1);
+    expect(rems.some(r => r.content.includes('Reunión de trabajo'))).toBe(true);
+
+    createEventSpy.mockRestore();
+  });
+
+  // TEST 18: "Avísame 15 minutos antes" creates a NEW advance notice reminder and does NOT replace the original
+  it('TEST 18: "Avísame 15 minutos antes" creates a NEW advance notice reminder and leaves original intact', async () => {
+    const mainTime = new Date();
+    mainTime.setDate(mainTime.getDate() + 1);
+    mainTime.setHours(10, 0, 0, 0);
+
+    const mainRem = await saveReminder({
+      userId: testUser.id,
+      phoneNumber: testPhone,
+      content: 'Cita con el cliente',
+      sendAt: mainTime.toISOString(),
+      requiresConfirmation: true,
+    });
+
+    // LLM creates a new advance notice reminder or routes update with advance notice
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "El usuario pide un aviso previo 15 minutos antes de su cita.",
+      type: "tool_call",
+      tool: "manage_reminder",
+      params: {
+        action: "create",
+        items: [{
+          content: "[Aviso previo] Cita con el cliente",
+          targetTime: new Date(mainTime.getTime() - 15 * 60 * 1000).toISOString(),
+        }],
+      },
+      intent: "reminder",
+    }));
+
+    const history = [
+      { role: 'user', content: 'Recuérdame la cita con el cliente mañana a las 10am' },
+      { role: 'assistant', content: '✅ Recordatorio programado para las 10:00 AM' },
+    ];
+
+    const res = await routeMessage('Recuérdame 15 minutos antes', testUser, history);
+
+    expect(res.intent).toBe('reminder');
+
+    // Verify DB: BOTH reminders exist! The 10:00 AM main reminder and the 9:45 AM advance reminder
+    const { data: rems } = await supabase.from('reminders').select('*').eq('user_id', testUser.id).eq('status', 'pending');
+    expect(rems.length).toBe(2);
+
+    const original = rems.find(r => r.id === mainRem.id);
+    expect(original).toBeDefined();
+    expect(new Date(original.send_at).getTime()).toBe(mainTime.getTime()); // UNTOUCHED!
+
+    const advance = rems.find(r => r.id !== mainRem.id);
+    expect(advance).toBeDefined();
+    expect(new Date(advance.send_at).getTime()).toBe(mainTime.getTime() - 15 * 60 * 1000);
+  });
 });

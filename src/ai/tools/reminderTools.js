@@ -240,6 +240,76 @@ export async function executeReminderTool(optionsOrAction, legacyParams = {}, le
 
       const targetReminderId = reminderId || params.id || updates.reminderId || updates.id;
 
+      // 0. Advance Notice Guard ("avísame 15 minutos antes", "recuérdame 30 mins antes"):
+      // If the intent is an advance notice relative to an existing reminder, CREATE a new reminder instead of overwriting.
+      const isAdvanceNotice = /\b(\d+)\s*(minutos?|mins?|horas?|hrs?)\s*antes\b/i.test(userMessage || '') ||
+                              params.advanceMinutes !== undefined ||
+                              params.isAdvanceNotice === true;
+
+      if (isAdvanceNotice) {
+        let targetId = targetReminderId;
+        const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
+
+        if (targetId && targetId.length < 36 && pending.length > 0) {
+          const refRes = resolveEntityReference({
+            userOrPhone: user || phoneNumber,
+            reference: String(targetId),
+            candidates: pending,
+            preferredType: 'reminder',
+          });
+          if (refRes.status === 'RESOLVED') {
+            targetId = refRes.item.internalId;
+          }
+        }
+
+        let baseReminder = null;
+        if (targetId) {
+          baseReminder = pending.find(r => r.id === targetId || r.id.startsWith(targetId));
+          if (!baseReminder) {
+            const { data: rem } = await supabase.from('reminders').select('*').eq('id', targetId).maybeSingle();
+            baseReminder = rem;
+          }
+        } else if (pending.length > 0) {
+          // Default to the latest created pending reminder
+          baseReminder = pending[0];
+        }
+
+        if (baseReminder && baseReminder.send_at) {
+          const matchMins = (userMessage || '').match(/(\d+)\s*(minutos?|mins?)/i);
+          const matchHours = (userMessage || '').match(/(\d+)\s*(horas?|hrs?)/i);
+          let advMins = params.advanceMinutes || 15;
+          if (matchMins) advMins = parseInt(matchMins[1], 10);
+          else if (matchHours) advMins = parseInt(matchHours[1], 10) * 60;
+
+          const baseDate = new Date(baseReminder.send_at);
+          const advDate = new Date(baseDate.getTime() - advMins * 60 * 1000);
+
+          if (advDate.getTime() > Date.now()) {
+            const advContent = `🔔 [Aviso Previo] En ${advMins} minutos: ${baseReminder.content}`;
+            const advReminder = await saveReminder({
+              userId,
+              phoneNumber,
+              content: advContent,
+              sendAt: advDate.toISOString(),
+              requiresConfirmation: false,
+            });
+
+            if (advReminder) {
+              const formattedTime = formatLocalDateTime(advDate, timezone);
+              const summary = `🔔 *Aviso previo programado en WhatsApp*\n\n⏰ *${advContent}*\n📅 ${formattedTime} (${advMins} minutos antes de tu recordatorio principal)`;
+              return {
+                success: true,
+                action: 'created_advance_reminder',
+                data: advReminder,
+                rawSummary: summary,
+                formattedCard: summary,
+                confirmation: summary,
+              };
+            }
+          }
+        }
+      }
+
       // 1. Missing Target Guard: single-reminder update strictly REQUIRES reminderId
       if (!targetReminderId) {
         return {

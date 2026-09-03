@@ -317,35 +317,49 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // Handle advance notice reminder coordination if requested
-      const advanceMinutes = params.advanceMinutes || params.advance_minutes || null;
-      let reminderCreated = false;
+      // Determine advance notice minutes:
+      // 1. Explicit parameter from user / LLM
+      // 2. User preference in memory (e.g. "avísame 15 minutos antes")
+      // 3. Default: at the event time (0 minutes)
+      let advanceMinutes = params.advanceMinutes !== undefined && params.advanceMinutes !== null
+        ? Number(params.advanceMinutes)
+        : null;
 
-      if (advanceMinutes && Number(advanceMinutes) > 0) {
-        const advSendAt = new Date(startDateTime.getTime() - Number(advanceMinutes) * 60 * 1000).toISOString();
-        if (new Date(advSendAt).getTime() > Date.now()) {
-          const advContent = `🔔 [Aviso Previo] ${event.summary} en ${advanceMinutes} minutos`;
-          try {
-            // Attempt insert with up to 3 in-memory retries for resilience
-            let inserted = null;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              try {
-                inserted = await saveReminder({
-                  userId,
-                  phoneNumber,
-                  content: advContent,
-                  sendAt: advSendAt,
-                });
-                if (inserted) break;
-              } catch (dbErr) {
-                if (attempt === 3) throw dbErr;
-                await new Promise(r => setTimeout(r, 100 * attempt));
-              }
-            }
-            if (inserted) reminderCreated = true;
-          } catch (remErr) {
-            console.warn('[calendarTools] Failed to save advance notice reminder:', remErr.message);
-          }
+      if (advanceMinutes === null) {
+        const memories = user?.memories || [];
+        const prefText = memories.map(m => m.content || '').join(' ');
+        const match = prefText.match(/(\d+)\s*(minutos?|mins?)\s*antes/i);
+        if (match) {
+          advanceMinutes = parseInt(match[1], 10);
+        } else {
+          advanceMinutes = 0;
+        }
+      }
+
+      let reminderCreated = false;
+      let reminderSendAt = null;
+
+      if (advanceMinutes > 0) {
+        reminderSendAt = new Date(startDateTime.getTime() - Number(advanceMinutes) * 60 * 1000).toISOString();
+      } else {
+        reminderSendAt = startDateTime.toISOString();
+      }
+
+      if (new Date(reminderSendAt).getTime() > Date.now()) {
+        const advContent = advanceMinutes > 0
+          ? `🔔 [Aviso Previo] ${event.summary} en ${advanceMinutes} minutos`
+          : `🔔 ${event.summary}`;
+        try {
+          const inserted = await saveReminder({
+            userId,
+            phoneNumber,
+            content: advContent,
+            sendAt: reminderSendAt,
+            requiresConfirmation: true,
+          });
+          if (inserted) reminderCreated = true;
+        } catch (remErr) {
+          console.warn('[calendarTools] Failed to save linked reminder:', remErr.message);
         }
       }
 
@@ -353,8 +367,12 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       const formattedStartDate = formatLocalDateTime(startDateTime, tz, 'es-CO');
       let summary = `📅 *Evento agendado en Google Calendar*\n• *${event.summary}* — ${formattedStartDate}${meetNotice}`;
 
-      if (reminderCreated && advanceMinutes) {
-        summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes`;
+      if (reminderCreated) {
+        if (advanceMinutes > 0) {
+          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatLocalDateTime(new Date(reminderSendAt), tz, 'es-CO')})`;
+        } else {
+          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• A la misma hora (${formatLocalDateTime(startDateTime, tz, 'es-CO')})`;
+        }
       }
 
       return {
@@ -364,6 +382,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           ...event,
           reminderCreated,
           advanceMinutes,
+          reminderSendAt,
         },
         rawSummary: summary,
         formattedCard: summary,

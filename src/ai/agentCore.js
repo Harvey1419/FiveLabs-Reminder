@@ -120,6 +120,7 @@ Hora actual: ${nowStr} (${nowHumanStr}) [${timezone}].
   • TAREAS (manage_task): Tareas y proyectos sin hora fija ("anota comprar leche", "mis tareas", "completar tarea").
   • MEMORIA (manage_memory): Datos de contexto persistente ("recuerda que mi perro se llama Borona").
 - ⚡ CONFIRMACIÓN DE RECORDATORIOS (Acknowledge): Si el usuario confirma en pasado una acción pendiente ("ya le escribí", "ya hablé", "ya lo hice", "listo"), invoca manage_reminder (action: 'acknowledge', target: '<descripción o posición>'). El backend resolverá el ID interno.
+- ⏰ AVISOS PREVIOS ("avísame 15 minutos antes", "recuérdame 30 mins antes de [evento/recordatorio]"): SIEMPRE crea un NUEVO recordatorio (type: 'tool_call', tool: 'manage_reminder', action: 'create') con la hora calculada y contenido '[Aviso previo] ...'. NUNCA uses update para sobrescribir la hora del recordatorio principal.
 - 🔗 REFERENCIAS RELATIVAS & WORKING MEMORY: Para referirte a elementos del turno anterior ("el primero", "la segunda", "cancélalo", "el más temprano"), usa target: "1", target: "el primero", o el nombre. El backend mapea la referencia a la entidad interna real.
 - 🌐 IDIOMA: Si el usuario escribe en inglés, responde SIEMPRE 100% en inglés. Si escribe en español, en español.
 ${!isPro ? `- 🎯 FREE DEMO: Solo recordatorios para hoy. Para días futuros o recurrencia, llama a get_subscription_link.\n` : ''}
@@ -148,6 +149,7 @@ ${compactOverviewText}
 - "¿Qué recordatorios tengo?" -> type:'tool_call', tool:'manage_reminder', params:{action:'list'}
 - "¿Cuáles son mis tareas?" -> type:'tool_call', tool:'manage_task', params:{action:'list'}
 - "Ya hablé con la veterinaria" / "Ya le escribí" / "Ya compré el vendaje" (con recordatorio pendiente) -> type:'tool_call', tool:'manage_reminder', params:{action:'acknowledge', target:'veterinaria'}
+- "Avísame 15 minutos antes" (tras agendar reunión a las 10:00 AM) -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'[Aviso previo] Reunión a las 10:00 AM', targetTime:'9:45 AM'}]}
 - "Cancela el primero" / "Cancélalo" (tras listar agenda) -> type:'tool_call', tool:'manage_google_calendar' | 'manage_reminder', params:{action:'delete_event'|'cancel', target:'1'}
 - "Recuérdame a las 5pm llamar a Juan y anota la tarea reporte en Proyecto X" (Operación compuesta) -> type:'tool_call', tool:'manage_reminder', params:{action:'create', items:[{content:'Llamar a Juan', targetTime:'5:00 PM'}]}, secondary_plan:{tool:'manage_task', params:{action:'create', items:[{title:'Reporte', entityName:'Proyecto X'}]}}
 - "¿Qué sabes de mi cumpleaños?" -> type:'chat', tool:null, reply:"Según lo que recuerdo, tu cumpleaños es el 14 de octubre."
