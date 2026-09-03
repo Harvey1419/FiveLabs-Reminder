@@ -1194,5 +1194,318 @@ describe('Agent Behavioral Contract & End-to-End Orchestration Test Suite', () =
     expect(resRepeat.confirmation).toContain('Ir al baño');
     expect(resRepeat.confirmation).not.toContain('Eres muy importante');
   });
+
+  // =========================================================================
+  // TEST 30: Weekday scope: "¿Qué reuniones tenemos el viernes?" only returns Friday
+  // =========================================================================
+  it('TEST 30: "¿Qué reuniones tenemos el viernes?" resolves deterministically to Friday [timeMin, timeMax)', async () => {
+    // Wednesday Sept 2, 2026. Friday is Sept 4, 2026.
+    const googleEvents = [
+      { id: 'ev-thu', summary: 'Reunión Jueves', start: { dateTime: '2026-09-03T10:00:00-05:00' }, end: { dateTime: '2026-09-03T11:00:00-05:00' } },
+      { id: 'ev-fri-1', summary: 'Reunión Planeación Viernes', start: { dateTime: '2026-09-04T10:00:00-05:00' }, end: { dateTime: '2026-09-04T11:00:00-05:00' } },
+      { id: 'ev-fri-2', summary: 'Almuerzo Clientes Viernes', start: { dateTime: '2026-09-04T13:00:00-05:00' }, end: { dateTime: '2026-09-04T14:00:00-05:00' } },
+      { id: 'ev-mon', summary: 'Reunión Lunes Próximo', start: { dateTime: '2026-09-07T09:00:00-05:00' }, end: { dateTime: '2026-09-07T10:00:00-05:00' } },
+    ];
+
+    let capturedTimeMin = null;
+    let capturedTimeMax = null;
+
+    vi.spyOn(googleCalendarService, 'listCalendarEvents').mockImplementation(async (userId, params) => {
+      capturedTimeMin = params.timeMin;
+      capturedTimeMax = params.timeMax;
+      // Filter strictly by the requested [timeMin, timeMax)
+      const minMs = new Date(params.timeMin).getTime();
+      const maxMs = new Date(params.timeMax).getTime();
+      return googleEvents.filter(e => {
+        const evMs = new Date(e.start.dateTime).getTime();
+        return evMs >= minMs && evMs < maxMs;
+      });
+    });
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario consulta las reuniones del viernes.",
+      type: "tool_call",
+      tool: "get_unified_agenda",
+      params: { scope: "friday" },
+      intent: "query",
+    }));
+
+    const res = await routeMessage('¿Qué reuniones tenemos el viernes?', testUser);
+
+    // Verify time range covers Friday Sept 4 exclusively
+    expect(capturedTimeMin).toBeDefined();
+    expect(capturedTimeMax).toBeDefined();
+    const minDateStr = new Date(capturedTimeMin).toISOString();
+    const maxDateStr = new Date(capturedTimeMax).toISOString();
+    expect(minDateStr).toContain('2026-09-04');
+    expect(maxDateStr).toContain('2026-09-05');
+
+    // Asserts: ONLY Friday events are in the output
+    expect(res.confirmation).toContain('Reunión Planeación Viernes');
+    expect(res.confirmation).toContain('Almuerzo Clientes Viernes');
+    expect(res.confirmation).not.toContain('Reunión Jueves');
+    expect(res.confirmation).not.toContain('Reunión Lunes Próximo');
+  });
+
+  // =========================================================================
+  // TEST 31: Task Title + "Ya lo hice" out-of-the-blue completes exact task
+  // =========================================================================
+  it('TEST 31: Task Title + "Ya lo hice" completes exact task in DB and confirms exclusively with title', async () => {
+    // Insert task in DB
+    const { data: taskBAM } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Diseñar el orden BAM para poder tener más dinero con la misma orden',
+      status: 'pending',
+      priority: 'high',
+    }).select().single();
+
+    const { data: otherTask } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Comprar materiales de oficina',
+      status: 'pending',
+      priority: 'low',
+    }).select().single();
+
+    // User sends explicit message
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario indica haber completado la tarea de diseñar el orden BAM.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: {
+        action: "complete",
+        target: "Diseñar el orden BAM para poder tener más dinero con la misma orden"
+      },
+      intent: "task",
+    }));
+
+    const res = await routeMessage(
+      'Diseñar el orden BAM para poder tener más dinero con la misma orden: Ya lo hice',
+      testUser
+    );
+
+    expect(res.intent).toBe('task');
+    expect(res.confirmation).toContain('Tarea completada');
+    expect(res.confirmation).toContain('Diseñar el orden BAM para poder tener más dinero con la misma orden');
+    expect(res.confirmation).not.toContain('Task not found');
+    expect(res.confirmation).not.toContain('Comprar materiales');
+
+    // DB Verification
+    const { data: updatedBAM } = await supabase.from('tasks').select('*').eq('id', taskBAM.id).single();
+    expect(updatedBAM.status).toBe('completed');
+
+    const { data: updatedOther } = await supabase.from('tasks').select('*').eq('id', otherTask.id).single();
+    expect(updatedOther.status).toBe('pending');
+  });
+
+  // =========================================================================
+  // TEST 32: Multi-turn ordinal task completion (T1 list -> T2 "La segunda ya la hice")
+  // =========================================================================
+  it('TEST 32: Multi-turn: T1 list tasks -> T2 "La segunda ya la hice" completes 2nd task from T1', async () => {
+    const { data: task1 } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Revisar métricas semanales',
+      status: 'pending',
+      due_date: '2026-09-03T10:00:00Z',
+    }).select().single();
+
+    const { data: task2 } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Actualizar contrato con proveedor',
+      status: 'pending',
+      due_date: '2026-09-04T10:00:00Z',
+    }).select().single();
+
+    // T1: list tasks
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValueOnce(JSON.stringify({
+      reasoning: "Usuario pide listar sus tareas.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: { action: "list" },
+      intent: "task",
+    }));
+
+    const resT1 = await routeMessage('¿Cuáles son mis tareas?', testUser);
+    expect(resT1.confirmation).toContain('Revisar métricas semanales');
+    expect(resT1.confirmation).toContain('Actualizar contrato con proveedor');
+
+    // T2: "La segunda ya la hice"
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValueOnce(JSON.stringify({
+      reasoning: "Usuario completa la segunda tarea listada.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: { action: "complete", target: "2" },
+      intent: "task",
+    }));
+
+    const resT2 = await routeMessage('La segunda ya la hice', testUser);
+    expect(resT2.confirmation).toContain('Tarea completada');
+    expect(resT2.confirmation).toContain('Actualizar contrato con proveedor');
+    expect(resT2.confirmation).not.toContain('Revisar métricas semanales');
+
+    // DB Verification
+    const { data: updatedTask1 } = await supabase.from('tasks').select('*').eq('id', task1.id).single();
+    expect(updatedTask1.status).toBe('pending');
+
+    const { data: updatedTask2 } = await supabase.from('tasks').select('*').eq('id', task2.id).single();
+    expect(updatedTask2.status).toBe('completed');
+  });
+
+  // =========================================================================
+  // TEST 33: Multi-turn ordinal calendar cancellation (T1 Friday meetings -> T2 "Cancela la segunda")
+  // =========================================================================
+  it('TEST 33: Multi-turn: T1 Friday meetings -> T2 "Cancela la segunda" deletes 2nd Friday meeting', async () => {
+    const googleEvents = [
+      { id: 'ev-fri-a', summary: 'Standup Viernes', start: { dateTime: '2026-09-04T09:00:00-05:00' }, end: { dateTime: '2026-09-04T09:30:00-05:00' } },
+      { id: 'ev-fri-b', summary: 'Demostración de Producto', start: { dateTime: '2026-09-04T15:00:00-05:00' }, end: { dateTime: '2026-09-04T16:00:00-05:00' } },
+    ];
+
+    vi.spyOn(googleCalendarService, 'listCalendarEvents').mockResolvedValue(googleEvents);
+    let deletedEventId = null;
+    vi.spyOn(googleCalendarService, 'deleteCalendarEvent').mockImplementation(async (userId, eventId) => {
+      deletedEventId = eventId;
+      return { success: true };
+    });
+
+    // T1: Friday meetings
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValueOnce(JSON.stringify({
+      reasoning: "Usuario consulta eventos del viernes.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: { action: "list_events", scope: "friday" },
+      intent: "query",
+    }));
+
+    const resT1 = await routeMessage('¿Qué reuniones tenemos el viernes?', testUser);
+    expect(resT1.confirmation).toContain('Standup Viernes');
+    expect(resT1.confirmation).toContain('Demostración de Producto');
+
+    // T2: "Cancela la segunda"
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValueOnce(JSON.stringify({
+      reasoning: "Usuario pide cancelar la segunda reunión.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: { action: "delete_event", target: "2" },
+      intent: "query",
+    }));
+
+    const resT2 = await routeMessage('Cancela la segunda', testUser);
+    expect(deletedEventId).toBe('ev-fri-b');
+    expect(resT2.confirmation).toContain('eliminado');
+    expect(resT2.confirmation).toContain('Demostración de Producto');
+  });
+
+  // =========================================================================
+  // TEST 34: Ambiguous task match triggers clarification and does NOT mutate
+  // =========================================================================
+  it('TEST 34: Ambiguous task match returns AMBIGUOUS_TARGET and does NOT mutate database', async () => {
+    const { data: t1 } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Reporte financiero Q3 para inversionistas',
+      status: 'pending',
+    }).select().single();
+
+    const { data: t2 } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Reporte financiero Q3 para la junta directiva',
+      status: 'pending',
+    }).select().single();
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario intenta completar reporte financiero pero hay dos similares.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: { action: "complete", target: "reporte financiero Q3" },
+      intent: "task",
+    }));
+
+    const res = await routeMessage('Ya terminé el reporte financiero Q3', testUser);
+    expect(res.confirmation).toContain('coinciden');
+
+    // Neither task should be mutated
+    const { data: checkT1 } = await supabase.from('tasks').select('*').eq('id', t1.id).single();
+    const { data: checkT2 } = await supabase.from('tasks').select('*').eq('id', t2.id).single();
+    expect(checkT1.status).toBe('pending');
+    expect(checkT2.status).toBe('pending');
+  });
+
+  // =========================================================================
+  // TEST 35: Authoritative 0 candidates on explicit scope does NOT fallback to old WM
+  // =========================================================================
+  it('TEST 35: Authoritative 0 candidates on explicit date does NOT fallback to old Working Memory', async () => {
+    // Old working memory from Sept 2
+    saveWorkingMemory(testUser.id, {
+      source: 'calendar',
+      scope: 'today',
+      items: [{ position: 1, type: 'calendar_event', internalId: 'ev-old', summary: 'Reunión Antigua' }],
+    });
+
+    vi.spyOn(googleCalendarService, 'listCalendarEvents').mockResolvedValue([]);
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario consulta eventos del 15 de septiembre.",
+      type: "tool_call",
+      tool: "manage_google_calendar",
+      params: { action: "list_events", date: "2026-09-15" },
+      intent: "query",
+    }));
+
+    const res = await routeMessage('¿Qué tengo el 15 de septiembre?', testUser);
+    expect(res.confirmation).toContain('No tienes eventos programados');
+    expect(res.confirmation).not.toContain('Reunión Antigua');
+  });
+
+  // =========================================================================
+  // TEST 36: Tenant Isolation: Cannot mutate task belonging to another user
+  // =========================================================================
+  it('TEST 36: Tenant Isolation: Cannot mutate task belonging to another user', async () => {
+    const otherUser = await getOrCreateUserByPhone('573990009999', 'America/Bogota', 'es-CO', 'Other Test User');
+    const { data: victimTask } = await supabase.from('tasks').insert({
+      user_id: otherUser.id,
+      title: 'Tarea Confidencial del Otro Usuario',
+      status: 'pending',
+    }).select().single();
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario intenta completar una tarea ajena.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: { action: "complete", taskId: victimTask.id },
+      intent: "task",
+    }));
+
+    const res = await routeMessage(`Completar tarea ${victimTask.id}`, testUser);
+    expect(res.confirmation).toMatch(/No se encontró la tarea|Task not found/i);
+
+    // DB: Task must still be pending
+    const { data: checkVictim } = await supabase.from('tasks').select('*').eq('id', victimTask.id).single();
+    expect(checkVictim.status).toBe('pending');
+
+    // Cleanup
+    await supabase.from('tasks').delete().eq('user_id', otherUser.id);
+  });
+
+  // =========================================================================
+  // TEST 37: Idempotent task completion
+  // =========================================================================
+  it('TEST 37: Idempotent task completion: Completing already completed task succeeds without error', async () => {
+    const { data: taskAlreadyDone } = await supabase.from('tasks').insert({
+      user_id: testUser.id,
+      title: 'Pagar suscripción de internet',
+      status: 'completed',
+    }).select().single();
+
+    vi.spyOn(aiClient, 'callChatCompletion').mockResolvedValue(JSON.stringify({
+      reasoning: "Usuario repite completitud de tarea.",
+      type: "tool_call",
+      tool: "manage_task",
+      params: { action: "complete", taskId: taskAlreadyDone.id },
+      intent: "task",
+    }));
+
+    const res = await routeMessage('Ya pagué el internet', testUser);
+    expect(res.confirmation).toContain('Tarea completada');
+    expect(res.confirmation).toContain('Pagar suscripción de internet');
+  });
 });
+
 

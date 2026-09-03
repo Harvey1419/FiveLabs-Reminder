@@ -256,15 +256,26 @@ export function formatTaskListCard(tasks, projectName = null, language = 'es') {
   return formatted.trim();
 }
 
-export function formatTaskCompletedCard(completedCount, language = 'es') {
-  if (completedCount <= 0) {
+export function formatTaskCompletedCard(taskOrCount, language = 'es') {
+  if (typeof taskOrCount === 'number') {
+    if (taskOrCount <= 0) {
+      return language === 'en'
+        ? 'No pending tasks found to mark as completed.'
+        : 'No se encontraron tareas pendientes para completar.';
+    }
     return language === 'en'
-      ? 'No pending tasks found to mark as completed.'
-      : 'No se encontraron tareas pendientes para completar.';
+      ? `✅ *Task(s) Completed*\n\nMarked ${taskOrCount} task(s) as done.`
+      : `✅ *Tarea(s) completada(s)*\n\nSe marcaron ${taskOrCount} tarea(s) como realizada(s).`;
   }
-  return language === 'en'
-    ? `✅ *Task(s) Completed*\n\nMarked ${completedCount} task(s) as done.`
-    : `✅ *Tarea(s) completada(s)*\n\nSe marcaron ${completedCount} tarea(s) como realizada(s).`;
+
+  const title = taskOrCount?.title || taskOrCount?.content || 'Tarea';
+  const entName = taskOrCount?.entities?.name || taskOrCount?.entityName || null;
+  const projectTag = entName ? `\n📂 *Proyecto:* ${entName}` : '';
+
+  if (language === 'en') {
+    return `✅ *Task Completed*\n\n🎯 *${title}*${projectTag}\nMarked as done.`;
+  }
+  return `✅ *Tarea completada*\n\n🎯 *${title}*${projectTag}\nQueda marcada como realizada.`;
 }
 
 export function formatTaskUpdatedCard(task, language = 'es') {

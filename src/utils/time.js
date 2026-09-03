@@ -239,14 +239,60 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
   const rawMin = params.timeMin ? String(params.timeMin).toLowerCase().trim() : null;
   const rawMax = params.timeMax ? String(params.timeMax).toLowerCase().trim() : null;
 
+  const WEEKDAY_MAP = {
+    'domingo': 0, 'sunday': 0, 'sun': 0,
+    'lunes': 1, 'monday': 1, 'mon': 1,
+    'martes': 2, 'tuesday': 2, 'tue': 2,
+    'miercoles': 3, 'miércoles': 3, 'wednesday': 3, 'wed': 3,
+    'jueves': 4, 'thursday': 4, 'thu': 4,
+    'viernes': 5, 'friday': 5, 'fri': 5,
+    'sabado': 6, 'sábado': 6, 'saturday': 6, 'sat': 6,
+  };
+
+  const WEEKDAY_NAME_REV = {
+    0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday'
+  };
+
   if (scope && /^\d{4}-\d{2}-\d{2}/.test(scope)) {
     if (!params.date) params.date = scope;
     scope = 'explicit_date';
   }
 
+  // Check if scope, date, or query is a weekday name (e.g. "viernes", "el viernes", "este viernes", "friday")
+  const checkWeekdayStr = (str) => {
+    if (!str) return null;
+    const clean = String(str).toLowerCase().trim()
+      .replace(/^(?:el|este|este\s+próximo|este\s+proximo|el\s+próximo|el\s+proximo)\s+/i, '')
+      .replace(/\s+/g, '');
+    if (WEEKDAY_MAP[clean] !== undefined) return WEEKDAY_MAP[clean];
+    // Check inside string
+    for (const [name, val] of Object.entries(WEEKDAY_MAP)) {
+      if (clean === name || clean.startsWith(name)) return val;
+    }
+    return null;
+  };
+
+  const matchedWeekday = checkWeekdayStr(scope) ?? checkWeekdayStr(params.date) ?? checkWeekdayStr(params.query) ?? checkWeekdayStr(rawMin);
+
+  if (matchedWeekday !== null) {
+    const isNext = Boolean(
+      (scope && (scope.includes('proximo') || scope.includes('próximo') || scope.includes('next'))) ||
+      (params.query && (params.query.includes('proximo') || params.query.includes('próximo') || params.query.includes('next')))
+    );
+    let diff = (matchedWeekday - dayOfWeek + 7) % 7;
+    if (diff === 0 && isNext) {
+      diff = 7;
+    }
+    const timeMin = zonedTimeToUtc(year, month, day + diff, 0, 0, 0, timezone);
+    const timeMax = zonedTimeToUtc(year, month, day + diff + 1, 0, 0, 0, timezone);
+    const canonicalScope = WEEKDAY_NAME_REV[matchedWeekday] || 'weekday';
+    return { timeMin, timeMax, isNextEvent: false, maxResults: 25, scope: canonicalScope };
+  }
+
   if (!scope) {
     if (rawMin === 'hoy' || rawMin === 'today') scope = 'today';
     else if (rawMin === 'mañana' || rawMin === 'tomorrow') scope = 'tomorrow';
+    else if (rawMin === 'pasado_mañana' || rawMin === 'pasado_manana' || rawMin === 'pasado mañana' || rawMin === 'day_after_tomorrow') scope = 'day_after_tomorrow';
     else if (rawMin === 'esta_semana' || rawMin === 'this_week') scope = 'this_week';
     else if (rawMin === 'proxima_semana' || rawMin === 'next_week') scope = 'next_week';
     else if (rawMin === 'este_fin_de_semana' || rawMin === 'this_weekend') scope = 'this_weekend';
@@ -295,6 +341,15 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       const timeMin = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
       const timeMax = zonedTimeToUtc(year, month, day + 2, 0, 0, 0, timezone);
       return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'tomorrow' };
+    }
+
+    case 'day_after_tomorrow':
+    case 'pasado_mañana':
+    case 'pasado_manana':
+    case 'pasado mañana': {
+      const timeMin = zonedTimeToUtc(year, month, day + 2, 0, 0, 0, timezone);
+      const timeMax = zonedTimeToUtc(year, month, day + 3, 0, 0, 0, timezone);
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'day_after_tomorrow' };
     }
 
     case 'this_week':
@@ -359,12 +414,24 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
         targetMonth = parseInt(dateMatch[2], 10);
         targetDay = parseInt(dateMatch[3], 10);
       } else {
-        const parsed = parseTargetTime(targetStr, timezone);
-        if (parsed) {
-          const parts = getLocalDateParts(parsed, timezone);
-          targetYear = parts.year;
-          targetMonth = parts.month;
-          targetDay = parts.day;
+        const naturalMatch = targetStr.match(/^(\d{1,2})\s+de\s+([a-záéíóúñ]+)(?:\s+de\s+(\d{4}))?/i);
+        if (naturalMatch) {
+          targetDay = parseInt(naturalMatch[1], 10);
+          const mName = naturalMatch[2].toLowerCase();
+          targetMonth = MONTH_NAME_MAP[mName] || month;
+          if (naturalMatch[3]) {
+            targetYear = parseInt(naturalMatch[3], 10);
+          } else if (targetMonth < month) {
+            targetYear += 1;
+          }
+        } else {
+          const parsed = parseTargetTime(targetStr, timezone);
+          if (parsed) {
+            const parts = getLocalDateParts(parsed, timezone);
+            targetYear = parts.year;
+            targetMonth = parts.month;
+            targetDay = parts.day;
+          }
         }
       }
 
@@ -636,6 +703,24 @@ export function parseTargetTime(str, timezone = DEFAULT_TIMEZONE) {
       targetUtc = new Date(targetUtc.getTime() + 24 * 60 * 60 * 1000);
     }
     return targetUtc;
+  }
+
+  // 4.5. Natural Date in Spanish/English format (e.g. "9 de septiembre", "el 9 de septiembre de 2026", "4 de septiembre a las 10:00 am", "September 9 at 5pm")
+  const naturalDateMatch = normalizedStr.match(/^(?:el\s+)?(\d{1,2})\s+de\s+([a-záéíóúñ]+)(?:\s+de\s+(\d{4}))?(?:\s+(?:a\s+las?|at)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/i);
+  if (naturalDateMatch) {
+    const d = parseInt(naturalDateMatch[1], 10);
+    const monthName = naturalDateMatch[2].toLowerCase();
+    const monthNum = MONTH_NAME_MAP[monthName] || todayMonth;
+    let y = naturalDateMatch[3] ? parseInt(naturalDateMatch[3], 10) : todayYear;
+    if (!naturalDateMatch[3] && monthNum < todayMonth) {
+      y += 1;
+    }
+    let hh = naturalDateMatch[4] ? parseInt(naturalDateMatch[4], 10) : 9;
+    const mm = naturalDateMatch[5] ? parseInt(naturalDateMatch[5], 10) : 0;
+    const meridian = naturalDateMatch[6]?.toLowerCase();
+    if (meridian === 'pm' && hh < 12) hh += 12;
+    if (meridian === 'am' && hh === 12) hh = 0;
+    return zonedTimeToUtc(y, monthNum, d, hh, mm, 0, timezone);
   }
 
   // 5. Explicit ISO string fallback

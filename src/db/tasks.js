@@ -319,15 +319,16 @@ export async function updateTask(taskId, updates = {}, userId = null) {
   }
 
   try {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let resolvedId = taskId;
-    if (taskId.length < 36) {
-      let q = supabase.from('tasks').select('id');
+    if (!UUID_REGEX.test(taskId)) {
+      let q = supabase.from('tasks').select('id, title');
       if (userId) q = q.eq('user_id', userId);
       const { data: tasks, error: selectErr } = await q;
       if (selectErr) {
         return { data: null, error: { code: 'DATABASE_ERROR', message: selectErr.message, source: 'database' } };
       }
-      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()));
+      const matched = (tasks || []).find(t => t.id.startsWith(taskId.toLowerCase()) || t.title.toLowerCase() === taskId.toLowerCase().trim());
       if (matched) resolvedId = matched.id;
       else {
         return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found or access denied.', source: 'domain' } };

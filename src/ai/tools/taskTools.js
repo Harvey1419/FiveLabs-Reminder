@@ -1,4 +1,5 @@
 import {
+  supabase,
   createTask,
   findOrCreateEntityFuzzy,
   getTasksWithEntities,
@@ -9,14 +10,118 @@ import {
   getTasks,
 } from '../../db/index.js';
 import { normalizeTaskPriority } from '../../db/tasks.js';
-import { parseTargetTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
+import { parseTargetTime, formatLocalDateTime, DEFAULT_TIMEZONE } from '../../utils/time.js';
 import {
   formatTaskCreatedCard,
   formatTaskListCard,
   formatTaskCompletedCard,
   formatTaskUpdatedCard,
 } from './formatters.js';
-import { resolveEntityReference } from '../workingMemory.js';
+import { resolveEntityReference, tokenizeText } from '../workingMemory.js';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Deterministic Task Identifier Resolver following the Strict Resolution Hierarchy:
+ * 1. Direct 36-character UUID
+ * 2. Working Memory (Ordinal reference '1', 'el primero', 'la segunda' from previous turn)
+ * 3. Database search for user's pending tasks (exact title -> substring -> token match)
+ * 4. Disambiguation: 1 match -> RESOLVED, >1 match -> AMBIGUOUS, 0 match -> NOT_FOUND
+ */
+async function resolveTargetTask({ target, userId, userOrPhone }) {
+  if (!target) return { status: 'MISSING' };
+  const rawStr = String(target).trim();
+  if (!rawStr) return { status: 'MISSING' };
+
+  // 1. Direct UUID
+  if (UUID_REGEX.test(rawStr)) {
+    return { status: 'RESOLVED', taskId: rawStr };
+  }
+
+  // 2. Working Memory (Short-term context from previous turn / ordinals)
+  const refRes = resolveEntityReference({
+    userOrPhone,
+    reference: rawStr,
+    preferredType: 'task',
+  });
+
+  if (refRes.status === 'RESOLVED') {
+    return { status: 'RESOLVED', taskId: refRes.item.internalId, item: refRes.item };
+  }
+  if (refRes.status === 'AMBIGUOUS') {
+    return { status: 'AMBIGUOUS', candidates: refRes.candidates };
+  }
+
+  // 3. Database Search on user's pending tasks (tenant isolated)
+  if (!userId) {
+    return { status: 'NOT_FOUND' };
+  }
+
+  const { data: dbTasks, error: dbErr } = await supabase
+    .from('tasks')
+    .select('*, entities:entity_id(name, category)')
+    .eq('user_id', userId)
+    .eq('status', 'pending');
+
+  if (dbErr || !dbTasks || dbTasks.length === 0) {
+    return { status: 'NOT_FOUND' };
+  }
+
+  // Clean raw reference string: strip completion phrases and prefixes
+  const cleanQuery = rawStr
+    .replace(/(?::|,)?\s*(?:ya\s+lo\s+hice|ya\s+la\s+hice|lo\s+hice|ya\s+está|ya\s+esta|ya\s+quedó|ya\s+quedo|ya\s+terminé|ya\s+termine|listo|ok|hecho|completado|completada|eso\s+ya\s+lo\s+hice)\b.*$/i, '')
+    .trim();
+
+  // A. Exact title match (case insensitive)
+  const exact = dbTasks.filter(t => t.title.toLowerCase().trim() === cleanQuery.toLowerCase().trim());
+  if (exact.length === 1) {
+    return { status: 'RESOLVED', taskId: exact[0].id, task: exact[0] };
+  }
+  if (exact.length > 1) {
+    return { status: 'AMBIGUOUS', candidates: exact };
+  }
+
+  // B. Substring match
+  const sub = dbTasks.filter(t => {
+    const tTitle = t.title.toLowerCase().trim();
+    const q = cleanQuery.toLowerCase().trim();
+    return tTitle.includes(q) || q.includes(tTitle);
+  });
+  if (sub.length === 1) {
+    return { status: 'RESOLVED', taskId: sub[0].id, task: sub[0] };
+  }
+  if (sub.length > 1) {
+    return { status: 'AMBIGUOUS', candidates: sub };
+  }
+
+  // C. Tokenized matching
+  const refTokens = tokenizeText(cleanQuery);
+  if (refTokens.length > 0) {
+    const scored = [];
+    for (const t of dbTasks) {
+      const tTokens = tokenizeText(t.title);
+      const matches = refTokens.filter(rt => tTokens.some(tt => tt.includes(rt) || rt.includes(tt)));
+      if (matches.length > 0) {
+        const score = matches.length / refTokens.length;
+        if (score >= 0.5) {
+          scored.push({ task: t, score });
+        }
+      }
+    }
+    scored.sort((a, b) => b.score - a.score);
+    if (scored.length === 1) {
+      return { status: 'RESOLVED', taskId: scored[0].task.id, task: scored[0].task };
+    }
+    if (scored.length > 1) {
+      if (scored[0].score >= 0.75 && scored[0].score - scored[1].score >= 0.25) {
+        return { status: 'RESOLVED', taskId: scored[0].task.id, task: scored[0].task };
+      }
+      return { status: 'AMBIGUOUS', candidates: scored.map(s => s.task) };
+    }
+  }
+
+  return { status: 'NOT_FOUND' };
+}
 
 /**
  * Domain tool for managing tasks.
@@ -181,81 +286,9 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
 
     case 'complete': {
       const { taskId: rawTaskId = null, scope = null, completeAll = false, entityName = null } = params;
-      let taskId = rawTaskId || params.id || params.target || params.query || null;
+      const targetQuery = rawTaskId || params.id || params.target || params.title || params.query || null;
 
-      if (!taskId && scope !== 'all' && !completeAll) {
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
-          reference: params.target || params.query || '',
-          preferredType: 'task',
-        });
-        if (refRes.status === 'RESOLVED') {
-          taskId = refRes.item.internalId;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
-              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
-            rawSummary: 'Hay múltiples tareas que coinciden.',
-            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
-          };
-        }
-      }
-
-      // 1. Missing Target Guard: single-task completion strictly REQUIRES taskId
-      if (!taskId && scope !== 'all' && !completeAll) {
-        return {
-          success: false,
-          action: 'missing_target_id',
-          errorCode: 'MISSING_TARGET_ID',
-          error: language === 'en' ? 'Missing task ID to complete. Please specify which task you want to complete.' : 'Falta el ID de la tarea a completar. Por favor especifica cuál tarea deseas completar.',
-          rawSummary: language === 'en' ? 'Which task would you like me to complete?' : '¿Cuál tarea deseas que complete?',
-          confirmation: language === 'en' ? 'Which task would you like me to complete?' : '¿Cuál tarea deseas que complete?',
-        };
-      }
-
-      let completedCount = 0;
-
-      if (taskId) {
-        if (taskId.length < 36) {
-          const refRes = resolveEntityReference({
-            userOrPhone: user || phoneNumber,
-            reference: taskId,
-            preferredType: 'task',
-          });
-          if (refRes.status === 'RESOLVED') {
-            taskId = refRes.item.internalId;
-          } else if (refRes.status === 'AMBIGUOUS') {
-            return {
-              success: false,
-              action: 'ambiguous_target',
-              errorCode: 'AMBIGUOUS_TARGET',
-              error: language === 'en'
-                ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
-                : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
-              rawSummary: 'Hay múltiples tareas que coinciden.',
-              confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas completar.',
-            };
-          }
-        }
-
-        const updateRes = await updateTask(taskId, { status: 'completed' }, userId);
-        if (updateRes?.error || !updateRes?.id) {
-          const errCode = updateRes?.error?.code || 'NOT_FOUND';
-          return {
-            success: false,
-            action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
-            errorCode: errCode,
-            error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea o no tienes permisos sobre ella.'),
-            rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
-            confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
-          };
-        }
-        completedCount = 1;
-      } else if (scope === 'all' || completeAll) {
+      if (scope === 'all' || completeAll) {
         const res = await completeTasksByQuery({
           userId,
           entityName,
@@ -270,47 +303,90 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
             rawSummary: res.error.message,
           };
         }
-        completedCount = typeof res === 'object' ? (res?.completedCount || 0) : (Number(res) || 0);
+        const count = typeof res === 'object' ? (res?.completedCount || 0) : (Number(res) || 0);
+        const card = formatTaskCompletedCard(count, language);
+        return {
+          success: true,
+          action: 'completed_tasks',
+          data: { completedCount: count },
+          rawSummary: card,
+          formattedCard: card,
+          confirmation: card,
+        };
       }
 
-      const formattedCard = formatTaskCompletedCard(completedCount, language);
+      if (!targetQuery) {
+        return {
+          success: false,
+          action: 'missing_target_id',
+          errorCode: 'MISSING_TARGET_ID',
+          error: language === 'en' ? 'Missing task to complete. Please specify which task you want to complete.' : 'Falta la tarea a completar. Por favor especifica cuál tarea deseas completar.',
+          rawSummary: language === 'en' ? 'Which task would you like me to complete?' : '¿Cuál tarea deseas que complete?',
+          confirmation: language === 'en' ? 'Which task would you like me to complete?' : '¿Cuál tarea deseas que complete?',
+        };
+      }
+
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+
+      if (resolution.status === 'AMBIGUOUS') {
+        const ambiguityMsg = language === 'en'
+          ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
+          : 'Hay múltiples tareas que coinciden con tu solicitud. Por favor aclara cuál de ellas deseas completar.';
+        return {
+          success: false,
+          action: 'ambiguous_target',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: ambiguityMsg,
+          rawSummary: ambiguityMsg,
+          confirmation: `⚠️ ${ambiguityMsg}`,
+        };
+      }
+
+      if (resolution.status === 'NOT_FOUND' || !resolution.taskId) {
+        const notFoundMsg = language === 'en'
+          ? 'No pending task matching that description was found.'
+          : 'No se encontró ninguna tarea pendiente que coincida con esa descripción.';
+        return {
+          success: false,
+          action: 'task_not_found',
+          errorCode: 'NOT_FOUND',
+          error: notFoundMsg,
+          rawSummary: notFoundMsg,
+          confirmation: `⚠️ ${notFoundMsg}`,
+        };
+      }
+
+      const updateRes = await updateTask(resolution.taskId, { status: 'completed' }, userId);
+      if (updateRes?.error || !updateRes?.id) {
+        const errCode = updateRes?.error?.code || 'NOT_FOUND';
+        return {
+          success: false,
+          action: errCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error',
+          errorCode: errCode,
+          error: updateRes?.error?.message || (language === 'en' ? 'Task not found or access denied.' : 'No se encontró la tarea especificada.'),
+          rawSummary: language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.',
+          confirmation: language === 'en' ? '⚠️ Task not found.' : '⚠️ No se encontró la tarea especificada.',
+        };
+      }
+
+      const completedTask = updateRes.data || updateRes;
+      const formattedCard = formatTaskCompletedCard(completedTask, language);
 
       return {
         success: true,
-        action: 'completed_tasks',
-        data: {
-          completedCount,
-        },
+        action: 'completed_task',
+        taskId: completedTask.id,
+        title: completedTask.title,
+        data: completedTask,
         rawSummary: formattedCard,
         formattedCard,
+        confirmation: formattedCard,
       };
     }
 
     case 'update': {
-      let taskId = params.taskId || params.id || params.target;
-      if (!taskId || String(taskId).length < 36) {
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
-          reference: taskId || params.target || '',
-          preferredType: 'task',
-        });
-        if (refRes.status === 'RESOLVED') {
-          taskId = refRes.item.internalId;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple tasks match your request. Please clarify which one you want to update.'
-              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas actualizar.',
-            rawSummary: 'Hay múltiples tareas que coinciden.',
-            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas actualizar.',
-          };
-        }
-      }
-
-      if (!taskId) {
+      const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
+      if (!targetQuery) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -318,6 +394,36 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
           error: language === 'en' ? 'Missing task ID to update.' : 'Falta el ID de la tarea a actualizar.',
           rawSummary: language === 'en' ? 'Which task would you like me to update?' : '¿Cuál tarea deseas que actualice?',
           confirmation: language === 'en' ? 'Which task would you like me to update?' : '¿Cuál tarea deseas que actualice?',
+        };
+      }
+
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+
+      if (resolution.status === 'AMBIGUOUS') {
+        const ambiguityMsg = language === 'en'
+          ? 'Multiple tasks match your request. Please clarify which one you want to update.'
+          : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas actualizar.';
+        return {
+          success: false,
+          action: 'ambiguous_target',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: ambiguityMsg,
+          rawSummary: ambiguityMsg,
+          confirmation: `⚠️ ${ambiguityMsg}`,
+        };
+      }
+
+      if (resolution.status === 'NOT_FOUND' || !resolution.taskId) {
+        const notFoundMsg = language === 'en'
+          ? 'No pending task matching that description was found.'
+          : 'No se encontró ninguna tarea que coincida con esa descripción.';
+        return {
+          success: false,
+          action: 'task_not_found',
+          errorCode: 'NOT_FOUND',
+          error: notFoundMsg,
+          rawSummary: notFoundMsg,
+          confirmation: `⚠️ ${notFoundMsg}`,
         };
       }
 
@@ -348,7 +454,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         updates.due_date = parsedDue ? parsedDue.toISOString() : null;
       }
 
-      const updateRes = await updateTask(taskId, updates, userId);
+      const updateRes = await updateTask(resolution.taskId, updates, userId);
       if (updateRes?.error || !updateRes?.id) {
         const errCode = updateRes?.error?.code || 'NOT_FOUND';
         return {
@@ -367,37 +473,18 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
       return {
         success: true,
         action: 'updated_task',
+        taskId: updatedTask.id,
+        title: updatedTask.title,
         data: updatedTask,
         rawSummary: formattedCard,
         formattedCard,
+        confirmation: formattedCard,
       };
     }
 
     case 'delete': {
-      let taskId = params.taskId || params.id || params.target;
-      if (!taskId || String(taskId).length < 36) {
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
-          reference: taskId || params.target || '',
-          preferredType: 'task',
-        });
-        if (refRes.status === 'RESOLVED') {
-          taskId = refRes.item.internalId;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple tasks match your request. Please clarify which one you want to delete.'
-              : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas eliminar.',
-            rawSummary: 'Hay múltiples tareas que coinciden.',
-            confirmation: 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas eliminar.',
-          };
-        }
-      }
-
-      if (!taskId) {
+      const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
+      if (!targetQuery) {
         return {
           success: false,
           action: 'missing_target_id',
@@ -408,7 +495,37 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         };
       }
 
-      const deleteRes = await deleteTask(taskId, userId);
+      const resolution = await resolveTargetTask({ target: targetQuery, userId, userOrPhone: user || phoneNumber });
+
+      if (resolution.status === 'AMBIGUOUS') {
+        const ambiguityMsg = language === 'en'
+          ? 'Multiple tasks match your request. Please clarify which one you want to delete.'
+          : 'Hay múltiples tareas que coinciden. Por favor aclara cuál deseas eliminar.';
+        return {
+          success: false,
+          action: 'ambiguous_target',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: ambiguityMsg,
+          rawSummary: ambiguityMsg,
+          confirmation: `⚠️ ${ambiguityMsg}`,
+        };
+      }
+
+      if (resolution.status === 'NOT_FOUND' || !resolution.taskId) {
+        const notFoundMsg = language === 'en'
+          ? 'No task matching that description was found.'
+          : 'No se encontró la tarea especificada.';
+        return {
+          success: false,
+          action: 'task_not_found',
+          errorCode: 'NOT_FOUND',
+          error: notFoundMsg,
+          rawSummary: notFoundMsg,
+          confirmation: `⚠️ ${notFoundMsg}`,
+        };
+      }
+
+      const deleteRes = await deleteTask(resolution.taskId, userId);
       if (deleteRes?.error || deleteRes?.success === false) {
         const errCode = deleteRes?.error?.code || 'NOT_FOUND';
         return {
@@ -426,6 +543,7 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         action: 'deleted_task',
         rawSummary: language === 'en' ? 'Task deleted.' : 'Tarea eliminada.',
         formattedCard: language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*',
+        confirmation: language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*',
       };
     }
 

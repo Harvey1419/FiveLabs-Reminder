@@ -533,6 +533,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       let eventId = params.eventId || params.id;
+      let resolvedRef = null;
       const hasExplicitScope = Boolean(params.date || params.startDateTime || params.scope);
 
       if (!eventId || String(eventId).length < 8) {
@@ -579,6 +580,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         });
         if (refRes.status === 'RESOLVED') {
           eventId = refRes.item.internalId;
+          resolvedRef = refRes.item;
         } else if (refRes.status === 'AMBIGUOUS') {
           return {
             success: false,
@@ -617,8 +619,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       const deleted = await deleteCalendarEvent(userId, eventId);
+      const deletedItemSummary = resolvedRef?.summary || null;
       const summary = deleted
-        ? (language === 'en' ? 'Event deleted from your Google Calendar.' : 'Evento eliminado de tu Google Calendar.')
+        ? (deletedItemSummary
+            ? `Evento eliminado de tu Google Calendar: *${deletedItemSummary}*.`
+            : (language === 'en' ? 'Event deleted from your Google Calendar.' : 'Evento eliminado de tu Google Calendar.'))
         : (language === 'en' ? 'Could not delete event from Google Calendar.' : 'No se pudo eliminar el evento de Google Calendar.');
       return {
         success: deleted,
@@ -626,6 +631,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         data: { eventId, deleted },
         rawSummary: summary,
         formattedCard: summary,
+        confirmation: summary,
       };
     }
 

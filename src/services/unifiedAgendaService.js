@@ -252,12 +252,35 @@ export function formatUnifiedAgendaCard({
   const totalCount = calendarEvents.length + reminders.length + tasks.length;
 
   let scopeLabel = 'este período';
+  const WEEKDAY_LABELS_ES = {
+    monday: 'el lunes',
+    tuesday: 'el martes',
+    wednesday: 'el miércoles',
+    thursday: 'el jueves',
+    friday: 'el viernes',
+    saturday: 'el sábado',
+    sunday: 'el domingo',
+    day_after_tomorrow: 'pasado mañana',
+  };
+  const WEEKDAY_LABELS_EN = {
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+    sunday: 'Sunday',
+    day_after_tomorrow: 'the day after tomorrow',
+  };
+
   if (scope === 'today') scopeLabel = isEn ? 'today' : 'hoy';
   else if (scope === 'tomorrow') scopeLabel = isEn ? 'tomorrow' : 'mañana';
+  else if (WEEKDAY_LABELS_ES[scope]) scopeLabel = isEn ? WEEKDAY_LABELS_EN[scope] : WEEKDAY_LABELS_ES[scope];
   else if (scope === 'this_week') scopeLabel = isEn ? 'this week' : 'esta semana';
   else if (scope === 'next_week') scopeLabel = isEn ? 'next week' : 'la próxima semana';
   else if (scope === 'this_weekend') scopeLabel = isEn ? 'this weekend' : 'este fin de semana';
   else if (scope === 'upcoming' || scope === 'all' || scope === 'all_pending') scopeLabel = isEn ? 'upcoming schedule' : 'los próximos días';
+  else if (scope === 'explicit_date') scopeLabel = isEn ? 'that date' : 'esa fecha';
 
   if (totalCount === 0) {
     if (calendar.state === 'ERROR') {
