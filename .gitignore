@@ -22,6 +22,10 @@ scratch/
 # Coverage
 coverage/
 .codegraph/
+
+# Local Codex config/credentials
+.codex/
+
 # Local Pi runtime state
 .atl/
 .pi/

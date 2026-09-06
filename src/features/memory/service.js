@@ -1,0 +1,319 @@
+import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
+import { callMemoryExtraction } from '../../agent/providers/client.js';
+
+const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
+Analyze the following conversation turn between User and Assistant.
+
+Extract atomic durable facts, personal preferences, commercial/project decisions, or relationship context that will be useful weeks or months from now. The user text is the ONLY factual source.
+
+STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
+- Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
+- Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
+- Appointments, meetings, plans tied to a date/time, or incomplete scheduling details. These belong to agenda/reminder/calendar flow even when the assistant still needs to ask for the missing clock or lead time. Do not extract a company, person, or place fact merely from where an appointment will occur.
+- Assistant agenda echoes or query responses: When the user asks what they have pending or scheduled, NEVER extract new memories from the assistant listing or reading back existing tasks.
+- Explicit alarms, reminders, scheduled notifications, or delivery times (these belong exclusively in the reminders table).
+- Bot capabilities, system limitations, or assistant self-descriptions (e.g. "El asistente no puede enviar mensajes a terceros").
+- Greetings, conversational pleasantries, or short acknowledgments (e.g. "hola", "cómo estás", "gracias", "de nada", "ok", "listo", "dale").
+- Temporary states or ephemeral remarks (e.g. "tengo hambre", "estoy cansado hoy", "qué hora es").
+
+TOPIC KEY HIERARCHY (MANDATORY FORMAT):
+Always structure topicKey as a clean, lowercase hierarchical path: <category_or_entity_type>/<entity_slug>/<aspect>
+Examples:
+- "person/juan_zapata/relation" (or "person/juan_zapata/status")
+- "person/monica_acosta/location" (or "person/monica_acosta/contact")
+- "company/ceramica_italia/location" (or "company/ceramica_italia/project")
+- "project/yax/scope" (or "project/yax/presentation")
+- "place/barranquilla/activities"
+- "profile/residence" (or "profile/identity")
+- "preference/communication" (or "preference/notifications")
+
+CATEGORIES:
+- "fact": stable truth about user, family, job, contacts, or entities (e.g. "El contador del usuario se llama Carlos")
+- "decision": agreed choice, offer, commercial agreement, or negotiation state (e.g. "Oferta de venta del carro a Juan por 51M")
+- "preference": how the user likes things done (e.g. "Prefiere correos breves y directos")
+- "episode": notable past event or project milestone (e.g. "Medición de cocina realizada en Florencia")
+
+ENTITY CATEGORIES (entityCategory):
+- "person": personas, familiares, socios, doctores, contactos
+- "company": empresas, marcas, proveedores
+- "project": proyectos laborales, reformas, metas, software
+- "place": ciudades (ej. Barranquilla, Madrid), países, ubicaciones
+- "pet": mascotas (ej. Barón, perros, gatos)
+- "asset": inmuebles, apartamentos, vehículos, herramientas
+- "other": cualquier otra entidad
+
+ENTITY NAME CANONICALIZATION (entityName):
+- Emite el nombre canónico LIMPIO sin prefijos de ruido (ej: "Reminder", NO "Proyecto Reminder"; "Barranquilla", NO "Ciudad de Barranquilla"; "Barón", NO "El perro Barón"; "Yax", NO "Proyecto Yax").
+
+ATOMICITY AND EVIDENCE RULES:
+- Never combine a durable fact with a task, appointment, reminder, deadline, or temporary state.
+- Every candidate must include evidence: an exact quote copied from the user text that directly supports the durable fact.
+- Do not infer a relationship or entity type merely from the setting of an appointment.
+- Prefer returning no candidate over storing an uncertain or mixed memory.
+
+Respond with ONLY a JSON array:
+[
+  {
+    "topicKey": "category_or_type/canonical_slug/aspect",
+    "category": "fact" | "decision" | "preference" | "episode",
+    "content": "Clear, standalone sentence in Spanish describing the durable fact",
+    "evidence": "Exact supporting quote copied from the user text",
+    "entityName": "Canonical name without prefix noise, or null",
+    "entityCategory": "person" | "company" | "project" | "place" | "pet" | "asset" | "other" | null
+  }
+]
+
+If nothing durable is worth saving, respond with: []`;
+
+/**
+ * Clean and canonicalize topic keys to guarantee deterministic superseding across turns.
+ */
+export function canonicalizeTopicKey(rawTopicKey, entityName = null, category = 'fact') {
+  if (!rawTopicKey) {
+    if (entityName) {
+      const slug = entityName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      return `entity/${slug}/general`;
+    }
+    return `profile/${category}`;
+  }
+
+  let clean = String(rawTopicKey).toLowerCase().trim();
+  clean = clean
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9/_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/\/+/g, '/')
+    .replace(/^[/_]+|[/_]+$/g, '');
+
+  return clean || `profile/${category}`;
+}
+
+/**
+ * Extract durable memories from a conversation turn and persist them.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} params.userText
+ * @param {string} params.assistantReply - Accepted for caller compatibility, but never used as factual evidence.
+ * @param {Array<object>} params.executionFacts - Validated backend outcomes used to remove operational clauses.
+ * @param {'extract'|'skip_operational'} params.memoryDisposition - Semantic turn classification from orchestration.
+ * @returns {Promise<Array<object>>}
+ */
+export async function extractAndSaveMemories({
+  userId,
+  userText,
+  assistantReply,
+  executionFacts = [],
+  memoryDisposition = 'extract',
+}) {
+  if (!userId || !userText) return [];
+
+  if (memoryDisposition === 'skip_operational') {
+    console.log('[memoryService] SKIPPED extraction: semantic turn classification is operational-only.');
+    return [];
+  }
+
+  const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(userText);
+  const trustedUserText = String(userText)
+    .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
+    .trim();
+  if (hasAttachmentEvidence && !trustedUserText) return [];
+
+  // Quick filter: skip empty or pure single-word greetings / trivial acknowledgments
+  const trimmed = trustedUserText.toLowerCase();
+  const PURE_TRIVIAL_REGEX = /^(hola|hi|hey|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|ok|listo|dale|gracias|muchas\s+gracias|de\s+nada|chao|adi[oó]s|done|ya|perfecto|entendido)$/i;
+  if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) {
+    return [];
+  }
+
+  const eligibleText = getMemoryEligibleText(trustedUserText, executionFacts);
+  if (!eligibleText) {
+    console.log('[memoryService] SKIPPED extraction: turn content was fully consumed by operational tools.');
+    return [];
+  }
+
+  try {
+    const messages = [
+      { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
+      {
+        role: 'user',
+        content: `User text (the only factual source):\n<user_text>${eligibleText}</user_text>`,
+      },
+    ];
+
+    const rawResponse = await callMemoryExtraction(messages, { temperature: 0, max_tokens: 500 });
+    const candidates = parseJsonArray(rawResponse);
+
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return [];
+    }
+
+    const saved = [];
+    for (const item of candidates) {
+      if (!item.content) continue;
+      const rejectionReason = getMemoryCandidateRejection(item, eligibleText, executionFacts);
+      if (rejectionReason) {
+        console.log(`[memoryService] REJECTED candidate reason=${rejectionReason} topic=${item.topicKey || 'unknown'}`);
+        continue;
+      }
+
+      let canonicalName = item.entityName ? String(item.entityName).trim() : null;
+      let matchedEntity = null;
+
+      // 1. If an entity was named, resolve or register with fuzzy deduplication
+      if (canonicalName) {
+        try {
+          matchedEntity = await findOrCreateEntityFuzzy({
+            userId,
+            name: canonicalName,
+            category: item.entityCategory || 'other',
+          });
+          if (matchedEntity?.name) {
+            canonicalName = matchedEntity.name;
+          }
+        } catch (entErr) {
+          console.warn('[memoryService] entity fuzzy match error:', entErr.message);
+        }
+      }
+
+      // 2. Canonicalize topicKey to guarantee deterministic superseding
+      const safeTopicKey = canonicalizeTopicKey(item.topicKey, canonicalName, item.category);
+
+      // 3. Save memory (superseding any previous active memory with identical topicKey)
+      const mem = await saveMemory({
+        userId,
+        topicKey: safeTopicKey,
+        category: item.category || 'fact',
+        content: item.content,
+      });
+
+      if (mem) {
+        saved.push(mem);
+        console.log(`[memoryService] SAVED MEMORY (${safeTopicKey}): "${item.content}"`);
+      }
+    }
+
+    return saved;
+  } catch (err) {
+    console.error('[memoryService] extractAndSaveMemories threw:', err);
+    return [];
+  }
+}
+
+/**
+ * Retrieve active memories relevant to a user's query or conversation context.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} params.queryText
+ * @param {number} [params.limit=5]
+ * @returns {Promise<Array<object>>}
+ */
+const PURE_TRIVIAL_INTERACTION_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|done|ya)$/i;
+
+export async function retrieveRelevantMemories({ userId, queryText, limit = 5 }) {
+  if (!userId || !queryText) return [];
+
+  const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(queryText);
+  const retrievalQuery = String(queryText)
+    .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
+    .trim();
+  if (!retrievalQuery) return [];
+
+  // Attachment descriptions can be large and unrelated to the user's durable
+  // memory. A short caption about the attachment is not a memory query.
+  if (hasAttachmentEvidence && retrievalQuery.split(/\s+/).length <= 5) return [];
+
+  const clean = retrievalQuery.toLowerCase().replace(/[.,!?:;¿¡]/g, '');
+  // Skip embedding vector search ONLY on pure trivial greetings or acknowledgements
+  if (clean.length < 4 || PURE_TRIVIAL_INTERACTION_REGEX.test(clean)) {
+    return [];
+  }
+
+  return searchMemories({
+    userId,
+    query: retrievalQuery,
+    limit,
+  });
+}
+
+function parseJsonArray(text) {
+  if (!text) return [];
+  try {
+    let clean = text.trim();
+    const start = clean.indexOf('[');
+    const end = clean.lastIndexOf(']');
+    if (start >= 0 && end > start) {
+      clean = clean.slice(start, end + 1);
+      return JSON.parse(clean);
+    }
+    const parsed = JSON.parse(clean);
+    if (Array.isArray(parsed?.memories)) return parsed.memories;
+  } catch (err) {
+    console.warn('[memoryService] JSON array parse failed:', err.message);
+  }
+  return [];
+}
+
+const OPERATIONAL_MEMORY_TOOLS = new Set([
+  'manage_reminder', 'manage_task', 'manage_entity', 'manage_google_calendar', 'get_unified_agenda',
+  'manage_memory',
+]);
+
+const MEMORY_STOPWORDS = new Set([
+  'a', 'al', 'and', 'at', 'con', 'de', 'del', 'el', 'en', 'for', 'la', 'las', 'le', 'lo', 'los',
+  'me', 'mi', 'of', 'para', 'por', 'que', 'the', 'to', 'un', 'una', 'y', 'yo',
+]);
+
+function meaningfulTokens(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !MEMORY_STOPWORDS.has(token));
+}
+
+function tokenOverlap(left, right) {
+  const leftTokens = [...new Set(meaningfulTokens(left))];
+  const rightTokens = new Set(meaningfulTokens(right));
+  if (leftTokens.length === 0 || rightTokens.size === 0) return 0;
+  return leftTokens.filter((token) => rightTokens.has(token)).length / leftTokens.length;
+}
+
+function operationalCorpus(executionFacts) {
+  return (executionFacts || [])
+    .filter((fact) => OPERATIONAL_MEMORY_TOOLS.has(fact?.tool))
+    .map((fact) => `${fact.card || ''} ${fact.summary || ''}`)
+    .join(' ');
+}
+
+export function getMemoryEligibleText(userText, executionFacts = []) {
+  const corpus = operationalCorpus(executionFacts);
+  if (!corpus) return String(userText || '').trim();
+
+  const clauses = String(userText || '')
+    .split(/(?<=[.!?])\s+|[\n;]+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  const residual = clauses.filter((clause) => tokenOverlap(clause, corpus) < 0.5);
+  return residual.join(' ').trim();
+}
+
+function getMemoryCandidateRejection(item, sourceText, executionFacts) {
+  const evidence = String(item?.evidence || '').trim();
+  if (!evidence) return 'missing_user_evidence';
+
+  const normalizedSource = meaningfulTokens(sourceText).join(' ');
+  const normalizedEvidence = meaningfulTokens(evidence).join(' ');
+  if (!normalizedEvidence || !normalizedSource.includes(normalizedEvidence)) return 'evidence_not_in_user_text';
+
+  const corpus = operationalCorpus(executionFacts);
+  if (corpus && (tokenOverlap(evidence, corpus) >= 0.5 || tokenOverlap(item.content, corpus) >= 0.5)) {
+    return 'overlaps_operational_execution';
+  }
+
+  return null;
+}

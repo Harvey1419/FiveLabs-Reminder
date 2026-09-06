@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Hermes TempleLabs — AI-powered WhatsApp executive personal assistant and second brain",
-  "main": "src/index.js",
+  "main": "src/app/server.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "chat": "node scripts/interactive-test.js",
-    "test": "vitest run"
+    "start": "node src/app/server.js",
+    "dev": "node --watch src/app/server.js",
+    "chat": "node scripts/dev/interactive-chat.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run --config tests/config/vitest.unit.js",
+    "test:integration": "node scripts/checks/integration-environment.js && vitest run --config tests/config/vitest.integration.js",
+    "test:agent-live": "node scripts/evals/agent-production.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

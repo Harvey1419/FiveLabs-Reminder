@@ -39,4 +39,4 @@ COPY --chown=node:node public/ ./public/
 EXPOSE 3005
 
 # Start production server
-CMD ["node", "src/index.js"]
+CMD ["node", "src/app/server.js"]

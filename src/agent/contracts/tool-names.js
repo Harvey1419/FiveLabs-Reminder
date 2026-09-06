@@ -1,0 +1,12 @@
+export const TOOL_NAMES = Object.freeze({
+  EXECUTE_TURN: 'execute_turn',
+  MANAGE_REMINDER: 'manage_reminder',
+  MANAGE_TASK: 'manage_task',
+  MANAGE_ENTITY: 'manage_entity',
+  MANAGE_MEMORY: 'manage_memory',
+  MANAGE_SUBSCRIPTION: 'manage_subscription',
+  GET_SUBSCRIPTION_LINK: 'get_subscription_link',
+  MANAGE_GOOGLE_CALENDAR: 'manage_google_calendar',
+  GET_UNIFIED_AGENDA: 'get_unified_agenda',
+  ADMIN_METRICS: 'admin_metrics',
+});
