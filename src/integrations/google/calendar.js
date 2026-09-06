@@ -1,12 +1,33 @@
 import crypto from 'crypto';
 import { google } from 'googleapis';
-import { getAuthenticatedGoogleClient } from './auth.js';
+import {
+  clearInvalidGoogleIntegration,
+  isGoogleAuthError,
+  getAuthenticatedGoogleClient,
+} from './auth.js';
 import {
   formatLocalDateTime,
   formatHumanFriendlyDateTime,
   zonedTimeToUtc,
   DEFAULT_TIMEZONE,
 } from '../../shared/time.js';
+
+async function handleGoogleApiError(userId, operation, err) {
+  if (isGoogleAuthError(err)) {
+    console.warn(`[googleCalendar] ${operation} auth error for user ${userId}:`, err.message);
+    await clearInvalidGoogleIntegration(userId, `calendar-${operation}`);
+  } else {
+    console.error(`[googleCalendar] ${operation} error for user ${userId}:`, err.message);
+  }
+
+  throw err;
+}
+
+function googleAuthRequiredError() {
+  const error = new Error('Google Calendar authentication is required.');
+  error.code = 'GOOGLE_AUTH_REQUIRED';
+  return error;
+}
 
 /**
  * Normalizes raw Google Calendar event into explicit civil or timed representation.
@@ -84,7 +105,7 @@ export function generateDeterministicCalendarEventId(userId, summary, startIso) 
  * @param {number} [options.maxResults=15]
  * @param {string} [options.timezone='America/Bogota']
  * @param {string} [options.q] - Free-text search term
- * @returns {Promise<Array<object>|null>} List of events, or null if Google is not connected
+ * @returns {Promise<Array<object>>} List of events
  */
 export async function listCalendarEvents(userId, {
   timeMin = new Date(),
@@ -94,7 +115,7 @@ export async function listCalendarEvents(userId, {
   q = null,
 } = {}) {
   const auth = await getAuthenticatedGoogleClient(userId);
-  if (!auth) return null;
+  if (!auth) throw googleAuthRequiredError();
 
   try {
     const calendar = google.calendar({ version: 'v3', auth });
@@ -138,8 +159,7 @@ export async function listCalendarEvents(userId, {
         attendees: (ev.attendees || []).map(a => a.email),
       }));
   } catch (err) {
-    console.error(`[googleCalendar] listCalendarEvents error for user ${userId}:`, err.message);
-    throw err;
+    await handleGoogleApiError(userId, 'list', err);
   }
 }
 
@@ -155,7 +175,7 @@ export async function listCalendarEvents(userId, {
  * @param {string} [params.timezone='America/Bogota']
  * @param {boolean} [params.addGoogleMeet=false] - Whether to generate Google Meet link
  * @param {string|null} [params.customEventId=null]
- * @returns {Promise<object|null>} Created event details, or null if Google is not connected
+ * @returns {Promise<object>} Created event details
  */
 export async function createCalendarEvent(userId, {
   summary,
@@ -167,7 +187,7 @@ export async function createCalendarEvent(userId, {
   customEventId = null,
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
-  if (!auth) return null;
+  if (!auth) throw googleAuthRequiredError();
 
   try {
     const calendar = google.calendar({ version: 'v3', auth });
@@ -240,8 +260,7 @@ export async function createCalendarEvent(userId, {
       meetLink,
     };
   } catch (err) {
-    console.error(`[googleCalendar] createCalendarEvent error for user ${userId}:`, err.message);
-    throw err;
+    await handleGoogleApiError(userId, 'create', err);
   }
 }
 
@@ -256,7 +275,7 @@ export async function createCalendarEvent(userId, {
  * @param {string|Date} [params.startDateTime]
  * @param {string|Date} [params.endDateTime]
  * @param {string} [params.timezone='America/Bogota']
- * @returns {Promise<object|null>}
+ * @returns {Promise<object>}
  */
 export async function updateCalendarEvent(userId, {
   eventId,
@@ -267,7 +286,7 @@ export async function updateCalendarEvent(userId, {
   timezone = 'America/Bogota',
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
-  if (!auth) return null;
+  if (!auth) throw googleAuthRequiredError();
 
   try {
     const calendar = google.calendar({ version: 'v3', auth });
@@ -303,8 +322,7 @@ export async function updateCalendarEvent(userId, {
       htmlLink: res.data.htmlLink,
     };
   } catch (err) {
-    console.error(`[googleCalendar] updateCalendarEvent error for user ${userId}:`, err.message);
-    throw err;
+    await handleGoogleApiError(userId, 'update', err);
   }
 }
 
@@ -316,7 +334,7 @@ export async function updateCalendarEvent(userId, {
  * @param {string|Date} params.startDateTime
  * @param {string|Date} params.endDateTime
  * @param {string} [params.timezone='America/Bogota']
- * @returns {Promise<Array<object>>} Conflicting events (empty array if none, null if not connected)
+ * @returns {Promise<Array<object>>} Conflicting events (empty array if none or unavailable)
  */
 export async function findConflictingEvents(userId, {
   startDateTime,
@@ -347,7 +365,11 @@ export async function findConflictingEvents(userId, {
       end: ev.end?.dateTime || ev.end?.date,
     }));
   } catch (err) {
-    console.warn(`[googleCalendar] findConflictingEvents error for user ${userId}:`, err.message);
+    if (isGoogleAuthError(err)) {
+      await clearInvalidGoogleIntegration(userId, 'calendar-conflict-check');
+    } else {
+      console.warn(`[googleCalendar] findConflictingEvents warning for user ${userId}:`, err.message);
+    }
     return [];
   }
 }
@@ -372,6 +394,9 @@ export async function deleteCalendarEvent(userId, eventId) {
     console.log(`[googleCalendar] Deleted event ${eventId} for user ${userId}`);
     return true;
   } catch (err) {
+    if (isGoogleAuthError(err)) {
+      await clearInvalidGoogleIntegration(userId, 'calendar-delete');
+    }
     console.warn(`[googleCalendar] deleteCalendarEvent warning (${eventId}):`, err.message);
     return false;
   }

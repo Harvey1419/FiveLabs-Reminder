@@ -5,11 +5,39 @@ import { generateDeterministicCalendarEventId, listCalendarEvents, createCalenda
 import { normalizeCalendarEvent, formatCalendarEventLine, executeCalendarTool } from '../../../src/agent/tools/calendar.js';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 import { getAgentToolDefinitions } from '../../../src/agent/contracts/tool-contracts.js';
+import { getGoogleRedirectUri, hasUsableGoogleCredentials, isGoogleAuthError } from '../../../src/integrations/google/auth.js';
+import { formatUnifiedAgendaCard } from '../../../src/features/agenda/service.js';
+import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
 import * as dbIntegrations from '../../../src/infrastructure/database/integrations.js';
 
 describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
 
   describe('A. CONNECTION STATES', () => {
+    it('treats expired access-only credentials as disconnected but keeps refreshable credentials eligible', () => {
+      const expired = new Date(Date.now() - 60_000).toISOString();
+      expect(hasUsableGoogleCredentials({ access_token: 'old', token_expiry: expired })).toBe(false);
+      expect(hasUsableGoogleCredentials({ access_token: 'old', refresh_token: 'refresh', token_expiry: expired })).toBe(true);
+      expect(hasUsableGoogleCredentials(null)).toBe(false);
+    });
+
+    it('distinguishes credential failures from generic Google 403 service or permission errors', () => {
+      expect(isGoogleAuthError({ response: { status: 401, data: { error: 'invalid_token' } } })).toBe(true);
+      expect(isGoogleAuthError({ response: { status: 400, data: { error: 'unauthorized_client' } } })).toBe(true);
+      expect(isGoogleAuthError({ response: { status: 403, data: { error: { message: 'Quota exceeded' } } } })).toBe(false);
+    });
+
+    it('falls back to the canonical callback when GOOGLE_REDIRECT_URI contains a malformed path', () => {
+      const previousRedirect = process.env.GOOGLE_REDIRECT_URI;
+      const previousBase = process.env.APP_BASE_URL;
+      process.env.APP_BASE_URL = 'https://hermes.example.test';
+      process.env.GOOGLE_REDIRECT_URI = 'https://hermes.example.test/auth/google/callback,';
+      expect(getGoogleRedirectUri()).toBe('https://hermes.example.test/auth/google/callback');
+      if (previousRedirect === undefined) delete process.env.GOOGLE_REDIRECT_URI;
+      else process.env.GOOGLE_REDIRECT_URI = previousRedirect;
+      if (previousBase === undefined) delete process.env.APP_BASE_URL;
+      else process.env.APP_BASE_URL = previousBase;
+    });
+
     it('T01: CONNECTED with events returns success=true and formatted events', () => {
       const mockEvent = {
         id: 'evt_101',
@@ -239,6 +267,28 @@ describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
       expect(kindDescription).toContain('calendar_* means Google Calendar only');
       expect(kindDescription).toContain('agenda_read is one time-bounded cross-domain read');
       expect(kindDescription).toContain('task_list is the only operation for pending tasks');
+      expect(kindDescription).toContain('brief contextual acceptance inherits only');
+      expect(kindDescription).toContain('subscription_link requires an explicit Hermes Pro/payment request');
+    });
+
+    it('renders invalid Google auth as reconnection, not as a temporary outage', () => {
+      const agendaCard = formatUnifiedAgendaCard({
+        calendar: { state: 'AUTH_REQUIRED', events: [] },
+        reminders: [{ content: 'Llamar', localTime: '9:00 a. m.' }],
+        tasks: [],
+        scope: 'today',
+        language: 'es',
+      });
+      expect(agendaCard).toContain('Google Calendar necesita conexión');
+      expect(agendaCard).not.toContain('no disponible temporalmente');
+
+      const briefing = formatMorningBriefingMessage({
+        overview: { timedRemindersToday: [{ content: 'Llamar', localTime: '9:00 a. m.' }] },
+        calendar: { state: 'AUTH_REQUIRED', events: [] },
+        timezone: 'America/Bogota',
+      });
+      expect(briefing).toContain('Necesita conexión');
+      expect(briefing).not.toContain('temporalmente');
     });
   });
 

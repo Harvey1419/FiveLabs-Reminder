@@ -1,4 +1,5 @@
 import { supabase, getUserIntegration } from '../../infrastructure/database/index.js';
+import { hasUsableGoogleCredentials, isGoogleAuthError } from '../../integrations/google/auth.js';
 import {
   resolveCalendarTemporalScope,
   formatLocalDateTime,
@@ -49,7 +50,7 @@ export async function getUnifiedAgenda({
     (async () => {
       if (!userId) return { state: 'DISCONNECTED', events: [] };
       const integration = await getUserIntegration(userId, 'google');
-      if (!integration || !integration.access_token) {
+      if (!hasUsableGoogleCredentials(integration)) {
         return { state: 'DISCONNECTED', events: [] };
       }
       try {
@@ -60,7 +61,7 @@ export async function getUnifiedAgenda({
           maxResults: 50,
           q: query || undefined,
         });
-        const events = (rawEvents || []).map(ev => {
+        const events = rawEvents.map(ev => {
           const norm = normalizeCalendarEvent(ev, tz);
           return {
             ...norm,
@@ -72,7 +73,11 @@ export async function getUnifiedAgenda({
         return { state: 'CONNECTED', events };
       } catch (err) {
         console.error(`[unifiedAgenda] Google Calendar read error for user ${userId}:`, err.message);
-        return { state: 'ERROR', error: err.message, events: [] };
+        return {
+          state: isGoogleAuthError(err) ? 'AUTH_REQUIRED' : 'ERROR',
+          error: err.message,
+          events: [],
+        };
       }
     })(),
 
@@ -231,7 +236,7 @@ export async function getUnifiedAgenda({
  * Build clean, executive Unified Agenda presentation without exposing internal IDs.
  *
  * @param {object} params
- * @param {object} params.calendar - { state: 'CONNECTED'|'DISCONNECTED'|'ERROR', events: [] }
+ * @param {object} params.calendar - { state: 'CONNECTED'|'DISCONNECTED'|'AUTH_REQUIRED'|'ERROR', events: [] }
  * @param {Array} params.reminders
  * @param {Array} params.tasks
  * @param {string} params.scope
@@ -288,6 +293,11 @@ export function formatUnifiedAgendaCard({
         ? `📅 *Your Schedule for ${scopeLabel}:*\n\n(No events found in Reminders or Tasks. Google Calendar is temporarily unavailable).`
         : `📅 *Tu agenda para ${scopeLabel}:*\n\nNo tienes eventos, recordatorios ni tareas programadas.\n_(Nota: Google Calendar presentó una intermitencia temporal)._`;
     }
+    if (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED') {
+      return isEn
+        ? `📅 *Your schedule for ${scopeLabel}:*\n\nYou have no reminders or tasks scheduled.\n\n🔐 Google Calendar needs to be connected to include its events.`
+        : `📅 *Tu agenda para ${scopeLabel}:*\n\nNo tienes recordatorios ni tareas programadas.\n\n🔐 Google Calendar necesita conexión para incluir sus eventos.`;
+    }
     return isEn
       ? `You have no calendar events, reminders, or tasks scheduled for ${scopeLabel}.`
       : `No tienes eventos en Google Calendar, recordatorios ni tareas programadas para ${scopeLabel}.`;
@@ -310,6 +320,10 @@ export function formatUnifiedAgendaCard({
     sections.push(`📅 *CALENDARIO*\n${lines.join('\n')}`);
   } else if (calendar.state === 'ERROR') {
     sections.push(`📅 *CALENDARIO*\n⚠️ _(Google Calendar no disponible temporalmente)_`);
+  } else if (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED') {
+    sections.push(isEn
+      ? '📅 *CALENDAR*\n🔐 _(Google Calendar needs to be connected)_'
+      : '📅 *CALENDARIO*\n🔐 _(Google Calendar necesita conexión)_');
   }
 
   // 2. Reminders Section

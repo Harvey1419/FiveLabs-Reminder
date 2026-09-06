@@ -504,6 +504,28 @@ describe('Hermes product-quality agent contracts', () => {
     });
   });
 
+  it('types an assistant-offered Google reconnection so the router can send the link immediately', async () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-test');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(coverageToolResponse({
+      assistantProposalKind: 'calendar_connect',
+      proposalConfidence: 'high',
+      memoryDisposition: 'skip_operational',
+    }));
+
+    const verdict = await callManifestCoverageVerification({
+      userText: '¿Por qué no funciona Google?',
+      manifest: { operations: [], excludedClauses: [] },
+      assistantResponse: 'Google Calendar necesita reconexión. ¿Quieres que te ayude?',
+    });
+
+    expect(verdict).toMatchObject({
+      verdict: 'complete',
+      assistantProposal: { kind: 'calendar_connect', scope: 'google' },
+      proposalConfidence: 'high',
+      memoryDisposition: 'skip_operational',
+    });
+  });
+
   it('returns one semantic clarification when assistant prose adds a redundant permission gate', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-test');
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(coverageToolResponse({

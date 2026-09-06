@@ -1,5 +1,6 @@
 import { supabase, getDailyOverview, getUserIntegration } from '../infrastructure/database/index.js';
 import { sendReminderConfirmation, isWithin24HourWindow } from '../integrations/whatsapp/kapso-client.js';
+import { hasUsableGoogleCredentials, isGoogleAuthError } from '../integrations/google/auth.js';
 import { resolveCalendarTemporalScope } from '../shared/time.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../integrations/google/calendar.js';
 
@@ -82,7 +83,7 @@ export function formatBriefingDate(dateObj = new Date(), timezone = 'America/Bog
 
 /**
  * Build rich, structured morning briefing message integrating Google Calendar, timed reminders, and open tasks.
- * Preserves canonical Google Calendar states (CONNECTED, DISCONNECTED, ERROR) without failing the briefing.
+ * Preserves canonical Google Calendar states (CONNECTED, DISCONNECTED, AUTH_REQUIRED, ERROR) without failing the briefing.
  *
  * @param {object} params
  * @param {object} params.overview
@@ -111,6 +112,8 @@ export function formatMorningBriefingMessage({
     let errorNote = '';
     if (calendar.state === 'ERROR') {
       errorNote = `\n\n_(Nota: No pudimos consultar tu Google Calendar por una intermitencia temporal)._`;
+    } else if (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED') {
+      errorNote = `\n\n_(Nota: Google Calendar necesita conexión para incluir tus eventos)._`;
     }
     return (
       `🌅 *¡Buenos días!* ☕\n\n` +
@@ -132,6 +135,8 @@ export function formatMorningBriefingMessage({
     sections.push(`📅 *Compromisos en Google Calendar:*\n${lines.join('\n')}`);
   } else if (calendar.state === 'ERROR') {
     sections.push(`📅 *Google Calendar:*\n⚠️ _(No pudimos sincronizar con Google Calendar temporalmente)_`);
+  } else if (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED') {
+    sections.push(`📅 *Google Calendar:*\n🔐 _(Necesita conexión para incluir tus eventos)_`);
   }
 
   // 2. Timed Reminders section (real scheduled alarms for today)
@@ -195,7 +200,7 @@ async function dispatchBriefingForUser(user, todayStr, timezone) {
       (async () => {
         if (!user.id) return { state: 'DISCONNECTED', events: [] };
         const integration = await getUserIntegration(user.id, 'google');
-        if (!integration || !integration.access_token) {
+        if (!hasUsableGoogleCredentials(integration)) {
           return { state: 'DISCONNECTED', events: [] };
         }
         try {
@@ -206,11 +211,15 @@ async function dispatchBriefingForUser(user, todayStr, timezone) {
             timezone,
             maxResults: 20,
           });
-          const events = (rawEvents || []).map(ev => normalizeCalendarEvent(ev, timezone));
+          const events = rawEvents.map(ev => normalizeCalendarEvent(ev, timezone));
           return { state: 'CONNECTED', events };
         } catch (err) {
           console.error(`[morningBriefing] calendar read error for user ${user.id}:`, err.message);
-          return { state: 'ERROR', error: err.message, events: [] };
+          return {
+            state: isGoogleAuthError(err) ? 'AUTH_REQUIRED' : 'ERROR',
+            error: err.message,
+            events: [],
+          };
         }
       })(),
     ]);

@@ -32,7 +32,12 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
   createPendingSubscription: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('../../../src/integrations/mercado-pago/client.js', () => ({ getOrCreateCanonicalPlan: vi.fn() }));
-vi.mock('../../../src/integrations/google/auth.js', () => ({ getGoogleConnectUrl: vi.fn(() => 'https://example.test/google') }));
+vi.mock('../../../src/integrations/google/auth.js', () => ({
+  getGoogleConnectUrl: vi.fn(() => 'https://example.test/google'),
+  hasUsableGoogleCredentials: vi.fn((integration) => Boolean(
+    integration && (integration.access_token || integration.refresh_token),
+  )),
+}));
 
 const {
   callChatCompletion,
@@ -239,6 +244,89 @@ describe('native router orchestration', () => {
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(response.confirmation).toContain('no puedo enseñar programación');
     expect(response.confirmation).toContain('*Recordatorio creado*');
+  });
+
+  it('repairs a cross-domain subscription link when a short reply accepts Google reconnection', async () => {
+    const history = [
+      { role: 'user', content: '¿Por qué no funciona Google?' },
+      { role: 'assistant', content: 'Google Calendar necesita reconexión. ¿Quieres que te ayude a reconectar la cuenta?' },
+    ];
+    const modelCall = (id, kind) => ({
+      content: '',
+      tool_calls: [{
+        id,
+        function: {
+          name: 'execute_turn',
+          arguments: JSON.stringify({
+            operations: [{ sequence: 1, kind, sourceQuote: 'Sí' }],
+            excludedClauses: [],
+          }),
+        },
+      }],
+    });
+    callChatCompletion
+      .mockResolvedValueOnce(modelCall('wrong-domain', 'subscription_link'))
+      .mockResolvedValueOnce(modelCall('google-repair', 'calendar_connect'));
+    callManifestCoverageVerification
+      .mockResolvedValueOnce({
+        verdict: 'incomplete',
+        confidence: 'high',
+        manifestRequirement: 'operations',
+        missingQuote: 'Sí',
+        feedback: 'The reply accepts the immediately preceding Google Calendar reconnection offer; use calendar_connect, not subscription_link.',
+      })
+      .mockResolvedValueOnce({ verdict: 'complete', confidence: 'high', manifestRequirement: 'operations' });
+    executeTool.mockResolvedValueOnce({
+      success: true,
+      action: 'google_auth_link_generated',
+      formattedCard: '📅 Reconecta tu Google Calendar.',
+      ctaUrl: 'https://example.test/google',
+      ctaHeader: '📅 Google Calendar',
+      ctaButtonText: 'Conectar',
+    });
+
+    const response = await routeMessage('Sí', user, history);
+
+    expect(callChatCompletion).toHaveBeenCalledTimes(2);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_google_calendar',
+      params: { action: 'get_connect_link' },
+    }));
+    expect(response.intent).toBe('calendar');
+    expect(response.ctaUrl).toBe('https://example.test/google');
+    expect(response.confirmation).not.toContain('Reminder Pro');
+  });
+
+  it('turns a model-offered Google reconnection into the real link in the same turn', async () => {
+    callChatCompletion.mockResolvedValueOnce({
+      content: 'Google Calendar necesita reconexión. ¿Quieres que te ayude a reconectarlo?',
+      tool_calls: [],
+    });
+    callManifestCoverageVerification.mockResolvedValueOnce({
+      verdict: 'complete',
+      confidence: 'high',
+      manifestRequirement: 'none',
+      assistantProposal: { kind: 'calendar_connect', scope: 'google' },
+      proposalConfidence: 'high',
+      memoryDisposition: 'skip_operational',
+    });
+    executeTool.mockResolvedValueOnce({
+      success: true,
+      action: 'google_auth_link_generated',
+      formattedCard: '📅 Reconecta tu Google Calendar.',
+      ctaUrl: 'https://example.test/google',
+      ctaHeader: '📅 Google Calendar',
+      ctaButtonText: 'Conectar',
+    });
+
+    const response = await routeMessage('¿Por qué no funciona Google?', user);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_google_calendar',
+      params: { action: 'get_connect_link' },
+    }));
+    expect(response.ctaUrl).toBe('https://example.test/google');
+    expect(response.ctaButtonText).toBe('Conectar');
   });
 
   it('validates a reminder follow-up against the unfinished recent conversation', async () => {

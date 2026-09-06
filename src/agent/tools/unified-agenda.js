@@ -1,4 +1,5 @@
 import { getUnifiedAgenda } from '../../features/agenda/service.js';
+import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 
 /**
  * Execute unified agenda tool.
@@ -35,10 +36,18 @@ export async function executeUnifiedAgendaTool({
       language,
     });
 
+    const needsGoogleAuth = ['AUTH_REQUIRED', 'DISCONNECTED'].includes(agenda.calendar?.state);
+    const authUrl = needsGoogleAuth && userId
+      ? getGoogleConnectUrl({ userId, phoneNumber })
+      : null;
+
     return {
       success: true,
       action: 'unified_agenda_listed',
       data: agenda,
+      ctaUrl: authUrl,
+      ctaHeader: authUrl ? '📅 Google Calendar' : null,
+      ctaButtonText: authUrl ? (language === 'en' ? 'Connect' : 'Conectar') : null,
       rawSummary: agenda.formattedCard,
       formattedCard: agenda.formattedCard,
       confirmation: agenda.formattedCard,

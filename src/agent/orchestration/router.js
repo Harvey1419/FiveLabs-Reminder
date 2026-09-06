@@ -459,13 +459,20 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
         if (
           coverage?.verdict === 'complete'
           && coverage.proposalConfidence === 'high'
-          && coverage.assistantProposal?.kind === 'reminder_cancel'
-          && ['elapsed', 'all'].includes(coverage.assistantProposal.scope)
+          && (
+            (coverage.assistantProposal?.kind === 'reminder_cancel'
+              && ['elapsed', 'all'].includes(coverage.assistantProposal.scope))
+            || coverage.assistantProposal?.kind === 'calendar_connect'
+          )
         ) {
-          const params = { action: 'cancel', scope: coverage.assistantProposal.scope };
+          const isCalendarConnect = coverage.assistantProposal.kind === 'calendar_connect';
+          const toolName = isCalendarConnect ? 'manage_google_calendar' : 'manage_reminder';
+          const params = isCalendarConnect
+            ? { action: 'get_connect_link' }
+            : { action: 'cancel', scope: coverage.assistantProposal.scope };
           const toolStartMs = Date.now();
           const result = await executeTool({
-            toolName: 'manage_reminder', params, user, isPro, language,
+            toolName, params, user, isPro, language,
             userMessage: trustedMessageText || messageText,
             correlationId: options?.correlationId,
             referenceTime: requestReferenceTime,
@@ -473,7 +480,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
           toolElapsedMs += Date.now() - toolStartMs;
           const call = {
             id: `assistant_proposal_${round + 1}`,
-            name: 'manage_reminder',
+            name: toolName,
             arguments: JSON.stringify(params),
           };
           const fact = createExecutionFact({

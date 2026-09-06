@@ -5,6 +5,8 @@ import {
 import {
   getGoogleConnectUrl,
   revokeGoogleIntegration,
+  hasUsableGoogleCredentials,
+  isGoogleAuthError,
 } from '../../integrations/google/auth.js';
 import {
   listCalendarEvents,
@@ -94,21 +96,59 @@ export async function executeCalendarTool({ action, params = {}, user, language 
   const phoneNumber = user?.phone_number;
   const tz = user?.timezone || DEFAULT_TIMEZONE;
   const integration = await getUserIntegration(userId, 'google');
-  const isConnected = Boolean(integration && (integration.access_token || integration.refresh_token));
+  const isConnected = hasUsableGoogleCredentials(integration);
+
+  const buildGoogleReauthSummary = (lang) => {
+    const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
+    const summary = lang === 'en'
+      ? `Your Google Calendar connection needs re-authentication. Reconnect here: ${authUrl}`
+      : `Tu conexión con Google Calendar necesita reconexión. Entra aquí para validarla: ${authUrl}`;
+    return {
+      summary,
+      ctaUrl: authUrl,
+      authUrl,
+      action: 'google_not_connected',
+      errorCode: 'AUTH_REQUIRED',
+    };
+  };
 
   switch (action) {
     case 'get_connect_link':
     case 'connect': {
       if (isConnected) {
-        const email = integration.account_email ? ` (${integration.account_email})` : '';
-        const summary = `Tu Google Calendar ya está conectado${email}. Si deseas desconectarlo o cambiar de cuenta, solo dímelo.`;
-        return {
-          success: true,
-          action: 'already_connected',
-          data: { email: integration.account_email },
-          rawSummary: summary,
-          formattedCard: summary,
-        };
+        try {
+          // Token presence is not proof of a live connection: revoked refresh
+          // tokens remain persisted until Google is contacted. An explicit
+          // connect request is rare and is the right moment for a live probe.
+          await listCalendarEvents(userId, { timezone: tz, maxResults: 1 });
+          const email = integration.account_email ? ` (${integration.account_email})` : '';
+          const summary = language === 'en'
+            ? `Your Google Calendar is already connected${email}. Tell me if you want to disconnect it or switch accounts.`
+            : `Tu Google Calendar ya está conectado${email}. Si deseas desconectarlo o cambiar de cuenta, solo dímelo.`;
+          return {
+            success: true,
+            action: 'already_connected',
+            data: { email: integration.account_email },
+            rawSummary: summary,
+            formattedCard: summary,
+          };
+        } catch (err) {
+          if (!isGoogleAuthError(err)) {
+            const summary = language === 'en'
+              ? 'I could not verify your Google Calendar connection right now because Google is temporarily unavailable.'
+              : 'No pude verificar tu conexión con Google Calendar en este momento por una intermitencia de Google.';
+            return {
+              success: false,
+              action: 'google_api_error',
+              errorCode: 'SERVICE_UNAVAILABLE',
+              error: summary,
+              rawSummary: summary,
+              formattedCard: `⚠️ ${summary}`,
+            };
+          }
+          // The Calendar integration removes invalid credentials. Continue
+          // below and issue the correct reconnection URL in this same turn.
+        }
       }
 
       const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
@@ -184,6 +224,21 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       } catch (err) {
         // 2. STATE ERROR / UNAVAILABLE: Distinct error reporting
         console.error(`[calendarTools] Google API error for user ${userId}:`, err.message);
+
+        if (isGoogleAuthError(err)) {
+          const reconnect = buildGoogleReauthSummary(language);
+          return {
+            success: false,
+            action: reconnect.action,
+            errorCode: reconnect.errorCode,
+            data: { auth_url: reconnect.authUrl, authUrl: reconnect.authUrl },
+            ctaUrl: reconnect.ctaUrl,
+            error: reconnect.summary,
+            rawSummary: reconnect.summary,
+            formattedCard: `⚠️ ${reconnect.summary}`,
+          };
+        }
+
         const errorMsg = language === 'en'
           ? 'I could not access your Google Calendar at this moment due to a service error.'
           : 'No pude consultar tu Google Calendar en este momento debido a una intermitencia con el servicio de Google.';
@@ -321,6 +376,19 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         });
       } catch (err) {
         console.error(`[calendarTools] Failed to create Google event for user ${userId}:`, err.message);
+        if (isGoogleAuthError(err)) {
+          const reconnect = buildGoogleReauthSummary(language);
+          return {
+            success: false,
+            action: reconnect.action,
+            errorCode: reconnect.errorCode,
+            data: { auth_url: reconnect.authUrl, authUrl: reconnect.authUrl },
+            ctaUrl: reconnect.ctaUrl,
+            error: reconnect.summary,
+            rawSummary: reconnect.summary,
+            formattedCard: `⚠️ ${reconnect.summary}`,
+          };
+        }
         const errorMsg = 'No pude crear el evento en tu Google Calendar debido a una intermitencia con Google.';
         return {
           success: false,
@@ -524,6 +592,20 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           formattedCard: summary,
         };
       } catch (err) {
+        if (isGoogleAuthError(err)) {
+          const reconnect = buildGoogleReauthSummary(language);
+          return {
+            success: false,
+            action: reconnect.action,
+            errorCode: reconnect.errorCode,
+            data: { auth_url: reconnect.authUrl, authUrl: reconnect.authUrl },
+            ctaUrl: reconnect.ctaUrl,
+            error: reconnect.summary,
+            rawSummary: reconnect.summary,
+            formattedCard: `⚠️ ${reconnect.summary}`,
+            confirmation: reconnect.summary,
+          };
+        }
         return {
           success: false,
           action: 'google_api_error',
@@ -633,6 +715,24 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       const deleted = await deleteCalendarEvent(userId, eventId);
+      const refreshedIntegration = await getUserIntegration(userId, 'google');
+      const isStale = hasUsableGoogleCredentials(refreshedIntegration) === false && !deleted;
+
+      if (isStale) {
+        const reconnect = buildGoogleReauthSummary(language);
+        return {
+          success: false,
+          action: reconnect.action,
+          errorCode: reconnect.errorCode,
+          data: { auth_url: reconnect.authUrl, authUrl: reconnect.authUrl },
+          ctaUrl: reconnect.ctaUrl,
+          error: reconnect.summary,
+          rawSummary: reconnect.summary,
+          formattedCard: `⚠️ ${reconnect.summary}`,
+          confirmation: reconnect.summary,
+        };
+      }
+
       const deletedItemSummary = resolvedRef?.summary || null;
       const summary = deleted
         ? (deletedItemSummary

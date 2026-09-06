@@ -8,6 +8,105 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
+let warnedInvalidRedirectUri = false;
+
+export function getGoogleRedirectUri() {
+  const appBaseUrl = (process.env.APP_BASE_URL || 'https://hermes.templelabs.co').replace(/\/$/, '');
+  const canonicalRedirect = `${appBaseUrl}/auth/google/callback`;
+  const configuredRedirect = String(process.env.GOOGLE_REDIRECT_URI || '').trim();
+  if (!configuredRedirect) return canonicalRedirect;
+
+  try {
+    const parsed = new URL(configuredRedirect);
+    const hasExpectedCallbackPath = parsed.pathname.replace(/\/$/, '').endsWith('/auth/google/callback');
+    if (['https:', 'http:'].includes(parsed.protocol) && hasExpectedCallbackPath && !parsed.search && !parsed.hash) {
+      return parsed.toString().replace(/\/$/, '');
+    }
+  } catch {
+    // Fall through to the canonical application callback.
+  }
+
+  if (!warnedInvalidRedirectUri) {
+    console.warn('[googleAuth] GOOGLE_REDIRECT_URI is invalid for the Google callback route; using APP_BASE_URL callback.');
+    warnedInvalidRedirectUri = true;
+  }
+  return canonicalRedirect;
+}
+
+function isExpiredToken(tokenExpiry) {
+  if (!tokenExpiry) return false;
+  const expiry = new Date(tokenExpiry).getTime();
+  if (Number.isNaN(expiry)) return false;
+  // An access-token-only integration cannot recover through refresh. Treat a
+  // token near expiry as unusable instead of presenting a connection that can
+  // no longer complete the next Google request.
+  return expiry <= (Date.now() + 60_000);
+}
+
+export function isGoogleAuthError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const errorCode = String(error?.code || error?.status || error?.response?.status || '');
+  const responseData = error?.response?.data;
+  let responseText = '';
+  try {
+    responseText = typeof responseData === 'string'
+      ? responseData.toLowerCase()
+      : JSON.stringify(responseData || {}).toLowerCase();
+  } catch {
+    responseText = '';
+  }
+
+  if (errorCode === '401' || error?.code === 'GOOGLE_AUTH_REQUIRED') return true;
+
+  const combined = [message, responseText].join(' ');
+  const knownAuthFailure = combined.includes('unauthorized_client')
+    || combined.includes('invalid_client')
+    || combined.includes('invalid_grant')
+    || combined.includes('invalid_token')
+    || combined.includes('token has expired')
+    || combined.includes('invalid credentials')
+    || combined.includes('could not refresh access token')
+    || combined.includes('credentials have expired')
+    || combined.includes('access token has expired')
+    || combined.includes('not found: refresh token')
+    || combined.includes('autherror')
+    || combined.includes('insufficient authentication scopes');
+
+  // A generic 403 can be quota, API policy, or resource permissions. Only
+  // clear credentials when its payload specifically identifies auth failure.
+  return knownAuthFailure;
+}
+
+export function hasUsableGoogleCredentials(integration) {
+  if (!integration) return false;
+
+  const hasAnyToken = Boolean(integration.access_token || integration.refresh_token);
+  if (!hasAnyToken) return false;
+
+  // If we only have an access token and it is expired, do not consider this
+  // a live connection. Refresh token can usually recover a fresh access token.
+  if (integration.access_token && !integration.refresh_token && isExpiredToken(integration.token_expiry)) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function clearInvalidGoogleIntegration(userId, context = 'google_auth') {
+  if (!userId) return false;
+
+  try {
+    const removed = await deleteUserIntegration(userId, 'google');
+    if (removed) {
+      console.log(`[googleAuth] Removed invalid Google integration for user ${userId} (${context}).`);
+    }
+    return removed;
+  } catch (cleanupErr) {
+    console.warn('[googleAuth] failed to clear invalid Google integration:', cleanupErr.message);
+    return false;
+  }
+}
+
 /**
  * Get configured OAuth2 client instance.
  *
@@ -17,10 +116,7 @@ const GOOGLE_SCOPES = [
 export function createOAuth2Client(redirectUri = null) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const defaultRedirect = process.env.GOOGLE_REDIRECT_URI ||
-    (process.env.APP_BASE_URL
-      ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/auth/google/callback`
-      : 'https://hermes.templelabs.co/auth/google/callback');
+  const defaultRedirect = getGoogleRedirectUri();
 
   if (!clientId || !clientSecret) {
     throw new Error('Google OAuth credentials not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)');
@@ -124,7 +220,10 @@ export async function getAuthenticatedGoogleClient(userId) {
   if (!userId) return null;
 
   const integration = await getUserIntegration(userId, 'google');
-  if (!integration || (!integration.access_token && !integration.refresh_token)) {
+  if (!hasUsableGoogleCredentials(integration)) {
+    if (integration && integration.access_token && !integration.refresh_token && isExpiredToken(integration.token_expiry)) {
+      await clearInvalidGoogleIntegration(userId, 'expired-access-token');
+    }
     return null;
   }
 
