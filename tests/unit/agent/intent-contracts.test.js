@@ -7,6 +7,10 @@ describe('direct TurnIntent contract', () => {
     expect(normalizeIntentAction('memory', 'recall')).toBe('search');
     expect(normalizeIntentAction('task', 'done')).toBe('complete');
     expect(normalizeIntentAction('agenda', 'show')).toBe('read');
+    expect(normalizeIntentAction('reminder', 'rename')).toBe('update');
+    expect(normalizeIntentAction('reminder', 'edit')).toBe('update');
+    expect(normalizeIntentAction('task', 'change')).toBe('update');
+    expect(normalizeIntentAction('calendar', 'reschedule')).toBe('update');
   });
 
   it('accepts a small semantic action list', () => {
@@ -21,6 +25,19 @@ describe('direct TurnIntent contract', () => {
       expect.objectContaining({ domain: 'agenda', action: 'read', scope: 'all_pending' }),
       expect.objectContaining({ domain: 'task', action: 'complete', target: 'la segunda' }),
     ]);
+  });
+
+  it('accepts a natural reminder rename without exposing storage fields to the model', () => {
+    const result = validateTurnIntent({
+      actions: [{ domain: 'reminder', action: 'rename', target: 'Test Update', newName: 'cita en cerámica Italia' }],
+    });
+    expect(result.valid).toBe(true);
+    expect(result.intent.actions[0]).toMatchObject({
+      domain: 'reminder',
+      action: 'update',
+      target: 'Test Update',
+      newName: 'cita en cerámica Italia',
+    });
   });
 
   it('keeps internal orchestration fields out of the model-facing contract', () => {
