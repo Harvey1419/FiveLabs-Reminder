@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Hermes TempleLabs — AI-powered WhatsApp executive personal assistant and second brain",
   "main": "src/app/server.js",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "start": "node src/app/server.js",
     "dev": "node --watch src/app/server.js",
