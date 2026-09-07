@@ -23,14 +23,17 @@ const ACTION_ALIASES = Object.freeze({
   reminder: Object.freeze({
     add: 'create', set: 'create', get: 'list', read: 'list', show: 'list', search: 'list',
     remove: 'cancel', delete: 'cancel', dismiss: 'acknowledge', done: 'acknowledge', complete: 'acknowledge',
+    rename: 'update', edit: 'update', change: 'update', modify: 'update', reschedule: 'update', move: 'update',
   }),
   task: Object.freeze({
     add: 'create', get: 'list', read: 'list', show: 'list', search: 'list', done: 'complete', finish: 'complete',
-    remove: 'delete', cancel: 'delete',
+    remove: 'delete', cancel: 'delete', rename: 'update', edit: 'update', change: 'update', modify: 'update',
+    reschedule: 'update', move: 'update',
   }),
   entity: Object.freeze({ get: 'list', read: 'list', show: 'list', remove: 'delete' }),
   calendar: Object.freeze({
     add: 'create', get: 'list', read: 'list', show: 'list', find: 'search', remove: 'delete',
+    rename: 'update', edit: 'update', change: 'update', modify: 'update', reschedule: 'update', move: 'update',
   }),
   memory: Object.freeze({
     read: 'search', get: 'search', recall: 'search', retrieve: 'search', remember: 'search', find: 'search',
@@ -77,7 +80,7 @@ const actionSchema = {
     description: { type: 'string' },
     entityName: { type: 'string' },
     oldName: { type: 'string' },
-    newName: { type: 'string' },
+    newName: { type: 'string', description: 'New human-facing name/title when renaming an existing reminder, task, calendar event or entity.' },
     sourceName: { type: 'string' },
     category: {
       type: 'string',
@@ -135,6 +138,7 @@ export const EXECUTE_TURN_DESCRIPTION = `Express only the current user's actiona
 Think about the user's goal first. Do not produce backend IDs, sequence numbers, manifests, sourceQuote fields, tool names or protocol vocabulary.
 For a general cross-domain question such as “qué tengo hoy”, “qué tenemos pendiente” or “cómo está mi agenda”, use domain=agenda action=read. If no time range is stated for a general pending query, omit scope; Node will use all_pending. If a specific period is stated, set its semantic scope.
 If the user explicitly names only reminders, tasks or Google Calendar, use that domain instead of agenda.
+For edits to an existing reminder, task or calendar event, use action=update and keep the existing item in target. For a pure rename, place only the requested new human-facing title in newName; Node maps it to the domain field. For time changes, keep the temporal delta in schedule. Do not repeat unchanged fields.
 A personal fact already present in supplied memories/profile is answered directly in prose, not with a memory action. A plain durable personal statement is also prose + background learning. Use memory.save only when the user explicitly asks to remember/store something now; use memory.search only when supplied memory context is insufficient.
 Use target only for an existing item. Keep time meaning in schedule; Node resolves dates/timezones. Put an advance notice on the same reminder/event action via advanceMinutes whenever possible.
 For mixed messages, excluded contains only the exact clauses that must not execute. Do not call this tool for ordinary conversation, emotional support, acknowledgements or conversation closes.`;
