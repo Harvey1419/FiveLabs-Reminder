@@ -51,6 +51,51 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[2].title).toBe('Cita odontológica');
   });
 
+  it('anchors an elapsed daily reminder clock at the next future occurrence', () => {
+    const eveningContext = {
+      user,
+      referenceTime: new Date('2026-09-07T23:30:00.000Z'), // 6:30 PM Bogota
+      timezone: 'America/Bogota',
+    };
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'Hacer Duolingo',
+        recurrence: 'todos los días',
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
+      }],
+    }, eveningContext);
+
+    expect(normalized.actions[0].recurrence).toBe('daily');
+    expect(normalized.actions[0].schedule).toMatchObject({
+      kind: 'relative_day_time',
+      dayOffset: 1,
+      hour: 9,
+      minute: 0,
+    });
+  });
+
+  it('keeps a future daily reminder clock on the current local day', () => {
+    const morningContext = {
+      user,
+      referenceTime: new Date('2026-09-07T12:00:00.000Z'), // 7:00 AM Bogota
+      timezone: 'America/Bogota',
+    };
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'Hacer Duolingo',
+        recurrence: 'cada día',
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
+      }],
+    }, morningContext);
+
+    expect(normalized.actions[0].recurrence).toBe('daily');
+    expect(normalized.actions[0].schedule.kind).toBe('local_time');
+  });
+
   it('turns a partial calendar update into a patch that preserves the referenced event title/time', () => {
     saveWorkingMemory(user, {
       source: 'calendar',
