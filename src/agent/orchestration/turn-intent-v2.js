@@ -26,6 +26,35 @@ const DOMAIN_ACTION_TO_KIND = Object.freeze({
   admin: Object.freeze({ metrics: 'admin_metrics' }),
 });
 
+// Models often choose a semantically correct verb that differs from our backend
+// vocabulary (read/get/recall instead of search/list, remove instead of delete,
+// done instead of complete). Normalize those variations here. The agent should
+// fail only when the user's intended capability is unsupported, not because it
+// picked a harmless synonym.
+const ACTION_ALIASES = Object.freeze({
+  agenda: Object.freeze({ get: 'read', show: 'read', list: 'read', view: 'read' }),
+  reminder: Object.freeze({
+    add: 'create', set: 'create', get: 'list', read: 'list', show: 'list', search: 'list',
+    remove: 'cancel', delete: 'cancel', dismiss: 'acknowledge', done: 'acknowledge',
+  }),
+  task: Object.freeze({
+    add: 'create', get: 'list', read: 'list', show: 'list', search: 'list', done: 'complete',
+    finish: 'complete', remove: 'delete', cancel: 'delete',
+  }),
+  entity: Object.freeze({ get: 'list', read: 'list', show: 'list', remove: 'delete' }),
+  calendar: Object.freeze({
+    add: 'create', get: 'list', read: 'list', show: 'list', find: 'search', remove: 'delete',
+  }),
+  memory: Object.freeze({
+    read: 'search', get: 'search', recall: 'search', retrieve: 'search', remember: 'search', find: 'search',
+    show: 'list', all: 'list', remove: 'forget', delete: 'forget',
+  }),
+  subscription: Object.freeze({ get: 'status', read: 'status', checkout: 'link', remove: 'cancel' }),
+  pending: Object.freeze({ accept: 'execute', confirm: 'execute', reject: 'discard', cancel: 'discard', modify: 'revise', update: 'revise' }),
+  clarification: Object.freeze({ ask: 'request' }),
+  admin: Object.freeze({ read: 'metrics', get: 'metrics' }),
+});
+
 const typedSchedule = {
   type: 'object',
   additionalProperties: false,
@@ -63,7 +92,7 @@ export const TURN_INTENT_V2_SCHEMA = Object.freeze({
         additionalProperties: false,
         properties: {
           domain: { type: 'string', enum: DOMAINS, description: 'Choose by user meaning, not keywords. admin is available only to verified administrators.' },
-          action: { type: 'string', description: 'Plain operation inside the selected domain.' },
+          action: { type: 'string', description: 'Plain semantic operation. Natural synonyms are accepted and normalized by Node.' },
           target: { type: 'string', description: 'Human reference to an existing item, e.g. its name, “la segunda”, or “2”. Never an internal ID.' },
           content: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' },
           entityName: { type: 'string' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
@@ -112,6 +141,7 @@ export const TURN_INTENT_V2_SCHEMA = Object.freeze({
 export const EXECUTE_TURN_V2_DESCRIPTION = `Execute only the current user's in-scope action delta as a small semantic action list.
 Think about the user's goal first. Do not encode sequence numbers, backend operation kinds, contextRef objects or IDs.
 Copy the current message once into sourceQuote. Use one action per independent goal. Use target only for an existing item the user refers to. Keep temporal meaning in schedule; Node resolves dates/timezones.
+Do not use memory actions merely to answer a personal fact that is already present in the supplied user memories or profile context; answer those directly in prose. Use memory search only when the supplied context is insufficient and persistent recall is actually needed.
 For a mixed message, use excluded only for the exact prohibited, hypothetical, superseded or context-only clause. A wholly out-of-scope turn should be answered naturally without this tool.
 Do not call this tool for ordinary conversation, acknowledgements, emotional support or conversation closes.`;
 
@@ -121,13 +151,25 @@ function copyDefined(source, keys) {
   return result;
 }
 
+function normalizeAction(domain, action) {
+  const normalized = String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (!normalized) return '';
+  if (DOMAIN_ACTION_TO_KIND[domain]?.[normalized]) return normalized;
+  return ACTION_ALIASES[domain]?.[normalized] || normalized;
+}
+
 function resolveKind(domain, action) {
-  return DOMAIN_ACTION_TO_KIND[domain]?.[action] || null;
+  const normalizedAction = normalizeAction(domain, action);
+  return DOMAIN_ACTION_TO_KIND[domain]?.[normalizedAction] || null;
 }
 
 function pendingContextRef(target) {
   const parsed = Number.parseInt(String(target || '1'), 10);
   return { source: 'pending_state', position: Number.isInteger(parsed) && parsed > 0 ? parsed : 1 };
+}
+
+function memoryQueryFromAction(action) {
+  return action.query || action.target || action.content || action.title || null;
 }
 
 /** Convert the small model-facing TurnIntent into the existing validated manifest. */
@@ -144,9 +186,10 @@ export function compileTurnIntentV2(intent, { userMessage = '' } = {}) {
   const operations = [];
   for (let index = 0; index < intent.actions.length; index += 1) {
     const action = intent.actions[index] || {};
+    const normalizedAction = normalizeAction(action.domain, action.action);
     const kind = resolveKind(action.domain, action.action);
     if (!kind) {
-      return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Acción no soportada en TurnIntent v2: ${action.domain}.${action.action}.` };
+      return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Capacidad no soportada en TurnIntent v2: ${action.domain}.${action.action}.` };
     }
 
     const operation = {
@@ -166,6 +209,16 @@ export function compileTurnIntentV2(intent, { userMessage = '' } = {}) {
     if (kind === 'clarification_request') {
       operation.clarificationKind = action.missingFields?.length ? 'reminder_schedule' : 'generic';
     }
+
+    // A memory read/get/recall alias becomes search when the model supplied a
+    // semantic subject. Without a subject, degrade to list rather than failing.
+    if (action.domain === 'memory' && normalizedAction === 'search') {
+      const query = memoryQueryFromAction(action);
+      if (query) operation.query = query;
+      else operation.kind = 'memory_list';
+      delete operation.targetName;
+    }
+
     operations.push(operation);
   }
 
