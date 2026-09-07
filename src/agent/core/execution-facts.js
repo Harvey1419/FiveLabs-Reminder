@@ -15,10 +15,13 @@ function getSafeCard(result, language) {
   );
 }
 
-/**
- * Build the only response-facing representation of a backend execution.
- * Internal IDs and raw database objects are intentionally excluded.
- */
+const MUTATION_ACTIONS = new Set([
+  'created_reminders_batch', 'created_advance_reminder', 'updated_reminder', 'cancelled_reminders',
+  'acknowledged_reminder', 'acknowledged_reminders_batch', 'created_tasks_batch', 'completed_task',
+  'completed_tasks', 'updated_task', 'deleted_task', 'created_entity', 'renamed_entity', 'merged_entities',
+  'deleted_entities', 'deduplicated_entities',
+]);
+
 export function createExecutionFact({ toolName, params, result, callId = null, language = 'es' }) {
   const success = Boolean(result?.success);
   const complete = success && result?.partialSuccess !== true && result?.complete !== false;
@@ -41,33 +44,36 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
 }
 
 /**
- * Compose a concise answer exclusively from validated execution facts.
- *
- * Cards stay backend-owned because they make WhatsApp results easy to scan.
- * What we deliberately avoid is the old ticket-like behavior that appended
- * the same generic follow-up after every successful mutation. A conversational
- * frame is optional and may be empty; the card itself is already a complete
- * response.
+ * Cards remain backend-owned and are the primary WhatsApp presentation.
+ * Modern callers pass an object framing and never receive an automatic generic
+ * closing. A legacy string framing keeps the historical closing only for
+ * backwards compatibility with older internal callers/tests while they migrate.
  */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length === 0) return '';
 
+  const legacyFraming = typeof options?.framing === 'string';
   const framing = options?.framing && typeof options.framing === 'object'
     ? options.framing
     : null;
   const before = typeof framing?.before === 'string' ? sanitizeResponseText(framing.before) : '';
   const after = typeof framing?.after === 'string' ? sanitizeResponseText(framing.after) : '';
-  const frame = (body) => [before, body, after]
+  const frame = (body, legacyFallback = '') => [before, body, after || (legacyFraming ? legacyFallback : '')]
     .filter(Boolean)
     .join('\n\n');
 
   const renderedCards = safeFacts
     .map((fact) => fact.card || fact.summary)
     .filter(Boolean);
+  const allComplete = safeFacts.every((fact) => fact.success && fact.complete);
+  const completedMutation = allComplete && safeFacts.some((fact) => MUTATION_ACTIONS.has(fact.action));
 
   if (safeFacts.length === 1) {
-    return frame(renderedCards[0] || safeFacts[0].summary);
+    const legacyFollowUp = completedMutation
+      ? (language === 'en' ? 'Anything else I can help you with?' : '¿Algo más en lo que pueda ayudarte?')
+      : '';
+    return frame(renderedCards[0] || safeFacts[0].summary, legacyFollowUp);
   }
 
   if (safeFacts.some((fact) => fact.requiresClarification)) {
@@ -77,9 +83,7 @@ export function composeExecutionReply(facts, language = 'es', options = {}) {
   const succeeded = safeFacts.filter((fact) => fact.success);
   const failed = safeFacts.filter((fact) => !fact.success);
 
-  if (failed.length === 0) {
-    return frame(renderedCards.join('\n\n'));
-  }
+  if (failed.length === 0) return frame(renderedCards.join('\n\n'));
 
   const header = succeeded.length > 0
     ? (language === 'en'
