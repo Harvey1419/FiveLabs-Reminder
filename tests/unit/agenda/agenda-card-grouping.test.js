@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatUnifiedAgendaCard } from '../../../src/features/agenda/service.js';
+import { formatCanonicalAgenda } from '../../../src/shared/agenda-presentation.js';
 
 describe('Unified Agenda task hierarchy', () => {
   it('groups tasks under their project instead of repeating project tags', () => {
-    const card = formatUnifiedAgendaCard({
+    const card = formatCanonicalAgenda({
       calendar: { state: 'DISCONNECTED', events: [] },
       reminders: [],
       tasks: [
@@ -13,8 +13,7 @@ describe('Unified Agenda task hierarchy', () => {
       ],
       scope: 'all_pending',
       timezone: 'America/Bogota',
-      language: 'es',
-    });
+    }, { language: 'es', timezone: 'America/Bogota' });
 
     expect(card).toContain('📁 *Reminder*\n• Gestionar mejor los proyectos\n• Mejorar la gestión de memoria');
     expect(card).toContain('📌 *Sin proyecto*\n• Comprar comida');
