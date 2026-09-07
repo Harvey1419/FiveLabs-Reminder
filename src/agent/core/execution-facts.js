@@ -1,4 +1,6 @@
 import { sanitizeResponseText } from './working-memory.js';
+import { TOOL_NAMES } from '../contracts/tool-names.js';
+import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
 
 function getSafeSummary(result, language) {
   const fallback = result?.success
@@ -9,9 +11,30 @@ function getSafeSummary(result, language) {
   );
 }
 
-function getSafeCard(result, language) {
+function getCanonicalCard(toolName, params, result, language) {
+  if (!result?.success) return null;
+
+  if (toolName === TOOL_NAMES.GET_UNIFIED_AGENDA && result?.data) {
+    return formatCanonicalAgenda(result.data, {
+      language,
+      timezone: result.data?.timezone || 'America/Bogota',
+    });
+  }
+
+  if (toolName === TOOL_NAMES.MANAGE_TASK && params?.action === 'list' && result?.data) {
+    return formatCanonicalTaskList(result.data, {
+      language,
+      timezone: result.data?.timezone || 'America/Bogota',
+    });
+  }
+
+  return null;
+}
+
+function getSafeCard(toolName, params, result, language) {
+  const canonical = getCanonicalCard(toolName, params, result, language);
   return sanitizeResponseText(
-    result?.formattedCard || result?.confirmation || result?.rawSummary || getSafeSummary(result, language)
+    canonical || result?.formattedCard || result?.confirmation || result?.rawSummary || getSafeSummary(result, language)
   );
 }
 
@@ -36,7 +59,7 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     errorCode: success ? null : (result?.errorCode || 'TOOL_EXECUTION_ERROR'),
     requiresClarification: Boolean(result?.requiresClarification),
     summary: getSafeSummary(result, language),
-    card: getSafeCard(result, language),
+    card: getSafeCard(toolName, params, result, language),
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
