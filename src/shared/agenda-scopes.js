@@ -66,8 +66,12 @@ const SCOPE_ALIASES = Object.freeze({
 
 const EXPLICIT_TASK_DATE_RE = /^explicit_date@(\d{4}-\d{2}-\d{2})$/;
 
+function rawScopeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function normalizeRawScope(value) {
-  return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return rawScopeText(value).replace(/[\s-]+/g, '_');
 }
 
 /**
@@ -88,9 +92,11 @@ export function normalizeAgendaScope(value, fallback = 'upcoming') {
  * the public intent contract.
  */
 export function normalizeTaskScope(value, fallback = ALL_PENDING_SCOPE) {
-  const raw = normalizeRawScope(value);
-  if (!raw) return fallback;
-  if (EXPLICIT_TASK_DATE_RE.test(raw)) return raw;
+  const literal = rawScopeText(value);
+  if (!literal) return fallback;
+  if (EXPLICIT_TASK_DATE_RE.test(literal)) return literal;
+
+  const raw = normalizeRawScope(literal);
   if (TASK_SCOPE_SET.has(raw)) return raw;
   const aliased = SCOPE_ALIASES[raw];
   return aliased && TASK_SCOPE_SET.has(aliased) ? aliased : fallback;
@@ -118,6 +124,7 @@ export function isAgendaScope(value) {
 }
 
 export function isTaskScope(value) {
-  const raw = normalizeRawScope(value);
-  return TASK_SCOPE_SET.has(raw) || EXPLICIT_TASK_DATE_RE.test(raw);
+  const literal = rawScopeText(value);
+  if (EXPLICIT_TASK_DATE_RE.test(literal)) return true;
+  return TASK_SCOPE_SET.has(normalizeRawScope(literal));
 }
