@@ -25,13 +25,13 @@ function getTaskTime(task, { timezone, language, isMultiDay }) {
 }
 
 /**
- * Canonical WhatsApp presentation for a collection of tasks.
- * The hierarchy is always Project -> tasks; a project name is never rendered
- * as a trailing tag on each task.
+ * Canonical WhatsApp presentation for task collections.
+ * Hierarchy is always Project -> tasks. Identity metadata is never rendered as
+ * a trailing project tag on each individual task.
  */
 export function formatTaskProjectGroups(tasks = [], {
   language = 'es',
-  timezone = 'America/Bogota',
+  timezone = 'UTC',
   isMultiDay = false,
   projectName = null,
 } = {}) {
