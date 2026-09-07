@@ -14,9 +14,14 @@ async function resolveTaskContainer({ userId, entityId = null, entityName = null
     .select('id, name')
     .eq('user_id', userId);
 
-  if (error || !Array.isArray(data)) return { id: null, name: entityName, unresolved: true };
-  const selection = selectEntityCandidate(data, entityName);
-  if (selection.status !== 'RESOLVED') return { id: null, name: entityName, unresolved: true };
+  if (error) throw error;
+  const selection = selectEntityCandidate(data || [], entityName);
+  if (selection.status === 'AMBIGUOUS') {
+    return { id: null, name: entityName, ambiguous: true, candidates: selection.candidates || [] };
+  }
+  if (selection.status !== 'RESOLVED') {
+    return { id: null, name: entityName, unresolved: true };
+  }
   return { id: selection.entity.id, name: selection.entity.name };
 }
 
@@ -42,6 +47,20 @@ export async function getTaskList({
   const tz = timezone || DEFAULT_TIMEZONE;
   const parsedScope = parseTaskScope(scope, 'all_pending');
   const container = await resolveTaskContainer({ userId, entityId, entityName });
+
+  if (container.ambiguous) {
+    return {
+      ambiguous: true,
+      candidates: container.candidates,
+      tasks: [],
+      items: [],
+      entityName: entityName || null,
+      scope: parsedScope.runtimeScope,
+      timezone: tz,
+      locale,
+    };
+  }
+
   if (container.unresolved) {
     return { tasks: [], items: [], entityName: entityName || null, scope: parsedScope.runtimeScope, timezone: tz, locale };
   }
