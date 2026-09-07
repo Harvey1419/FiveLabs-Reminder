@@ -40,6 +40,14 @@ describe('direct TurnIntent contract', () => {
     });
   });
 
+  it('teaches the model that fulfilled reminders are acknowledged, not updated', () => {
+    const [tool] = getIntentToolDefinitions();
+    const description = tool.function.description;
+    expect(description).toContain('action=acknowledge');
+    expect(description).toContain('Completion is not an update');
+    expect(description).toContain('reminder.update only when changing stored reminder fields');
+  });
+
   it('keeps internal orchestration fields out of the model-facing contract', () => {
     const [tool] = getIntentToolDefinitions();
     const actionProps = tool.function.parameters.properties.actions.items.properties;
