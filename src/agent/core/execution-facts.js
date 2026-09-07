@@ -15,13 +15,6 @@ function getSafeCard(result, language) {
   );
 }
 
-const MUTATION_ACTIONS = new Set([
-  'created_reminders_batch', 'created_advance_reminder', 'updated_reminder', 'cancelled_reminders',
-  'acknowledged_reminder', 'acknowledged_reminders_batch', 'created_tasks_batch', 'completed_task',
-  'completed_tasks', 'updated_task', 'deleted_task', 'created_entity', 'renamed_entity', 'merged_entities',
-  'deleted_entities', 'deduplicated_entities',
-]);
-
 /**
  * Build the only response-facing representation of a backend execution.
  * Internal IDs and raw database objects are intentionally excluded.
@@ -49,36 +42,33 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
 
 /**
  * Compose a concise answer exclusively from validated execution facts.
- * This deliberately does not reuse pre-execution model prose.
+ *
+ * Cards stay backend-owned because they make WhatsApp results easy to scan.
+ * What we deliberately avoid is the old ticket-like behavior that appended
+ * the same generic follow-up after every successful mutation. A conversational
+ * frame is optional and may be empty; the card itself is already a complete
+ * response.
  */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length === 0) return '';
+
   const framing = options?.framing && typeof options.framing === 'object'
     ? options.framing
     : null;
   const before = typeof framing?.before === 'string' ? sanitizeResponseText(framing.before) : '';
   const after = typeof framing?.after === 'string' ? sanitizeResponseText(framing.after) : '';
-  const frame = (body, fallbackAfter = '') => [before, body, after || fallbackAfter]
+  const frame = (body) => [before, body, after]
     .filter(Boolean)
     .join('\n\n');
+
   const renderedCards = safeFacts
     .map((fact) => fact.card || fact.summary)
     .filter(Boolean);
-  const allComplete = safeFacts.every((fact) => fact.success && fact.complete);
-  const completedMutation = allComplete && safeFacts.some((fact) => MUTATION_ACTIONS.has(fact.action));
 
-  // Execution presentation is backend-owned for every domain. Model framing
-  // is intentionally ignored because even a short sentence can duplicate the
-  // following card. Successful mutations close warmly after the useful facts.
-  if (completedMutation) {
-    const followUp = language === 'en'
-      ? 'Anything else I can help you with?'
-      : '¿Algo más en lo que pueda ayudarte?';
-    return frame(renderedCards.join('\n\n'), followUp);
+  if (safeFacts.length === 1) {
+    return frame(renderedCards[0] || safeFacts[0].summary);
   }
-
-  if (safeFacts.length === 1) return frame(renderedCards[0] || safeFacts[0].summary);
 
   if (safeFacts.some((fact) => fact.requiresClarification)) {
     return frame(renderedCards.join('\n\n'));
