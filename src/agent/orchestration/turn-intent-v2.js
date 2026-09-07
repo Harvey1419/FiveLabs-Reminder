@@ -26,9 +26,6 @@ const DOMAIN_ACTION_TO_KIND = Object.freeze({
   admin: Object.freeze({ metrics: 'admin_metrics' }),
 });
 
-// Models often choose a semantically correct verb that differs from our backend
-// vocabulary. Normalize those variations here so intent quality is not coupled
-// to exact protocol wording.
 const ACTION_ALIASES = Object.freeze({
   agenda: Object.freeze({ get: 'read', show: 'read', list: 'read', view: 'read' }),
   reminder: Object.freeze({
@@ -44,11 +41,8 @@ const ACTION_ALIASES = Object.freeze({
     add: 'create', get: 'list', read: 'list', show: 'list', find: 'search', remove: 'delete',
   }),
   memory: Object.freeze({
-    // Recall/read family.
     read: 'search', get: 'search', recall: 'search', retrieve: 'search', remember: 'search', find: 'search',
     show: 'list', all: 'list',
-    // Learning/write family. A model may naturally describe the same intent as
-    // add/store/learn/remember_fact rather than our internal verb "save".
     add: 'save', create: 'save', store: 'save', learn: 'save', set: 'save', write: 'save',
     remember_fact: 'save', memorize: 'save', persist: 'save',
     remove: 'forget', delete: 'forget', erase: 'forget',
@@ -145,6 +139,7 @@ export const TURN_INTENT_V2_SCHEMA = Object.freeze({
 export const EXECUTE_TURN_V2_DESCRIPTION = `Execute only the current user's in-scope action delta as a small semantic action list.
 Think about the user's goal first. Do not encode sequence numbers, backend operation kinds, contextRef objects or IDs.
 Copy the current message once into sourceQuote. Use one action per independent goal. Use target only for an existing item the user refers to. Keep temporal meaning in schedule; Node resolves dates/timezones.
+Live-state questions are not ordinary conversation. A cross-domain read of what is pending, scheduled, due, on the agenda, or coming up must use agenda.read. Use scope=all_pending when no time range is stated; preserve explicit scopes such as today, tomorrow, this_week or a supplied date/range. Use reminder/task/calendar reads only when the user explicitly narrows the request to that single domain.
 Do not use memory actions merely to answer a personal fact that is already present in the supplied user memories or profile context; answer those directly in prose.
 A plain personal statement such as a stable fact, preference, employer, residence or relationship normally does NOT require a memory tool: answer naturally and let the background learning pipeline persist it. Use memory.save only when the user explicitly asks to remember/store/save something now. Use memory.search only when supplied context is insufficient and persistent recall is actually needed.
 For a mixed message, use excluded only for the exact prohibited, hypothetical, superseded or context-only clause. A wholly out-of-scope turn should be answered naturally without this tool.
@@ -215,8 +210,12 @@ export function compileTurnIntentV2(intent, { userMessage = '' } = {}) {
       operation.clarificationKind = action.missingFields?.length ? 'reminder_schedule' : 'generic';
     }
 
-    // A memory read/get/recall alias becomes search when the model supplied a
-    // semantic subject. Without a subject, degrade to list rather than failing.
+    // Generic agenda reads converge on current pending state. Temporal queries
+    // carry an explicit scope from Hermes and are left untouched.
+    if (action.domain === 'agenda' && normalizedAction === 'read' && !operation.scope) {
+      operation.scope = 'all_pending';
+    }
+
     if (action.domain === 'memory' && normalizedAction === 'search') {
       const query = memoryQueryFromAction(action);
       if (query) operation.query = query;
@@ -224,8 +223,6 @@ export function compileTurnIntentV2(intent, { userMessage = '' } = {}) {
       delete operation.targetName;
     }
 
-    // Memory write aliases all compile to the same stable memory_save contract.
-    // Prefer content, then a human target/title as a final semantic fallback.
     if (action.domain === 'memory' && normalizedAction === 'save') {
       const content = action.content || action.target || action.title || action.description || null;
       if (content) operation.content = content;
