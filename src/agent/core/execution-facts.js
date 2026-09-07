@@ -11,21 +11,24 @@ function getSafeSummary(result, language) {
   );
 }
 
+function getPresentationContext(result, language) {
+  return {
+    language,
+    timezone: result?.data?.timezone || 'UTC',
+    locale: result?.data?.locale || (language === 'en' ? 'en-US' : 'es-CO'),
+  };
+}
+
 function getCanonicalCard(toolName, params, result, language) {
   if (!result?.success) return null;
+  const presentation = getPresentationContext(result, language);
 
   if (toolName === TOOL_NAMES.GET_UNIFIED_AGENDA && result?.data) {
-    return formatCanonicalAgenda(result.data, {
-      language,
-      timezone: result.data?.timezone || 'America/Bogota',
-    });
+    return formatCanonicalAgenda(result.data, presentation);
   }
 
   if (toolName === TOOL_NAMES.MANAGE_TASK && params?.action === 'list' && result?.data) {
-    return formatCanonicalTaskList(result.data, {
-      language,
-      timezone: result.data?.timezone || 'America/Bogota',
-    });
+    return formatCanonicalTaskList(result.data, presentation);
   }
 
   return null;
@@ -66,12 +69,7 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
   });
 }
 
-/**
- * Cards remain backend-owned and are the primary WhatsApp presentation.
- * Modern callers pass an object framing and never receive an automatic generic
- * closing. A legacy string framing keeps the historical closing only for
- * backwards compatibility with older internal callers/tests while they migrate.
- */
+/** Cards are backend-owned and are the primary WhatsApp presentation. */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length === 0) return '';
