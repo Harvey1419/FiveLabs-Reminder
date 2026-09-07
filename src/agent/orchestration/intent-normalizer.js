@@ -1,6 +1,11 @@
 import { getWorkingMemory, resolveEntityReference } from '../core/working-memory.js';
 import { parseOrdinalReference } from '../../shared/entity-resolution.js';
 import { getLocalDateParts } from '../../shared/time.js';
+import {
+  normalizeAgendaScope,
+  normalizeTaskScope,
+  buildExplicitTaskDateScope,
+} from '../../shared/agenda-scopes.js';
 
 function resolveWorkingItem(user, target, preferredType) {
   const reference = String(target || '').trim();
@@ -18,17 +23,63 @@ function normalizePendingTarget(action, user) {
 }
 
 function normalizeCalendarYear(action, context) {
-  if (action.domain !== 'agenda' || action.schedule?.kind !== 'calendar_date_time') return action;
+  if (action.schedule?.kind !== 'calendar_date_time') return action;
   if (Number.isInteger(action.schedule.year)) return action;
   const parts = getLocalDateParts(context.referenceTime, context.timezone);
   return { ...action, schedule: { ...action.schedule, year: parts.year } };
 }
 
-/**
- * Natural rename/edit requests should not depend on the model knowing each
- * domain's storage field. `newName` is a semantic delta; Node maps it to the
- * concrete mutable field owned by that domain.
- */
+function localDateFromOffset(referenceTime, timezone, dayOffset) {
+  const base = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
+  const shifted = new Date(base.getTime() + Number(dayOffset || 0) * 24 * 60 * 60 * 1000);
+  const parts = getLocalDateParts(shifted, timezone);
+  return [parts.year, parts.month, parts.day]
+    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+    .join('-');
+}
+
+function normalizeReadScope(action, context) {
+  if (action.domain === 'agenda' && action.action === 'read') {
+    if (!action.scope) return action;
+    return { ...action, scope: normalizeAgendaScope(action.scope, 'all_pending') };
+  }
+
+  if (action.domain !== 'task' || action.action !== 'list') return action;
+  if (action.scope) return { ...action, scope: normalizeTaskScope(action.scope, 'all_pending') };
+
+  const schedule = action.schedule;
+  if (!schedule) return { ...action, scope: 'all_pending' };
+
+  if (schedule.kind === 'relative_day_time') {
+    if (schedule.dayOffset === 0) return { ...action, scope: 'today' };
+    if (schedule.dayOffset === 1) return { ...action, scope: 'tomorrow' };
+    if (schedule.dayOffset === 2) return { ...action, scope: 'day_after_tomorrow' };
+    const explicit = buildExplicitTaskDateScope(localDateFromOffset(context.referenceTime, context.timezone, schedule.dayOffset));
+    return explicit ? { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
+  }
+
+  if (schedule.kind === 'weekday_time' && schedule.weekday) {
+    return { ...action, scope: normalizeTaskScope(schedule.weekday, 'upcoming') };
+  }
+
+  if (schedule.kind === 'calendar_date_time') {
+    const year = schedule.year;
+    const month = schedule.month;
+    const day = schedule.day;
+    if (Number.isInteger(year) && Number.isInteger(month) && Number.isInteger(day)) {
+      const localDate = [year, month, day]
+        .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+        .join('-');
+      const explicit = buildExplicitTaskDateScope(localDate);
+      if (explicit) return { ...action, scope: explicit };
+    }
+  }
+
+  if (schedule.kind === 'local_time') return { ...action, scope: 'today' };
+  return { ...action, scope: 'upcoming' };
+}
+
+/** Natural rename/edit requests map semantic newName to the domain field. */
 function normalizeUpdateFields(action) {
   if (action.action !== 'update' || !action.newName) return action;
 
@@ -45,10 +96,8 @@ function normalizeUpdateFields(action) {
 }
 
 /**
- * Calendar updates are patches. The model should describe only the changed
- * fields, while the executor/domain tool still needs a stable start/title for
- * the Google API. Reuse live Working Memory values rather than asking the
- * model to repeat unchanged data or accidentally renaming an ordinal target.
+ * Calendar updates are patches. Reuse live context when it is known, but never
+ * turn an identity reference ("la segunda", an event name, etc.) into content.
  */
 function normalizeCalendarPatch(action, context) {
   if (action.domain !== 'calendar' || action.action !== 'update') return action;
@@ -57,8 +106,8 @@ function normalizeCalendarPatch(action, context) {
   const existingTitle = item?.summary || item?.title || item?.content || item?.raw?.summary || null;
   const normalized = { ...action };
 
-  if (!normalized.title && !normalized.content) {
-    normalized.title = existingTitle || (typeof action.target === 'string' ? action.target : undefined);
+  if (!normalized.title && !normalized.content && existingTitle) {
+    normalized.title = existingTitle;
   }
   if (!normalized.schedule) {
     normalized.schedule = { kind: 'inherit_context' };
@@ -67,8 +116,8 @@ function normalizeCalendarPatch(action, context) {
 }
 
 /**
- * Add only deterministic runtime context that Node already knows. This is not
- * a second intent classifier and never changes the semantic domain/action.
+ * Add deterministic runtime context only. This layer never changes semantic
+ * domain/action and never performs a second language classification.
  */
 export function normalizeTurnIntentForRuntime(intent, context) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
@@ -76,6 +125,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     let action = { ...original };
     action = normalizePendingTarget(action, context.user);
     action = normalizeCalendarYear(action, context);
+    action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);
     action = normalizeCalendarPatch(action, context);
     return action;
