@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest';
+import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
+import { clearWorkingMemory, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
+
+const user = { id: 'user-normalizer', phone_number: '573009999999' };
+const context = {
+  user,
+  referenceTime: new Date('2026-12-31T23:30:00Z'),
+  timezone: 'America/Bogota',
+};
+
+describe('semantic intent runtime normalization', () => {
+  it('resolves “último” against the current pending collection', () => {
+    saveWorkingMemory(user, {
+      source: 'reminder',
+      scope: 'clarification',
+      pendingClarifications: [{ content: 'Uno' }, { content: 'Dos' }, { content: 'Tres' }],
+      items: [],
+    });
+
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{ domain: 'pending', action: 'discard', target: 'el último' }],
+    }, context);
+
+    expect(normalized.actions[0].target).toBe('3');
+    clearWorkingMemory(user);
+  });
+
+  it('fills a missing calendar year from the user-local reference date', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'agenda', action: 'read',
+        schedule: { kind: 'calendar_date_time', month: 12, day: 31, hour: 10, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalized.actions[0].schedule.year).toBe(2026);
+  });
+
+  it('turns a partial calendar update into a patch that preserves the referenced event title/time', () => {
+    saveWorkingMemory(user, {
+      source: 'calendar',
+      scope: 'today',
+      entityType: 'calendar_event',
+      items: [{
+        position: 1,
+        type: 'calendar_event',
+        internalId: 'google-event-1',
+        summary: 'Reunión de equipo',
+        time: '2026-09-08T15:00:00.000Z',
+        raw: { summary: 'Reunión de equipo', startDateTime: '2026-09-08T15:00:00.000Z' },
+      }],
+    });
+
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{ domain: 'calendar', action: 'update', target: 'la primera', description: 'Llevar avances' }],
+    }, context);
+
+    expect(normalized.actions[0]).toMatchObject({
+      title: 'Reunión de equipo',
+      schedule: { kind: 'inherit_context' },
+      description: 'Llevar avances',
+    });
+    clearWorkingMemory(user);
+  });
+});
