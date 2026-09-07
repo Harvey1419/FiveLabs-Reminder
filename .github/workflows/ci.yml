@@ -26,6 +26,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Pin npm
+        run: npm install --global npm@10.8.2
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
