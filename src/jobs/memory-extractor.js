@@ -1,12 +1,9 @@
-import { extractAndSaveMemories } from '../features/memory/service.js';
+import { extractAndSaveMemories, getMemoryEligibleText } from '../features/memory/service.js';
 
 /**
- * Trigger memory extraction in the background (fire-and-forget out of band).
- *
- * Learning and recall are separate paths:
- * - statements may contain new durable facts and go through extraction;
- * - pure questions/recall requests do not teach Hermes anything new, so they
- *   should never spend another model call after the response was delivered.
+ * Trigger memory extraction out of band. Learning is independent from tool
+ * execution: operational clauses are removed first, while durable residual
+ * user facts remain eligible even in a mixed actionable turn.
  */
 let extractionQueue = Promise.resolve();
 
@@ -19,8 +16,6 @@ export function isPureQuestionTurn(userText) {
   const lines = trusted.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   if (lines.length === 0) return true;
 
-  // Be deliberately conservative: only skip when every independent line is
-  // visibly a question. A mixed "fact + question" still reaches extraction.
   return lines.every((line) => {
     const normalized = line.replace(/^\[Respondiendo a:[\s\S]*?\]\s*/i, '').trim();
     return normalized.endsWith('?') || (normalized.startsWith('¿') && normalized.includes('?'));
@@ -36,13 +31,17 @@ export function extractMemoryInBackground({
 }) {
   if (!userId || !userText) return;
 
-  if (memoryDisposition !== 'extract') {
-    console.log(`[memoryExtractor] SKIPPED extraction: disposition=${memoryDisposition}.`);
+  if (isPureQuestionTurn(userText)) {
+    console.log('[memoryExtractor] SKIPPED extraction: question-only turn contains no new durable fact.');
     return;
   }
 
-  if (isPureQuestionTurn(userText)) {
-    console.log('[memoryExtractor] SKIPPED extraction: recall/question-only turn contains no new durable fact.');
+  const trusted = String(userText || '')
+    .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
+    .trim();
+  const eligibleText = getMemoryEligibleText(trusted, executionFacts);
+  if (!eligibleText) {
+    console.log('[memoryExtractor] SKIPPED extraction: no durable residual text after operational filtering.');
     return;
   }
 
@@ -50,7 +49,13 @@ export function extractMemoryInBackground({
     extractionQueue = extractionQueue
       .catch(() => {})
       .then(() => extractAndSaveMemories({
-        userId, userText, assistantReply, executionFacts, memoryDisposition,
+        userId,
+        userText,
+        assistantReply,
+        executionFacts,
+        // Kept for call compatibility/telemetry only. Eligibility is now
+        // clause-based instead of classifying the whole turn as operational.
+        memoryDisposition,
       }))
       .catch((err) => console.error('[memoryExtractor] background extraction failed:', err));
   });
