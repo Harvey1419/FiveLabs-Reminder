@@ -7,19 +7,33 @@ import { extractAndSaveMemories, getMemoryEligibleText } from '../features/memor
  */
 let extractionQueue = Promise.resolve();
 
+function splitClauses(value) {
+  return String(value || '')
+    .split(/(?<=[.!?])\s+|\n+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function isQuestionClause(value) {
+  const normalized = String(value || '')
+    .replace(/^\[Respondiendo a:[\s\S]*?\]\s*/i, '')
+    .trim();
+  if (!normalized) return true;
+  return normalized.endsWith('?') || (normalized.startsWith('¿') && normalized.includes('?'));
+}
+
 export function isPureQuestionTurn(userText) {
   const trusted = String(userText || '')
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
     .trim();
   if (!trusted) return true;
 
-  const lines = trusted.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0) return true;
+  const clauses = splitClauses(trusted);
+  if (clauses.length === 0) return true;
 
-  return lines.every((line) => {
-    const normalized = line.replace(/^\[Respondiendo a:[\s\S]*?\]\s*/i, '').trim();
-    return normalized.endsWith('?') || (normalized.startsWith('¿') && normalized.includes('?'));
-  });
+  // A turn such as "Vivo en Barranquilla. ¿Lo recuerdas?" contains a durable
+  // assertion plus a question and must remain eligible for learning.
+  return clauses.every(isQuestionClause);
 }
 
 export function extractMemoryInBackground({
