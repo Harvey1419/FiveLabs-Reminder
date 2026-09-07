@@ -61,6 +61,25 @@ describe('TurnIntent v2', () => {
     expect(recall.manifest.operations[0]).not.toHaveProperty('targetName');
   });
 
+  it('normalizes semantic memory write verbs to memory_save', () => {
+    for (const action of ['add', 'create', 'store', 'learn', 'set', 'write', 'remember_fact', 'memorize', 'persist']) {
+      const result = compileTurnIntentV2({
+        actions: [{ domain: 'memory', action, content: 'Trabajo en Globant' }],
+      }, { userMessage: 'Trabajo en Globant' });
+      expect(result.valid).toBe(true);
+      expect(result.manifest.operations[0]).toMatchObject({ kind: 'memory_save', content: 'Trabajo en Globant' });
+    }
+  });
+
+  it('uses a human semantic target as memory content when a write alias omitted content', () => {
+    const result = compileTurnIntentV2({
+      actions: [{ domain: 'memory', action: 'add', target: 'Trabajo en Globant' }],
+    }, { userMessage: 'Recuerda que trabajo en Globant' });
+    expect(result.valid).toBe(true);
+    expect(result.manifest.operations[0]).toMatchObject({ kind: 'memory_save', content: 'Trabajo en Globant' });
+    expect(result.manifest.operations[0]).not.toHaveProperty('targetName');
+  });
+
   it('degrades subjectless memory reads to a list instead of failing', () => {
     const result = compileTurnIntentV2({ actions: [{ domain: 'memory', action: 'get' }] }, { userMessage: '¿Qué recuerdas de mí?' });
     expect(result.valid).toBe(true);
