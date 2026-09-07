@@ -25,6 +25,26 @@ function normalizeCalendarYear(action, context) {
 }
 
 /**
+ * Natural rename/edit requests should not depend on the model knowing each
+ * domain's storage field. `newName` is a semantic delta; Node maps it to the
+ * concrete mutable field owned by that domain.
+ */
+function normalizeUpdateFields(action) {
+  if (action.action !== 'update' || !action.newName) return action;
+
+  if (action.domain === 'reminder' && !action.content && !action.title) {
+    return { ...action, content: action.newName };
+  }
+  if (action.domain === 'task' && !action.title && !action.content) {
+    return { ...action, title: action.newName };
+  }
+  if (action.domain === 'calendar' && !action.title && !action.content) {
+    return { ...action, title: action.newName };
+  }
+  return action;
+}
+
+/**
  * Calendar updates are patches. The model should describe only the changed
  * fields, while the executor/domain tool still needs a stable start/title for
  * the Google API. Reuse live Working Memory values rather than asking the
@@ -56,6 +76,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     let action = { ...original };
     action = normalizePendingTarget(action, context.user);
     action = normalizeCalendarYear(action, context);
+    action = normalizeUpdateFields(action);
     action = normalizeCalendarPatch(action, context);
     return action;
   });
