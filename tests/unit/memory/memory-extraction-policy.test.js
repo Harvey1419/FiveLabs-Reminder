@@ -13,6 +13,7 @@ vi.mock('../../../src/agent/providers/client.js', () => ({
 const { saveMemory, findOrCreateEntityFuzzy } = await import('../../../src/infrastructure/database/index.js');
 const { callMemoryExtraction } = await import('../../../src/agent/providers/client.js');
 const { extractAndSaveMemories, getMemoryEligibleText } = await import('../../../src/features/memory/service.js');
+const { isPureQuestionTurn } = await import('../../../src/jobs/memory-extractor.js');
 
 const reminderFact = {
   tool: 'manage_reminder',
@@ -26,6 +27,14 @@ describe('durable memory extraction policy', () => {
     vi.clearAllMocks();
     findOrCreateEntityFuzzy.mockResolvedValue({ id: 'entity-1', name: 'Borona' });
     saveMemory.mockResolvedValue({ id: 'memory-1' });
+  });
+
+  it('classifies pure recall/questions separately from learning turns', () => {
+    expect(isPureQuestionTurn('¿Cómo me llamo?')).toBe(true);
+    expect(isPureQuestionTurn('¿Qué recuerdas de mí?')).toBe(true);
+    expect(isPureQuestionTurn('¿Cuál es mi comida favorita?\n¿Dónde vivo?')).toBe(true);
+    expect(isPureQuestionTurn('Vivo en Barranquilla. ¿Lo recuerdas?')).toBe(false);
+    expect(isPureQuestionTurn('Prefiero respuestas cortas')).toBe(false);
   });
 
   it('skips a turn whose clauses were fully consumed by operational tools', async () => {
