@@ -18,6 +18,22 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       limit: params.limit || 50,
     });
 
+    if (data.ambiguous) {
+      const names = (data.candidates || []).slice(0, 5).map((entity) => entity.name).join(', ');
+      const question = language === 'en'
+        ? `Which project did you mean: ${names}?`
+        : `¿A cuál proyecto te refieres: ${names}?`;
+      return {
+        success: false,
+        action: 'ambiguous_entity',
+        errorCode: 'AMBIGUOUS_TARGET',
+        error: question,
+        rawSummary: question,
+        confirmation: `⚠️ ${question}`,
+        requiresClarification: true,
+      };
+    }
+
     return {
       success: true,
       action: 'listed_tasks',
