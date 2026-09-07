@@ -1,5 +1,5 @@
 const DOMAINS = Object.freeze([
-  'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification',
+  'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
 ]);
 
 const DOMAIN_ACTION_TO_KIND = Object.freeze({
@@ -23,6 +23,7 @@ const DOMAIN_ACTION_TO_KIND = Object.freeze({
   subscription: Object.freeze({ link: 'subscription_link', status: 'subscription_status', cancel: 'subscription_cancel' }),
   pending: Object.freeze({ execute: 'execute_pending', discard: 'discard_pending', revise: 'revise_pending' }),
   clarification: Object.freeze({ request: 'clarification_request' }),
+  admin: Object.freeze({ metrics: 'admin_metrics' }),
 });
 
 const typedSchedule = {
@@ -61,7 +62,7 @@ export const TURN_INTENT_V2_SCHEMA = Object.freeze({
         type: 'object',
         additionalProperties: false,
         properties: {
-          domain: { type: 'string', enum: DOMAINS, description: 'Choose by user meaning, not keywords.' },
+          domain: { type: 'string', enum: DOMAINS, description: 'Choose by user meaning, not keywords. admin is available only to verified administrators.' },
           action: { type: 'string', description: 'Plain operation inside the selected domain.' },
           target: { type: 'string', description: 'Human reference to an existing item, e.g. its name, “la segunda”, or “2”. Never an internal ID.' },
           content: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' },
