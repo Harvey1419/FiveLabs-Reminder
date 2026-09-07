@@ -1,62 +1,82 @@
 import { formatHumanFriendlyDateTime } from './time.js';
 import { formatTaskProjectGroups } from './task-presentation.js';
-
-function isAllPendingScope(scope) {
-  return new Set(['all', 'all_pending', 'todos', 'pendientes', 'todos_los_pendientes']).has(
-    String(scope || '').toLowerCase().trim(),
-  );
-}
+import { isAllPendingScope, normalizeAgendaScope, normalizeTaskScope } from './agenda-scopes.js';
 
 function scopeLabel(scope, language) {
   const isEn = language === 'en';
+  const canonical = normalizeAgendaScope(scope, 'upcoming');
   const labels = {
     today: isEn ? 'today' : 'hoy',
+    remaining_today: isEn ? 'the rest of today' : 'lo que queda de hoy',
     tomorrow: isEn ? 'tomorrow' : 'mañana',
     day_after_tomorrow: isEn ? 'the day after tomorrow' : 'pasado mañana',
+    monday: isEn ? 'Monday' : 'el lunes',
+    tuesday: isEn ? 'Tuesday' : 'el martes',
+    wednesday: isEn ? 'Wednesday' : 'el miércoles',
+    thursday: isEn ? 'Thursday' : 'el jueves',
+    friday: isEn ? 'Friday' : 'el viernes',
+    saturday: isEn ? 'Saturday' : 'el sábado',
+    sunday: isEn ? 'Sunday' : 'el domingo',
     this_week: isEn ? 'this week' : 'esta semana',
     next_week: isEn ? 'next week' : 'la próxima semana',
     this_weekend: isEn ? 'this weekend' : 'este fin de semana',
     upcoming: isEn ? 'upcoming days' : 'los próximos días',
+    explicit_date: isEn ? 'that date' : 'esa fecha',
+    explicit_range: isEn ? 'that period' : 'ese período',
+    month: isEn ? 'this month' : 'este mes',
+    full_year: isEn ? 'this year' : 'este año',
   };
-  return labels[scope] || (isEn ? 'this period' : 'este período');
+  return labels[canonical] || (isEn ? 'this period' : 'este período');
 }
 
 export function formatCanonicalTaskList(data = {}, {
   language = 'es',
-  timezone = 'America/Bogota',
+  timezone = 'UTC',
 } = {}) {
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
   const projectName = data?.entityName || null;
+  const scope = normalizeTaskScope(data?.scope, 'all_pending');
+
   if (tasks.length === 0) {
     if (projectName) {
       return language === 'en'
         ? `☑️ *Tasks · ${projectName}*\n\nNo pending tasks in this project.`
         : `☑️ *Tareas · ${projectName}*\n\nNo hay tareas pendientes en este proyecto.`;
     }
+    if (scope === 'all_pending') {
+      return language === 'en'
+        ? '☑️ *Pending tasks*\n\nYou have no pending tasks.'
+        : '☑️ *Tareas pendientes*\n\nNo tienes tareas pendientes.';
+    }
     return language === 'en'
-      ? '☑️ *Pending tasks*\n\nYou have no pending tasks.'
-      : '☑️ *Tareas pendientes*\n\nNo tienes tareas pendientes.';
+      ? `☑️ *Tasks for ${scopeLabel(scope, language)}*\n\nYou have no tasks in this period.`
+      : `☑️ *Tareas para ${scopeLabel(scope, language)}*\n\nNo tienes tareas en este período.`;
   }
 
   const groups = formatTaskProjectGroups(tasks, {
     language,
     timezone,
-    isMultiDay: true,
+    isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
     projectName,
   });
-  return `☑️ *${language === 'en' ? 'Tasks' : 'Tareas'} · ${tasks.length}*\n\n${groups}`;
+
+  const header = scope === 'all_pending'
+    ? `☑️ *${language === 'en' ? 'Tasks' : 'Tareas'} · ${tasks.length}*`
+    : `☑️ *${language === 'en' ? 'Tasks' : 'Tareas'} · ${scopeLabel(scope, language)} · ${tasks.length}*`;
+
+  return `${header}\n\n${groups}`;
 }
 
 export function formatCanonicalAgenda(data = {}, {
   language = 'es',
-  timezone = 'America/Bogota',
+  timezone = 'UTC',
 } = {}) {
   const isEn = language === 'en';
   const calendar = data?.calendar || { state: 'DISCONNECTED', events: [] };
   const events = Array.isArray(calendar.events) ? calendar.events : [];
   const reminders = Array.isArray(data?.reminders) ? data.reminders : [];
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-  const scope = data?.scope || 'all_pending';
+  const scope = normalizeAgendaScope(data?.scope, 'all_pending');
   const allPending = isAllPendingScope(scope);
   const sections = [];
 
@@ -74,7 +94,7 @@ export function formatCanonicalAgenda(data = {}, {
     const lines = events.map((event) => {
       const time = event.isAllDay
         ? (isEn ? 'All day' : 'Todo el día')
-        : (event.displayDate || event.localStartTime || '');
+        : (event.displayDate || event.localStartTime || (event.startDateTime ? formatHumanFriendlyDateTime(event.startDateTime, timezone, language) : ''));
       return `• ${event.summary || (isEn ? 'Event' : 'Evento')}${time ? ` — ${time}` : ''}`;
     });
     sections.push(`📅 *Google Calendar · ${events.length}*\n${lines.join('\n')}`);
@@ -102,7 +122,7 @@ export function formatCanonicalAgenda(data = {}, {
     const groups = formatTaskProjectGroups(tasks, {
       language,
       timezone,
-      isMultiDay: scope !== 'today' && scope !== 'tomorrow',
+      isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
     });
     sections.push(`☑️ *${isEn ? 'Tasks' : 'Tareas'} · ${tasks.length}*\n\n${groups}`);
   }
