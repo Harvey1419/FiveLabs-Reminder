@@ -91,14 +91,29 @@ export const TURN_INTENT_V2_SCHEMA = Object.freeze({
         required: ['domain', 'action'],
       },
     },
+    excluded: {
+      type: 'array',
+      maxItems: 12,
+      description: 'Only for a mixed turn that also contains valid actions. Put current-message clauses that must not execute here.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          quote: { type: 'string', description: 'Exact current-message words for the excluded clause.' },
+          reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] },
+        },
+        required: ['quote', 'reason'],
+      },
+    },
   },
   required: ['sourceQuote', 'actions'],
 });
 
 export const EXECUTE_TURN_V2_DESCRIPTION = `Execute only the current user's in-scope action delta as a small semantic action list.
-Think about the user's goal first. Do not encode sequence numbers, backend operation kinds, contextRef objects, IDs or excluded-clause bookkeeping.
+Think about the user's goal first. Do not encode sequence numbers, backend operation kinds, contextRef objects or IDs.
 Copy the current message once into sourceQuote. Use one action per independent goal. Use target only for an existing item the user refers to. Keep temporal meaning in schedule; Node resolves dates/timezones.
-Do not call this tool for ordinary conversation, acknowledgements, emotional support, conversation closes or wholly out-of-scope requests.`;
+For a mixed message, use excluded only for the exact prohibited, hypothetical, superseded or context-only clause. A wholly out-of-scope turn should be answered naturally without this tool.
+Do not call this tool for ordinary conversation, acknowledgements, emotional support or conversation closes.`;
 
 function copyDefined(source, keys) {
   const result = {};
@@ -154,7 +169,11 @@ export function compileTurnIntentV2(intent, { userMessage = '' } = {}) {
     operations.push(operation);
   }
 
-  return { valid: true, manifest: { operations, excludedClauses: [] } };
+  const excludedClauses = Array.isArray(intent.excluded)
+    ? intent.excluded.map((item) => ({ sourceQuote: item.quote, reason: item.reason }))
+    : [];
+
+  return { valid: true, manifest: { operations, excludedClauses } };
 }
 
 export function isTurnIntentV2(value) {
