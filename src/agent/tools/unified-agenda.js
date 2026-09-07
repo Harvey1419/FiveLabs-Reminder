@@ -1,4 +1,5 @@
 import { getUnifiedAgenda } from '../../features/agenda/service.js';
+import { formatAgendaWhatsAppCard } from '../../features/agenda/presentation.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 
 /**
@@ -38,6 +39,7 @@ export async function executeUnifiedAgendaTool({
       language,
     });
 
+    const formattedCard = formatAgendaWhatsAppCard({ ...agenda, timezone }, language);
     const needsGoogleAuth = ['AUTH_REQUIRED', 'DISCONNECTED'].includes(agenda.calendar?.state);
     const authUrl = needsGoogleAuth && userId
       ? getGoogleConnectUrl({ userId, phoneNumber })
@@ -46,13 +48,13 @@ export async function executeUnifiedAgendaTool({
     return {
       success: true,
       action: 'unified_agenda_listed',
-      data: agenda,
+      data: { ...agenda, formattedCard },
       ctaUrl: authUrl,
       ctaHeader: authUrl ? '📅 Google Calendar' : null,
       ctaButtonText: authUrl ? (language === 'en' ? 'Connect' : 'Conectar') : null,
-      rawSummary: agenda.formattedCard,
-      formattedCard: agenda.formattedCard,
-      confirmation: agenda.formattedCard,
+      rawSummary: formattedCard,
+      formattedCard,
+      confirmation: formattedCard,
     };
   } catch (err) {
     console.error('[unifiedAgendaTools] Error executing unified agenda:', err);
