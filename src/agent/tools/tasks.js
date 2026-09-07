@@ -2,7 +2,6 @@ import {
   supabase,
   createTask,
   findOrCreateEntityFuzzy,
-  getTasksWithEntities,
   completeTasksByQuery,
   updateTask,
   deleteTask,
@@ -10,10 +9,9 @@ import {
   getTasks,
 } from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
-import { parseTargetTime, formatLocalDateTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
+import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
 import {
   formatTaskCreatedCard,
-  formatTaskListCard,
   formatTaskCompletedCard,
   formatTaskUpdatedCard,
 } from './formatters.js';
@@ -729,80 +727,6 @@ export async function executeTaskTool({ action, params = {}, user, language = 'e
         rawSummary: language === 'en' ? 'Task deleted.' : 'Tarea eliminada.',
         formattedCard: language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*',
         confirmation: language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*',
-      };
-    }
-
-    case 'list': {
-      const rawEntityParam = params.entityName || params.target || params.project || params.name || params.query || null;
-      let resolvedEntityName = null;
-      let resolvedEntityId = null;
-      if (rawEntityParam && userId) {
-        const contextual = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
-          reference: String(rawEntityParam),
-          preferredType: 'task',
-        });
-        if (contextual.status === 'RESOLVED_CONTAINER') {
-          resolvedEntityName = contextual.entityName;
-          resolvedEntityId = contextual.entityId || null;
-        }
-
-        const { data: userEntities } = await supabase
-          .from('entities')
-          .select('id, name')
-          .eq('user_id', userId);
-        if (!resolvedEntityId && userEntities && userEntities.length > 0) {
-          const cleanEntityQuery = stripConversationalWrappers(String(rawEntityParam));
-          const selection = selectEntityCandidate(userEntities, cleanEntityQuery);
-          if (selection.status === 'AMBIGUOUS') {
-            const options = selection.candidates.slice(0, 5).map((entity) => entity.name).join(', ');
-            const question = language === 'en'
-              ? `Which project did you mean: ${options}?`
-              : `¿A cuál proyecto te refieres: ${options}?`;
-            return {
-              success: false,
-              action: 'ambiguous_entity',
-              errorCode: 'AMBIGUOUS_TARGET',
-              error: question,
-              rawSummary: question,
-              formattedCard: `⚠️ ${question}`,
-              requiresClarification: true,
-            };
-          }
-          if (selection.status === 'RESOLVED') {
-            resolvedEntityName = selection.entity.name;
-            resolvedEntityId = selection.entity.id;
-          }
-        }
-        if (!resolvedEntityName) resolvedEntityName = rawEntityParam;
-      }
-
-      const tasks = await getTasksWithEntities({
-        userId,
-        entityId: resolvedEntityId,
-        entityName: resolvedEntityName,
-        status: params.status || 'pending',
-        limit: params.limit || 50,
-      });
-
-      const formattedCard = formatTaskListCard(tasks, resolvedEntityName, language);
-      const structuredItems = (tasks || []).map((t, idx) => ({
-        position: idx + 1,
-        type: 'task',
-        internalId: t.id,
-        summary: t.title || t.content,
-        time: t.due_date ? formatLocalDateTime(new Date(t.due_date), timezone, language === 'en' ? 'en-US' : 'es-CO') : null,
-        source: 'task',
-        entityName: t.entities?.name || t.entityName || resolvedEntityName || null,
-        raw: t,
-      }));
-
-      return {
-        success: true,
-        action: 'listed_tasks',
-        data: { tasks, items: structuredItems, entityName: resolvedEntityName },
-        rawSummary: formattedCard,
-        formattedCard,
       };
     }
 
