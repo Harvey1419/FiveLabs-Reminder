@@ -21,7 +21,9 @@ export async function executeUnifiedAgendaTool({
   const userId = user?.id || null;
   const phoneNumber = user?.phone_number || null;
   const timezone = user?.timezone || 'America/Bogota';
-  const scope = params.scope || 'tomorrow';
+  // A generic agenda read means "what is pending/current". Temporal requests
+  // compiled by Hermes pass an explicit scope (today, tomorrow, week, etc.).
+  const scope = params.scope || 'all_pending';
 
   try {
     const agenda = await getUnifiedAgenda({
