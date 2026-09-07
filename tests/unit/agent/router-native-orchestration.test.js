@@ -27,6 +27,7 @@ vi.mock('../../../src/integrations/google/auth.js', () => ({
 import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { callChatCompletion, callPendingTransitionVerification, callResponseSynthesis } from '../../../src/agent/providers/client.js';
+import { clearWorkingMemory, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
 
 const user = {
   id: 'user-1',
@@ -50,6 +51,7 @@ function modelToolCall(payload) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearWorkingMemory(user);
 });
 
 describe('Hermes direct TurnIntent router', () => {
@@ -64,6 +66,55 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
+  });
+
+  it('keeps a normal typed standalone greeting on the instant fast-path', async () => {
+    const result = await routeMessage('Hola', user, []);
+
+    expect(result.intent).toBe('greeting');
+    expect(result.confirmation).toContain('¡Hola!');
+    expect(callChatCompletion).not.toHaveBeenCalled();
+  });
+
+  it('does not let an audio transcript that looks like a greeting bypass Hermes context', async () => {
+    callChatCompletion.mockResolvedValue({ role: 'assistant', content: 'Entendido.', tool_calls: [] });
+
+    const result = await routeMessage('Hola', user, [], { inputModality: 'audio', correlationId: 'audio-greeting-test' });
+
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(result.intent).toBe('chat');
+    expect(result.confirmation).toBe('Entendido.');
+  });
+
+  it('routes an active reminder fulfillment to acknowledge when Hermes expresses that semantic action', async () => {
+    saveWorkingMemory(user, {
+      source: 'reminder',
+      scope: 'notification',
+      lastAction: 'nudge',
+      notificationReminderId: 'reminder-1',
+      notificationContent: 'Salir',
+      items: [{ id: 'reminder-1', type: 'reminder', content: 'Salir' }],
+    });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'reminder', action: 'acknowledge', target: 'Salir' }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'acknowledged_reminder',
+      confirmation: '✅ *Confirmado:* Salir',
+      rawSummary: '✅ *Confirmado:* Salir',
+      data: { reminder: { id: 'reminder-1', content: 'Salir' } },
+    });
+
+    const result = await routeMessage('Te decía que ya salí', user, [], { correlationId: 'ack-context-test' });
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_reminder',
+      params: expect.objectContaining({ action: 'acknowledge', target: 'Salir' }),
+    }));
+    expect(result.confirmation).toContain('Confirmado');
   });
 
   it('routes a generic pending question to Unified Agenda with all_pending', async () => {
