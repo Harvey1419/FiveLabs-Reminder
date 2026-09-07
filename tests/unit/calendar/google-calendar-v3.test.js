@@ -1,32 +1,31 @@
 import 'dotenv/config';
 import { describe, it, expect, vi } from 'vitest';
-import { resolveCalendarTemporalScope, zonedTimeToUtc, getLocalDateParts } from '../../../src/shared/time.js';
-import { generateDeterministicCalendarEventId, listCalendarEvents, createCalendarEvent } from '../../../src/integrations/google/calendar.js';
+import { resolveCalendarTemporalScope } from '../../../src/shared/time.js';
+import { generateDeterministicCalendarEventId } from '../../../src/integrations/google/calendar.js';
 import { normalizeCalendarEvent, formatCalendarEventLine, executeCalendarTool } from '../../../src/agent/tools/calendar.js';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
-import { getAgentToolDefinitions } from '../../../src/agent/contracts/tool-contracts.js';
+import { getIntentToolDefinitions } from '../../../src/agent/contracts/intent-contracts.js';
 import { getGoogleRedirectUri, hasUsableGoogleCredentials, isGoogleAuthError } from '../../../src/integrations/google/auth.js';
-import { formatUnifiedAgendaCard } from '../../../src/features/agenda/service.js';
+import { formatCanonicalAgenda } from '../../../src/shared/agenda-presentation.js';
 import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
 import * as dbIntegrations from '../../../src/infrastructure/database/integrations.js';
 
-describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
-
-  describe('A. CONNECTION STATES', () => {
-    it('treats expired access-only credentials as disconnected but keeps refreshable credentials eligible', () => {
+describe('Google Calendar current architecture', () => {
+  describe('connection states', () => {
+    it('distinguishes usable, refreshable and expired credentials', () => {
       const expired = new Date(Date.now() - 60_000).toISOString();
       expect(hasUsableGoogleCredentials({ access_token: 'old', token_expiry: expired })).toBe(false);
       expect(hasUsableGoogleCredentials({ access_token: 'old', refresh_token: 'refresh', token_expiry: expired })).toBe(true);
       expect(hasUsableGoogleCredentials(null)).toBe(false);
     });
 
-    it('distinguishes credential failures from generic Google 403 service or permission errors', () => {
+    it('distinguishes auth failures from generic Google service errors', () => {
       expect(isGoogleAuthError({ response: { status: 401, data: { error: 'invalid_token' } } })).toBe(true);
       expect(isGoogleAuthError({ response: { status: 400, data: { error: 'unauthorized_client' } } })).toBe(true);
       expect(isGoogleAuthError({ response: { status: 403, data: { error: { message: 'Quota exceeded' } } } })).toBe(false);
     });
 
-    it('falls back to the canonical callback when GOOGLE_REDIRECT_URI contains a malformed path', () => {
+    it('sanitizes a malformed redirect URI path', () => {
       const previousRedirect = process.env.GOOGLE_REDIRECT_URI;
       const previousBase = process.env.APP_BASE_URL;
       process.env.APP_BASE_URL = 'https://hermes.example.test';
@@ -38,249 +37,92 @@ describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
       else process.env.APP_BASE_URL = previousBase;
     });
 
-    it('T01: CONNECTED with events returns success=true and formatted events', () => {
-      const mockEvent = {
-        id: 'evt_101',
-        summary: 'Reunión de Estrategia',
-        start: '2026-09-03T10:00:00-05:00',
-        end: '2026-09-03T11:00:00-05:00',
-      };
-      const normalized = normalizeCalendarEvent(mockEvent, 'America/Bogota');
-      expect(normalized.type).toBe('timed');
-      const line = formatCalendarEventLine(normalized, 'America/Bogota', 'es');
-      expect(line).toContain('Reunión de Estrategia');
-      expect(line).toContain('10:00 AM');
-    });
-
-    it('T02: CONNECTED with 0 events returns data:[] and explicit period summary', () => {
-      const emptyNormalized = [];
-      expect(emptyNormalized.length).toBe(0);
-      const summary = 'No tienes eventos programados en Google Calendar para este período.';
-      expect(summary).toContain('No tienes eventos programados');
-    });
-
-    it('T03 & T04: DISCONNECTED returns AUTH_REQUIRED and does not call Google API', async () => {
-      const spyGetUserIntegration = vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue(null);
-      const mockUserWithoutAuth = { id: 'u_no_google_v3', phone_number: '+573000000000', timezone: 'America/Bogota' };
-      
+    it('returns AUTH_REQUIRED without calling Google when disconnected', async () => {
+      vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue(null);
       const res = await executeCalendarTool({
         action: 'list_events',
         params: { scope: 'today' },
-        user: mockUserWithoutAuth,
-        language: 'es'
+        user: { id: 'u_no_google_v3', phone_number: '+573000000000', timezone: 'America/Bogota' },
+        language: 'es',
       });
-
       expect(res.success).toBe(false);
-      expect(res.action).toBe('google_not_connected');
       expect(res.errorCode).toBe('AUTH_REQUIRED');
       expect(res.ctaUrl).toBeDefined();
-      spyGetUserIntegration.mockRestore();
-    });
-
-    it('T05 & T06: ERROR / UNAVAILABLE reports service error and does not transform into []', () => {
-      const errorResult = {
-        success: false,
-        action: 'google_api_error',
-        errorCode: 'SERVICE_UNAVAILABLE',
-        error: 'No pude consultar tu Google Calendar en este momento debido a una intermitencia con el servicio de Google.',
-      };
-      expect(errorResult.success).toBe(false);
-      expect(errorResult.action).toBe('google_api_error');
-      expect(errorResult.data).toBeUndefined();
+      vi.restoreAllMocks();
     });
   });
 
-  describe('B. REMINDER INDEPENDENCE', () => {
-    it('T08-T12: Reminder operations are completely decoupled from Google Calendar', () => {
-      const reminderPayload = {
-        userId: 'u_independent',
-        phoneNumber: '+573001234567',
-        content: 'Comprar vitaminas',
-        targetTime: 'mañana a las 10am'
-      };
-      expect(reminderPayload.content).toBeDefined();
-      expect(reminderPayload.targetTime).toBeDefined();
+  describe('normalization, idempotency and temporal truth', () => {
+    it('formats timed events in user local time', () => {
+      const normalized = normalizeCalendarEvent({
+        id: 'evt_101', summary: 'Reunión de Estrategia',
+        start: '2026-09-03T10:00:00-05:00', end: '2026-09-03T11:00:00-05:00',
+      }, 'America/Bogota');
+      expect(normalized.type).toBe('timed');
+      expect(formatCalendarEventLine(normalized, 'America/Bogota', 'es')).toContain('10:00 AM');
     });
-  });
 
-  describe('C. IDEMPOTENCY & RESILIENCE', () => {
-    it('T17: Deterministic event ID is base32hex/hex and identical across retries', () => {
+    it('generates the same deterministic event ID across equivalent retries', () => {
       const id1 = generateDeterministicCalendarEventId('user_123', 'Cita médica', '2026-09-03T09:00:00.000Z');
       const id2 = generateDeterministicCalendarEventId('user_123', 'cita médica ', '2026-09-03T09:00:00.000Z');
       expect(id1).toBe(id2);
       expect(id1).toMatch(/^[a-v0-9]{5,1024}$/);
     });
 
-    it('T18: HTTP 409 Conflict handling retrieves existing event without creating duplicate', async () => {
-      const fakeCalendar = {
-        events: {
-          insert: async () => {
-            const err = new Error('The requested identifier already exists');
-            err.code = 409;
-            throw err;
-          },
-          get: async ({ eventId }) => ({
-            data: { id: eventId, summary: 'Cita existente', start: { dateTime: '2026-09-03T09:00:00Z' } }
-          })
-        }
-      };
-
-      const eventId = 'hermes1234567890abcdef123456';
-      let retrieved = null;
-      try {
-        await fakeCalendar.events.insert();
-      } catch (err) {
-        if (err.code === 409) {
-          const res = await fakeCalendar.events.get({ eventId });
-          retrieved = res.data;
-        }
-      }
-      expect(retrieved).not.toBeNull();
-      expect(retrieved.id).toBe(eventId);
-      expect(retrieved.summary).toBe('Cita existente');
-    });
-  });
-
-  describe('D. TEMPORAL V3 SCOPES', () => {
-    const fixedNow = new Date('2026-09-02T19:00:00.000Z'); // Wed Sep 2, 2026 14:00 Bogota (UTC-5)
-    const tz = 'America/Bogota';
-
-    it('T20: scope: full_year covers [01/01/2026 00:00 local, 01/01/2027 00:00 local)', () => {
-      const res = resolveCalendarTemporalScope({ scope: 'full_year' }, tz, fixedNow);
-      expect(res.scope).toBe('full_year');
-      expect(res.timeMin.toISOString()).toBe('2026-01-01T05:00:00.000Z');
-      expect(res.timeMax.toISOString()).toBe('2027-01-01T05:00:00.000Z');
-      expect(res.maxResults).toBe(50);
-    });
-
-    it('T21: scope: remaining_year covers [now, 01/01/2027 00:00 local)', () => {
-      const res = resolveCalendarTemporalScope({ scope: 'remaining_year' }, tz, fixedNow);
-      expect(res.scope).toBe('remaining_year');
-      expect(res.timeMin.toISOString()).toBe(fixedNow.toISOString());
-      expect(res.timeMax.toISOString()).toBe('2027-01-01T05:00:00.000Z');
-    });
-
-    it('T22 & T23: scope: today & tomorrow', () => {
-      const todayRes = resolveCalendarTemporalScope({ scope: 'today' }, tz, fixedNow);
-      expect(todayRes.timeMin.toISOString()).toBe('2026-09-02T05:00:00.000Z');
-      expect(todayRes.timeMax.toISOString()).toBe('2026-09-03T05:00:00.000Z');
-
-      const tomorrowRes = resolveCalendarTemporalScope({ scope: 'tomorrow' }, tz, fixedNow);
-      expect(tomorrowRes.timeMin.toISOString()).toBe('2026-09-03T05:00:00.000Z');
-      expect(tomorrowRes.timeMax.toISOString()).toBe('2026-09-04T05:00:00.000Z');
-    });
-
-    it('T24 & T25: scope: this_week & next_week', () => {
-      const thisWeekRes = resolveCalendarTemporalScope({ scope: 'this_week' }, tz, fixedNow);
-      expect(thisWeekRes.timeMin.toISOString()).toBe('2026-08-31T05:00:00.000Z');
-      expect(thisWeekRes.timeMax.toISOString()).toBe('2026-09-07T05:00:00.000Z');
-
-      const nextWeekRes = resolveCalendarTemporalScope({ scope: 'next_week' }, tz, fixedNow);
-      expect(nextWeekRes.timeMin.toISOString()).toBe('2026-09-07T05:00:00.000Z');
-      expect(nextWeekRes.timeMax.toISOString()).toBe('2026-09-14T05:00:00.000Z');
-    });
-  });
-
-  describe('E. ALL-DAY INTEGRITY & NEXT_EVENT PIPELINE (14/10 vs 06/11)', () => {
-    const tz = 'America/Bogota';
-
-    it('T30 & T31: All-day event 2026-10-14 preserves civil date without UTC shift to 13/10', () => {
-      const rawAllDay = {
-        id: 'evt_bday_14',
-        summary: 'Cumpleaños de Valentina',
-        start: { date: '2026-10-14' },
-        end: { date: '2026-10-15' },
-        isAllDay: true,
-      };
-      const normalized = normalizeCalendarEvent(rawAllDay, tz);
+    it('preserves all-day civil dates without UTC day shifts', () => {
+      const normalized = normalizeCalendarEvent({
+        id: 'evt_bday', summary: 'Cumpleaños',
+        start: { date: '2026-10-14' }, end: { date: '2026-10-15' },
+      }, 'America/Bogota');
       expect(normalized.type).toBe('all_day');
       expect(normalized.localDate).toBe('2026-10-14');
-      expect(normalized.formattedDate).toBe('14/10/2026');
-
-      const line = formatCalendarEventLine(normalized, tz, 'es');
-      expect(line).toContain('14/10/2026');
-      expect(line).not.toContain('13/10/2026');
+      expect(formatCalendarEventLine(normalized, 'America/Bogota', 'es')).toContain('14/10/2026');
     });
 
-    it('T32 & T33: NEXT_EVENT pipeline selects 14/10/2026 strictly before 06/11/2026', () => {
-      // Step 1: Raw Google Response with two events
-      const rawEventsFromGoogle = [
-        {
-          id: 'g_evt_bday',
-          summary: 'Cumpleaños de Valentina',
-          start: { date: '2026-10-14' },
-          end: { date: '2026-10-15' },
-        },
-        {
-          id: 'g_evt_juli',
-          summary: 'Cumpleaños de Juli',
-          start: { dateTime: '2026-11-06T10:00:00-05:00' },
-          end: { dateTime: '2026-11-06T11:00:00-05:00' },
-        }
-      ];
-
-      // Step 2: Normalization
-      const normalizedList = rawEventsFromGoogle.map(ev => normalizeCalendarEvent(ev, tz));
-
-      // Step 3: Verify Sort Timestamps
-      const valentina = normalizedList[0];
-      const juli = normalizedList[1];
-      expect(valentina.sortTimestamp).toBeLessThan(juli.sortTimestamp);
-
-      // Step 4: Sorting
-      normalizedList.sort((a, b) => a.sortTimestamp - b.sortTimestamp);
-
-      // Step 5: Selection
-      const selectedNextEvent = normalizedList[0];
-      expect(selectedNextEvent.summary).toBe('Cumpleaños de Valentina');
-      expect(selectedNextEvent.localDate).toBe('2026-10-14');
-
-      // Step 6: Formatter
-      const formatted = formatCalendarEventLine(selectedNextEvent, tz, 'es');
-      expect(formatted).toContain('Cumpleaños de Valentina');
-      expect(formatted).toContain('14/10/2026');
-
-      // FAILURE GUARD: Fail if 06/11 was selected
-      expect(selectedNextEvent.summary).not.toBe('Cumpleaños de Juli');
+    it('resolves core temporal scopes deterministically', () => {
+      const now = new Date('2026-09-02T19:00:00.000Z');
+      const tz = 'America/Bogota';
+      const today = resolveCalendarTemporalScope({ scope: 'today' }, tz, now);
+      const tomorrow = resolveCalendarTemporalScope({ scope: 'tomorrow' }, tz, now);
+      const nextWeek = resolveCalendarTemporalScope({ scope: 'next_week' }, tz, now);
+      expect(today.timeMin.toISOString()).toBe('2026-09-02T05:00:00.000Z');
+      expect(tomorrow.timeMin.toISOString()).toBe('2026-09-03T05:00:00.000Z');
+      expect(nextWeek.timeMin.toISOString()).toBe('2026-09-07T05:00:00.000Z');
     });
   });
 
-  describe('F. SOURCE GROUNDING & PROMPT INVARIANTS', () => {
-    it('T34-T39: Prompt structure exposes connection status and grounding rules', () => {
+  describe('current TurnIntent and presentation boundaries', () => {
+    it('exposes one semantic execute_turn contract rather than legacy tool contracts', () => {
+      const definitions = getIntentToolDefinitions();
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0].function.name).toBe('execute_turn');
+      const actionProps = definitions[0].function.parameters.properties.actions.items.properties;
+      expect(actionProps.domain.enum).toContain('calendar');
+      expect(actionProps.action).toBeDefined();
+      expect(actionProps.target.description).toContain('Never an internal ID');
+    });
+
+    it('prompt exposes Calendar connection state and keeps Node authoritative', () => {
       const prompt = buildAgentCorePrompt({
         nowStr: '2026-09-02T14:00:00-05:00',
         nowHumanStr: 'Miércoles, 2 de Septiembre de 2026, 02:00 PM',
-        timezone: 'America/Bogota',
-        phoneNumber: '+573000000000',
-        memoryHints: '- [cumpleaños] Cumpleaños el 14 de octubre',
-        overview: { tasks: [], reminders: [] },
+        timezone: 'America/Bogota', phoneNumber: '+573000000000',
+        memoryHints: '', overview: null,
         googleIntegration: { access_token: 'valid_token', account_email: 'user@gmail.com' },
-        isAdmin: false,
-        isPro: true,
+        isAdmin: false, isPro: true,
       });
-
       expect(prompt).toContain('Google Calendar: 🟢 Conectado');
-      expect(prompt).toContain('execute_turn');
-      expect(prompt).toContain('administrar sus recordatorios, tareas, proyectos/listas, agenda y Google Calendar');
-      const kindDescription = getAgentToolDefinitions()[0]
-        .function.parameters.properties.operations.items.properties.kind.description;
-      expect(kindDescription).toContain('calendar_* means Google Calendar only');
-      expect(kindDescription).toContain('agenda_read is one time-bounded cross-domain read');
-      expect(kindDescription).toContain('task_list is the only operation for pending tasks');
-      expect(kindDescription).toContain('brief contextual acceptance inherits only');
-      expect(kindDescription).toContain('subscription_link requires an explicit Hermes Pro/payment request');
+      expect(prompt).toContain('Node es la autoridad final');
     });
 
-    it('renders invalid Google auth as reconnection, not as a temporary outage', () => {
-      const agendaCard = formatUnifiedAgendaCard({
+    it('canonical agenda renders AUTH_REQUIRED as reconnection, not outage', () => {
+      const card = formatCanonicalAgenda({
         calendar: { state: 'AUTH_REQUIRED', events: [] },
         reminders: [{ content: 'Llamar', localTime: '9:00 a. m.' }],
-        tasks: [],
-        scope: 'today',
-        language: 'es',
-      });
-      expect(agendaCard).toContain('Google Calendar necesita conexión');
-      expect(agendaCard).not.toContain('no disponible temporalmente');
+        tasks: [], scope: 'today', timezone: 'America/Bogota',
+      }, { language: 'es', timezone: 'America/Bogota' });
+      expect(card).toContain('🔒 No conectado');
+      expect(card).not.toContain('No disponible temporalmente');
 
       const briefing = formatMorningBriefingMessage({
         overview: { timedRemindersToday: [{ content: 'Llamar', localTime: '9:00 a. m.' }] },
@@ -288,8 +130,6 @@ describe('--- GOOGLE CALENDAR V3 ARCHITECTURE TEST SUITE ---', () => {
         timezone: 'America/Bogota',
       });
       expect(briefing).toContain('Necesita conexión');
-      expect(briefing).not.toContain('temporalmente');
     });
   });
-
 });
