@@ -1,4 +1,4 @@
 // Canonical agent entrypoint.
-// The legacy manifest router was removed: Hermes now executes semantic TurnIntent
-// actions directly through router-v2 -> intent-executor -> deterministic domain tools.
-export { routeMessage } from './router-v2.js';
+// Hermes executes semantic TurnIntent actions directly through the deterministic
+// intent executor. There is no legacy manifest/repair pipeline behind this API.
+export { routeMessage } from './router-core.js';
