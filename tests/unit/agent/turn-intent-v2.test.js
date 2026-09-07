@@ -19,6 +19,22 @@ describe('TurnIntent v2', () => {
     expect(intent.actions[0]).not.toHaveProperty('contextRef');
   });
 
+  it('defaults a generic cross-domain agenda read to all_pending', () => {
+    const result = compileTurnIntentV2({
+      actions: [{ domain: 'agenda', action: 'read' }],
+    }, { userMessage: '¿Qué tenemos pendiente?' });
+    expect(result.valid).toBe(true);
+    expect(result.manifest.operations[0]).toMatchObject({ kind: 'agenda_read', scope: 'all_pending' });
+  });
+
+  it('preserves an explicit temporal agenda scope', () => {
+    const result = compileTurnIntentV2({
+      actions: [{ domain: 'agenda', action: 'read', scope: 'today' }],
+    }, { userMessage: '¿Qué tengo para hoy?' });
+    expect(result.valid).toBe(true);
+    expect(result.manifest.operations[0]).toMatchObject({ kind: 'agenda_read', scope: 'today' });
+  });
+
   it('maps human targets directly and leaves ID resolution to Node', () => {
     const result = compileTurnIntentV2({ actions: [{ domain: 'task', action: 'complete', target: 'la segunda' }] }, { userMessage: 'La segunda ya la hice' });
     expect(result).toMatchObject({
