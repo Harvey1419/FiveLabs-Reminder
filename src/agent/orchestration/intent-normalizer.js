@@ -1,6 +1,7 @@
 import { getWorkingMemory, resolveEntityReference } from '../core/working-memory.js';
 import { parseOrdinalReference } from '../../shared/entity-resolution.js';
 import { getLocalDateParts } from '../../shared/time.js';
+import { resolveTypedSchedule } from './typed-schedule.js';
 import {
   normalizeAgendaScope,
   normalizeTaskScope,
@@ -95,6 +96,57 @@ function normalizeUpdateFields(action) {
   return action;
 }
 
+function normalizeRecurrenceValue(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_');
+
+  const aliases = {
+    daily: 'daily', every_day: 'daily', everyday: 'daily', cada_dia: 'daily', todos_los_dias: 'daily', diaria: 'daily', diario: 'daily',
+    weekdays: 'weekdays', weekdays_only: 'weekdays', dias_habiles: 'weekdays', entre_semana: 'weekdays',
+    weekly: 'weekly', every_week: 'weekly', cada_semana: 'weekly', semanal: 'weekly',
+    monthly: 'monthly', every_month: 'monthly', cada_mes: 'monthly', mensual: 'monthly',
+    hourly: 'hourly', every_hour: 'hourly', cada_hora: 'hourly',
+  };
+  return aliases[normalized] || String(value || '').trim();
+}
+
+/**
+ * A recurring reminder represents the next occurrence of a routine, not a
+ * request to schedule an already elapsed occurrence. For daily routines with a
+ * clock time and no future date, move only the first occurrence to tomorrow;
+ * the scheduler keeps the recurrence afterwards.
+ */
+function normalizeRecurringReminder(action, context) {
+  if (action.domain !== 'reminder' || !action.recurrence) return action;
+
+  const recurrence = normalizeRecurrenceValue(action.recurrence);
+  let normalized = recurrence === action.recurrence ? action : { ...action, recurrence };
+
+  if (normalized.action !== 'create' || recurrence !== 'daily' || !normalized.schedule) return normalized;
+  if (!['local_time', 'relative_day_time'].includes(normalized.schedule.kind)) return normalized;
+  if (normalized.schedule.kind === 'relative_day_time' && (normalized.schedule.dayOffset ?? 0) !== 0) return normalized;
+
+  const resolved = resolveTypedSchedule(normalized.schedule, {
+    referenceTime: context.referenceTime,
+    timezone: context.timezone,
+  });
+  const reference = context.referenceTime instanceof Date ? context.referenceTime : new Date(context.referenceTime || Date.now());
+  if (!resolved.valid || !resolved.date || resolved.date.getTime() > reference.getTime()) return normalized;
+
+  return {
+    ...normalized,
+    schedule: {
+      ...normalized.schedule,
+      kind: 'relative_day_time',
+      dayOffset: 1,
+    },
+  };
+}
+
 /**
  * Calendar updates are patches. Reuse live context when it is known, but never
  * turn an identity reference ("la segunda", an event name, etc.) into content.
@@ -127,6 +179,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeCalendarYear(action, context);
     action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);
+    action = normalizeRecurringReminder(action, context);
     action = normalizeCalendarPatch(action, context);
     return action;
   });
