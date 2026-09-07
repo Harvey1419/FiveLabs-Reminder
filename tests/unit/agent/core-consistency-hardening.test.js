@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
+import { resolveTypedSchedule } from '../../../src/agent/orchestration/typed-schedule.js';
 import { normalizeAgendaScope, normalizeTaskScope, parseTaskScope } from '../../../src/shared/agenda-scopes.js';
 import { formatCanonicalTaskList } from '../../../src/shared/agenda-presentation.js';
 import { getMemoryEligibleText } from '../../../src/features/memory/service.js';
@@ -43,6 +44,17 @@ describe('core consistency hardening', () => {
     expect(normalized.actions[0].title).toBeUndefined();
     expect(normalized.actions[0].content).toBeUndefined();
     expect(normalized.actions[0].schedule).toEqual({ kind: 'inherit_context' });
+  });
+
+  it('treats inherit_context without cached time as a no-op patch instead of inventing a time', () => {
+    const resolved = resolveTypedSchedule(
+      { kind: 'inherit_context' },
+      { referenceTime: context.referenceTime, timezone: context.timezone, baseDate: null },
+    );
+
+    expect(resolved.valid).toBe(true);
+    expect(resolved.canonical).toBeNull();
+    expect(resolved.inherited).toBe(false);
   });
 
   it('keeps Project -> tasks as the canonical collection hierarchy', () => {
