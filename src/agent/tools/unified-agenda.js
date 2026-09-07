@@ -1,17 +1,9 @@
 import { getUnifiedAgenda } from '../../features/agenda/service.js';
-import { formatAgendaWhatsAppCard } from '../../features/agenda/presentation.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 
 /**
- * Execute unified agenda tool.
- * Reads Calendar, Reminders, and Tasks simultaneously in a pure read-only aggregation.
- *
- * @param {object} params
- * @param {string} [params.action='get_agenda']
- * @param {object} [params.params={}]
- * @param {object} [params.user]
- * @param {string} [params.language='es']
- * @returns {Promise<object>}
+ * Unified Agenda is a read-only domain boundary. It returns structured truth;
+ * the shared presentation layer owns the final WhatsApp card.
  */
 export async function executeUnifiedAgendaTool({
   action = 'get_agenda',
@@ -22,8 +14,7 @@ export async function executeUnifiedAgendaTool({
   const userId = user?.id || null;
   const phoneNumber = user?.phone_number || null;
   const timezone = user?.timezone || 'America/Bogota';
-  // A generic agenda read means "what is pending/current". Temporal requests
-  // compiled by Hermes pass an explicit scope (today, tomorrow, week, etc.).
+  const locale = user?.locale || (language === 'en' ? 'en-US' : 'es-CO');
   const scope = params.scope || 'all_pending';
 
   try {
@@ -39,7 +30,6 @@ export async function executeUnifiedAgendaTool({
       language,
     });
 
-    const formattedCard = formatAgendaWhatsAppCard({ ...agenda, timezone }, language);
     const needsGoogleAuth = ['AUTH_REQUIRED', 'DISCONNECTED'].includes(agenda.calendar?.state);
     const authUrl = needsGoogleAuth && userId
       ? getGoogleConnectUrl({ userId, phoneNumber })
@@ -48,13 +38,11 @@ export async function executeUnifiedAgendaTool({
     return {
       success: true,
       action: 'unified_agenda_listed',
-      data: { ...agenda, formattedCard },
+      data: { ...agenda, timezone, locale },
       ctaUrl: authUrl,
-      ctaHeader: authUrl ? '📅 Google Calendar' : null,
+      ctaHeader: authUrl ? (language === 'en' ? '📋 Your agenda' : '📋 Tu agenda') : null,
       ctaButtonText: authUrl ? (language === 'en' ? 'Connect' : 'Conectar') : null,
-      rawSummary: formattedCard,
-      formattedCard,
-      confirmation: formattedCard,
+      rawSummary: language === 'en' ? 'Agenda loaded.' : 'Agenda consultada.',
     };
   } catch (err) {
     console.error('[unifiedAgendaTools] Error executing unified agenda:', err);
@@ -62,9 +50,9 @@ export async function executeUnifiedAgendaTool({
       success: false,
       action: 'unified_agenda_error',
       errorCode: 'UNIFIED_AGENDA_ERROR',
-      error: 'Error al consultar la agenda unificada.',
-      rawSummary: 'Error al consultar la agenda unificada.',
-      confirmation: '⚠️ Ocurrió un error al consultar tu agenda.',
+      error: language === 'en' ? 'I could not read your agenda.' : 'Error al consultar la agenda unificada.',
+      rawSummary: language === 'en' ? 'I could not read your agenda.' : 'Error al consultar la agenda unificada.',
+      confirmation: language === 'en' ? '⚠️ I could not read your agenda.' : '⚠️ Ocurrió un error al consultar tu agenda.',
     };
   }
 }
