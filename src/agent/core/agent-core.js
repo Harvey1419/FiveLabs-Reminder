@@ -14,42 +14,43 @@ export const AGENT_CONFIG = {
   personality: 'Cálido, proactivo, estructurado, natural, conversacional y sin rodeos',
 };
 
+/**
+ * Live state is orientation metadata, not an answer cache.
+ *
+ * Do not expose titles/content here: if Hermes can see an answer-shaped list in
+ * the system prompt it may answer an agenda question without consulting the
+ * authoritative reader. Counts preserve situational awareness while forcing
+ * schedule/pending reads through Unified Agenda.
+ */
 export function formatCompactOverview(overview) {
   if (!overview) return '';
-  const lines = [];
 
-  if (overview.pendingConfirmationReminders?.length > 0) {
-    lines.push('*[Avisos Activos]*:');
-    for (const it of overview.pendingConfirmationReminders.slice(0, 3)) {
-      const nudgeInfo = it.nudgeCount > 0 ? ` (#${it.nudgeCount})` : '';
-      lines.push(`  • 🔔 ${it.content || it.title}${nudgeInfo}`);
-    }
+  const activeNoticeCount = overview.pendingConfirmationReminders?.length || 0;
+  const todayReminderCount = overview.timedRemindersToday?.length || 0;
+  const todayTaskCount = overview.tasksDueToday?.length || 0;
+  const undatedTaskCount = overview.openTasks?.length || 0;
+  const activeProjectCount = overview.openTasksByEntity
+    ? Object.keys(overview.openTasksByEntity).length
+    : 0;
+
+  if (
+    activeNoticeCount === 0
+    && todayReminderCount === 0
+    && todayTaskCount === 0
+    && undatedTaskCount === 0
+    && activeProjectCount === 0
+  ) {
+    return '';
   }
 
-  if (overview.timedRemindersToday?.length > 0) {
-    lines.push('*[Recordatorios Hoy]*:');
-    for (const it of overview.timedRemindersToday.slice(0, 3)) {
-      lines.push(`  • ⏰ ${it.localTime}: ${it.content || it.title}`);
-    }
-  }
-
-  if (overview.tasksDueToday?.length > 0) {
-    lines.push('*[Tareas Hoy]*:');
-    for (const it of overview.tasksDueToday.slice(0, 3)) {
-      const time = it.localTime ? ` (${it.localTime})` : '';
-      const entity = it.entityName ? ` [${it.entityName}]` : '';
-      lines.push(`  • 🎯 ${it.title || it.content}${time}${entity}`);
-    }
-  }
-
-  if (overview.openTasksByEntity && Object.keys(overview.openTasksByEntity).length > 0) {
-    lines.push('*[Proyectos/Listas Activas]*:');
-    for (const [entName, entTasks] of Object.entries(overview.openTasksByEntity).slice(0, 5)) {
-      lines.push(`  • 📁 ${entName} (${entTasks.length} pendiente${entTasks.length === 1 ? '' : 's'})`);
-    }
-  }
-
-  return lines.length > 0 ? lines.join('\n') : '';
+  return [
+    '*[Estado vivo — solo orientación]*',
+    `• Avisos de seguimiento activos: ${activeNoticeCount}`,
+    `• Recordatorios programados hoy: ${todayReminderCount}`,
+    `• Tareas con vencimiento hoy: ${todayTaskCount}`,
+    `• Tareas abiertas sin fecha: ${undatedTaskCount}`,
+    `• Proyectos/listas con tareas abiertas: ${activeProjectCount}`,
+  ].join('\n');
 }
 
 export function buildAgentCorePrompt({
@@ -98,12 +99,14 @@ No investigues ni produzcas contenido profesional general. No enseñes, escribas
 
 ## CÓMO DECIDIR
 Piensa en el objetivo del usuario antes que en las tools. Las tools son mecanismos de ejecución, no categorías conversacionales.
-- Conversación, afirmaciones personales informativas, agradecimiento, despedida, desahogo, preguntas respondibles desde el contexto disponible o una petición totalmente fuera de alcance: responde naturalmente sin tools.
+- Conversación, afirmaciones personales informativas, agradecimiento, despedida, desahogo, preguntas respondibles desde memoria/contexto personal o una petición totalmente fuera de alcance: responde naturalmente sin tools.
+- El Estado vivo resumido NO es una fuente autorizada para responder qué hay pendiente, qué hay hoy, qué viene después o qué hay en agenda. Solo sirve para orientación interna y resolución de contexto.
+- Toda consulta que pida leer agenda, compromisos, pendientes, cosas por hacer o elementos programados cruza dominios y DEBE usar agenda.read, salvo que el usuario nombre explícitamente un único dominio como recordatorios, tareas o Google Calendar.
+- Para una consulta general de pendientes sin rango temporal explícito usa agenda.read con scope=all_pending. Si el usuario expresa hoy, mañana, semana, fecha o rango, conserva ese scope exacto.
 - Una pregunta no autoriza una mutación. Una petición inequívoca sí, salvo que falte un dato indispensable o el backend requiera confirmación.
 - Para acciones válidas emite una sola llamada a execute_turn con únicamente el delta del mensaje actual. No repitas operaciones del historial.
 - Usa el contexto reciente para entender referencias y correcciones. El mensaje actual explícito tiene prioridad sobre Working Memory, estado vivo, historial y memoria persistente.
 - Si el usuario corrige algo existente, actualízalo en lugar de borrar y recrear. Si dice inequívocamente que una tarea o recordatorio identificado ya se hizo, complétalo/reconócelo.
-- Una consulta general de agenda usa agenda_read. Si el usuario nombra específicamente recordatorios, tareas o Google Calendar, usa ese dominio.
 - Google Calendar requiere intención explícita de Calendar/evento. Pedir un aviso por WhatsApp es un recordatorio.
 - Pregunta solo cuando falta información realmente necesaria para ejecutar con seguridad. No pidas permiso para una lectura segura ni para una acción que el usuario ya pidió claramente.
 
@@ -121,7 +124,7 @@ Las cards verificadas del backend son parte importante de la experiencia: consé
 Para conversación sin cards, usa una o dos frases naturales. Si hay varias ideas, usa saltos de línea para facilitar lectura en WhatsApp; no conviertas cada frase en encabezado.
 
 ## CONTEXTO DISPONIBLE
-${workingMemoryText ? `### Contexto conversacional inmediato\n${workingMemoryText}\n` : ''}${compactOverview ? `### Estado vivo resumido — orientación; valida mediante tools\n${compactOverview}\n` : ''}### Memoria persistente recuperada por relevancia
+${workingMemoryText ? `### Contexto conversacional inmediato\n${workingMemoryText}\n` : ''}${compactOverview ? `### Estado vivo resumido — metadata no autoritativa\n${compactOverview}\n` : ''}### Memoria persistente recuperada por relevancia
 <user_memories>
 ${memoryHints || '(Ninguna memoria relevante para este turno)'}
 </user_memories>`;
