@@ -37,6 +37,20 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[0].schedule.year).toBe(2026);
   });
 
+  it('maps a semantic newName to the concrete mutable field for each domain', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [
+        { domain: 'reminder', action: 'update', target: 'Test Update', newName: 'cita en cerámica Italia' },
+        { domain: 'task', action: 'update', target: 'la segunda', newName: 'Revisar memoria' },
+        { domain: 'calendar', action: 'update', target: 'la primera', newName: 'Cita odontológica' },
+      ],
+    }, context);
+
+    expect(normalized.actions[0].content).toBe('cita en cerámica Italia');
+    expect(normalized.actions[1].title).toBe('Revisar memoria');
+    expect(normalized.actions[2].title).toBe('Cita odontológica');
+  });
+
   it('turns a partial calendar update into a patch that preserves the referenced event title/time', () => {
     saveWorkingMemory(user, {
       source: 'calendar',
