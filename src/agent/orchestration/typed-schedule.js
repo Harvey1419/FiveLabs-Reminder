@@ -121,8 +121,25 @@ export function resolveTypedSchedule(schedule, {
 
   if (normalizedSchedule.kind === 'inherit_context') {
     const inherited = baseDate instanceof Date ? baseDate : new Date(baseDate || NaN);
-    if (Number.isNaN(inherited.getTime())) return failure('MISSING_CONTEXT_TIME', 'El elemento referenciado no tiene una hora válida.');
-    return { valid: true, date: inherited, canonical: inherited.toISOString(), temporalKind: normalizedSchedule.kind };
+    if (Number.isNaN(inherited.getTime())) {
+      // A partial update may intentionally preserve an existing field without
+      // having that value in short-term memory. Return an explicit no-op delta;
+      // domain tools must omit null inherited values rather than inventing one.
+      return {
+        valid: true,
+        date: null,
+        canonical: null,
+        temporalKind: normalizedSchedule.kind,
+        inherited: false,
+      };
+    }
+    return {
+      valid: true,
+      date: inherited,
+      canonical: inherited.toISOString(),
+      temporalKind: normalizedSchedule.kind,
+      inherited: true,
+    };
   }
 
   if (!validClock(normalizedSchedule)) return failure('MISSING_CLOCK_TIME', 'Falta una hora de reloj completa y válida.');
