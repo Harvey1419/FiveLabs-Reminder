@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { compileTurnIntentV2, isTurnIntentV2 } from '../../../src/agent/orchestration/turn-intent-v2.js';
+import { getAgentToolDefinitions, validateToolCall } from '../../../src/agent/contracts/tool-contracts.js';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('TurnIntent v2', () => {
   it('compiles a simple reminder without making the model author protocol fields', () => {
@@ -36,11 +41,7 @@ describe('TurnIntent v2', () => {
 
   it('maps human targets directly and leaves ID resolution to Node', () => {
     const result = compileTurnIntentV2({
-      actions: [{
-        domain: 'task',
-        action: 'complete',
-        target: 'la segunda',
-      }],
+      actions: [{ domain: 'task', action: 'complete', target: 'la segunda' }],
     }, { userMessage: 'La segunda ya la hice' });
 
     expect(result).toMatchObject({
@@ -84,6 +85,23 @@ describe('TurnIntent v2', () => {
     ]);
   });
 
+  it('preserves excluded clauses for mixed in-scope/out-of-scope turns', () => {
+    const result = compileTurnIntentV2({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'Caminar',
+        schedule: { kind: 'relative_offset', offsetMinutes: 15 },
+      }],
+      excluded: [{ quote: 'explícame cómo depurar Node', reason: 'prohibited' }],
+    }, { userMessage: 'Recuérdame caminar en 15 minutos y explícame cómo depurar Node' });
+
+    expect(result.valid).toBe(true);
+    expect(result.manifest.excludedClauses).toEqual([
+      { sourceQuote: 'explícame cómo depurar Node', reason: 'prohibited' },
+    ]);
+  });
+
   it('rejects unsupported domain/action pairs deterministically', () => {
     const result = compileTurnIntentV2({
       actions: [{ domain: 'reminder', action: 'explode' }],
@@ -95,5 +113,45 @@ describe('TurnIntent v2', () => {
   it('detects v2 payloads without confusing legacy manifests', () => {
     expect(isTurnIntentV2({ actions: [] })).toBe(true);
     expect(isTurnIntentV2({ operations: [] })).toBe(false);
+  });
+
+  it('exposes v2 to the model by default and compiles it before the router sees it', () => {
+    const [tool] = getAgentToolDefinitions();
+    expect(tool.function.name).toBe('execute_turn');
+    expect(tool.function.parameters.required).toContain('actions');
+    expect(tool.function.parameters.properties).not.toHaveProperty('operations');
+
+    const validated = validateToolCall({
+      toolName: 'execute_turn',
+      params: {
+        sourceQuote: 'La segunda ya la hice',
+        actions: [{ domain: 'task', action: 'complete', target: 'la segunda' }],
+      },
+    });
+
+    expect(validated).toMatchObject({
+      valid: true,
+      params: {
+        operations: [{ kind: 'task_complete', targetName: 'la segunda' }],
+        excludedClauses: [],
+      },
+    });
+  });
+
+  it('can immediately roll back the model-facing contract with AGENT_PLANNER_V2=false', () => {
+    vi.stubEnv('AGENT_PLANNER_V2', 'false');
+    const [tool] = getAgentToolDefinitions();
+    expect(tool.function.parameters.required).toContain('operations');
+    expect(tool.function.parameters.properties).not.toHaveProperty('actions');
+  });
+
+  it('keeps admin unavailable to ordinary users at the model boundary', () => {
+    const [normalTool] = getAgentToolDefinitions({ isAdmin: false });
+    const normalDomains = normalTool.function.parameters.properties.actions.items.properties.domain.enum;
+    expect(normalDomains).not.toContain('admin');
+
+    const [adminTool] = getAgentToolDefinitions({ isAdmin: true });
+    const adminDomains = adminTool.function.parameters.properties.actions.items.properties.domain.enum;
+    expect(adminDomains).toContain('admin');
   });
 });
