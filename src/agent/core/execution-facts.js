@@ -41,13 +41,6 @@ function getSafeCard(toolName, params, result, language) {
   );
 }
 
-const MUTATION_ACTIONS = new Set([
-  'created_reminders_batch', 'created_advance_reminder', 'updated_reminder', 'cancelled_reminders',
-  'acknowledged_reminder', 'acknowledged_reminders_batch', 'created_tasks_batch', 'completed_task',
-  'completed_tasks', 'updated_task', 'deleted_task', 'created_entity', 'renamed_entity', 'merged_entities',
-  'deleted_entities', 'deduplicated_entities',
-]);
-
 export function createExecutionFact({ toolName, params, result, callId = null, language = 'es' }) {
   const success = Boolean(result?.success);
   const complete = success && result?.partialSuccess !== true && result?.complete !== false;
@@ -69,32 +62,24 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
   });
 }
 
-/** Cards are backend-owned and are the primary WhatsApp presentation. */
+/** Backend-owned cards are the primary WhatsApp presentation. */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length === 0) return '';
 
-  const legacyFraming = typeof options?.framing === 'string';
   const framing = options?.framing && typeof options.framing === 'object'
     ? options.framing
     : null;
   const before = typeof framing?.before === 'string' ? sanitizeResponseText(framing.before) : '';
   const after = typeof framing?.after === 'string' ? sanitizeResponseText(framing.after) : '';
-  const frame = (body, legacyFallback = '') => [before, body, after || (legacyFraming ? legacyFallback : '')]
-    .filter(Boolean)
-    .join('\n\n');
+  const frame = (body) => [before, body, after].filter(Boolean).join('\n\n');
 
   const renderedCards = safeFacts
     .map((fact) => fact.card || fact.summary)
     .filter(Boolean);
-  const allComplete = safeFacts.every((fact) => fact.success && fact.complete);
-  const completedMutation = allComplete && safeFacts.some((fact) => MUTATION_ACTIONS.has(fact.action));
 
   if (safeFacts.length === 1) {
-    const legacyFollowUp = completedMutation
-      ? (language === 'en' ? 'Anything else I can help you with?' : '¿Algo más en lo que pueda ayudarte?')
-      : '';
-    return frame(renderedCards[0] || safeFacts[0].summary, legacyFollowUp);
+    return frame(renderedCards[0] || safeFacts[0].summary);
   }
 
   if (safeFacts.some((fact) => fact.requiresClarification)) {
