@@ -1,5 +1,6 @@
 import { executeReminderTool } from './reminders.js';
 import { executeTaskTool } from './tasks.js';
+import { executeTaskReadTool } from './task-read.js';
 import { executeEntityTool } from './entities.js';
 import { executeMemoryTool } from './memory.js';
 import { executeSubscriptionTool } from './subscriptions.js';
@@ -11,9 +12,21 @@ import { TOOL_NAMES } from '../contracts/tool-names.js';
 
 export { TOOL_NAMES } from '../contracts/tool-names.js';
 
+function sanitizeCalendarParams(action, params) {
+  if (action !== 'update_event') return params;
+  const safe = { ...(params || {}) };
+  // target identifies the event; it is never event content. The old executor
+  // may carry target into summary as a compatibility fallback. Strip only that
+  // identity echo while preserving an explicit rename where summary differs.
+  if (safe.target && safe.summary && String(safe.target).trim() === String(safe.summary).trim()) {
+    delete safe.summary;
+  }
+  return safe;
+}
+
 /**
- * Master tool router that executes domain tools deterministically and returns validated results.
- * Supports both options object and positional (toolName, params, user) invocations.
+ * Master deterministic domain router. Read collections are routed through
+ * canonical read models; mutations remain owned by their domain tools.
  */
 export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = null) {
   let toolName;
@@ -44,8 +57,6 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
     user = userArg;
     isPro = userArg?.isPro ?? false;
     language = userArg?.locale?.startsWith('en') ? 'en' : 'es';
-    userMessage = '';
-    correlationId = null;
   }
 
   const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';
@@ -65,7 +76,9 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
 
       case TOOL_NAMES.MANAGE_TASK: {
         const action = params?.action || 'create';
-        result = await executeTaskTool({ action, params, user, language, userMessage, referenceTime });
+        result = action === 'list'
+          ? await executeTaskReadTool({ params, user, language })
+          : await executeTaskTool({ action, params, user, language, userMessage, referenceTime });
         break;
       }
 
@@ -84,18 +97,14 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
       case TOOL_NAMES.MANAGE_SUBSCRIPTION:
       case TOOL_NAMES.GET_SUBSCRIPTION_LINK: {
         const action = toolName === TOOL_NAMES.GET_SUBSCRIPTION_LINK ? 'get_link' : (params?.action || 'get_link');
-        result = await executeSubscriptionTool({
-          action,
-          params,
-          user,
-          language,
-        });
+        result = await executeSubscriptionTool({ action, params, user, language });
         break;
       }
 
       case TOOL_NAMES.MANAGE_GOOGLE_CALENDAR: {
         const action = params?.action || 'get_connect_link';
-        result = await executeCalendarTool({ action, params, user, language, referenceTime });
+        const safeParams = sanitizeCalendarParams(action, params);
+        result = await executeCalendarTool({ action, params: safeParams, user, language, referenceTime });
         break;
       }
 
@@ -123,9 +132,6 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
 
     if (!result.success) {
       console.warn(`${reqId} ${toolName} failed with ${result.errorCode}:`, result.error);
-      // A domain may return a deliberate, user-facing failure card (for
-      // example a plan limit or a safe clarification). Preserve it instead of
-      // collapsing every failure to its terse diagnostic string.
       const rawSummary = result.formattedCard
         || result.rawSummary
         || result.error
@@ -149,7 +155,7 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
       };
     }
 
-    const rawSummary = result.data?.formattedCard || result.confirmation || result.rawSummary || 'Operación completada.';
+    const rawSummary = result.confirmation || result.rawSummary || 'Operación completada.';
 
     return {
       success: true,
