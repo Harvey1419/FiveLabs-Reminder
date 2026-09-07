@@ -10,7 +10,7 @@ import {
 import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 import { buildAgentCorePrompt } from '../core/agent-core.js';
-import { formatWorkingMemoryPrompt, sanitizeResponseText } from '../core/working-memory.js';
+import { formatWorkingMemoryPrompt, getWorkingMemory, sanitizeResponseText } from '../core/working-memory.js';
 import { hydrateClarificationStateFromHistory, getClarificationStateSnapshot } from './clarification-flow.js';
 import { composeExecutionReply } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
@@ -32,6 +32,22 @@ function normalizeStandaloneGreeting(value) {
     .trim();
   while (normalized.includes('  ')) normalized = normalized.replaceAll('  ', ' ');
   return normalized;
+}
+
+function safeLogSnippet(value, maxLength = 120) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+function summarizeAction(action = {}) {
+  const parts = [`${action.domain || 'unknown'}.${action.action || 'unknown'}`];
+  if (action.target) parts.push(`target="${safeLogSnippet(action.target, 70)}"`);
+  if (action.scope) parts.push(`scope=${action.scope}`);
+  if (action.schedule?.kind) parts.push(`schedule=${action.schedule.kind}`);
+  if (action.recurrence) parts.push(`recurrence=${action.recurrence}`);
+  if (action.content || action.title || action.newName) parts.push('hasContentDelta=true');
+  return parts.join(' ');
 }
 
 function normalizeModelResponse(modelResponse) {
@@ -125,11 +141,12 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const language = user.locale?.startsWith('en') ? 'en' : 'es';
   const isAdmin = isAdminUser(user);
   const requestId = options?.correlationId || 'none';
+  const inputModality = options?.inputModality || 'text';
 
   computeOffsetMinutes(timezone, requestReferenceTime);
   const nowStr = nowISO(timezone, requestReferenceTime);
   const nowHumanStr = nowHuman(timezone, language, requestReferenceTime);
-  console.log(`[router req=${requestId}] in: "${messageText}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
+  console.log(`[router req=${requestId}] in modality=${inputModality} text="${safeLogSnippet(messageText, 180)}" phone=${phoneNumber} tz=${timezone} admin=${isAdmin}`);
 
   const trustedMessageText = String(messageText || '')
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
@@ -138,13 +155,17 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const isAttachmentOnlyTurn = hasAttachmentEvidence && !trustedMessageText;
 
   const normalizedGreeting = normalizeStandaloneGreeting(trustedMessageText);
-  if (STANDALONE_GREETINGS.has(normalizedGreeting)) {
+  if (STANDALONE_GREETINGS.has(normalizedGreeting) && inputModality !== 'audio') {
+    console.log(`[router req=${requestId}] greeting fast-path hit normalized=${normalizedGreeting}`);
     const isEnglishGreeting = new Set(['hello', 'hi', 'hey']).has(normalizedGreeting);
     const greeting = isEnglishGreeting ? 'Hi! 👋\n\nHow can I help you?' : '¡Hola! 👋\n\n¿En qué te ayudo?';
     return {
       intent: 'greeting', entities: {}, language: isEnglishGreeting ? 'en' : 'es', confirmation: greeting,
       ctaUrl: null, ctaHeader: null, ctaButtonText: null, executionFacts: [], memoryDisposition: 'skip_operational',
     };
+  }
+  if (STANDALONE_GREETINGS.has(normalizedGreeting) && inputModality === 'audio') {
+    console.warn(`[router req=${requestId}] audio transcript matched greeting fast-path token; bypassing shortcut so Hermes can use conversational context`);
   }
 
   hydrateClarificationStateFromHistory(user, history);
@@ -167,7 +188,18 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const memoryHints = (relevantMemories || []).length > 0
     ? relevantMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
     : '';
-  const workingMemoryText = formatWorkingMemoryPrompt(phoneNumber || user.id);
+  const workingMemoryKey = phoneNumber || user.id;
+  const workingMemory = getWorkingMemory(workingMemoryKey);
+  const workingMemoryText = formatWorkingMemoryPrompt(workingMemoryKey);
+  if (workingMemory) {
+    console.log(
+      `[router req=${requestId}] working-memory source=${workingMemory.source || 'unknown'} lastAction=${workingMemory.lastAction || 'unknown'} items=${workingMemory.items?.length || 0} pendingClarifications=${workingMemory.pendingClarifications?.length || 0} notification="${safeLogSnippet(workingMemory.notificationContent, 100)}"`,
+    );
+  } else {
+    console.log(`[router req=${requestId}] working-memory empty`);
+  }
+  console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
+
   const prompt = buildAgentCorePrompt({
     nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, overview: dailyOverview,
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name,
@@ -205,6 +237,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
   let modelElapsedMs = Date.now() - modelStart;
   const decision = normalizeModelResponse(modelResponse);
+  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length}`);
   const collected = collectIntent(decision.toolCalls, { isAdmin });
 
   if (!collected.valid) {
@@ -231,11 +264,29 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
+  console.log(`[router req=${requestId}] semantic intent actions=${collected.intent.actions.map(summarizeAction).join(' | ')}`);
   const runtimeIntent = normalizeTurnIntentForRuntime(collected.intent, {
     user,
     referenceTime: requestReferenceTime,
     timezone,
   });
+  console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
+
+  for (const action of runtimeIntent.actions) {
+    const isEmptyReminderUpdate = action.domain === 'reminder'
+      && action.action === 'update'
+      && !action.content
+      && !action.title
+      && !action.newName
+      && !action.schedule
+      && !action.recurrence
+      && !action.advanceMinutes;
+    if (isEmptyReminderUpdate) {
+      console.warn(
+        `[router req=${requestId}] suspicious empty reminder.update target="${safeLogSnippet(action.target, 90)}" activeNotification="${safeLogSnippet(workingMemory?.notificationContent, 90)}" lastAction=${workingMemory?.lastAction || 'none'}`,
+      );
+    }
+  }
 
   const toolStart = Date.now();
   const execution = await executeTurnIntent(runtimeIntent, {
@@ -247,6 +298,11 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     latestAssistantMessage,
   });
   const toolElapsedMs = Date.now() - toolStart;
+  execution.records.forEach(({ toolName, result }, index) => {
+    console.log(
+      `[router req=${requestId}] execution[${index + 1}] tool=${toolName || 'unknown'} success=${Boolean(result?.success)} action=${result?.action || 'unknown'} errorCode=${result?.errorCode || 'none'}`,
+    );
+  });
 
   let framing = null;
   if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
