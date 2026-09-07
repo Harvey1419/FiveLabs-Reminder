@@ -9,6 +9,12 @@ import { listCalendarEvents, normalizeCalendarEvent } from '../../integrations/g
 
 const DEFAULT_TIMEZONE = 'America/Bogota';
 
+function isAllPendingScope(scope) {
+  return new Set(['all', 'all_pending', 'todos', 'pendientes', 'todos_los_pendientes']).has(
+    String(scope || '').toLowerCase().trim(),
+  );
+}
+
 /**
  * Pure aggregation reader for Unified Agenda.
  * Queries Calendar, Reminders, and Tasks independently in parallel without converting entities
@@ -18,7 +24,7 @@ const DEFAULT_TIMEZONE = 'America/Bogota';
  * @param {string} params.userId
  * @param {string} [params.phoneNumber]
  * @param {string} [params.timezone='America/Bogota']
- * @param {string} [params.scope='tomorrow'] - 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_weekend' | 'explicit_date' | 'explicit_range' | 'month' | 'full_year'
+ * @param {string} [params.scope='tomorrow']
  * @param {string} [params.date]
  * @param {string} [params.dateFrom]
  * @param {string} [params.dateTo]
@@ -43,6 +49,7 @@ export async function getUnifiedAgenda({
   const timeMax = temporal.timeMax;
   const timeMinIso = timeMin instanceof Date ? timeMin.toISOString() : String(timeMin);
   const timeMaxIso = timeMax instanceof Date ? timeMax.toISOString() : String(timeMax);
+  const allPending = isAllPendingScope(scope);
 
   // 1. Parallel independent fetch across the 3 domains
   const [calendarResult, remindersResult, tasksResult] = await Promise.allSettled([
@@ -58,7 +65,7 @@ export async function getUnifiedAgenda({
           timeMin,
           timeMax,
           timezone: tz,
-          maxResults: 50,
+          maxResults: temporal.maxResults || 50,
           q: query || undefined,
         });
         const events = rawEvents.map(ev => {
@@ -83,13 +90,24 @@ export async function getUnifiedAgenda({
 
     // B. Reminder Reader Branch
     (async () => {
+      // "Pending" is a lifecycle concept, not "anything not cancelled".
+      // Sent/missed/failed/elapsed rows are history and must never leak into a
+      // current agenda simply because acknowledged_at is null.
       let q = supabase
         .from('reminders')
         .select('*')
-        .neq('status', 'cancelled')
-        .is('acknowledged_at', null)
-        .gte('send_at', timeMinIso)
-        .lt('send_at', timeMaxIso);
+        .eq('status', 'pending')
+        .is('acknowledged_at', null);
+
+      if (allPending) {
+        q = q
+          .gte('send_at', timeMinIso)
+          .lt('send_at', timeMaxIso);
+      } else {
+        q = q
+          .gte('send_at', timeMinIso)
+          .lt('send_at', timeMaxIso);
+      }
 
       if (userId && phoneNumber) {
         q = q.or(`user_id.eq.${userId},phone_number.eq.${phoneNumber}`);
@@ -128,14 +146,23 @@ export async function getUnifiedAgenda({
     // C. Task Reader Branch
     (async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
+
+      let q = supabase
         .from('tasks')
         .select('*, entities:entity_id(id, name, category)')
         .eq('user_id', userId)
-        .eq('status', 'pending')
-        .gte('due_date', timeMinIso)
-        .lt('due_date', timeMaxIso)
-        .order('due_date', { ascending: true });
+        .eq('status', 'pending');
+
+      // A broad pending read includes undated open tasks. A temporal agenda
+      // (today/tomorrow/week/etc.) includes only tasks scheduled in that range.
+      if (!allPending) {
+        q = q
+          .gte('due_date', timeMinIso)
+          .lt('due_date', timeMaxIso);
+      }
+
+      q = q.order('due_date', { ascending: true, nullsFirst: false });
+      const { data, error } = await q;
 
       if (error) {
         console.error('[unifiedAgenda] Tasks read error:', error.message);
@@ -234,15 +261,6 @@ export async function getUnifiedAgenda({
 
 /**
  * Build clean, executive Unified Agenda presentation without exposing internal IDs.
- *
- * @param {object} params
- * @param {object} params.calendar - { state: 'CONNECTED'|'DISCONNECTED'|'AUTH_REQUIRED'|'ERROR', events: [] }
- * @param {Array} params.reminders
- * @param {Array} params.tasks
- * @param {string} params.scope
- * @param {string} params.timezone
- * @param {string} params.language
- * @returns {string}
  */
 export function formatUnifiedAgendaCard({
   calendar = { state: 'DISCONNECTED', events: [] },
@@ -255,6 +273,7 @@ export function formatUnifiedAgendaCard({
   const isEn = language === 'en';
   const calendarEvents = calendar.events || [];
   const totalCount = calendarEvents.length + reminders.length + tasks.length;
+  const allPending = isAllPendingScope(scope);
 
   let scopeLabel = 'este período';
   const WEEKDAY_LABELS_ES = {
@@ -284,10 +303,16 @@ export function formatUnifiedAgendaCard({
   else if (scope === 'this_week') scopeLabel = isEn ? 'this week' : 'esta semana';
   else if (scope === 'next_week') scopeLabel = isEn ? 'next week' : 'la próxima semana';
   else if (scope === 'this_weekend') scopeLabel = isEn ? 'this weekend' : 'este fin de semana';
-  else if (scope === 'upcoming' || scope === 'all' || scope === 'all_pending') scopeLabel = isEn ? 'upcoming schedule' : 'los próximos días';
+  else if (allPending) scopeLabel = isEn ? 'current pending items' : 'tus pendientes actuales';
+  else if (scope === 'upcoming') scopeLabel = isEn ? 'upcoming schedule' : 'los próximos días';
   else if (scope === 'explicit_date') scopeLabel = isEn ? 'that date' : 'esa fecha';
 
   if (totalCount === 0) {
+    if (allPending) {
+      return isEn
+        ? '✅ *You are all caught up*\n\nYou have no pending reminders or tasks right now.'
+        : '✅ *Estás al día*\n\nNo tienes recordatorios ni tareas pendientes en este momento.';
+    }
     if (calendar.state === 'ERROR') {
       return isEn
         ? `📅 *Your Schedule for ${scopeLabel}:*\n\n(No events found in Reminders or Tasks. Google Calendar is temporarily unavailable).`
@@ -304,7 +329,9 @@ export function formatUnifiedAgendaCard({
   }
 
   const sections = [];
-  sections.push(isEn ? `📅 *Your schedule for ${scopeLabel}:*` : `📅 *Tu agenda para ${scopeLabel}:*`);
+  sections.push(allPending
+    ? (isEn ? '📋 *Current pending items*' : '📋 *Pendientes actuales*')
+    : (isEn ? `📅 *Your schedule for ${scopeLabel}:*` : `📅 *Tu agenda para ${scopeLabel}:*`));
 
   const isMultiDay = scope !== 'today' && scope !== 'tomorrow';
 
@@ -318,9 +345,9 @@ export function formatUnifiedAgendaCard({
       return `• 📅 *${ev.summary || 'Evento'}*${timeDisplay}`;
     });
     sections.push(`📅 *CALENDARIO*\n${lines.join('\n')}`);
-  } else if (calendar.state === 'ERROR') {
+  } else if (!allPending && calendar.state === 'ERROR') {
     sections.push(`📅 *CALENDARIO*\n⚠️ _(Google Calendar no disponible temporalmente)_`);
-  } else if (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED') {
+  } else if (!allPending && (calendar.state === 'AUTH_REQUIRED' || calendar.state === 'DISCONNECTED')) {
     sections.push(isEn
       ? '📅 *CALENDAR*\n🔐 _(Google Calendar needs to be connected)_'
       : '📅 *CALENDARIO*\n🔐 _(Google Calendar necesita conexión)_');
