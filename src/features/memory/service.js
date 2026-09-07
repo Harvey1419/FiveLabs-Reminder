@@ -1,4 +1,5 @@
 import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
+import { getActiveMemories } from '../../infrastructure/database/memories.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
@@ -18,13 +19,14 @@ STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
 
 TOPIC KEY HIERARCHY (MANDATORY FORMAT):
 Always structure topicKey as a clean, lowercase hierarchical path: <category_or_entity_type>/<entity_slug>/<aspect>
+Facts directly about the user themself MUST use profile/<aspect> whenever there is a stable profile aspect. Do not encode the user's own residence as a generic place memory; use profile/residence. Do not encode the user's own job as a company memory; use profile/occupation or profile/work. This makes stable self-knowledge reliably available as core profile context.
 Examples:
 - "person/juan_zapata/relation" (or "person/juan_zapata/status")
 - "person/monica_acosta/location" (or "person/monica_acosta/contact")
 - "company/ceramica_italia/location" (or "company/ceramica_italia/project")
 - "project/yax/scope" (or "project/yax/presentation")
 - "place/barranquilla/activities"
-- "profile/residence" (or "profile/identity")
+- "profile/residence" (or "profile/identity", "profile/occupation")
 - "preference/communication" (or "preference/notifications")
 
 CATEGORIES:
@@ -120,7 +122,6 @@ export async function extractAndSaveMemories({
     .trim();
   if (hasAttachmentEvidence && !trustedUserText) return [];
 
-  // Quick filter: skip empty or pure single-word greetings / trivial acknowledgments
   const trimmed = trustedUserText.toLowerCase();
   const PURE_TRIVIAL_REGEX = /^(hola|hi|hey|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|ok|listo|dale|gracias|muchas\s+gracias|de\s+nada|chao|adi[oó]s|done|ya|perfecto|entendido)$/i;
   if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) {
@@ -161,7 +162,6 @@ export async function extractAndSaveMemories({
       let canonicalName = item.entityName ? String(item.entityName).trim() : null;
       let matchedEntity = null;
 
-      // 1. If an entity was named, resolve or register with fuzzy deduplication
       if (canonicalName) {
         try {
           matchedEntity = await findOrCreateEntityFuzzy({
@@ -177,10 +177,8 @@ export async function extractAndSaveMemories({
         }
       }
 
-      // 2. Canonicalize topicKey to guarantee deterministic superseding
       const safeTopicKey = canonicalizeTopicKey(item.topicKey, canonicalName, item.category);
 
-      // 3. Save memory (superseding any previous active memory with identical topicKey)
       const mem = await saveMemory({
         userId,
         topicKey: safeTopicKey,
@@ -202,13 +200,66 @@ export async function extractAndSaveMemories({
 }
 
 /**
- * Retrieve active memories relevant to a user's query or conversation context.
+ * Stable self-knowledge is not ordinary RAG. These weights rank structured
+ * memory records for the small core profile that travels with every meaningful
+ * turn. They inspect stored taxonomy, never wording from the current query.
+ */
+const CORE_PROFILE_ASPECTS = new Set([
+  'identity', 'name', 'residence', 'location', 'occupation', 'work', 'job',
+  'language', 'family', 'relationship', 'contact', 'communication', 'notifications',
+]);
+
+function coreProfileScore(memory) {
+  const topic = String(memory?.topic_key || '').toLowerCase();
+  const category = String(memory?.category || '').toLowerCase();
+  if (!topic) return 0;
+
+  if (topic.startsWith('profile/')) return 100;
+  if (topic.startsWith('preference/')) return 95;
+  if (category === 'preference') return 90;
+
+  const segments = topic.split('/').filter(Boolean);
+  const aspect = segments.at(-1) || '';
+  if (CORE_PROFILE_ASPECTS.has(aspect) && category === 'fact') return 80;
+
+  return 0;
+}
+
+export function selectCoreProfileMemories(memories, limit = 10) {
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 10), 15);
+  return (Array.isArray(memories) ? memories : [])
+    .map((memory, index) => ({ memory, score: coreProfileScore(memory), index }))
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, safeLimit)
+    .map(({ memory }) => ({ ...memory, category: `core_profile:${memory.category || 'fact'}` }));
+}
+
+function mergeMemoryContext(coreProfile, semanticMemories, limit) {
+  const merged = [];
+  const seen = new Set();
+  const add = (memory) => {
+    if (!memory?.content) return;
+    const identity = memory.id || memory.topic_key || `${memory.category}:${memory.content}`;
+    if (seen.has(identity)) return;
+    seen.add(identity);
+    merged.push(memory);
+  };
+
+  for (const memory of coreProfile || []) add(memory);
+  for (const memory of semanticMemories || []) add(memory);
+
+  const safeLimit = Math.min(Math.max(5, Number(limit) || 5) + 10, 20);
+  return merged.slice(0, safeLimit);
+}
+
+/**
+ * Retrieve second-brain context in two complementary lanes:
+ * 1) a compact stable core profile, always available on meaningful turns;
+ * 2) semantic recall specific to the current message.
  *
- * @param {object} params
- * @param {string} params.userId
- * @param {string} params.queryText
- * @param {number} [params.limit=5]
- * @returns {Promise<Array<object>>}
+ * Both lanes use the same active memories table and are deduplicated before the
+ * prompt, so there is still exactly one persistent source of truth.
  */
 const PURE_TRIVIAL_INTERACTION_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|done|ya)$/i;
 
@@ -221,21 +272,20 @@ export async function retrieveRelevantMemories({ userId, queryText, limit = 5 })
     .trim();
   if (!retrievalQuery) return [];
 
-  // Attachment descriptions can be large and unrelated to the user's durable
-  // memory. A short caption about the attachment is not a memory query.
   if (hasAttachmentEvidence && retrievalQuery.split(/\s+/).length <= 5) return [];
 
   const clean = retrievalQuery.toLowerCase().replace(/[.,!?:;¿¡]/g, '');
-  // Skip embedding vector search ONLY on pure trivial greetings or acknowledgements
   if (clean.length < 4 || PURE_TRIVIAL_INTERACTION_REGEX.test(clean)) {
     return [];
   }
 
-  return searchMemories({
-    userId,
-    query: retrievalQuery,
-    limit,
-  });
+  const [activeMemories, semanticMemories] = await Promise.all([
+    getActiveMemories({ userId, limit: 40 }),
+    searchMemories({ userId, query: retrievalQuery, limit }),
+  ]);
+
+  const coreProfile = selectCoreProfileMemories(activeMemories, 10);
+  return mergeMemoryContext(coreProfile, semanticMemories, limit);
 }
 
 function parseJsonArray(text) {
