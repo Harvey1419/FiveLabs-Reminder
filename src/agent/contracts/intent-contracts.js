@@ -53,11 +53,15 @@ const ACTION_ALIASES = Object.freeze({
 const typedSchedule = {
   type: 'object',
   additionalProperties: false,
-  description: 'Structured temporal meaning. Node owns all calendar and timezone arithmetic.',
+  description: 'Structured temporal meaning. Preserve the user’s temporal semantics exactly; Node owns calendar arithmetic and timezone resolution.',
   properties: {
-    kind: { type: 'string', enum: ['relative_offset', 'relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time', 'inherit_context'] },
-    offsetMinutes: { type: 'integer', minimum: 1, maximum: 525600 },
-    dayOffset: { type: 'integer', minimum: 0, maximum: 365 },
+    kind: {
+      type: 'string',
+      enum: ['relative_offset', 'relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time', 'inherit_context'],
+      description: 'Use relative_offset only for durations from now such as “in 30 minutes”. Use relative_day_time for “tomorrow at 10:15”. Use weekday_time for “Friday at 3”. Use local_time for a clock time without another day/date. Never encode a named/relative day plus clock time as relative_offset.',
+    },
+    offsetMinutes: { type: 'integer', minimum: 1, maximum: 525600, description: 'Only for relative_offset: elapsed minutes from now.' },
+    dayOffset: { type: 'integer', minimum: 0, maximum: 365, description: 'For relative_day_time: 0=today, 1=tomorrow, 2=day after tomorrow.' },
     year: { type: 'integer', minimum: 2020, maximum: 2200 },
     month: { type: 'integer', minimum: 1, maximum: 12 },
     day: { type: 'integer', minimum: 1, maximum: 31 },
@@ -74,10 +78,10 @@ const actionSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    domain: { type: 'string', enum: DOMAINS, description: 'Semantic domain. Choose by user meaning, never by keyword matching.' },
-    action: { type: 'string', description: 'Plain semantic operation. Natural synonyms are normalized by Node.' },
-    target: { type: 'string', description: 'Human reference to an existing item such as its title, “la segunda”, or “2”. Never an internal ID.' },
-    content: { type: 'string', description: 'For conversation.reply, the concise natural-language reply to send. For other domains, the domain content delta.' },
+    domain: { type: 'string', enum: DOMAINS, description: 'Semantic domain. Choose by current user meaning, never by keyword matching or stale Working Memory.' },
+    action: { type: 'string', description: 'Plain semantic operation. For create, the user introduces a new object. For update, the user refers to an existing object and changes it.' },
+    target: { type: 'string', description: 'Human reference to an EXISTING item such as its title, “la segunda”, or “2”. Never an internal ID. Omit target for create actions; Working Memory may resolve a target but must never invent one for a new object.' },
+    content: { type: 'string', description: 'For conversation.reply, the concise natural-language reply. For reminder/task create, the new object content. For update, only the requested content delta—not the existing object identity.' },
     title: { type: 'string' },
     description: { type: 'string' },
     entityName: { type: 'string' },
@@ -137,14 +141,17 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
 });
 
 export const EXECUTE_TURN_DESCRIPTION = `Express the current user's meaning as structured semantic actions. This is the only response protocol for Hermes.
-Think about the user's goal first. Do not produce backend IDs, sequence numbers, manifests, sourceQuote fields, tool names or protocol vocabulary.
+Think about the CURRENT user's goal first. The current explicit message has higher priority than Working Memory, history and persistent memory. Context can resolve references to existing objects, but it must never change the semantic operation explicitly requested now.
+Do not produce backend IDs, sequence numbers, manifests, sourceQuote fields, tool names or protocol vocabulary.
 For ordinary conversation, emotional support, acknowledgements, conversation closes, or a personal fact already answerable from supplied context/memory, use domain=conversation action=reply and put only the natural user-facing answer in content. conversation.reply must never claim a database read or mutation.
 For a general cross-domain question such as “qué tengo hoy”, “qué tenemos pendiente” or “cómo está mi agenda”, use domain=agenda action=read. If no time range is stated for a general pending query, omit scope; Node will use all_pending. If a specific period is stated, set its semantic scope.
 If the user explicitly names only reminders, tasks or Google Calendar, use that domain instead of agenda. Live operational state must never be answered with conversation.reply or reconstructed from chat history.
-For edits to an existing reminder, task or calendar event, use action=update and keep the existing item in target. For a pure rename, place only the requested new human-facing title in newName; Node maps it to the domain field. For time changes, keep the temporal delta in schedule. Do not repeat unchanged fields.
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: use reminder.create when the user introduces a new reminder, even if Working Memory contains an older reminder. A new reminder has content plus its requested schedule/recurrence and NO target. If one message introduces several new reminders, emit one reminder.create action for each requested reminder. Never reinterpret new reminders as edits merely because a previous reminder is in context.
+Use reminder.update only when the user refers to an EXISTING reminder and asks to change it. update requires a human target identifying that existing reminder; content/title/schedule/recurrence carry only the requested delta. For a pure rename, put the existing item in target and the new title in newName. For time changes, keep only the temporal delta in schedule.
 When the current context contains an active reminder notification/follow-up and the user says the real-world action is already done or happened (for example “listo”, “ya salí”, “ya lo hice”, “ya está”, “te decía que ya salí”), use domain=reminder action=acknowledge with that reminder as target. Completion is not an update. Use reminder.update only when changing stored reminder fields such as content, time, recurrence or advance notice.
 If the user asks to delete, remove, cancel or get rid of an existing reminder, use domain=reminder action=cancel, never update. For a recurring reminder, cancelling the reminder means cancelling its active series unless the user explicitly asks to skip only one occurrence.
 For recurring reminders, keep recurrence on the same reminder action. Use recurrence=daily for “todos los días/every day”, weekdays for business days, weekly for weekly routines and monthly for monthly routines. A recurring clock time means the next future occurrence of that routine; Node chooses the correct first date if today's occurrence already passed.
+TEMPORAL SEMANTICS ARE ALSO A HARD BOUNDARY: relative_offset is only for elapsed durations from now such as “en 30 minutos”. “mañana a las 10:15” => relative_day_time with dayOffset=1 and the clock fields. “el viernes a las 3” => weekday_time. A date/day plus clock time must never become relative_offset.
 A plain durable personal statement is conversation.reply + background learning. Use memory.save only when the user explicitly asks to remember/store something now; use memory.search only when supplied memory context is insufficient.
 Use target only for an existing item. Keep time meaning in schedule; Node resolves dates/timezones. Put an advance notice on the same reminder/event action via advanceMinutes whenever possible.
 For mixed messages, excluded contains only the exact clauses that must not execute. Use conversation.reply only for a conversational clause that genuinely needs a user-facing reply; do not duplicate verified operational cards.`;
@@ -199,6 +206,9 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     }
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) {
       return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
+    }
+    if (domain === 'reminder' && action === 'update' && !(typeof raw.target === 'string' && raw.target.trim())) {
+      return { valid: false, errorCode: 'MISSING_TARGET', error: 'reminder.update requiere una referencia explícita a un recordatorio existente.' };
     }
     normalizedActions.push({ ...raw, domain, action });
   }
