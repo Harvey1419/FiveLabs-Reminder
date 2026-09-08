@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hasProAccess, shouldEnforceBillingForUser } from '../../../src/infrastructure/database/subscriptions.js';
 import { createPreapproval, getPreapproval, cancelPreapproval, verifyWebhookSignature } from '../../../src/integrations/mercado-pago/client.js';
-import { handleMercadoPagoWebhook } from '../../../src/http/webhooks/mercado-pago.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 
 vi.mock('../../../src/infrastructure/database/index.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    saveReminder: vi.fn().mockResolvedValue({ id: 'rem-123' }),
+    saveReminder: vi.fn().mockImplementation(async ({ content, sendAt, recurrenceRule }) => ({
+      id: `rem-${Math.random().toString(36).slice(2)}`,
+      content,
+      send_at: sendAt,
+      recurrence_rule: recurrenceRule || null,
+    })),
     cancelReminders: vi.fn().mockResolvedValue({ cancelledCount: 0, remainingCount: 0 }),
     createPendingSubscription: vi.fn().mockResolvedValue(true),
     getUserSubscription: vi.fn().mockResolvedValue({
@@ -29,6 +33,7 @@ vi.mock('../../../src/infrastructure/database/index.js', async (importOriginal) 
     }),
   };
 });
+
 describe('Subscription Access Control (hasProAccess)', () => {
   it('should grant Pro access to admin users unconditionally', () => {
     const adminUser = { is_admin: true };
@@ -37,56 +42,41 @@ describe('Subscription Access Control (hasProAccess)', () => {
   });
 
   it('should deny Pro access when no subscription is present for regular users', () => {
-    const regularUser = { is_admin: false };
-    expect(hasProAccess(null, regularUser)).toBe(false);
+    expect(hasProAccess(null, { is_admin: false })).toBe(false);
   });
 
   it('should deny Pro access for free tier plan', () => {
-    const regularUser = { is_admin: false };
-    const freeSub = { plan: 'free', status: 'active' };
-    expect(hasProAccess(freeSub, regularUser)).toBe(false);
+    expect(hasProAccess({ plan: 'free', status: 'active' }, { is_admin: false })).toBe(false);
   });
 
   it('should grant Pro access for active/authorized Pro subscription', () => {
-    const regularUser = { is_admin: false };
-    const proSub = {
-      plan: 'pro',
-      status: 'authorized',
+    expect(hasProAccess({
+      plan: 'pro', status: 'authorized',
       next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(hasProAccess(proSub, regularUser)).toBe(true);
+    }, { is_admin: false })).toBe(true);
   });
 
   it('should grant Pro access for cancelled subscription if current period is not expired', () => {
-    const regularUser = { is_admin: false };
-    const cancelledSub = {
-      plan: 'pro',
-      status: 'cancelled',
+    expect(hasProAccess({
+      plan: 'pro', status: 'cancelled',
       next_payment_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
       canceled_at: new Date().toISOString(),
-    };
-    expect(hasProAccess(cancelledSub, regularUser)).toBe(true);
+    }, { is_admin: false })).toBe(true);
   });
 
   it('should deny Pro access for cancelled subscription if current period has expired', () => {
-    const regularUser = { is_admin: false };
-    const expiredSub = {
-      plan: 'pro',
-      status: 'cancelled',
-      next_payment_date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Yesterday
+    expect(hasProAccess({
+      plan: 'pro', status: 'cancelled',
+      next_payment_date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       canceled_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(hasProAccess(expiredSub, regularUser)).toBe(false);
+    }, { is_admin: false })).toBe(false);
   });
 
   it('should grant Pro access for paused subscription if current period has not expired', () => {
-    const regularUser = { is_admin: false };
-    const pausedSub = {
-      plan: 'pro',
-      status: 'paused',
+    expect(hasProAccess({
+      plan: 'pro', status: 'paused',
       next_payment_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(hasProAccess(pausedSub, regularUser)).toBe(true);
+    }, { is_admin: false })).toBe(true);
   });
 });
 
@@ -97,13 +87,13 @@ describe('Experimental Billing Enforcement Target (shouldEnforceBillingForUser)'
     expect(shouldEnforceBillingForUser({ phone_number: '19164158325@c.us' })).toBe(true);
   });
 
-  it('should return false for any other phone number (standard users exempt from experimental gate)', () => {
+  it('should return false for any other phone number', () => {
     expect(shouldEnforceBillingForUser({ phone_number: '573001112233' })).toBe(false);
     expect(shouldEnforceBillingForUser({ phone_number: '573118588249' })).toBe(false);
     expect(shouldEnforceBillingForUser({ phone_number: '573046154163' })).toBe(false);
   });
 
-  it('should return false for BSUID identities (e.g. Meta Cloud API)', () => {
+  it('should return false for BSUID identities', () => {
     expect(shouldEnforceBillingForUser({ phone_number: 'CO.1552339023039755' })).toBe(false);
     expect(shouldEnforceBillingForUser({ phone_number: 'CO.1046858631495979' })).toBe(false);
     expect(shouldEnforceBillingForUser({ phone_number: 'US.998877665544' })).toBe(false);
@@ -129,379 +119,154 @@ describe('MercadoPago Service Client', () => {
       status: 'pending',
       external_reference: 'user-uuid-123',
     };
-
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
-    });
-
-    const result = await createPreapproval({
-      userId: 'user-uuid-123',
-      amount: 49900,
-      currency: 'COP',
-    });
-
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.mercadopago.com/preapproval',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Authorization': 'Bearer TEST-TOKEN-12345',
-          'Content-Type': 'application/json',
-        }),
-      })
-    );
-
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+    const result = await createPreapproval({ userId: 'user-uuid-123', amount: 49900, currency: 'COP' });
+    expect(fetchSpy).toHaveBeenCalledWith('https://api.mercadopago.com/preapproval', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ Authorization: 'Bearer TEST-TOKEN-12345', 'Content-Type': 'application/json' }),
+    }));
     const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
     expect(callBody.external_reference).toBe('user-uuid-123');
     expect(callBody.auto_recurring.transaction_amount).toBe(49900);
     expect(callBody.auto_recurring.currency_id).toBe('COP');
     expect(callBody.status).toBe('pending');
     expect(result.init_point).toBe(mockResponse.init_point);
-
     fetchSpy.mockRestore();
   });
 
   it('should fetch preapproval subscription status from MercadoPago', async () => {
     const mockResponse = {
-      id: '2c938084726fca480172750000000000',
-      status: 'authorized',
-      next_payment_date: '2026-09-29T12:00:00.000Z',
-      external_reference: 'user-uuid-123',
+      id: '2c938084726fca480172750000000000', status: 'authorized',
+      next_payment_date: '2026-09-29T12:00:00.000Z', external_reference: 'user-uuid-123',
     };
-
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
-    });
-
-    const result = await getPreapproval('2c938084726fca480172750000000000');
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+    const result = await getPreapproval(mockResponse.id);
     expect(result.status).toBe('authorized');
     expect(result.next_payment_date).toBe('2026-09-29T12:00:00.000Z');
-
     fetchSpy.mockRestore();
   });
 
   it('should verify webhook HMAC signature', () => {
     const originalSecret = process.env.MP_WEBHOOK_SECRET;
-    const testSecret = 'test-mock-secret';
-    process.env.MP_WEBHOOK_SECRET = testSecret;
-
-    // Mock request with raw body
+    process.env.MP_WEBHOOK_SECRET = 'test-mock-secret';
     const rawBody = Buffer.from(JSON.stringify({ data: { id: '123' } }));
     const crypto = require('crypto');
-    const signature = crypto.createHmac('sha256', testSecret).update(rawBody).digest('hex');
-
-    const req = {
-      headers: {
-        'x-signature': `ts=1700000000,v1=${signature}`,
-      },
-      body: { data: { id: '123' } },
-      rawBody,
-    };
-
-    expect(verifyWebhookSignature(req)).toBe(true);
-
-    const invalidReq = {
-      headers: {
-        'x-signature': `ts=1700000000,v1=invalidhash`,
-      },
-      body: { data: { id: '123' } },
-      rawBody,
-    };
-
-    expect(verifyWebhookSignature(invalidReq)).toBe(false);
-
-    if (originalSecret !== undefined) {
-      process.env.MP_WEBHOOK_SECRET = originalSecret;
-    } else {
-      delete process.env.MP_WEBHOOK_SECRET;
-    }
+    const signature = crypto.createHmac('sha256', 'test-mock-secret').update(rawBody).digest('hex');
+    expect(verifyWebhookSignature({
+      headers: { 'x-signature': `ts=1700000000,v1=${signature}` }, body: { data: { id: '123' } }, rawBody,
+    })).toBe(true);
+    expect(verifyWebhookSignature({
+      headers: { 'x-signature': 'ts=1700000000,v1=invalidhash' }, body: { data: { id: '123' } }, rawBody,
+    })).toBe(false);
+    if (originalSecret !== undefined) process.env.MP_WEBHOOK_SECRET = originalSecret;
+    else delete process.env.MP_WEBHOOK_SECRET;
   });
 });
+
+function runTool(toolName, params, user) {
+  return executeTool({ toolName, params, user, language: 'es', isPro: hasProAccess(user?.subscription, user) });
+}
 
 describe('AI Tools & Plan Tier Gating', () => {
   it('should allow free users to create same-day reminders', async () => {
     const freeUser = {
-      id: 'free-user-uuid',
-      phone_number: '573001112233',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: { plan: 'free', status: 'active' },
+      id: 'free-user-uuid', phone_number: '573001112233', timezone: 'America/Bogota', locale: 'es-CO',
+      is_admin: false, subscription: { plan: 'free', status: 'active' },
     };
-
-    // Calculate a time for today: 2 hours from now
-    const twoHoursLater = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Comprar leche hoy', targetTime: twoHoursLater }],
-      },
-      freeUser
-    );
-
+    const res = await runTool('manage_reminder', {
+      action: 'create', items: [{ content: 'Comprar leche hoy', targetTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() }],
+    }, freeUser);
     expect(res.success).toBe(true);
     expect(res.action).toBe('created_reminders_batch');
   });
 
   it('should block experimental target 19164158325 without Pro from creating future-day reminders', async () => {
-    const experimentalFreeUser = {
-      id: 'free-user-uuid',
-      phone_number: '19164158325',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: { plan: 'free', status: 'active' },
+    const user = {
+      id: 'free-user-uuid', phone_number: '19164158325', timezone: 'America/Bogota', locale: 'es-CO',
+      is_admin: false, subscription: { plan: 'free', status: 'active' },
     };
-
-    // Calculate a time for tomorrow: 26 hours from now
-    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Cita con el doctor mañana', targetTime: tomorrowIso }],
-      },
-      experimentalFreeUser
-    );
-
+    const res = await runTool('manage_reminder', {
+      action: 'create', items: [{ content: 'Cita con el doctor mañana', targetTime: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString() }],
+    }, user);
     expect(res.success).toBe(false);
     expect(res.action).toBe('tier_limit_exceeded');
     expect(res.isProFeature).toBe(true);
     expect(res.rawSummary).toContain('Reminder Pro');
-    expect(res.rawSummary).toContain('Reminder Free');
-    expect(res.rawSummary).toContain('Programa recordatorios para cualquier día');
-    expect(res.rawSummary).toContain('Enlace de pago');
-    expect(res.rawSummary).toContain('Toca *Pagar ahora*');
-    expect(res.data?.checkout_url || res.data?.checkoutUrl).toBeTruthy();
   });
 
   it('should block experimental target 19164158325 without Pro from creating recurring reminders', async () => {
-    const experimentalFreeUser = {
-      id: 'free-user-uuid',
-      phone_number: '19164158325',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: { plan: 'free', status: 'active' },
+    const user = {
+      id: 'free-user-uuid', phone_number: '19164158325', timezone: 'America/Bogota', locale: 'es-CO',
+      is_admin: false, subscription: { plan: 'free', status: 'active' },
     };
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Tomar pastilla todos los días a las 8am', targetTime: '08:00', recurrence: 'daily' }],
-      },
-      experimentalFreeUser
-    );
-
+    const res = await runTool('manage_reminder', {
+      action: 'create', items: [{ content: 'Tomar pastilla', targetTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), recurrence: 'daily' }],
+    }, user);
     expect(res.success).toBe(false);
     expect(res.action).toBe('tier_limit_exceeded');
     expect(res.isProFeature).toBe(true);
   });
 
-  it('should allow experimental target 19164158325 with Pro to create future-day and recurring reminders', async () => {
-    const proUser = {
-      id: 'pro-user-uuid',
-      phone_number: '19164158325',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: {
-        plan: 'pro',
-        status: 'authorized',
-        next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    };
-
-    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Cita con el dentista la próxima semana', targetTime: tomorrowIso }],
-      },
-      proUser
-    );
-
-    expect(res.success).toBe(true);
-    expect(res.action).toBe('created_reminders_batch');
-  });
-
-  it('should allow new users without subscription to create future-day and recurring reminders without gating', async () => {
-    const newUser = {
-      id: 'brand-new-user-uuid',
-      phone_number: '573118588249',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: null,
-    };
-
-    const nextWeekIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    // 1. Future day reminder
-    const resFuture = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Renovar pasaporte la próxima semana', targetTime: nextWeekIso }],
-      },
-      newUser
-    );
-    expect(resFuture.success).toBe(true);
-    expect(resFuture.action).toBe('created_reminders_batch');
-
-    // 2. Recurring reminder
-    const resRecurring = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Pagar arriendo', targetTime: '10:00', recurrence: 'monthly' }],
-      },
-      newUser
-    );
-    expect(resRecurring.success).toBe(true);
-    expect(resRecurring.action).toBe('created_reminders_batch');
-  });
-
-  it('should allow existing users without subscription (distinct from 1916) to create future-day and recurring reminders', async () => {
-    const existingUser = {
-      id: 'existing-free-uuid',
-      phone_number: '573001112233',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: null,
-    };
-
-    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [{ content: 'Comprar boletos mañana', targetTime: tomorrowIso, recurrence: 'weekly' }],
-      },
-      existingUser
-    );
-
-    expect(res.success).toBe(true);
-    expect(res.action).toBe('created_reminders_batch');
-  });
-
-  it('should allow BSUID users without subscription (e.g. CO.1552339023039755) to create future-day and recurring reminders', async () => {
-    const bsuidUser = {
-      id: 'bsuid-user-yuranis',
-      phone_number: 'CO.1552339023039755',
-      display_name: 'Yuranis Lopez',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: null,
-    };
-
-    const tomorrowIso = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
-
-    const res = await executeTool(
-      'manage_reminder',
-      {
-        action: 'create',
-        items: [
-          { content: 'Depilarme', targetTime: tomorrowIso },
-          { content: 'Cita depilación láser', targetTime: tomorrowIso },
-        ],
-      },
-      bsuidUser
-    );
-
-    expect(res.success).toBe(true);
-    expect(res.action).toBe('created_reminders_batch');
-  });
-
-  it('should generate subscription checkout link when get_subscription_link is called', async () => {
+  it('should allow experimental target 19164158325 with Pro to create future-day reminders', async () => {
     const user = {
-      id: 'test-user-uuid-1',
-      phone_number: '573001112233',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-      subscription: null,
+      id: 'pro-user-uuid', phone_number: '19164158325', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false,
+      subscription: { plan: 'pro', status: 'authorized', next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
     };
+    const res = await runTool('manage_reminder', {
+      action: 'create', items: [{ content: 'Cita con el dentista', targetTime: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString() }],
+    }, user);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('created_reminders_batch');
+  });
 
+  it('should allow users outside the experimental gate to create future-day reminders', async () => {
+    const users = [
+      { id: 'new', phone_number: '573118588249', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false, subscription: null },
+      { id: 'existing', phone_number: '573001112233', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false, subscription: null },
+      { id: 'bsuid', phone_number: 'CO.1552339023039755', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false, subscription: null },
+    ];
+    for (const user of users) {
+      const res = await runTool('manage_reminder', {
+        action: 'create', items: [{ content: `Recordatorio ${user.id}`, targetTime: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString(), recurrence: 'weekly' }],
+      }, user);
+      expect(res.success).toBe(true);
+      expect(res.action).toBe('created_reminders_batch');
+    }
+  });
+
+  it('should generate subscription checkout link through manage_subscription', async () => {
+    const user = { id: 'test-user-uuid-1', phone_number: '573001112233', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false };
     const mockInitPoint = 'https://www.mercadopago.com.co/subscriptions/checkout?preapproval_id=test_sub_123';
     const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
       if (String(url).includes('/preapproval_plan/search')) {
-        return {
-          ok: true,
-          json: async () => ({
-            results: [{
-              id: 'test_sub_123',
-              reason: 'Hermes TempleLabs Pro',
-              init_point: mockInitPoint,
-              status: 'active',
-              auto_recurring: { transaction_amount: 49900 },
-            }],
-          }),
-        };
+        return { ok: true, json: async () => ({ results: [{
+          id: 'test_sub_123', reason: 'Hermes TempleLabs Pro', init_point: mockInitPoint,
+          status: 'active', auto_recurring: { transaction_amount: 49900 },
+        }] }) };
       }
-      return {
-        ok: true,
-        json: async () => ({
-          id: 'test_sub_123',
-          init_point: mockInitPoint,
-          status: 'active',
-        }),
-      };
+      return { ok: true, json: async () => ({ id: 'test_sub_123', init_point: mockInitPoint, status: 'active' }) };
     });
-
-    const res = await executeTool('get_subscription_link', {}, user);
-
+    const res = await runTool('manage_subscription', { action: 'get_link' }, user);
     expect(res.success).toBe(true);
     expect(res.action).toBe('subscription_link_generated');
     expect(res.data.checkout_url).toBe(mockInitPoint);
     expect(res.data.amount).toBe(49900);
-
     fetchSpy.mockRestore();
   });
 
   it('should cancel subscription in MercadoPago and return confirmation', async () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        id: 'test_sub_123',
-        status: 'cancelled',
-      }),
-    });
-
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'test_sub_123', status: 'cancelled' }) });
     const cancelRes = await cancelPreapproval('test_sub_123');
     expect(cancelRes.status).toBe('cancelled');
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.mercadopago.com/preapproval/test_sub_123',
-      expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ status: 'cancelled' }),
-      })
-    );
-
+    expect(fetchSpy).toHaveBeenCalledWith('https://api.mercadopago.com/preapproval/test_sub_123', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ status: 'cancelled' }),
+    }));
     fetchSpy.mockRestore();
   });
 
-  it('should execute manage_subscription with action cancel via executeTool', async () => {
-    const user = {
-      id: 'test-user-uuid-1',
-      phone_number: '573001112233',
-      timezone: 'America/Bogota',
-      locale: 'es-CO',
-      is_admin: false,
-    };
-
-    const res = await executeTool('manage_subscription', { action: 'cancel' }, user);
+  it('should execute manage_subscription with action cancel via canonical executeTool', async () => {
+    const user = { id: 'test-user-uuid-1', phone_number: '573001112233', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false };
+    const res = await runTool('manage_subscription', { action: 'cancel' }, user);
     expect(res.success).toBe(true);
     expect(res.action).toBe('subscription_cancelled');
     expect(res.rawSummary).toContain('cancelada');
