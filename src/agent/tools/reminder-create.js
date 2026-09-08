@@ -16,15 +16,7 @@ import {
   formatReminderCreatedCard,
   formatReminderCreateOutcomeCard,
 } from './formatters.js';
-import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
-
-const PRO_UPGRADE_FALLBACK = {
-  price: 49900,
-  currency: 'COP',
-  reason: 'Hermes TempleLabs Pro',
-  fallbackCheckoutUrl: 'https://www.mercadopago.com.co/subscriptions',
-  ctaHeader: '💎 Reminder Pro',
-};
+import { resolveReminderProUpgradeContext } from './reminder-pro.js';
 
 function localDateKey(date, timezone) {
   return date.toLocaleDateString('sv-SE', { timeZone: timezone });
@@ -80,36 +72,6 @@ function buildTemporalRejection({
     advanceMinutes: advanceMinutes || null,
     proposedReminder,
   };
-}
-
-async function resolveProUpgradeContext(phoneNumber, language) {
-  const context = {
-    checkoutUrl: null,
-    amount: PRO_UPGRADE_FALLBACK.price,
-    currency: PRO_UPGRADE_FALLBACK.currency,
-    ctaHeader: PRO_UPGRADE_FALLBACK.ctaHeader,
-    ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
-    fallbackCheckoutUrl: PRO_UPGRADE_FALLBACK.fallbackCheckoutUrl,
-  };
-
-  try {
-    const plan = await getOrCreateCanonicalPlan({
-      reason: PRO_UPGRADE_FALLBACK.reason,
-      amount: PRO_UPGRADE_FALLBACK.price,
-      currency: PRO_UPGRADE_FALLBACK.currency,
-      phoneNumber,
-    });
-    context.checkoutUrl = plan?.init_point || plan?.checkout_url || null;
-    if (plan?.amount) {
-      const parsed = Number(plan.amount);
-      if (Number.isFinite(parsed)) context.amount = parsed;
-    }
-    if (plan?.currency) context.currency = String(plan.currency);
-  } catch (err) {
-    console.warn('[reminder-create] Failed to resolve Reminder Pro checkout link:', err.message);
-  }
-
-  return context;
 }
 
 export async function executeReminderCreate({
@@ -376,7 +338,7 @@ export async function executeReminderCreate({
     }));
 
   const proUpgrade = rejectedItems.some((item) => item.code === 'PRO_TIER_REQUIRED')
-    ? await resolveProUpgradeContext(phoneNumber, language)
+    ? await resolveReminderProUpgradeContext(phoneNumber, language)
     : null;
 
   const formattedCard = formatReminderCreateOutcomeCard({
