@@ -38,10 +38,9 @@ describe('recurring reminder runtime normalization', () => {
     }, {
       user,
       timezone: 'America/Bogota',
-      referenceTime: new Date('2026-09-08T00:04:00.000Z'), // 19:04 previous local day? explicit test reference below
+      referenceTime: new Date('2026-09-08T00:04:00.000Z'),
     });
 
-    // 2026-09-07 19:04 Bogota -> 08:00 for that local day has already passed.
     expect(result.actions[0].schedule).toMatchObject({
       kind: 'relative_day_time',
       dayOffset: 1,
@@ -62,9 +61,65 @@ describe('recurring reminder runtime normalization', () => {
     }, {
       user,
       timezone: 'America/Bogota',
-      referenceTime: new Date('2026-09-07T12:00:00.000Z'), // 07:00 Bogota
+      referenceTime: new Date('2026-09-07T12:00:00.000Z'),
     });
 
     expect(result.actions[0].schedule).toMatchObject({ kind: 'local_time', hour: 8, minute: 0 });
+  });
+
+  it('never lets active reminder Working Memory turn explicit composed creates into updates', () => {
+    saveWorkingMemory(user, {
+      source: 'reminder',
+      lastAction: 'manage_reminder',
+      items: [{
+        id: '22222222-2222-4222-8222-222222222222',
+        type: 'reminder',
+        summary: 'cita',
+        time: '2026-09-08T21:00:00.000Z',
+        raw: {
+          id: '22222222-2222-4222-8222-222222222222',
+          content: 'cita',
+          send_at: '2026-09-08T21:00:00.000Z',
+        },
+      }],
+    });
+
+    const intent = {
+      actions: [
+        {
+          domain: 'reminder', action: 'create', content: 'Tomar las vitaminas', recurrence: 'daily',
+          schedule: { kind: 'local_time', hour: 7, minute: 30, clockMode: 'explicit_am' },
+        },
+        {
+          domain: 'reminder', action: 'create', content: 'Preparar la ropa del día siguiente', recurrence: 'daily',
+          schedule: { kind: 'local_time', hour: 21, minute: 0, clockMode: 'explicit_pm' },
+        },
+        {
+          domain: 'reminder', action: 'create', content: 'Llamar al veterinario', advanceMinutes: 30,
+          schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 10, minute: 15, clockMode: 'explicit_am' },
+        },
+        {
+          domain: 'reminder', action: 'create', content: 'Revisar el presupuesto del apartamento',
+          schedule: { kind: 'weekday_time', weekday: 'friday', hour: 15, minute: 0, clockMode: 'explicit_pm' },
+        },
+        {
+          domain: 'reminder', action: 'create', content: 'Revisar mis pendientes de la semana', recurrence: 'weekly',
+          schedule: { kind: 'weekday_time', weekday: 'monday', hour: 8, minute: 0, clockMode: 'explicit_am' },
+        },
+      ],
+    };
+
+    const result = normalizeTurnIntentForRuntime(intent, {
+      user,
+      timezone: 'America/Bogota',
+      referenceTime: new Date('2026-09-08T20:28:00.000Z'),
+    });
+
+    expect(result.actions).toHaveLength(5);
+    expect(result.actions.every((action) => action.domain === 'reminder' && action.action === 'create')).toBe(true);
+    expect(result.actions.every((action) => action.target == null)).toBe(true);
+    expect(result.actions[2].schedule).toMatchObject({
+      kind: 'relative_day_time', dayOffset: 1, hour: 10, minute: 15,
+    });
   });
 });
