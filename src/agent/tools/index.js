@@ -1,4 +1,5 @@
 import { executeReminderTool } from './reminders.js';
+import { executeSingleReminderCancellation } from './reminder-cancel.js';
 import { executeTaskTool } from './tasks.js';
 import { executeTaskReadTool } from './task-read.js';
 import { executeEntityTool } from './entities.js';
@@ -68,9 +69,12 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
     switch (toolName) {
       case TOOL_NAMES.MANAGE_REMINDER: {
         const action = params?.action || 'create';
-        result = await executeReminderTool({
-          action, params, user, isPro, language, userMessage, referenceTime, clarificationResolution, typedTemporalResolution,
-        });
+        const isBulkCancellation = action === 'cancel' && ['all', 'elapsed'].includes(params?.scope);
+        result = action === 'cancel' && !isBulkCancellation
+          ? await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId })
+          : await executeReminderTool({
+            action, params, user, isPro, language, userMessage, referenceTime, clarificationResolution, typedTemporalResolution,
+          });
         break;
       }
 
