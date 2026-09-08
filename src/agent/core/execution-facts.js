@@ -1,7 +1,7 @@
 import { sanitizeResponseText } from './working-memory.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
-import { formatCanonicalReminderCreate } from '../../shared/reminder-presentation.js';
+import { formatCanonicalReminderCreate, formatCanonicalReminderList } from '../../shared/reminder-presentation.js';
 
 function getSafeSummary(result, language) {
   const fallback = result?.success
@@ -34,6 +34,10 @@ function getCanonicalCard(toolName, params, result, language) {
 
   if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'create' && result?.data) {
     return formatCanonicalReminderCreate(result.data, presentation);
+  }
+
+  if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'list' && result?.data) {
+    return formatCanonicalReminderList(result.data, presentation);
   }
 
   return null;
