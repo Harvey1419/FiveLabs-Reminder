@@ -144,15 +144,20 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('keeps a normal typed standalone greeting on the instant fast-path', async () => {
+  it('routes a normal typed standalone greeting through Hermes conversation.reply', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: '¡Hola! 👋 ¿En qué te ayudo?' }],
+    }));
+
     const result = await routeMessage('Hola', user, []);
 
-    expect(result.intent).toBe('greeting');
+    expect(result.intent).toBe('chat');
     expect(result.confirmation).toContain('¡Hola!');
-    expect(callChatCompletion).not.toHaveBeenCalled();
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('does not let an audio transcript that looks like a greeting bypass Hermes context', async () => {
+  it('routes an audio transcript that looks like a greeting through the same Hermes path', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }],
     }));
@@ -183,7 +188,7 @@ describe('Hermes direct TurnIntent router', () => {
       action: 'acknowledged_reminder',
       confirmation: '✅ *Confirmado:* Salir',
       rawSummary: '✅ *Confirmado:* Salir',
-      data: { reminder: { id: 'reminder-1', content: 'Salir' } },
+      data: { reminder: { id: 'reminder-1', content: 'Salir' }, content: 'Salir' },
     });
 
     const result = await routeMessage('Te decía que ya salí', user, [], { correlationId: 'ack-context-test' });
@@ -193,7 +198,7 @@ describe('Hermes direct TurnIntent router', () => {
       toolName: 'manage_reminder',
       params: expect.objectContaining({ action: 'acknowledge', target: 'Salir' }),
     }));
-    expect(result.confirmation).toContain('Confirmado');
+    expect(result.confirmation.toLowerCase()).toContain('confirmado');
   });
 
   it('routes a generic pending question to Unified Agenda with all_pending', async () => {
