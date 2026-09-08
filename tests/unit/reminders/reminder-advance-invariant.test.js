@@ -16,7 +16,7 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 }));
 
 const { saveReminder } = await import('../../../src/infrastructure/database/index.js');
-const { executeReminderTool } = await import('../../../src/agent/tools/reminders.js');
+const { executeReminderCreate } = await import('../../../src/agent/tools/reminder-create.js');
 
 describe('advance-notice scheduling invariant', () => {
   beforeEach(() => {
@@ -26,23 +26,16 @@ describe('advance-notice scheduling invariant', () => {
       .mockResolvedValueOnce({ id: 'primary-1' });
   });
 
-
   it('expands one structured intent into an advance notice and the primary reminder', async () => {
-    const primaryTime = '2099-09-04T16:00:00-05:00';
-    const result = await executeReminderTool({
-      action: 'create',
+    const result = await executeReminderCreate({
       params: {
         items: [{
           content: 'Cita para radiografías',
-          targetTime: primaryTime,
+          targetTime: '2099-09-04T16:00:00-05:00',
           advanceMinutes: 30,
         }],
       },
-      user: {
-        id: 'user-1',
-        phone_number: '+573000000001',
-        timezone: 'America/Bogota',
-      },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
     });
@@ -66,27 +59,19 @@ describe('advance-notice scheduling invariant', () => {
 
   it('anchors every relative reminder in a batch to the same request timestamp', async () => {
     saveReminder.mockReset();
-    saveReminder
-      .mockResolvedValueOnce({ id: 'relative-1' })
-      .mockResolvedValueOnce({ id: 'relative-2' });
+    saveReminder.mockResolvedValueOnce({ id: 'relative-1' }).mockResolvedValueOnce({ id: 'relative-2' });
 
-    const requestTime = new Date('2026-09-04T19:00:00.000Z');
-    const result = await executeReminderTool({
-      action: 'create',
+    const result = await executeReminderCreate({
       params: {
         items: [
           { content: 'Salir', targetTime: 'PT2M' },
           { content: 'Salir', targetTime: 'PT5M' },
         ],
       },
-      user: {
-        id: 'user-1',
-        phone_number: '+573000000001',
-        timezone: 'America/Bogota',
-      },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
-      referenceTime: requestTime,
+      referenceTime: new Date('2026-09-04T19:00:00.000Z'),
     });
 
     expect(result.success).toBe(true);
@@ -98,13 +83,9 @@ describe('advance-notice scheduling invariant', () => {
 
   it('creates valid relative items and asks only about an elapsed item in the same batch', async () => {
     saveReminder.mockReset();
-    saveReminder
-      .mockResolvedValueOnce({ id: 'relative-10' })
-      .mockResolvedValueOnce({ id: 'relative-20' });
+    saveReminder.mockResolvedValueOnce({ id: 'relative-10' }).mockResolvedValueOnce({ id: 'relative-20' });
 
-    const requestTime = new Date('2026-09-05T03:18:00.000Z'); // Sep 4, 10:18 PM in Bogota
-    const result = await executeReminderTool({
-      action: 'create',
+    const result = await executeReminderCreate({
       params: {
         items: [
           { content: 'Llevar a mi amorcito', targetTime: 'PT10M', sourceTimeText: 'en 10 minutos' },
@@ -117,13 +98,10 @@ describe('advance-notice scheduling invariant', () => {
           },
         ],
       },
-      userMessage: 'Recuérdame llevarla en 10 minutos. Decirle que la amo en 20 minutos. A las 4 de la tarde tenemos cita.',
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
-      referenceTime: requestTime,
+      referenceTime: new Date('2026-09-05T03:18:00.000Z'),
     });
 
     expect(result).toMatchObject({
@@ -153,20 +131,13 @@ describe('advance-notice scheduling invariant', () => {
     });
 
     saveReminder.mockReset();
-    saveReminder
-      .mockResolvedValueOnce({ id: 'advance-tomorrow' })
-      .mockResolvedValueOnce({ id: 'main-tomorrow' });
-    const confirmed = await executeReminderTool({
-      action: 'create',
+    saveReminder.mockResolvedValueOnce({ id: 'advance-tomorrow' }).mockResolvedValueOnce({ id: 'main-tomorrow' });
+    const confirmed = await executeReminderCreate({
       params: { items: [result.pendingClarifications[0].proposedReminder] },
-      userMessage: 'Sí',
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
       referenceTime: new Date('2026-09-05T03:53:00.000Z'),
-      clarificationResolution: true,
     });
 
     expect(confirmed).toMatchObject({ success: true, action: 'created_reminders_batch' });
@@ -178,8 +149,7 @@ describe('advance-notice scheduling invariant', () => {
 
   it('keeps typed model evidence free of phrase matching without allowing a past local time', async () => {
     saveReminder.mockReset();
-    const result = await executeReminderTool({
-      action: 'create',
+    const result = await executeReminderCreate({
       params: {
         items: [{
           content: 'Cita veterinaria',
@@ -187,7 +157,6 @@ describe('advance-notice scheduling invariant', () => {
           sourceTimeText: 'A las cuatro tenemos cita en el veterinario',
         }],
       },
-      userMessage: 'A las cuatro tenemos cita en el veterinario',
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
@@ -209,8 +178,7 @@ describe('advance-notice scheduling invariant', () => {
     saveReminder.mockReset();
     saveReminder.mockResolvedValueOnce({ id: 'primary-only' });
 
-    const result = await executeReminderTool({
-      action: 'create',
+    const result = await executeReminderCreate({
       params: {
         items: [{
           content: 'Llamada importante',
@@ -219,7 +187,6 @@ describe('advance-notice scheduling invariant', () => {
           advanceMinutes: 30,
         }],
       },
-      userMessage: 'Recuérdame la llamada hoy a las 10:30 pm y avísame 30 minutos antes',
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       isPro: true,
       language: 'es',
