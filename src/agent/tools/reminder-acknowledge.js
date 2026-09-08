@@ -1,22 +1,17 @@
 import { supabase, acknowledgeReminder } from '../../infrastructure/database/index.js';
 import { stripReminderPrefix } from '../../integrations/whatsapp/kapso-client.js';
 import { resolveEntityReference } from '../core/working-memory.js';
-import { isStrictUUID, calculateMatchScore } from '../../shared/entity-resolution.js';
 import { formatReminderAcknowledgedCard } from './formatters.js';
 import {
   buildReminderOwnerContext,
   isReminderOwned,
   scopeReminderQueryToOwner,
 } from './reminder-owner.js';
-
-function resolveByScore(reference, reminders) {
-  const scored = reminders.map((reminder) => ({ reminder, score: calculateMatchScore(reference, reminder.content || '') })).filter(({ score }) => score >= 0.5).sort((a, b) => b.score - a.score);
-  if (scored.length === 0) return { status: 'NOT_FOUND' };
-  if (scored.length === 1) return { status: 'RESOLVED', reminder: scored[0].reminder };
-  const [top, runnerUp] = scored;
-  if (top.score >= 0.75 && (top.score - runnerUp.score) >= 0.20) return { status: 'RESOLVED', reminder: top.reminder };
-  return { status: 'AMBIGUOUS' };
-}
+import {
+  findReminderByExactReference,
+  buildReminderReferenceCandidates,
+  resolveReminderByScore,
+} from './reminder-reference.js';
 
 /** Canonical acknowledgement mutation. Semantic intent is resolved upstream;
  * this module only resolves the structured target against owned reminder rows. */
@@ -29,7 +24,7 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
   if (!target) return { success: false, action: 'missing_target', errorCode: 'MISSING_TARGET', error: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?', requiresClarification: true };
   if (!owner.hasOwner) return { success: false, action: 'missing_owner', errorCode: 'ACCESS_DENIED', error: language === 'en' ? 'I could not verify reminder ownership.' : 'No pude verificar la propiedad del recordatorio.' };
 
-  let query = scopeReminderQueryToOwner(supabase.from('reminders').select('*').neq('status', 'cancelled'), owner);
+  const query = scopeReminderQueryToOwner(supabase.from('reminders').select('*').neq('status', 'cancelled'), owner);
   const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(100);
   if (error) {
     console.error(`${reqId} candidate read failed:`, error.message || error);
@@ -38,25 +33,27 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
 
   const owned = (rows || []).filter((row) => isReminderOwned(row, owner));
   const active = owned.filter((row) => !row.acknowledged_at);
-  let matched = null;
-  if (isStrictUUID(target)) matched = owned.find((row) => row.id === target) || null;
-  else if (target.length >= 8) matched = owned.find((row) => row.id.startsWith(target)) || null;
+  let matched = findReminderByExactReference(target, owned);
 
   if (!matched && active.length > 0) {
-    const candidates = active.map((row) => ({ id: row.id, internalId: row.id, type: 'reminder', content: row.content, summary: row.content, time: row.send_at, raw: row }));
-    const resolved = resolveEntityReference({ userOrPhone: user || phoneNumber, reference: target, candidates, preferredType: 'reminder' });
+    const resolved = resolveEntityReference({
+      userOrPhone: user || phoneNumber,
+      reference: target,
+      candidates: buildReminderReferenceCandidates(active),
+      preferredType: 'reminder',
+    });
     if (resolved.status === 'RESOLVED' && resolved.item?.internalId) matched = owned.find((row) => row.id === resolved.item.internalId) || resolved.item.raw || null;
     else if (resolved.status === 'AMBIGUOUS') return { success: false, action: 'ambiguous_target', errorCode: 'AMBIGUOUS_TARGET', error: language === 'en' ? 'Several reminders match. Tell me which one you completed.' : 'Hay varios recordatorios que coinciden. Dime cuál completaste.', requiresClarification: true };
   }
 
   if (!matched && active.length > 0) {
-    const scored = resolveByScore(target, active);
+    const scored = resolveReminderByScore(target, active);
     if (scored.status === 'RESOLVED') matched = scored.reminder;
     else if (scored.status === 'AMBIGUOUS') return { success: false, action: 'ambiguous_target', errorCode: 'AMBIGUOUS_TARGET', error: language === 'en' ? 'Several reminders match. Tell me which one you completed.' : 'Hay varios recordatorios que coinciden. Dime cuál completaste.', requiresClarification: true };
   }
 
   if (!matched) {
-    const scored = resolveByScore(target, owned.filter((row) => row.acknowledged_at));
+    const scored = resolveReminderByScore(target, owned.filter((row) => row.acknowledged_at));
     if (scored.status === 'RESOLVED') matched = scored.reminder;
   }
   if (!matched) return { success: false, action: 'reminder_not_found', errorCode: 'NOT_FOUND', error: language === 'en' ? 'Reminder not found.' : 'No encontré ese recordatorio.' };
