@@ -1,7 +1,6 @@
 import {
   supabase,
   saveReminder,
-  getRemindersByPhone,
   updateReminder,
   getUserSubscription,
   hasProAccess,
@@ -20,6 +19,10 @@ import {
   resolveReminderProUpgradeContext,
 } from './reminder-pro.js';
 import { buildAdvanceNoticeContent } from './reminder-advance.js';
+import {
+  buildReminderOwnerContext,
+  scopeReminderQueryToOwner,
+} from './reminder-owner.js';
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
@@ -47,24 +50,59 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   };
 }
 
-async function resolveTargetReminder({ target, phoneNumber, user }) {
+async function resolveTargetReminder({ target, owner, user }) {
   if (!target) return { targetId: null, pending: [] };
-  const pending = await getRemindersByPhone(phoneNumber, 'pending', 50);
-  if (isStrictUUID(String(target))) return { targetId: String(target), pending };
+  if (!owner?.hasOwner) return { targetId: null, pending: [], missingOwner: true };
 
-  const exact = pending.find((reminder) => reminder.id === target || (String(target).length >= 8 && reminder.id.startsWith(String(target))));
-  if (exact) return { targetId: exact.id, pending };
+  let pendingQuery = supabase.from('reminders').select('*').eq('status', 'pending');
+  pendingQuery = scopeReminderQueryToOwner(pendingQuery, owner);
+  const { data: pendingRows, error: pendingError } = await pendingQuery
+    .order('send_at', { ascending: true })
+    .limit(50);
+
+  if (pendingError) {
+    return { targetId: null, pending: [], error: pendingError };
+  }
+
+  const pending = pendingRows || [];
+  const targetText = String(target);
+
+  const exactPending = pending.find((reminder) => (
+    reminder.id === targetText
+    || (targetText.length >= 8 && reminder.id?.startsWith(targetText))
+  ));
+  if (exactPending) {
+    return { targetId: exactPending.id, pending, exactReminder: exactPending };
+  }
+
+  // Preserve direct UUID targeting for owned reminders even when the row is no
+  // longer pending. Unlike the legacy fallback, this read is always tenant-scoped.
+  if (isStrictUUID(targetText)) {
+    let exactQuery = supabase.from('reminders').select('*').eq('id', targetText);
+    exactQuery = scopeReminderQueryToOwner(exactQuery, owner);
+    const { data: exactReminder, error: exactError } = await exactQuery.maybeSingle();
+    if (exactError) return { targetId: null, pending, error: exactError };
+    return exactReminder
+      ? { targetId: exactReminder.id, pending, exactReminder }
+      : { targetId: null, pending, notFound: true };
+  }
 
   const resolution = resolveEntityReference({
-    userOrPhone: user || phoneNumber,
-    reference: String(target),
+    userOrPhone: user || owner.phoneNumber,
+    reference: targetText,
     candidates: pending,
     preferredType: 'reminder',
   });
 
-  if (resolution.status === 'RESOLVED') return { targetId: resolution.item.internalId, pending };
-  if (resolution.status === 'AMBIGUOUS') return { targetId: null, pending, ambiguous: true };
-  return { targetId: String(target), pending };
+  if (resolution.status === 'RESOLVED') {
+    const resolvedId = resolution.item?.internalId || resolution.item?.id || null;
+    const exactReminder = pending.find((reminder) => reminder.id === resolvedId) || resolution.item?.raw || null;
+    return { targetId: resolvedId, pending, exactReminder };
+  }
+  if (resolution.status === 'AMBIGUOUS') {
+    return { targetId: null, pending, ambiguous: true };
+  }
+  return { targetId: null, pending, notFound: true };
 }
 
 export async function executeReminderUpdate({
@@ -74,8 +112,8 @@ export async function executeReminderUpdate({
   language = 'es',
   referenceTime = null,
 } = {}) {
-  const userId = user?.id;
-  const phoneNumber = user?.phone_number;
+  const owner = buildReminderOwnerContext(user);
+  const { userId, phoneNumber } = owner;
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
   const subscription = user?.subscription || (userId ? await getUserSubscription(userId) : null);
   const userHasPro = isPro || user?.is_admin === true || hasProAccess(subscription, user);
@@ -98,7 +136,28 @@ export async function executeReminderUpdate({
     };
   }
 
-  const resolved = await resolveTargetReminder({ target: targetReminderId, phoneNumber, user });
+  if (!owner.hasOwner) {
+    return {
+      success: false,
+      action: 'missing_owner',
+      errorCode: 'ACCESS_DENIED',
+      error: language === 'en'
+        ? 'I could not verify reminder ownership.'
+        : 'No pude verificar la propiedad del recordatorio.',
+    };
+  }
+
+  const resolved = await resolveTargetReminder({ target: targetReminderId, owner, user });
+  if (resolved.error) {
+    return {
+      success: false,
+      action: 'database_error',
+      errorCode: 'DATABASE_ERROR',
+      error: language === 'en'
+        ? 'I could not verify the reminder to update.'
+        : 'No pude verificar el recordatorio que quieres actualizar.',
+    };
+  }
   if (resolved.ambiguous) {
     return {
       success: false,
@@ -113,16 +172,27 @@ export async function executeReminderUpdate({
       requiresClarification: true,
     };
   }
+  if (!resolved.targetId) {
+    return {
+      success: false,
+      action: 'reminder_not_found',
+      errorCode: 'NOT_FOUND',
+      error: language === 'en'
+        ? 'Reminder not found or access denied.'
+        : 'No se encontró el recordatorio o no tienes permisos sobre él.',
+      rawSummary: language === 'en'
+        ? 'Reminder not found.'
+        : 'No se encontró el recordatorio especificado.',
+    };
+  }
 
   const resolvedTargetId = resolved.targetId;
   const isAdvanceNotice = params.advanceMinutes !== undefined || params.isAdvanceNotice === true;
 
   if (isAdvanceNotice) {
-    let baseReminder = resolved.pending.find((reminder) => reminder.id === resolvedTargetId) || null;
-    if (!baseReminder && resolvedTargetId) {
-      const { data } = await supabase.from('reminders').select('*').eq('id', resolvedTargetId).maybeSingle();
-      baseReminder = data || null;
-    }
+    const baseReminder = resolved.exactReminder
+      || resolved.pending.find((reminder) => reminder.id === resolvedTargetId)
+      || null;
 
     if (!baseReminder?.send_at) {
       return {
