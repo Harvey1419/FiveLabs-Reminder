@@ -66,7 +66,7 @@ export async function executeTool({
         else if (action === 'create') result = await executeReminderCreate({ params, user, isPro, language, referenceTime });
         else if (action === 'update') result = await executeReminderUpdate({ params, user, isPro, language, referenceTime });
         else if (action === 'cancel' && isBulkCancellation) result = await executeBulkReminderCancellation({ params, user, language, referenceTime, clarificationResolution });
-        else if (action === 'cancel') result = await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId });
+        else if (action === 'cancel') result = await executeSingleReminderCancellation({ params, user, language, correlationId });
         else if (action === 'acknowledge') result = await executeReminderAcknowledgement({ params, user, language, correlationId });
         else result = unsupportedDomainAction('manage_reminder', action);
         break;
