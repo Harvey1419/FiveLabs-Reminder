@@ -16,7 +16,8 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 }));
 
 const { supabase, markReminderAsCancelled } = await import('../../../src/infrastructure/database/index.js');
-const { executeReminderTool } = await import('../../../src/agent/tools/reminders.js');
+const { executeReminderReadTool } = await import('../../../src/agent/tools/reminder-read.js');
+const { executeBulkReminderCancellation } = await import('../../../src/agent/tools/reminder-bulk-cancel.js');
 
 function queryResult(data = []) {
   const query = {};
@@ -42,13 +43,9 @@ describe('reminder list delivery-state semantics', () => {
     }]);
     supabase.from.mockReturnValue(query);
 
-    const result = await executeReminderTool({
-      action: 'list',
+    const result = await executeReminderReadTool({
       params: {},
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
-      isPro: true,
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
@@ -64,13 +61,9 @@ describe('reminder list delivery-state semantics', () => {
     const query = queryResult([]);
     supabase.from.mockReturnValue(query);
 
-    await executeReminderTool({
-      action: 'list',
+    await executeReminderReadTool({
       params: { filter: 'pending_today' },
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
-      isPro: true,
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
@@ -87,11 +80,9 @@ describe('reminder list delivery-state semantics', () => {
     const query = queryResult(rows);
     supabase.from.mockReturnValue(query);
 
-    const result = await executeReminderTool({
-      action: 'cancel',
+    const result = await executeBulkReminderCancellation({
       params: { scope: 'elapsed' },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
-      isPro: true,
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
@@ -123,11 +114,9 @@ describe('reminder list delivery-state semantics', () => {
     supabase.from.mockReturnValue(query);
     markReminderAsCancelled.mockResolvedValue(true);
 
-    const result = await executeReminderTool({
-      action: 'cancel',
+    const result = await executeBulkReminderCancellation({
       params: { scope: 'elapsed', cutoffAt: '2026-09-05T20:34:12.000Z' },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
-      isPro: true,
       language: 'es',
       referenceTime: new Date('2026-09-05T20:40:00.000Z'),
       clarificationResolution: true,
