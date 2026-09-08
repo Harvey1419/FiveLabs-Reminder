@@ -5,13 +5,12 @@ export async function executeTaskDelete({
   params = {},
   user = null,
   language = 'es',
-  userMessage = '',
 } = {}) {
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
   const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
 
-  if (!targetQuery && !userMessage) {
+  if (!targetQuery) {
     return {
       success: false,
       action: 'missing_target_id',
@@ -26,7 +25,6 @@ export async function executeTaskDelete({
     target: targetQuery,
     userId,
     userOrPhone: user || phoneNumber,
-    userMessage,
     operation: 'delete',
     allowedStatuses: ['pending', 'completed'],
   });
