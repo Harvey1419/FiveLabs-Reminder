@@ -11,7 +11,6 @@ export async function executeTaskComplete({
   params = {},
   user = {},
   language = 'es',
-  userMessage = '',
 } = {}) {
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
@@ -28,7 +27,6 @@ export async function executeTaskComplete({
           target: targetQuery,
           userId,
           userOrPhone: user || phoneNumber,
-          userMessage,
         });
         if (entityResolution.status === 'RESOLVED_CONTAINER') {
           resolvedEntityName = entityResolution.entityName;
@@ -77,7 +75,7 @@ export async function executeTaskComplete({
     };
   }
 
-  if (!targetQuery && !userMessage) {
+  if (!targetQuery) {
     const message = language === 'en'
       ? 'Which task would you like me to complete?'
       : '¿Cuál tarea deseas que complete?';
@@ -97,7 +95,6 @@ export async function executeTaskComplete({
     target: targetQuery,
     userId,
     userOrPhone: user || phoneNumber,
-    userMessage,
     operation: 'complete',
     allowedStatuses: ['pending'],
   });
