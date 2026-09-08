@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { getUnifiedAgenda } from '../../../src/features/agenda/service.js';
 import { formatCanonicalAgenda } from '../../../src/shared/agenda-presentation.js';
+import { formatCanonicalReminderList } from '../../../src/shared/reminder-presentation.js';
 import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
-import { formatReminderListCard } from '../../../src/agent/tools/formatters.js';
 import * as googleService from '../../../src/integrations/google/calendar.js';
 import * as integrationsDb from '../../../src/infrastructure/database/integrations.js';
 import * as db from '../../../src/infrastructure/database/index.js';
@@ -33,6 +33,10 @@ function renderAgenda(data) {
     language: 'es',
     timezone: data.timezone || 'America/Bogota',
   });
+}
+
+function executeCanonical(toolName, params, user) {
+  return executeTool({ toolName, params, user, language: 'es' });
 }
 
 describe('Unified Agenda & Morning Briefing', () => {
@@ -69,7 +73,7 @@ describe('Unified Agenda & Morning Briefing', () => {
         return createFluentQueryMock([]);
       });
 
-      const res = await executeTool('get_unified_agenda', { scope: 'tomorrow' }, testUser);
+      const res = await executeCanonical('get_unified_agenda', { scope: 'tomorrow' }, testUser);
       expect(res.success).toBe(true);
       expect(res.data.calendar.events).toHaveLength(1);
       expect(res.data.reminders).toHaveLength(1);
@@ -94,7 +98,7 @@ describe('Unified Agenda & Morning Briefing', () => {
         return createFluentQueryMock([]);
       });
 
-      const res = await executeTool('get_unified_agenda', { scope: 'tomorrow' }, testUser);
+      const res = await executeCanonical('get_unified_agenda', { scope: 'tomorrow' }, testUser);
       const card = renderAgenda(res.data);
       expect(res.data.calendar.state).toBe('DISCONNECTED');
       expect(card).toContain('🔒 No conectado');
@@ -113,7 +117,7 @@ describe('Unified Agenda & Morning Briefing', () => {
         return createFluentQueryMock([]);
       });
 
-      const res = await executeTool('get_unified_agenda', { scope: 'tomorrow' }, testUser);
+      const res = await executeCanonical('get_unified_agenda', { scope: 'tomorrow' }, testUser);
       const card = renderAgenda(res.data);
       expect(res.data.calendar.state).toBe('ERROR');
       expect(card).toContain('No disponible temporalmente');
@@ -125,7 +129,7 @@ describe('Unified Agenda & Morning Briefing', () => {
       vi.spyOn(googleService, 'listCalendarEvents').mockResolvedValue([]);
       vi.spyOn(supabase, 'from').mockImplementation(() => createFluentQueryMock([]));
 
-      const res = await executeTool('get_unified_agenda', { scope: 'tomorrow' }, testUser);
+      const res = await executeCanonical('get_unified_agenda', { scope: 'tomorrow' }, testUser);
       const card = renderAgenda(res.data);
       expect(res.data.calendar.events).toHaveLength(0);
       expect(res.data.reminders).toHaveLength(0);
@@ -181,7 +185,7 @@ describe('Unified Agenda & Morning Briefing', () => {
         ? createFluentQueryMock([reminder]) : createFluentQueryMock([]));
       vi.spyOn(db, 'acknowledgeReminder').mockResolvedValue({ ...reminder, acknowledged_at: new Date().toISOString() });
 
-      const res = await executeTool('manage_reminder', { action: 'acknowledge', query: 'veterinaria' }, testUser);
+      const res = await executeCanonical('manage_reminder', { action: 'acknowledge', query: 'veterinaria' }, testUser);
       expect(res.success).toBe(true);
       expect(res.rawSummary).not.toContain(reminder.id);
     });
@@ -205,11 +209,13 @@ describe('Unified Agenda & Morning Briefing', () => {
       expect(data.tasks[0].type).toBe('task');
     });
 
-    it('keeps the standalone reminder list formatter free of internal IDs', () => {
-      const card = formatReminderListCard([{
-        id: 'internal-id', content: 'Escribirle a la veterinaria',
-        send_at: '2026-09-03T13:00:00Z', requires_confirmation: true,
-      }], 'America/Bogota', 'es');
+    it('keeps the standalone canonical reminder list free of internal IDs', () => {
+      const card = formatCanonicalReminderList({
+        reminders: [{
+          id: 'internal-id', content: 'Escribirle a la veterinaria',
+          send_at: '2026-09-03T13:00:00Z', requires_confirmation: true,
+        }],
+      }, { language: 'es', timezone: 'America/Bogota' });
       expect(card).toContain('Escribirle a la veterinaria');
       expect(card).not.toContain('internal-id');
     });
