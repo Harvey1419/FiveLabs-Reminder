@@ -42,6 +42,10 @@ function reminderTime(item, timezone, language) {
   return item?.formattedTime || (sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '');
 }
 
+function reminderRecurrence(item) {
+  return item?.recurrenceRule || item?.recurrence_rule || null;
+}
+
 function groupCreateItems(items, language) {
   const mainItems = items.filter((item) => !item?.isAdvanceNotice);
   const advanceItems = items.filter((item) => item?.isAdvanceNotice);
@@ -58,9 +62,6 @@ function groupCreateItems(items, language) {
     return { main, advance };
   });
 
-  // Defensive fallback: an advance notice should normally have a primary
-  // reminder in the same create result, but never silently hide one if an
-  // upstream tool returns an incomplete pair.
   advanceItems.forEach((advance, index) => {
     if (!usedAdvance.has(index)) groups.push({ main: advance, advance: null });
   });
@@ -71,7 +72,7 @@ function groupCreateItems(items, language) {
 function renderCreateGroup({ main, advance }, { language, timezone }) {
   const content = reminderContent(main, language);
   const timeDisplay = reminderTime(main, timezone, language);
-  const recurrence = main?.recurrenceRule || main?.recurrence_rule || null;
+  const recurrence = reminderRecurrence(main);
   const recurrenceLabel = formatRecurrenceLabel(recurrence, language);
   const primaryIcon = recurrence ? '🔁' : (main?.isAdvanceNotice ? '🔔' : '⏰');
   const lines = [`${primaryIcon} *${content}*`];
@@ -105,20 +106,31 @@ export function formatCanonicalReminderCreate(data, {
   return `${header}\n\n${blocks.join('\n\n')}`;
 }
 
-/**
- * Presentation-only aggregation for multiple reminder.create actions from the
- * same user turn. Execution remains independent; only the verified results are
- * flattened into one WhatsApp card.
- */
 export function formatCanonicalReminderCreateBatch(dataSets, context = {}) {
   const items = (dataSets || []).flatMap((data) => getReminderItems(data));
   return formatCanonicalReminderCreate(items, context);
 }
 
+export function formatCanonicalReminderCancel(data, { language = 'es' } = {}) {
+  if (!data || typeof data !== 'object') return '';
+  const content = reminderContent(data, language);
+  const recurring = Boolean(data.recurring || data.recurrenceRule || data.recurrence_rule);
+  const header = recurring
+    ? (language === 'en' ? '🗑️ *Recurring reminder removed*' : '🗑️ *Recordatorio recurrente eliminado*')
+    : (language === 'en' ? '🗑️ *Reminder removed*' : '🗑️ *Recordatorio eliminado*');
+  const lines = [`${recurring ? '🔁' : '🔔'} *${content}*`];
+  if (recurring) {
+    lines.push(language === 'en'
+      ? 'The active series was cancelled and no pending occurrences remain scheduled.'
+      : 'La serie activa quedó cancelada y no quedan ocurrencias pendientes programadas.');
+  }
+  return `${header}\n\n${lines.join('\n')}`;
+}
+
 export function formatCanonicalReminderCancelBatch(dataSets, { language = 'es' } = {}) {
   const entries = (dataSets || [])
     .filter((data) => data && typeof data === 'object' && data.content)
-    .map((data) => ({ content: data.content, recurring: Boolean(data.recurring || data.recurrenceRule) }));
+    .map((data) => ({ content: data.content, recurring: Boolean(data.recurring || data.recurrenceRule || data.recurrence_rule) }));
 
   if (entries.length === 0) return '';
   const count = entries.length;
@@ -127,6 +139,32 @@ export function formatCanonicalReminderCancelBatch(dataSets, { language = 'es' }
     : `🗑️ *${count} ${count === 1 ? 'recordatorio eliminado' : 'recordatorios eliminados'}*`;
   const lines = entries.map((entry) => `${entry.recurring ? '🔁' : '🔔'} *${entry.content}*`);
   return `${header}\n\n${lines.join('\n')}`;
+}
+
+export function formatCanonicalReminderUpdate(data, {
+  language = 'es',
+  timezone = 'UTC',
+} = {}) {
+  if (!data || typeof data !== 'object') return '';
+  const content = reminderContent(data, language);
+  const timeDisplay = reminderTime(data, timezone, language);
+  const recurrenceLabel = formatRecurrenceLabel(reminderRecurrence(data), language);
+  const lines = [
+    language === 'en' ? '🔄 *Reminder updated*' : '🔄 *Recordatorio actualizado*',
+    '',
+    `⏰ *${content}*`,
+  ];
+  if (timeDisplay) lines.push(`🕒 ${timeDisplay}`);
+  if (recurrenceLabel) lines.push(`🔁 ${recurrenceLabel}`);
+  return lines.join('\n');
+}
+
+export function formatCanonicalReminderAcknowledge(data, { language = 'es' } = {}) {
+  if (!data || typeof data !== 'object') return '';
+  const content = reminderContent(data, language);
+  return language === 'en'
+    ? `✅ *Reminder confirmed*\n\n🔔 *${content}*\nRecorded as completed and pending follow-ups were stopped.`
+    : `✅ *Recordatorio confirmado*\n\n🔔 *${content}*\nQueda registrado como completado y se detienen los avisos pendientes.`;
 }
 
 export function formatCanonicalReminderList(data, {
