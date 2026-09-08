@@ -70,7 +70,6 @@ export async function getUnifiedAgenda({
         .from('reminders')
         .select('*')
         .eq('status', 'pending')
-        .is('acknowledged_at', null)
         .gte('send_at', timeMinIso)
         .lt('send_at', timeMaxIso);
 
@@ -86,26 +85,31 @@ export async function getUnifiedAgenda({
         return [];
       }
 
-      return (data || []).map((reminder) => {
-        const dateObj = new Date(reminder.send_at);
-        const timeFormatter = new Intl.DateTimeFormat(locale, {
-          timeZone: tz,
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
+      // With stable recurring UUIDs, acknowledged_at describes the most recent
+      // execution. It must not hide the next scheduled occurrence of a recurring
+      // reminder. One-time reminders still require acknowledged_at = null.
+      return (data || [])
+        .filter((reminder) => Boolean(reminder.recurrence_rule) || !reminder.acknowledged_at)
+        .map((reminder) => {
+          const dateObj = new Date(reminder.send_at);
+          const timeFormatter = new Intl.DateTimeFormat(locale, {
+            timeZone: tz,
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          });
+          return {
+            type: 'reminder',
+            id: reminder.id,
+            content: reminder.content,
+            title: reminder.content,
+            sendAt: reminder.send_at,
+            localTime: timeFormatter.format(dateObj),
+            localFormatted: formatLocalDateTime(dateObj, tz, locale),
+            recurrenceRule: reminder.recurrence_rule,
+            requiresConfirmation: reminder.requires_confirmation,
+          };
         });
-        return {
-          type: 'reminder',
-          id: reminder.id,
-          content: reminder.content,
-          title: reminder.content,
-          sendAt: reminder.send_at,
-          localTime: timeFormatter.format(dateObj),
-          localFormatted: formatLocalDateTime(dateObj, tz, locale),
-          recurrenceRule: reminder.recurrence_rule,
-          requiresConfirmation: reminder.requires_confirmation,
-        };
-      });
     })(),
 
     (async () => {
