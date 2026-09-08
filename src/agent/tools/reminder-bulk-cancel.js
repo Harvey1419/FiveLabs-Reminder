@@ -1,15 +1,9 @@
 import { supabase, markReminderAsCancelled } from '../../infrastructure/database/index.js';
-import { normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { formatReminderCancelledCard } from './formatters.js';
-
-function buildPhoneVariants(phoneNumber) {
-  const clean = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
-  return Array.from(new Set([
-    phoneNumber,
-    clean,
-    clean ? `+${clean}` : null,
-  ].filter(Boolean)));
-}
+import {
+  buildReminderOwnerContext,
+  scopeReminderQueryToOwner,
+} from './reminder-owner.js';
 
 export async function executeBulkReminderCancellation({
   params = {},
@@ -18,8 +12,8 @@ export async function executeBulkReminderCancellation({
   referenceTime = null,
   clarificationResolution = false,
 } = {}) {
-  const userId = user?.id || null;
-  const phoneNumber = user?.phone_number || null;
+  const owner = buildReminderOwnerContext(user);
+  const { userId, phoneNumber, phoneVariants } = owner;
   const scope = params.scope === 'elapsed' ? 'elapsed' : ((params.scope === 'all' || params.cancelAll) ? 'all' : null);
 
   if (!scope) {
@@ -36,13 +30,23 @@ export async function executeBulkReminderCancellation({
     };
   }
 
+  if (!owner.hasOwner) {
+    return {
+      success: false,
+      action: 'missing_owner',
+      errorCode: 'ACCESS_DENIED',
+      error: language === 'en'
+        ? 'I could not verify reminder ownership.'
+        : 'No pude verificar la propiedad de los recordatorios.',
+    };
+  }
+
   const requestedReference = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
   const cancellationReference = Number.isNaN(requestedReference.getTime()) ? new Date() : requestedReference;
   const suppliedCutoff = params.cutoffAt ? new Date(params.cutoffAt) : null;
   const cutoffDate = suppliedCutoff && !Number.isNaN(suppliedCutoff.getTime())
     ? suppliedCutoff
     : cancellationReference;
-  const phoneVariants = buildPhoneVariants(phoneNumber);
 
   let query = supabase.from('reminders').select('*');
   if (scope === 'elapsed') {
@@ -50,15 +54,7 @@ export async function executeBulkReminderCancellation({
   } else {
     query = query.in('status', ['pending', 'sent']).is('acknowledged_at', null);
   }
-
-  if (userId && phoneVariants.length > 0) {
-    const phoneConditions = phoneVariants.map((phone) => `phone_number.eq.${phone}`).join(',');
-    query = query.or(`user_id.eq.${userId},${phoneConditions}`);
-  } else if (userId) {
-    query = query.eq('user_id', userId);
-  } else if (phoneVariants.length > 0) {
-    query = query.in('phone_number', phoneVariants);
-  }
+  query = scopeReminderQueryToOwner(query, owner);
 
   const { data, error } = await query.order('send_at', { ascending: false }).limit(500);
   if (error) {
