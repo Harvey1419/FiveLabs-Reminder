@@ -25,8 +25,6 @@ function positiveNumber(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-// Keep the old environment aliases only as deployment compatibility. They no
-// longer represent a separate execution architecture.
 const fallbackModelAlias = process.env.OPENROUTER_FALLBACK_MODEL;
 const fallbackProvidersAlias = process.env.OPENROUTER_FALLBACK_PROVIDERS;
 
@@ -304,6 +302,12 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
   }
 }
 
+function requiredDecisionMissing(attempt, { requestedToolChoice, tools, returnMessage }) {
+  if (requestedToolChoice !== 'required' || !tools?.length || !attempt?.ok || !returnMessage) return false;
+  const toolCalls = attempt.value?.tool_calls;
+  return !Array.isArray(toolCalls) || toolCalls.length === 0;
+}
+
 async function runOpenRouterChain(messages, profiles, {
   apiKey,
   purpose,
@@ -348,6 +352,21 @@ async function runOpenRouterChain(messages, profiles, {
         purpose,
         stage: profile.stage,
       });
+
+      // Some fallback providers only accept tool_choice=auto. The protocol is
+      // still required by Hermes, so prose-only success from those providers
+      // must not terminate the chain and bypass the structured decision path.
+      if (requiredDecisionMissing(attempt, {
+        requestedToolChoice: toolChoice,
+        tools,
+        returnMessage,
+      })) {
+        if (logPrefix) {
+          console.warn(`${logPrefix} attempt purpose=${purpose} stage=${profile.stage} outcome=failed reason=required_tool_missing_after_auto_fallback`);
+        }
+        attempt = { ok: false, reason: 'required_tool_missing' };
+      }
+
       const retryableStructuredMiss = attempt.reason === 'empty_content'
         || attempt.reason === 'required_tool_missing'
         || (attempt.reason === 'provider_finish_error' && attemptNumber === 1);
@@ -413,10 +432,6 @@ export async function callChatCompletion(messages, {
   return result || buildUnavailableResponse(returnMessage);
 }
 
-/**
- * Add a very small frame only when part of a mixed request was deliberately
- * excluded. Normal successful cards never pay for a second model call.
- */
 export async function callResponseSynthesis({
   facts,
   excludedClauses = [],
@@ -490,11 +505,6 @@ export async function callOpenRouterChat(messages, model, apiKey, options = {}) 
   return attempt.ok ? attempt.value : null;
 }
 
-/**
- * Pending proposals are the only place where Hermes uses a second foreground
- * semantic decision. The verifier may prevent an execution, never introduce
- * one that the primary model did not request.
- */
 export async function callPendingTransitionVerification({
   userText, pendingState, proposedOperation, latestAssistantMessage = '', correlationId = null,
 } = {}) {
@@ -575,7 +585,6 @@ export async function callPendingTransitionVerification({
         && ['high', 'medium', 'low'].includes(parsed.confidence)
       ) return parsed;
     } catch {
-      // A later provider may still return the typed verdict.
     }
   }
   return null;
