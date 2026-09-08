@@ -15,45 +15,10 @@ import {
 import { resolveEntityReference } from '../core/working-memory.js';
 import { isStrictUUID } from '../../shared/entity-resolution.js';
 import { formatReminderUpdatedCard } from './formatters.js';
-import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
-
-const PRO_UPGRADE_FALLBACK = {
-  price: 49900,
-  currency: 'COP',
-  reason: 'Hermes TempleLabs Pro',
-  fallbackCheckoutUrl: 'https://www.mercadopago.com.co/subscriptions',
-  ctaHeader: '💎 Reminder Pro',
-};
-
-async function resolveProUpgradeContext(phoneNumber, language) {
-  const context = {
-    checkoutUrl: null,
-    amount: PRO_UPGRADE_FALLBACK.price,
-    currency: PRO_UPGRADE_FALLBACK.currency,
-    ctaHeader: PRO_UPGRADE_FALLBACK.ctaHeader,
-    ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
-    fallbackCheckoutUrl: PRO_UPGRADE_FALLBACK.fallbackCheckoutUrl,
-  };
-
-  try {
-    const plan = await getOrCreateCanonicalPlan({
-      reason: PRO_UPGRADE_FALLBACK.reason,
-      amount: PRO_UPGRADE_FALLBACK.price,
-      currency: PRO_UPGRADE_FALLBACK.currency,
-      phoneNumber,
-    });
-    context.checkoutUrl = plan?.init_point || plan?.checkout_url || null;
-    if (plan?.amount) {
-      const parsed = Number(plan.amount);
-      if (Number.isFinite(parsed)) context.amount = parsed;
-    }
-    if (plan?.currency) context.currency = String(plan.currency);
-  } catch (err) {
-    console.warn('[reminder-update] Failed to resolve Reminder Pro checkout link:', err.message);
-  }
-
-  return context;
-}
+import {
+  REMINDER_PRO_FALLBACK,
+  resolveReminderProUpgradeContext,
+} from './reminder-pro.js';
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
@@ -68,7 +33,7 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
     isProFeature: true,
     error,
     rawSummary: error,
-    formattedCard: `${error}\n\n💳 *Enlace de pago (Mercado Pago):* ${checkoutUrl || PRO_UPGRADE_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`,
+    formattedCard: `${error}\n\n💳 *Enlace de pago (Mercado Pago):* ${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`,
     data: {
       reason: 'pro_tier_limit',
       ...(targetDate ? { targetDate } : {}),
@@ -250,7 +215,7 @@ export async function executeReminderUpdate({
     const currentLocalDate = referenceDate.toLocaleDateString('en-CA', { timeZone: timezone });
     const targetLocalDate = parsedDate.toLocaleDateString('en-CA', { timeZone: timezone });
     if (enforceBilling && targetLocalDate > currentLocalDate && !userHasPro) {
-      const proUpgrade = await resolveProUpgradeContext(phoneNumber, language);
+      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language);
       return proRequiredResult({ language, proUpgrade, targetDate: parsedDate.toISOString() });
     }
 
@@ -266,7 +231,7 @@ export async function executeReminderUpdate({
   if (recurrenceProvided) {
     const newRecurrence = params.recurrence ?? params.recurrenceRule ?? updates.recurrence ?? updates.recurrenceRule ?? updates.recurrence_rule ?? null;
     if (enforceBilling && newRecurrence && !userHasPro) {
-      const proUpgrade = await resolveProUpgradeContext(phoneNumber, language);
+      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language);
       return proRequiredResult({ language, proUpgrade });
     }
     dbUpdates.recurrence_rule = newRecurrence;
