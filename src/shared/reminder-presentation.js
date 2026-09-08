@@ -61,3 +61,34 @@ export function formatCanonicalReminderCreate(data, {
 
   return `${header}\n\n${blocks.join('\n\n')}`;
 }
+
+export function formatCanonicalReminderList(data, {
+  language = 'es',
+  timezone = 'UTC',
+} = {}) {
+  const reminders = Array.isArray(data?.reminders) ? data.reminders : [];
+  if (reminders.length === 0) {
+    return language === 'en'
+      ? '🔔 *Pending reminders*\n\nYou have no pending reminders.'
+      : '🔔 *Recordatorios pendientes*\n\nNo tienes recordatorios pendientes.';
+  }
+
+  const header = language === 'en'
+    ? '🔔 *Pending reminders*'
+    : '🔔 *Recordatorios pendientes*';
+
+  const blocks = reminders.map((reminder, index) => {
+    const content = reminder.content || reminder.title || (language === 'en' ? 'Reminder' : 'Recordatorio');
+    const sendAt = reminder.send_at || reminder.sendAt || null;
+    const timeDisplay = sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '';
+    const recurring = Boolean(reminder.recurrence_rule || reminder.recurrenceRule);
+    const recurrenceSuffix = recurring
+      ? (language === 'en' ? ' · recurring' : ' · recurrente')
+      : '';
+    const lines = [`${index + 1}. *${content}*${recurrenceSuffix}`];
+    if (timeDisplay) lines.push(`   🕒 ${timeDisplay}`);
+    return lines.join('\n');
+  });
+
+  return `${header}\n\n${blocks.join('\n\n')}`;
+}
