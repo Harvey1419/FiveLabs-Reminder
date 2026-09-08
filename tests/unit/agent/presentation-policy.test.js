@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'vitest';
+import {
+  PRESENTATION_KINDS,
+  classifyTurnPresentation,
+  composeTurnPresentation,
+} from '../../../src/agent/core/presentation-policy.js';
+import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
+
+function fact({
+  tool,
+  requestedAction,
+  data = null,
+  success = true,
+  summary = 'ok',
+  card = 'ok',
+  requiresClarification = false,
+  params = {},
+}) {
+  return {
+    tool,
+    requestedAction,
+    action: requestedAction,
+    success,
+    summary,
+    card,
+    requiresClarification,
+    presentationData: data,
+    presentationParams: params,
+    presentationContext: { timezone: 'America/Bogota', language: 'es' },
+  };
+}
+
+describe('turn-level presentation policy', () => {
+  it('classifies homogeneous and mixed turns independently of domain', () => {
+    const reminders = [
+      fact({ tool: TOOL_NAMES.MANAGE_REMINDER, requestedAction: 'create' }),
+      fact({ tool: TOOL_NAMES.MANAGE_REMINDER, requestedAction: 'create' }),
+    ];
+    expect(classifyTurnPresentation(reminders)).toBe(PRESENTATION_KINDS.HOMOGENEOUS_BATCH);
+
+    const mixed = [
+      reminders[0],
+      fact({ tool: TOOL_NAMES.MANAGE_TASK, requestedAction: 'create' }),
+    ];
+    expect(classifyTurnPresentation(mixed)).toBe(PRESENTATION_KINDS.MIXED_BATCH);
+  });
+
+  it('aggregates reminder creates into one response and treats advance notice as metadata', () => {
+    const facts = [
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'create',
+        data: [{ content: 'Tomar vitaminas', sendAt: '2026-09-09T12:30:00.000Z', recurrenceRule: 'daily' }],
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'create',
+        data: [
+          { content: '🔔 [Aviso Previo] En 30 minutos: Veterinario', displayContent: 'Veterinario', isAdvanceNotice: true, sendAt: '2026-09-09T14:45:00.000Z' },
+          { content: 'Veterinario', isAdvanceNotice: false, sendAt: '2026-09-09T15:15:00.000Z' },
+        ],
+      }),
+    ];
+
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text.match(/recordatorios programados/g)?.length).toBe(1);
+    expect(text).toContain('2 recordatorios programados');
+    expect(text).toContain('Aviso previo');
+    expect(text.match(/Veterinario/g)?.length).toBe(1);
+  });
+
+  it('aggregates task creates with project grouping', () => {
+    const facts = [
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'create',
+        data: [{ title: 'Preparar propuesta', entityName: 'Trabajo' }],
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'create',
+        data: [{ title: 'Enviar factura', entityName: 'Trabajo' }],
+      }),
+    ];
+
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text).toContain('2 tareas creadas');
+    expect(text.match(/📁 \*Trabajo\*/g)?.length).toBe(1);
+    expect(text).toContain('• Preparar propuesta');
+    expect(text).toContain('• Enviar factura');
+  });
+
+  it('composes mixed domains as one turn without nesting full cards', () => {
+    const facts = [
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'create',
+        data: [{ content: 'Tomar agua', sendAt: '2026-09-09T13:00:00.000Z' }],
+        card: '✅ *Recordatorio programado*\n\n⏰ *Tomar agua*',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'create',
+        data: [{ title: 'Llamar a Pedro', entityName: 'Trabajo' }],
+        card: '✅ *Tarea creada*\n\nLlamar a Pedro',
+      }),
+    ];
+
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text).toContain('2 acciones realizadas');
+    expect(text).toContain('🔔 *Recordatorios · creados*');
+    expect(text).toContain('☑️ *Tareas · creados*');
+    expect(text).toContain('Tomar agua');
+    expect(text).toContain('Llamar a Pedro');
+    expect(text).not.toContain('Recordatorio programado');
+    expect(text).not.toContain('Tarea creada');
+  });
+
+  it('puts verified successes before failures in partial-success turns', () => {
+    const facts = [
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'complete',
+        data: { title: 'Cerrar reporte' },
+        params: { target: 'Cerrar reporte' },
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'cancel',
+        success: false,
+        summary: 'No encontré ese recordatorio.',
+        card: '⚠️ No encontré ese recordatorio.',
+        params: { target: 'Algo inexistente' },
+      }),
+    ];
+
+    expect(classifyTurnPresentation(facts)).toBe(PRESENTATION_KINDS.PARTIAL_SUCCESS);
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text.indexOf('Cerrar reporte')).toBeLessThan(text.indexOf('No encontré ese recordatorio'));
+    expect(text).toContain('1 acción no se pudo completar');
+  });
+
+  it('does not aggregate across a clarification boundary', () => {
+    const facts = [
+      fact({ tool: TOOL_NAMES.MANAGE_TASK, requestedAction: 'create', card: '✅ Tarea creada' }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'cancel',
+        success: false,
+        requiresClarification: true,
+        card: '¿Cuál recordatorio?',
+      }),
+    ];
+    expect(classifyTurnPresentation(facts)).toBe(PRESENTATION_KINDS.CLARIFICATION);
+    expect(composeTurnPresentation(facts, 'es')).toBe('✅ Tarea creada\n\n¿Cuál recordatorio?');
+  });
+});
