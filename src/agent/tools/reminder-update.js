@@ -19,6 +19,7 @@ import {
   REMINDER_PRO_FALLBACK,
   resolveReminderProUpgradeContext,
 } from './reminder-pro.js';
+import { buildAdvanceNoticeContent } from './reminder-advance.js';
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
@@ -152,7 +153,7 @@ export async function executeReminderUpdate({
       };
     }
 
-    const content = `🔔 [Aviso Previo] En ${advanceMinutes} minutos: ${baseReminder.content}`;
+    const content = buildAdvanceNoticeContent(baseReminder.content, advanceMinutes);
     const reminder = await saveReminder({
       userId,
       phoneNumber,
