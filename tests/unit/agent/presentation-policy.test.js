@@ -140,9 +140,42 @@ describe('turn-level presentation policy', () => {
     expect(text).toContain('1 acción no se pudo completar');
   });
 
-  it('does not aggregate across a clarification boundary', () => {
+  it('keeps verified successes aggregated when one action needs clarification', () => {
     const facts = [
-      fact({ tool: TOOL_NAMES.MANAGE_TASK, requestedAction: 'create', card: '✅ Tarea creada' }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'cancel',
+        data: { content: 'Tomar vitaminas', recurring: true, recurrenceRule: 'daily' },
+        card: '🗑️ *Recordatorio recurrente eliminado*\n\n🔁 *Tomar vitaminas*',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'cancel',
+        data: { content: 'Preparar la ropa', recurring: true, recurrenceRule: 'daily' },
+        card: '🗑️ *Recordatorio recurrente eliminado*\n\n🔁 *Preparar la ropa*',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'cancel',
+        success: false,
+        requiresClarification: true,
+        summary: 'Hay varios recordatorios que coinciden. Dime cuál quieres eliminar.',
+        card: 'Hay varios recordatorios que coinciden. Dime cuál quieres eliminar.',
+        params: { target: 'Llamar al veterinario' },
+      }),
+    ];
+
+    expect(classifyTurnPresentation(facts)).toBe(PRESENTATION_KINDS.PARTIAL_SUCCESS);
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text).toContain('2 recordatorios eliminados');
+    expect(text.match(/Recordatorio recurrente eliminado/g)).toBeNull();
+    expect(text).toContain('1 necesita aclaración');
+    expect(text).toContain('Hay varios recordatorios que coinciden');
+    expect(text.indexOf('2 recordatorios eliminados')).toBeLessThan(text.indexOf('1 necesita aclaración'));
+  });
+
+  it('keeps a clarification-only turn as a clarification response', () => {
+    const facts = [
       fact({
         tool: TOOL_NAMES.MANAGE_REMINDER,
         requestedAction: 'cancel',
@@ -150,8 +183,18 @@ describe('turn-level presentation policy', () => {
         requiresClarification: true,
         card: '¿Cuál recordatorio?',
       }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'complete',
+        success: false,
+        requiresClarification: true,
+        card: '¿Cuál tarea?',
+      }),
     ];
     expect(classifyTurnPresentation(facts)).toBe(PRESENTATION_KINDS.CLARIFICATION);
-    expect(composeTurnPresentation(facts, 'es')).toBe('✅ Tarea creada\n\n¿Cuál recordatorio?');
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text).toContain('2 necesitan aclaración');
+    expect(text).toContain('¿Cuál recordatorio?');
+    expect(text).toContain('¿Cuál tarea?');
   });
 });
