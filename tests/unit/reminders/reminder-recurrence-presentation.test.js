@@ -13,9 +13,9 @@ describe('canonical recurring reminder presentation', () => {
     ], { language: 'es', timezone: 'America/Bogota' });
 
     expect(card).toContain('✅ *Recordatorio programado*');
-    expect(card).toContain('⏰ *Me amo mucho*');
-    expect(card).toContain('📅 Mañana a las 8:00 AM');
-    expect(card).toContain('🔁 *Todos los días*');
+    expect(card).toContain('🔁 *Me amo mucho*');
+    expect(card).toContain('🕒 Mañana a las 8:00 AM');
+    expect(card).toContain('🔁 Todos los días');
   });
 
   it('maps canonical recurrence labels in Spanish and English', () => {
