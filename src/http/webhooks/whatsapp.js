@@ -408,7 +408,7 @@ export async function handleWebhook(req, res) {
             phoneNumberId,
             phoneNumber,
             bsuid,
-            headerText: result.ctaHeader || (ctaLanguage === 'en' ? '⚡ Action' : '⚡ Acción'),
+            headerText: result.ctaHeader || null,
             bodyText: result.confirmation,
             buttonText: result.ctaButtonText || (ctaLanguage === 'en' ? 'Open link' : 'Abrir enlace'),
             url: result.ctaUrl,
