@@ -6,7 +6,6 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
   markReminderAsDispatched: vi.fn(),
   markReminderAsFailed: vi.fn(),
   markReminderAsMissed: vi.fn(),
-  saveReminder: vi.fn(),
   getRemindersDueForNudge: vi.fn().mockResolvedValue([]),
   incrementReminderNudge: vi.fn(),
   getLatestInboundPhoneNumberId: vi.fn(),
@@ -15,7 +14,6 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 
 vi.mock('../../../src/integrations/whatsapp/kapso-client.js', () => ({
   sendReminderMessage: vi.fn(),
-  sendReminderConfirmation: vi.fn(),
   stripReminderPrefix: vi.fn((content) => content),
 }));
 
@@ -27,6 +25,7 @@ const {
   getLatestInboundPhoneNumberId,
   markReminderAsDispatched,
   markReminderAsFailed,
+  supabase,
 } = await import('../../../src/infrastructure/database/index.js');
 const { sendReminderMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
 const { processReminder } = await import('../../../src/jobs/reminder-scheduler.js');
@@ -45,13 +44,42 @@ function dueReminder(overrides = {}) {
   };
 }
 
+function mockRecurringAdvance() {
+  let capturedUpdates = null;
+  let capturedId = null;
+  const chain = {
+    update: vi.fn((updates) => {
+      capturedUpdates = updates;
+      return chain;
+    }),
+    eq: vi.fn((field, value) => {
+      if (field === 'id') capturedId = value;
+      return chain;
+    }),
+    select: vi.fn(() => chain),
+    maybeSingle: vi.fn(async () => ({
+      data: {
+        id: capturedId,
+        send_at: capturedUpdates?.send_at,
+        recurrence_rule: 'daily',
+        status: capturedUpdates?.status,
+        sent_at: capturedUpdates?.sent_at || null,
+        acknowledged_at: capturedUpdates?.acknowledged_at ?? null,
+      },
+      error: null,
+    })),
+  };
+  supabase.from.mockReturnValue(chain);
+  return { chain, getUpdates: () => capturedUpdates, getId: () => capturedId };
+}
+
 describe('scheduler delivery truth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getLatestInboundPhoneNumberId.mockResolvedValue('597907523413541');
   });
 
-  it('persists the real provider message id', async () => {
+  it('persists the real provider message id for a one-time reminder', async () => {
     sendReminderMessage.mockResolvedValue({
       success: true,
       messageId: 'wamid.ACTUAL_PROVIDER_ID',
@@ -70,7 +98,7 @@ describe('scheduler delivery truth', () => {
     expect(markReminderAsFailed).not.toHaveBeenCalled();
   });
 
-  it('does not report a reminder as sent when Kapso rejects the dispatch', async () => {
+  it('does not report a one-time reminder as sent when Kapso rejects the dispatch', async () => {
     sendReminderMessage.mockResolvedValue({
       success: false,
       error: 'wrong WhatsApp sender',
@@ -80,5 +108,42 @@ describe('scheduler delivery truth', () => {
 
     expect(markReminderAsDispatched).not.toHaveBeenCalled();
     expect(markReminderAsFailed).toHaveBeenCalledWith('reminder-1');
+  });
+
+  it('advances a recurring reminder in-place and preserves its UUID', async () => {
+    const db = mockRecurringAdvance();
+    sendReminderMessage.mockResolvedValue({ success: true, messageId: 'wamid.RECURRING' });
+
+    await processReminder(dueReminder({ recurrence_rule: 'daily' }));
+
+    expect(db.getId()).toBe('reminder-1');
+    expect(db.getUpdates()).toMatchObject({
+      status: 'pending',
+      delivery_id: null,
+      acknowledged_at: null,
+      nudge_count: 0,
+    });
+    expect(new Date(db.getUpdates().send_at).getTime()).toBeGreaterThan(Date.now());
+    expect(markReminderAsDispatched).not.toHaveBeenCalled();
+    expect(markReminderAsFailed).not.toHaveBeenCalled();
+  });
+
+  it('keeps confirmation/nudge lifecycle on the same recurring UUID', async () => {
+    const db = mockRecurringAdvance();
+    sendReminderMessage.mockResolvedValue({ success: true, messageId: 'wamid.RECURRING_CONFIRM' });
+
+    await processReminder(dueReminder({
+      recurrence_rule: 'daily',
+      requires_confirmation: true,
+      nudge_interval_minutes: 10,
+      max_nudges: 3,
+    }));
+
+    expect(db.getId()).toBe('reminder-1');
+    expect(db.getUpdates().status).toBe('pending');
+    expect(db.getUpdates().last_nudged_at).toBeTruthy();
+    expect(db.getUpdates().acknowledged_at).toBeNull();
+    expect(db.getUpdates().nudge_count).toBe(0);
+    expect(markReminderAsDispatched).not.toHaveBeenCalled();
   });
 });
