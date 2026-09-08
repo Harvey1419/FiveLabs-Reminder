@@ -20,20 +20,6 @@ import { getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } fr
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
-const STANDALONE_GREETINGS = new Set([
-  'hola', 'hello', 'hi', 'hey', 'buenos días', 'buenas tardes', 'buenas noches',
-]);
-const GREETING_PUNCTUATION = new Set(['!', '¡', '?', '¿', '.', ',', ';', ':']);
-
-function normalizeStandaloneGreeting(value) {
-  let normalized = [...String(value || '').toLocaleLowerCase()]
-    .filter((character) => !GREETING_PUNCTUATION.has(character))
-    .join('')
-    .trim();
-  while (normalized.includes('  ')) normalized = normalized.replaceAll('  ', ' ');
-  return normalized;
-}
-
 function safeLogSnippet(value, maxLength = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
@@ -98,6 +84,31 @@ function conversationReplyFromActions(actions = []) {
     .join('\n\n');
 }
 
+/**
+ * Bind backend-authoritative interaction state to semantic actions without
+ * exposing database IDs to the model. This never infers an operation: it only
+ * fills identity for an acknowledge action Hermes has already selected.
+ */
+export function bindAuthoritativeFollowupTargets(intent, overview) {
+  if (!intent || !Array.isArray(intent.actions)) return intent;
+  const active = Array.isArray(overview?.pendingConfirmationReminders)
+    ? overview.pendingConfirmationReminders
+    : [];
+  if (active.length !== 1) return intent;
+
+  const reminder = active[0];
+  const humanTarget = String(reminder?.content || reminder?.title || '').trim();
+  if (!humanTarget) return intent;
+
+  return {
+    ...intent,
+    actions: intent.actions.map((action) => {
+      if (action?.domain !== 'reminder' || action?.action !== 'acknowledge' || action?.target) return action;
+      return { ...action, target: humanTarget };
+    }),
+  };
+}
+
 async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
   let finalText = text || '';
   if (finalText.includes('[auth_url]')) {
@@ -151,8 +162,8 @@ function buildRecoveryMessages({ prompt, pastTurns, messageText }) {
 /**
  * Canonical agent route:
  * context -> Hermes semantic decision -> TurnIntent -> deterministic tools -> cards.
- * Model prose is never an alternate execution path. Providers run in compatible
- * auto tool mode; a prose-only miss gets one compact structured recovery pass.
+ * Model prose is never an alternate execution path. All ordinary conversation,
+ * including greetings, uses conversation.reply through the same protocol.
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
@@ -178,20 +189,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     .trim();
   const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(String(messageText || ''));
   const isAttachmentOnlyTurn = hasAttachmentEvidence && !trustedMessageText;
-
-  const normalizedGreeting = normalizeStandaloneGreeting(trustedMessageText);
-  if (STANDALONE_GREETINGS.has(normalizedGreeting) && inputModality !== 'audio') {
-    console.log(`[router req=${requestId}] greeting fast-path hit normalized=${normalizedGreeting}`);
-    const isEnglishGreeting = new Set(['hello', 'hi', 'hey']).has(normalizedGreeting);
-    const greeting = isEnglishGreeting ? 'Hi! 👋\n\nHow can I help you?' : '¡Hola! 👋\n\n¿En qué te ayudo?';
-    return {
-      intent: 'greeting', entities: {}, language: isEnglishGreeting ? 'en' : 'es', confirmation: greeting,
-      ctaUrl: null, ctaHeader: null, ctaButtonText: null, executionFacts: [], memoryDisposition: 'skip_operational',
-    };
-  }
-  if (STANDALONE_GREETINGS.has(normalizedGreeting) && inputModality === 'audio') {
-    console.warn(`[router req=${requestId}] audio transcript matched greeting fast-path token; bypassing shortcut so Hermes can use conversational context`);
-  }
 
   hydrateClarificationStateFromHistory(user, history);
 
@@ -326,8 +323,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
-  console.log(`[router req=${requestId}] semantic intent actions=${collected.intent.actions.map(summarizeAction).join(' | ')}`);
-  const runtimeIntent = normalizeTurnIntentForRuntime(collected.intent, {
+  const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview);
+  console.log(`[router req=${requestId}] semantic intent actions=${semanticIntent.actions.map(summarizeAction).join(' | ')}`);
+  const runtimeIntent = normalizeTurnIntentForRuntime(semanticIntent, {
     user,
     referenceTime: requestReferenceTime,
     timezone,
