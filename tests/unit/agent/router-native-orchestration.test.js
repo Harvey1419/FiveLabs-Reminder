@@ -55,17 +55,36 @@ beforeEach(() => {
 });
 
 describe('Hermes direct TurnIntent router', () => {
-  it('delivers normal conversation directly with one model decision', async () => {
-    callChatCompletion.mockResolvedValue({ role: 'assistant', content: 'Te llamas Juan.', tool_calls: [] });
+  it('delivers normal conversation through conversation.reply with one structured model decision', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Te llamas Juan.' }],
+    }));
 
     const result = await routeMessage('¿Cómo me llamo?', user, []);
 
     expect(result.confirmation).toBe('Te llamas Juan.');
     expect(result.intent).toBe('chat');
+    expect(result.plan.actions).toEqual([{ domain: 'conversation', action: 'reply' }]);
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
     expect(executeTool).not.toHaveBeenCalled();
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
+  });
+
+  it('refuses model prose as an alternate execution path', async () => {
+    callChatCompletion.mockResolvedValue({
+      role: 'assistant',
+      content: '🔔 Recordatorios pendientes: algo reconstruido del historial',
+      tool_calls: [],
+    });
+
+    const result = await routeMessage('¿Qué recordatorios tengo pendientes?', user, []);
+
+    expect(result.intent).toBe('clarification');
+    expect(result.plan.type).toBe('missing_structured_decision');
+    expect(result.confirmation).not.toContain('algo reconstruido');
+    expect(executeTool).not.toHaveBeenCalled();
   });
 
   it('keeps a normal typed standalone greeting on the instant fast-path', async () => {
@@ -77,11 +96,14 @@ describe('Hermes direct TurnIntent router', () => {
   });
 
   it('does not let an audio transcript that looks like a greeting bypass Hermes context', async () => {
-    callChatCompletion.mockResolvedValue({ role: 'assistant', content: 'Entendido.', tool_calls: [] });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }],
+    }));
 
     const result = await routeMessage('Hola', user, [], { inputModality: 'audio', correlationId: 'audio-greeting-test' });
 
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
     expect(result.intent).toBe('chat');
     expect(result.confirmation).toBe('Entendido.');
   });
@@ -139,8 +161,42 @@ describe('Hermes direct TurnIntent router', () => {
     }));
     expect(result.confirmation).toContain('📋 *Pendientes actuales*');
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
+  });
+
+  it('routes an explicit reminder inventory through reminder.list instead of conversation.reply', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'reminder', action: 'list' }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'listed_reminders',
+      rawSummary: 'Recordatorios consultados.',
+      data: {
+        timezone: 'America/Bogota',
+        locale: 'es-CO',
+        reminders: [{
+          id: 'r1',
+          content: 'Me amo mucho',
+          send_at: '2026-09-08T13:00:00.000Z',
+          recurrence_rule: 'daily',
+          status: 'pending',
+        }],
+      },
+    });
+
+    const result = await routeMessage('¿Qué recordatorios tenemos pendiente?', user, []);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_reminder',
+      params: expect.objectContaining({ action: 'list' }),
+    }));
+    expect(result.confirmation).toContain('🔔 *Recordatorios pendientes*');
+    expect(result.confirmation).toContain('🕒');
+    expect(result.confirmation).not.toContain('**');
   });
 
   it('preserves explicit agenda scope instead of using all_pending', async () => {
