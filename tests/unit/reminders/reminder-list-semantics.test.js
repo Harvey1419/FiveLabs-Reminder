@@ -16,7 +16,8 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 }));
 
 const { supabase, markReminderAsCancelled } = await import('../../../src/infrastructure/database/index.js');
-const { executeReminderTool } = await import('../../../src/agent/tools/reminders.js');
+const { executeReminderReadTool } = await import('../../../src/agent/tools/reminder-read.js');
+const { executeBulkReminderCancellation } = await import('../../../src/agent/tools/reminder-bulk-cancel.js');
 
 function queryResult(data = []) {
   const query = {};
@@ -32,7 +33,7 @@ describe('reminder list delivery-state semantics', () => {
     vi.clearAllMocks();
   });
 
-  it('queries only reminders still awaiting future delivery by default', async () => {
+  it('queries future pending rows and applies canonical visibility semantics', async () => {
     const query = queryResult([{
       id: 'future-1',
       content: 'Llamar a Laura',
@@ -42,35 +43,29 @@ describe('reminder list delivery-state semantics', () => {
     }]);
     supabase.from.mockReturnValue(query);
 
-    const result = await executeReminderTool({
-      action: 'list',
+    const result = await executeReminderReadTool({
       params: {},
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
-      isPro: true,
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
 
-    expect(result).toMatchObject({ success: true, action: 'listed_reminders', filter: 'upcoming' });
+    expect(result).toMatchObject({ success: true, action: 'listed_reminders' });
     expect(query.eq).toHaveBeenCalledWith('status', 'pending');
-    expect(query.is).toHaveBeenCalledWith('acknowledged_at', null);
     expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-05T20:34:12.000Z');
-    expect(result.formattedCard).toContain('Llamar a Laura');
+    expect(query.is).not.toHaveBeenCalledWith('acknowledged_at', null);
+    expect(result.data).toMatchObject({ filter: 'upcoming' });
+    expect(result.data.reminders).toHaveLength(1);
+    expect(result.data.reminders[0]).toMatchObject({ id: 'future-1', content: 'Llamar a Laura' });
   });
 
   it('does not treat already sent reminders as pending-today rows', async () => {
     const query = queryResult([]);
     supabase.from.mockReturnValue(query);
 
-    await executeReminderTool({
-      action: 'list',
+    await executeReminderReadTool({
       params: { filter: 'pending_today' },
-      user: {
-        id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota',
-      },
-      isPro: true,
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
@@ -87,11 +82,9 @@ describe('reminder list delivery-state semantics', () => {
     const query = queryResult(rows);
     supabase.from.mockReturnValue(query);
 
-    const result = await executeReminderTool({
-      action: 'cancel',
+    const result = await executeBulkReminderCancellation({
       params: { scope: 'elapsed' },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
-      isPro: true,
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
@@ -123,11 +116,9 @@ describe('reminder list delivery-state semantics', () => {
     supabase.from.mockReturnValue(query);
     markReminderAsCancelled.mockResolvedValue(true);
 
-    const result = await executeReminderTool({
-      action: 'cancel',
+    const result = await executeBulkReminderCancellation({
       params: { scope: 'elapsed', cutoffAt: '2026-09-05T20:34:12.000Z' },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
-      isPro: true,
       language: 'es',
       referenceTime: new Date('2026-09-05T20:40:00.000Z'),
       clarificationResolution: true,
