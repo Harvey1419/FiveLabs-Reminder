@@ -98,7 +98,7 @@ describe('series-aware reminder cancellation', () => {
         acknowledged_at: null,
         content: 'Tomar agua',
         recurrence_rule: 'daily',
-        send_at: '2026-09-09T13:00:00.000Z', // 08:00 Bogota
+        send_at: '2026-09-09T13:00:00.000Z',
       },
       {
         id: otherId,
@@ -108,7 +108,7 @@ describe('series-aware reminder cancellation', () => {
         acknowledged_at: null,
         content: 'Tomar agua',
         recurrence_rule: 'daily',
-        send_at: '2026-09-09T20:00:00.000Z', // 15:00 Bogota
+        send_at: '2026-09-09T20:00:00.000Z',
       },
     ];
     const db = setupSupabase(rows);
@@ -122,5 +122,100 @@ describe('series-aware reminder cancellation', () => {
     expect(result.success).toBe(true);
     expect(result.data.cancelledCount).toBe(1);
     expect(db.updateIn).toHaveBeenCalledWith('id', [targetId]);
+  });
+
+  it('resolves a human target to the main reminder and cancels its linked advance notice', async () => {
+    const mainId = '55555555-5555-4555-8555-555555555555';
+    const noticeId = '66666666-6666-4666-8666-666666666666';
+    const rows = [
+      {
+        id: mainId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Llamar al veterinario',
+        recurrence_rule: null,
+        send_at: '2026-09-09T15:15:00.000Z',
+      },
+      {
+        id: noticeId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: '🔔 [Aviso Previo] En 30 minutos: Llamar al veterinario',
+        recurrence_rule: null,
+        send_at: '2026-09-09T14:45:00.000Z',
+      },
+    ];
+    const db = setupSupabase(rows);
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: 'Llamar al veterinario' },
+      user,
+      language: 'es',
+      correlationId: 'test-advance-child',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('cancelled_reminder');
+    expect(result.data).toMatchObject({
+      cancelledCount: 2,
+      logicalCancelledCount: 1,
+      linkedAdvanceNoticesCancelled: 1,
+      content: 'Llamar al veterinario',
+    });
+    expect(db.updateIn).toHaveBeenCalledWith('id', expect.arrayContaining([mainId, noticeId]));
+    expect(db.updateIn.mock.calls[0][1]).toHaveLength(2);
+  });
+
+  it('does not attach an advance notice to a same-content reminder at a different time', async () => {
+    const morningId = '77777777-7777-4777-8777-777777777777';
+    const afternoonId = '88888888-8888-4888-8888-888888888888';
+    const afternoonNoticeId = '99999999-9999-4999-8999-999999999999';
+    const rows = [
+      {
+        id: morningId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Llamar a Pedro',
+        recurrence_rule: null,
+        send_at: '2026-09-09T13:00:00.000Z',
+      },
+      {
+        id: afternoonId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Llamar a Pedro',
+        recurrence_rule: null,
+        send_at: '2026-09-09T20:00:00.000Z',
+      },
+      {
+        id: afternoonNoticeId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: '🔔 [Aviso Previo] En 30 minutos: Llamar a Pedro',
+        recurrence_rule: null,
+        send_at: '2026-09-09T19:30:00.000Z',
+      },
+    ];
+    const db = setupSupabase(rows);
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: morningId },
+      user,
+      language: 'es',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.linkedAdvanceNoticesCancelled).toBe(0);
+    expect(db.updateIn).toHaveBeenCalledWith('id', [morningId]);
   });
 });
