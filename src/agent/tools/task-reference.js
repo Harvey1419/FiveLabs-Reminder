@@ -36,19 +36,19 @@ async function resolveUserContainer(cleanQuery, normClean, userId) {
 
 /**
  * Canonical deterministic task reference resolver.
- * Operation-specific callers decide which task statuses are eligible and how
- * each resolution status is presented to the user.
+ * Receives a structured target from Hermes/Orchestrator and never falls back
+ * to the raw user message. Operation-specific callers decide eligible statuses
+ * and how each resolution status is presented.
  */
 export async function resolveTaskTarget({
   target,
   userId,
   userOrPhone,
-  userMessage = '',
   operation = 'complete',
   allowedStatuses = null,
 }) {
-  if (!target && !userMessage) return { status: 'MISSING' };
-  const rawStr = String(target || userMessage || '').trim();
+  if (!target) return { status: 'MISSING' };
+  const rawStr = String(target).trim();
   if (!rawStr) return { status: 'MISSING' };
 
   const statuses = allowedStatuses || (operation === 'complete' ? ['pending'] : ['pending', 'completed']);
