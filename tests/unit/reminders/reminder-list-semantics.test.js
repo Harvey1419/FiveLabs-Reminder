@@ -33,7 +33,7 @@ describe('reminder list delivery-state semantics', () => {
     vi.clearAllMocks();
   });
 
-  it('queries only reminders still awaiting future delivery by default', async () => {
+  it('queries future pending rows and applies canonical visibility semantics', async () => {
     const query = queryResult([{
       id: 'future-1',
       content: 'Llamar a Laura',
@@ -52,10 +52,11 @@ describe('reminder list delivery-state semantics', () => {
 
     expect(result).toMatchObject({ success: true, action: 'listed_reminders' });
     expect(query.eq).toHaveBeenCalledWith('status', 'pending');
-    expect(query.is).toHaveBeenCalledWith('acknowledged_at', null);
     expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-05T20:34:12.000Z');
+    expect(query.is).not.toHaveBeenCalledWith('acknowledged_at', null);
     expect(result.data).toMatchObject({ filter: 'upcoming' });
-    expect(result.formattedCard).toContain('Llamar a Laura');
+    expect(result.data.reminders).toHaveLength(1);
+    expect(result.data.reminders[0]).toMatchObject({ id: 'future-1', content: 'Llamar a Laura' });
   });
 
   it('does not treat already sent reminders as pending-today rows', async () => {
