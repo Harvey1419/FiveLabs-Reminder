@@ -2,10 +2,11 @@ import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 
 const DOMAINS = Object.freeze([
-  'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
+  'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
 ]);
 
 const DOMAIN_ACTIONS = Object.freeze({
+  conversation: new Set(['reply']),
   agenda: new Set(['read']),
   reminder: new Set(['create', 'update', 'cancel', 'acknowledge', 'list', 'add_advance']),
   task: new Set(['create', 'update', 'complete', 'delete', 'list']),
@@ -19,6 +20,7 @@ const DOMAIN_ACTIONS = Object.freeze({
 });
 
 const ACTION_ALIASES = Object.freeze({
+  conversation: Object.freeze({ chat: 'reply', respond: 'reply', answer: 'reply' }),
   agenda: Object.freeze({ get: 'read', show: 'read', list: 'read', view: 'read', pending: 'read' }),
   reminder: Object.freeze({
     add: 'create', set: 'create', get: 'list', read: 'list', show: 'list', search: 'list',
@@ -75,7 +77,7 @@ const actionSchema = {
     domain: { type: 'string', enum: DOMAINS, description: 'Semantic domain. Choose by user meaning, never by keyword matching.' },
     action: { type: 'string', description: 'Plain semantic operation. Natural synonyms are normalized by Node.' },
     target: { type: 'string', description: 'Human reference to an existing item such as its title, “la segunda”, or “2”. Never an internal ID.' },
-    content: { type: 'string' },
+    content: { type: 'string', description: 'For conversation.reply, the concise natural-language reply to send. For other domains, the domain content delta.' },
     title: { type: 'string' },
     description: { type: 'string' },
     entityName: { type: 'string' },
@@ -134,17 +136,18 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Express only the current user's actionable delta as semantic actions.
+export const EXECUTE_TURN_DESCRIPTION = `Express the current user's meaning as structured semantic actions. This is the only response protocol for Hermes.
 Think about the user's goal first. Do not produce backend IDs, sequence numbers, manifests, sourceQuote fields, tool names or protocol vocabulary.
+For ordinary conversation, emotional support, acknowledgements, conversation closes, or a personal fact already answerable from supplied context/memory, use domain=conversation action=reply and put only the natural user-facing answer in content. conversation.reply must never claim a database read or mutation.
 For a general cross-domain question such as “qué tengo hoy”, “qué tenemos pendiente” or “cómo está mi agenda”, use domain=agenda action=read. If no time range is stated for a general pending query, omit scope; Node will use all_pending. If a specific period is stated, set its semantic scope.
-If the user explicitly names only reminders, tasks or Google Calendar, use that domain instead of agenda.
+If the user explicitly names only reminders, tasks or Google Calendar, use that domain instead of agenda. Live operational state must never be answered with conversation.reply or reconstructed from chat history.
 For edits to an existing reminder, task or calendar event, use action=update and keep the existing item in target. For a pure rename, place only the requested new human-facing title in newName; Node maps it to the domain field. For time changes, keep the temporal delta in schedule. Do not repeat unchanged fields.
 When the current context contains an active reminder notification/follow-up and the user says the real-world action is already done or happened (for example “listo”, “ya salí”, “ya lo hice”, “ya está”, “te decía que ya salí”), use domain=reminder action=acknowledge with that reminder as target. Completion is not an update. Use reminder.update only when changing stored reminder fields such as content, time, recurrence or advance notice.
 If the user asks to delete, remove, cancel or get rid of an existing reminder, use domain=reminder action=cancel, never update. For a recurring reminder, cancelling the reminder means cancelling its active series unless the user explicitly asks to skip only one occurrence.
 For recurring reminders, keep recurrence on the same reminder action. Use recurrence=daily for “todos los días/every day”, weekdays for business days, weekly for weekly routines and monthly for monthly routines. A recurring clock time means the next future occurrence of that routine; Node chooses the correct first date if today's occurrence already passed.
-A personal fact already present in supplied memories/profile is answered directly in prose, not with a memory action. A plain durable personal statement is also prose + background learning. Use memory.save only when the user explicitly asks to remember/store something now; use memory.search only when supplied memory context is insufficient.
+A plain durable personal statement is conversation.reply + background learning. Use memory.save only when the user explicitly asks to remember/store something now; use memory.search only when supplied memory context is insufficient.
 Use target only for an existing item. Keep time meaning in schedule; Node resolves dates/timezones. Put an advance notice on the same reminder/event action via advanceMinutes whenever possible.
-For mixed messages, excluded contains only the exact clauses that must not execute. Do not call this tool for ordinary conversation, emotional support, acknowledgements or conversation closes.`;
+For mixed messages, excluded contains only the exact clauses that must not execute. Use conversation.reply only for a conversational clause that genuinely needs a user-facing reply; do not duplicate verified operational cards.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -193,6 +196,9 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const action = normalizeIntentAction(domain, raw.action);
     if (!DOMAIN_ACTIONS[domain]?.has(action)) {
       return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Capacidad no soportada: ${domain}.${raw.action}.` };
+    }
+    if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) {
+      return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     }
     normalizedActions.push({ ...raw, domain, action });
   }
