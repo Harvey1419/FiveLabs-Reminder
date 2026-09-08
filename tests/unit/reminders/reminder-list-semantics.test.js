@@ -50,10 +50,11 @@ describe('reminder list delivery-state semantics', () => {
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
     });
 
-    expect(result).toMatchObject({ success: true, action: 'listed_reminders', filter: 'upcoming' });
+    expect(result).toMatchObject({ success: true, action: 'listed_reminders' });
     expect(query.eq).toHaveBeenCalledWith('status', 'pending');
     expect(query.is).toHaveBeenCalledWith('acknowledged_at', null);
     expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-05T20:34:12.000Z');
+    expect(result.data).toMatchObject({ filter: 'upcoming' });
     expect(result.formattedCard).toContain('Llamar a Laura');
   });
 
