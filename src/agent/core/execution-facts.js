@@ -2,8 +2,11 @@ import { sanitizeResponseText } from './working-memory.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
 import {
+  formatCanonicalReminderAcknowledge,
+  formatCanonicalReminderCancel,
   formatCanonicalReminderCreate,
   formatCanonicalReminderList,
+  formatCanonicalReminderUpdate,
 } from '../../shared/reminder-presentation.js';
 import { composeTurnPresentation } from './presentation-policy.js';
 
@@ -44,6 +47,18 @@ function getCanonicalCard(toolName, params, result, language) {
     return formatCanonicalReminderList(result.data, presentation);
   }
 
+  if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'cancel' && result?.data) {
+    return formatCanonicalReminderCancel(result.data, presentation);
+  }
+
+  if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'update' && result?.data) {
+    return formatCanonicalReminderUpdate(result.data, presentation);
+  }
+
+  if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'acknowledge' && result?.data) {
+    return formatCanonicalReminderAcknowledge(result.data, presentation);
+  }
+
   return null;
 }
 
@@ -72,8 +87,6 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
-    // Verified execution metadata. Presentation may group/render it, but never
-    // reinterpret it as user intent or mutate domain state.
     presentationData: result?.data ?? null,
     presentationParams: params && typeof params === 'object' ? { ...params } : {},
     presentationContext: getPresentationContext(result, language),
@@ -82,8 +95,7 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
 
 /**
  * Backend-owned facts are composed once at the turn boundary. Individual tools
- * may provide canonical entity cards, but turn-level UX belongs to the central
- * Presentation Policy.
+ * expose verified data; turn-level UX belongs to the central Presentation Policy.
  */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
