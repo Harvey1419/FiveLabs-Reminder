@@ -3,6 +3,7 @@ import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions } f
 
 describe('direct TurnIntent contract', () => {
   it('normalizes semantic aliases inside the execution boundary', () => {
+    expect(normalizeIntentAction('conversation', 'respond')).toBe('reply');
     expect(normalizeIntentAction('memory', 'add')).toBe('save');
     expect(normalizeIntentAction('memory', 'recall')).toBe('search');
     expect(normalizeIntentAction('task', 'done')).toBe('complete');
@@ -27,6 +28,26 @@ describe('direct TurnIntent contract', () => {
     ]);
   });
 
+  it('accepts conversation.reply as the structured path for natural conversation', () => {
+    const result = validateTurnIntent({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Te llamas Juan.' }],
+    });
+    expect(result.valid).toBe(true);
+    expect(result.intent.actions[0]).toMatchObject({
+      domain: 'conversation',
+      action: 'reply',
+      content: 'Te llamas Juan.',
+    });
+  });
+
+  it('rejects an empty conversation.reply', () => {
+    const result = validateTurnIntent({
+      actions: [{ domain: 'conversation', action: 'reply' }],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('MISSING_CONTENT');
+  });
+
   it('accepts a natural reminder rename without exposing storage fields to the model', () => {
     const result = validateTurnIntent({
       actions: [{ domain: 'reminder', action: 'rename', target: 'Test Update', newName: 'cita en cerámica Italia' }],
@@ -46,6 +67,13 @@ describe('direct TurnIntent contract', () => {
     expect(description).toContain('action=acknowledge');
     expect(description).toContain('Completion is not an update');
     expect(description).toContain('reminder.update only when changing stored reminder fields');
+  });
+
+  it('teaches the model that operational inventory cannot use conversation.reply', () => {
+    const [tool] = getIntentToolDefinitions();
+    const description = tool.function.description;
+    expect(description).toContain('only reminders, tasks or Google Calendar');
+    expect(description).toContain('must never be answered with conversation.reply');
   });
 
   it('keeps internal orchestration fields out of the model-facing contract', () => {
