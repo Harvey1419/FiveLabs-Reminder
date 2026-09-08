@@ -5,7 +5,6 @@ export const TOOL_NAMES = Object.freeze({
   MANAGE_ENTITY: 'manage_entity',
   MANAGE_MEMORY: 'manage_memory',
   MANAGE_SUBSCRIPTION: 'manage_subscription',
-  GET_SUBSCRIPTION_LINK: 'get_subscription_link',
   MANAGE_GOOGLE_CALENDAR: 'manage_google_calendar',
   GET_UNIFIED_AGENDA: 'get_unified_agenda',
   ADMIN_METRICS: 'admin_metrics',
