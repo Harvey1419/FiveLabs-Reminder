@@ -4,7 +4,6 @@ import {
   markReminderAsDispatched,
   markReminderAsFailed,
   markReminderAsMissed,
-  saveReminder,
   getRemindersDueForNudge,
   incrementReminderNudge,
   getLatestInboundPhoneNumberId,
@@ -15,15 +14,33 @@ import { saveWorkingMemory } from '../agent/core/working-memory.js';
 import { computeNextRecurringSendAt } from '../shared/reminder-recurrence.js';
 
 const CHECK_INTERVAL_MS = 15 * 1000;
-const MAX_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours: reminders older than 2h after downtime are marked missed
+const MAX_STALE_MS = 2 * 60 * 60 * 1000;
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
 
-function usesStableRecurringIdentity(reminder) {
-  return Boolean(reminder?.recurrence_rule) && reminder?.requires_confirmation !== true;
+function isRecurring(reminder) {
+  return Boolean(String(reminder?.recurrence_rule || '').trim());
 }
 
+function isNudgeDue(reminder, now = Date.now()) {
+  if (!reminder?.requires_confirmation || reminder?.acknowledged_at) return false;
+  const maxNudges = reminder.max_nudges ?? 5;
+  const nudgeCount = reminder.nudge_count ?? 0;
+  if (nudgeCount >= maxNudges) return false;
+  const lastNudgeMs = reminder.last_nudged_at
+    ? new Date(reminder.last_nudged_at).getTime()
+    : (reminder.sent_at ? new Date(reminder.sent_at).getTime() : 0);
+  if (!lastNudgeMs || Number.isNaN(lastNudgeMs)) return false;
+  const intervalMs = (reminder.nudge_interval_minutes || 15) * 60 * 1000;
+  return now >= lastNudgeMs + intervalMs;
+}
+
+/**
+ * A recurring reminder is one durable domain object. After each execution we
+ * advance its next send_at in-place instead of materializing another row.
+ * Lifecycle fields describe the most recent delivery/acknowledgement.
+ */
 async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null } = {}) {
   const reference = dispatchedAt || new Date();
   const nextSendAt = computeNextRecurringSendAt(reminder.send_at, reminder.recurrence_rule, reference);
@@ -37,17 +54,24 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null }
     claimed_by: null,
     claimed_at: null,
     lock_until: null,
+    // Delivery ids are occurrence-specific. Keeping an old one would allow a
+    // delayed provider callback to mutate the lifecycle of the next run.
     delivery_id: null,
   };
+
   if (dispatchedAt) {
-    updates.sent_at = dispatchedAt.toISOString();
+    const sentIso = dispatchedAt.toISOString();
+    updates.sent_at = sentIso;
+    updates.acknowledged_at = null;
+    updates.nudge_count = 0;
+    updates.last_nudged_at = reminder.requires_confirmation ? sentIso : null;
   }
 
   const { data, error } = await supabase
     .from('reminders')
     .update(updates)
     .eq('id', reminder.id)
-    .select('id, send_at, recurrence_rule, status')
+    .select('id, send_at, recurrence_rule, status, sent_at, acknowledged_at')
     .maybeSingle();
 
   if (error || !data) {
@@ -60,22 +84,65 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null }
   return data;
 }
 
+/**
+ * Defensive reconciliation for callbacks/acknowledgements that may set a
+ * recurring row to sent/failed after it has already been advanced. A future
+ * recurring schedule is always pending and keeps the same UUID.
+ */
+export async function reconcileRecurringScheduleState() {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('reminders')
+    .update({ status: 'pending' })
+    .not('recurrence_rule', 'is', null)
+    .in('status', ['sent', 'failed'])
+    .gt('send_at', nowIso)
+    .select('id');
+
+  if (error) {
+    console.warn(`[scheduler worker=${WORKER_ID}] recurring state reconciliation failed:`, error.message || error);
+    return 0;
+  }
+  const count = data?.length || 0;
+  if (count > 0) {
+    console.log(`[scheduler worker=${WORKER_ID}] reconciled ${count} recurring reminder lifecycle row(s) to pending`);
+  }
+  return count;
+}
+
+async function getRecurringPendingNudges() {
+  const { data, error } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('status', 'pending')
+    .eq('requires_confirmation', true)
+    .not('recurrence_rule', 'is', null)
+    .is('acknowledged_at', null)
+    .not('last_nudged_at', 'is', null)
+    .limit(200);
+
+  if (error) {
+    console.warn(`[scheduler worker=${WORKER_ID}] recurring nudge read failed:`, error.message || error);
+    return [];
+  }
+  return (data || []).filter((reminder) => isNudgeDue(reminder));
+}
+
 export async function startScheduler() {
-  console.log(`[scheduler] started worker=${WORKER_ID} (check interval: ${CHECK_INTERVAL_MS / 1000}s with atomic locking & persistent nudges)`);
+  console.log(`[scheduler] started worker=${WORKER_ID} (check interval: ${CHECK_INTERVAL_MS / 1000}s with atomic locking, stable recurring IDs & persistent nudges)`);
 
   while (true) {
     try {
-      // 1. Atomically claim and process all currently due reminders
+      await reconcileRecurringScheduleState();
+
       let claimed = await claimNextDueReminder(WORKER_ID);
       while (claimed) {
         await processReminder(claimed);
         claimed = await claimNextDueReminder(WORKER_ID);
       }
 
-      // 2. Check and dispatch pending persistent escalation nudges
       await checkAndDispatchNudges();
 
-      // 3. Peek at next future reminder for intelligent sleep
       const nextReminder = await getNextPendingReminder();
       if (!nextReminder) {
         await sleep(CHECK_INTERVAL_MS);
@@ -84,15 +151,8 @@ export async function startScheduler() {
 
       const sendAtMs = new Date(nextReminder.send_at).getTime();
       const now = Date.now();
-
-      if (sendAtMs <= now) {
-        continue; // Immediately loop to claim
-      }
-
-      const delay = sendAtMs - now;
-      const chunkMs = Math.min(delay, CHECK_INTERVAL_MS);
-      await sleep(chunkMs);
-
+      if (sendAtMs <= now) continue;
+      await sleep(Math.min(sendAtMs - now, CHECK_INTERVAL_MS));
     } catch (error) {
       console.error(`[scheduler worker=${WORKER_ID}] error in cycle:`, error);
       await sleep(15000);
@@ -100,13 +160,18 @@ export async function startScheduler() {
   }
 }
 
-/**
- * Dispatch escalation nudges for unacknowledged critical reminders.
- */
 export async function checkAndDispatchNudges() {
   try {
-    const dueForNudge = await getRemindersDueForNudge();
-    for (const reminder of dueForNudge) {
+    const [legacyDue, recurringDue] = await Promise.all([
+      getRemindersDueForNudge(),
+      getRecurringPendingNudges(),
+    ]);
+    const byId = new Map();
+    for (const reminder of [...(legacyDue || []), ...(recurringDue || [])]) {
+      if (reminder?.id) byId.set(reminder.id, reminder);
+    }
+
+    for (const reminder of byId.values()) {
       const nextCount = (reminder.nudge_count || 0) + 1;
       const cleanText = stripReminderPrefix(reminder.content);
       const isTask = Boolean(reminder.task_id);
@@ -151,23 +216,19 @@ export async function checkAndDispatchNudges() {
 export async function processReminder(reminder) {
   const sendAtMs = new Date(reminder.send_at).getTime();
   const now = Date.now();
-  const stableRecurring = usesStableRecurringIdentity(reminder);
+  const recurring = isRecurring(reminder);
 
-  // Downtime Recovery: stale one-time reminders are marked missed. A normal
-  // recurrence keeps its UUID and simply advances to its next future run.
   if (now - sendAtMs > MAX_STALE_MS) {
     console.warn(`[scheduler worker=${WORKER_ID}] reminder ${reminder.id} missed (expired ${Math.round((now - sendAtMs) / 60000)}m ago)`);
-    if (stableRecurring) {
+    if (recurring) {
       await advanceRecurringReminderInPlace(reminder);
     } else {
       await markReminderAsMissed(reminder.id);
-      await handleOccurrenceBasedRecurrence(reminder);
     }
     return;
   }
 
   try {
-    // Send clean reminder without duplicating prefix
     const phoneNumberId = await getLatestInboundPhoneNumberId(
       reminder.phone_number,
       reminder.created_at || null,
@@ -176,13 +237,11 @@ export async function processReminder(reminder) {
     if (!sendResult?.success || !sendResult?.messageId) {
       throw new Error(sendResult?.error || 'Kapso did not accept the scheduled reminder.');
     }
+
     const deliveryId = sendResult.messageId;
     const dispatchedAt = new Date();
 
-    if (stableRecurring) {
-      // The row itself is the recurring reminder. Do not persist the transient
-      // delivery id because a later delivery callback must never flip the next
-      // occurrence from pending back to sent.
+    if (recurring) {
       await advanceRecurringReminderInPlace(reminder, { dispatchedAt });
     } else {
       await markReminderAsDispatched(reminder.id, { deliveryId });
@@ -214,62 +273,19 @@ export async function processReminder(reminder) {
     if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
     if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
 
-    console.log(`[scheduler worker=${WORKER_ID}] reminder sent ok: ${reminder.id} ("${reminder.content}") deliveryId=${deliveryId} stableRecurring=${stableRecurring}`);
-
-    // Persistent-confirmation recurrence still needs a separate occurrence so
-    // today's acknowledgement state and tomorrow's schedule can coexist.
-    if (!stableRecurring) {
-      await handleOccurrenceBasedRecurrence(reminder);
-    }
-
+    console.log(`[scheduler worker=${WORKER_ID}] reminder sent ok: ${reminder.id} ("${reminder.content}") deliveryId=${deliveryId} recurring=${recurring}`);
   } catch (error) {
     console.error(`[scheduler worker=${WORKER_ID}] failed to send reminder ${reminder.id}:`, error);
-    await markReminderAsFailed(reminder.id);
-  }
-}
-
-/**
- * Compatibility path for recurrence that requires persistent confirmation.
- * Those reminders need two simultaneous states (current occurrence awaiting an
- * acknowledgement + next occurrence scheduled), which one DB row cannot model.
- */
-async function handleOccurrenceBasedRecurrence(reminder) {
-  if (!reminder.recurrence_rule) return;
-
-  try {
-    const nextSendAt = computeNextRecurringSendAt(reminder.send_at, reminder.recurrence_rule, new Date());
-    if (!nextSendAt) {
-      throw new Error(`Could not compute next recurrence for reminder ${reminder.id}`);
+    if (recurring) {
+      // A failed occurrence must not destroy the user's recurring routine.
+      try {
+        await advanceRecurringReminderInPlace(reminder);
+      } catch (advanceError) {
+        console.error(`[scheduler worker=${WORKER_ID}] failed to preserve recurring reminder ${reminder.id}:`, advanceError);
+        await markReminderAsFailed(reminder.id);
+      }
+    } else {
+      await markReminderAsFailed(reminder.id);
     }
-
-    // Deduplication check: Do not insert if an identical pending recurrence is already scheduled
-    const { data: existing } = await supabase
-      .from('reminders')
-      .select('id')
-      .eq('phone_number', reminder.phone_number)
-      .eq('status', 'pending')
-      .eq('content', reminder.content)
-      .eq('send_at', nextSendAt.toISOString())
-      .maybeSingle();
-
-    if (existing) {
-      console.log(`[scheduler] recurring reminder already scheduled (${existing.id}), skipping duplicate.`);
-      return;
-    }
-
-    await saveReminder({
-      userId: reminder.user_id,
-      phoneNumber: reminder.phone_number,
-      content: reminder.content,
-      sendAt: nextSendAt.toISOString(),
-      recurrenceRule: reminder.recurrence_rule,
-      requiresConfirmation: reminder.requires_confirmation,
-      nudgeIntervalMinutes: reminder.nudge_interval_minutes,
-      maxNudges: reminder.max_nudges,
-    });
-
-    console.log(`[scheduler] scheduled next confirmation-based recurrence ("${reminder.content}") for ${nextSendAt.toISOString()}`);
-  } catch (err) {
-    console.error('[scheduler] handleOccurrenceBasedRecurrence failed:', err);
   }
 }
