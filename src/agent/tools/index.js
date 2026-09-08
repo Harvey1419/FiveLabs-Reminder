@@ -14,11 +14,22 @@ import { TOOL_NAMES } from '../contracts/tool-names.js';
 
 export { TOOL_NAMES } from '../contracts/tool-names.js';
 
+const REMINDER_MUTATION_ACTIONS = new Set(['create', 'update', 'acknowledge']);
+const TASK_MUTATION_ACTIONS = new Set(['create', 'complete', 'update', 'delete']);
+
+function unsupportedDomainAction(domain, action) {
+  return {
+    success: false,
+    action: 'unsupported_action',
+    errorCode: 'UNSUPPORTED_ACTION',
+    error: `Acción '${action}' no soportada para ${domain}.`,
+    rawSummary: `Acción '${action}' no soportada para ${domain}.`,
+  };
+}
+
 function sanitizeCalendarParams(action, params) {
   if (action !== 'update_event') return params;
   const safe = { ...(params || {}) };
-  // Event identity and event content are separate concepts. A target echoed as
-  // summary is not an explicit rename, so it must never reach the calendar mutation.
   if (safe.target && safe.summary && String(safe.target).trim() === String(safe.summary).trim()) {
     delete safe.summary;
   }
@@ -31,6 +42,9 @@ function sanitizeCalendarParams(action, params) {
  * There is exactly one invocation contract: executeTool({ ... }). All semantic
  * meaning enters through TurnIntent -> intent-executor; this layer only routes
  * already-structured operations to domain implementations.
+ *
+ * Reads and mutations have explicit execution boundaries. A legacy read branch
+ * left inside a mutation module can therefore never become runtime-reachable.
  */
 export async function executeTool({
   toolName,
@@ -42,7 +56,6 @@ export async function executeTool({
   correlationId = null,
   referenceTime = null,
   clarificationResolution = false,
-  typedTemporalResolution = false,
 } = {}) {
   const isPro = requestedIsPro ?? (user?.isPro || false);
   const language = requestedLanguage || (user?.locale?.startsWith('en') ? 'en' : 'es');
@@ -73,7 +86,7 @@ export async function executeTool({
           result = await executeReminderReadTool({ params, user, language, referenceTime });
         } else if (action === 'cancel' && !isBulkCancellation) {
           result = await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId });
-        } else {
+        } else if (isBulkCancellation || REMINDER_MUTATION_ACTIONS.has(action)) {
           result = await executeReminderTool({
             action,
             params,
@@ -83,17 +96,22 @@ export async function executeTool({
             userMessage,
             referenceTime,
             clarificationResolution,
-            typedTemporalResolution,
           });
+        } else {
+          result = unsupportedDomainAction('manage_reminder', action);
         }
         break;
       }
 
       case TOOL_NAMES.MANAGE_TASK: {
         const action = params?.action || 'create';
-        result = action === 'list'
-          ? await executeTaskReadTool({ params, user, language })
-          : await executeTaskTool({ action, params, user, language, userMessage, referenceTime });
+        if (action === 'list') {
+          result = await executeTaskReadTool({ params, user, language });
+        } else if (TASK_MUTATION_ACTIONS.has(action)) {
+          result = await executeTaskTool({ action, params, user, language, userMessage, referenceTime });
+        } else {
+          result = unsupportedDomainAction('manage_task', action);
+        }
         break;
       }
 
