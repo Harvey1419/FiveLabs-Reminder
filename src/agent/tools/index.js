@@ -17,9 +17,8 @@ export { TOOL_NAMES } from '../contracts/tool-names.js';
 function sanitizeCalendarParams(action, params) {
   if (action !== 'update_event') return params;
   const safe = { ...(params || {}) };
-  // target identifies the event; it is never event content. The old executor
-  // may carry target into summary as a compatibility fallback. Strip only that
-  // identity echo while preserving an explicit rename where summary differs.
+  // Event identity and event content are separate concepts. A target echoed as
+  // summary is not an explicit rename, so it must never reach the calendar mutation.
   if (safe.target && safe.summary && String(safe.target).trim() === String(safe.summary).trim()) {
     delete safe.summary;
   }
@@ -27,41 +26,40 @@ function sanitizeCalendarParams(action, params) {
 }
 
 /**
- * Master deterministic domain router. Read collections are routed through
- * canonical read models; mutations remain owned by their domain tools.
+ * Canonical deterministic domain router.
+ *
+ * There is exactly one invocation contract: executeTool({ ... }). All semantic
+ * meaning enters through TurnIntent -> intent-executor; this layer only routes
+ * already-structured operations to domain implementations.
  */
-export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = null) {
-  let toolName;
-  let params = {};
-  let user = null;
-  let isPro = false;
-  let language = 'es';
-  let userMessage = '';
-  let correlationId = null;
-  let referenceTime = null;
-  let clarificationResolution = false;
-  let typedTemporalResolution = false;
+export async function executeTool({
+  toolName,
+  params = {},
+  user = null,
+  isPro: requestedIsPro,
+  language: requestedLanguage,
+  userMessage = '',
+  correlationId = null,
+  referenceTime = null,
+  clarificationResolution = false,
+  typedTemporalResolution = false,
+} = {}) {
+  const isPro = requestedIsPro ?? (user?.isPro || false);
+  const language = requestedLanguage || (user?.locale?.startsWith('en') ? 'en' : 'es');
+  const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';
 
-  if (typeof toolNameOrOptions === 'object' && toolNameOrOptions !== null) {
-    toolName = toolNameOrOptions.toolName;
-    params = toolNameOrOptions.params || {};
-    user = toolNameOrOptions.user;
-    isPro = toolNameOrOptions.isPro ?? (user?.isPro || false);
-    language = toolNameOrOptions.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
-    userMessage = toolNameOrOptions.userMessage || '';
-    correlationId = toolNameOrOptions.correlationId || null;
-    referenceTime = toolNameOrOptions.referenceTime || null;
-    clarificationResolution = toolNameOrOptions.clarificationResolution === true;
-    typedTemporalResolution = toolNameOrOptions.typedTemporalResolution === true;
-  } else {
-    toolName = toolNameOrOptions;
-    params = paramsArg || {};
-    user = userArg;
-    isPro = userArg?.isPro ?? false;
-    language = userArg?.locale?.startsWith('en') ? 'en' : 'es';
+  if (!toolName) {
+    return {
+      success: false,
+      action: 'unknown',
+      errorCode: 'UNKNOWN_TOOL',
+      error: 'No se especificó una herramienta para ejecutar.',
+      rawSummary: 'No se especificó una herramienta para ejecutar.',
+      confirmation: formatErrorCard('UNKNOWN_TOOL', null, language),
+      complete: false,
+    };
   }
 
-  const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';
   console.log(`${reqId} Executing ${toolName} action=${params?.action || 'default'} for user=${user?.id || user?.phone_number}`);
 
   try {
@@ -77,7 +75,15 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
           result = await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId });
         } else {
           result = await executeReminderTool({
-            action, params, user, isPro, language, userMessage, referenceTime, clarificationResolution, typedTemporalResolution,
+            action,
+            params,
+            user,
+            isPro,
+            language,
+            userMessage,
+            referenceTime,
+            clarificationResolution,
+            typedTemporalResolution,
           });
         }
         break;
@@ -103,9 +109,8 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
         break;
       }
 
-      case TOOL_NAMES.MANAGE_SUBSCRIPTION:
-      case TOOL_NAMES.GET_SUBSCRIPTION_LINK: {
-        const action = toolName === TOOL_NAMES.GET_SUBSCRIPTION_LINK ? 'get_link' : (params?.action || 'get_link');
+      case TOOL_NAMES.MANAGE_SUBSCRIPTION: {
+        const action = params?.action || 'get_link';
         result = await executeSubscriptionTool({ action, params, user, language });
         break;
       }
@@ -189,6 +194,7 @@ export async function executeTool(toolNameOrOptions, paramsArg = {}, userArg = n
       error: err.message,
       rawSummary: err.message,
       confirmation: formatErrorCard('UNEXPECTED_EXCEPTION', null, language),
+      complete: false,
     };
   }
 }
