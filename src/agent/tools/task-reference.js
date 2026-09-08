@@ -3,21 +3,19 @@ import { resolveEntityReference } from '../core/working-memory.js';
 import {
   isStrictUUID,
   normalizeTextForMatching,
-  stripConversationalWrappers,
-  isStandaloneAffirmative,
   calculateMatchScore,
 } from '../../shared/entity-resolution.js';
 import { selectEntityCandidate } from '../../infrastructure/database/entities.js';
 
-async function resolveUserContainer(cleanQuery, normClean, userId) {
-  if (!userId || !normClean) return null;
+async function resolveUserContainer(query, normalizedQuery, userId) {
+  if (!userId || !normalizedQuery) return null;
   const { data: userEntities } = await supabase
     .from('entities')
     .select('id, name, category')
     .eq('user_id', userId);
 
   if (userEntities && userEntities.length > 0) {
-    const selection = selectEntityCandidate(userEntities, cleanQuery);
+    const selection = selectEntityCandidate(userEntities, query);
     if (selection.status === 'RESOLVED') {
       const matchedEntity = selection.entity;
       return {
@@ -36,9 +34,9 @@ async function resolveUserContainer(cleanQuery, normClean, userId) {
 
 /**
  * Canonical deterministic task reference resolver.
- * Receives a structured target from Hermes/Orchestrator and never falls back
- * to the raw user message. Operation-specific callers decide eligible statuses
- * and how each resolution status is presented.
+ * Receives a structured target from Hermes/Orchestrator and only resolves that
+ * target against working memory and tenant-owned task/entity data. It does not
+ * interpret conversational completion phrases or raw user intent.
  */
 export async function resolveTaskTarget({
   target,
@@ -96,14 +94,8 @@ export async function resolveTaskTarget({
 
   if (!userId) return { status: 'NOT_FOUND' };
 
-  const cleanQuery = stripConversationalWrappers(rawStr);
-  const normClean = normalizeTextForMatching(cleanQuery);
-  if (!normClean) {
-    if (isStandaloneAffirmative(rawStr)) {
-      return { status: 'MISSING_CONTEXT', reason: 'STANDALONE_AFFIRMATIVE_WITHOUT_CONTEXT' };
-    }
-    return { status: 'NOT_FOUND' };
-  }
+  const normalizedQuery = normalizeTextForMatching(rawStr);
+  if (!normalizedQuery) return { status: 'NOT_FOUND' };
 
   let tasksQuery = supabase
     .from('tasks')
@@ -115,7 +107,7 @@ export async function resolveTaskTarget({
 
   const { data: dbTasks, error: dbError } = await tasksQuery;
   if (dbError || !dbTasks || dbTasks.length === 0) {
-    const containerResult = await resolveUserContainer(cleanQuery, normClean, userId);
+    const containerResult = await resolveUserContainer(rawStr, normalizedQuery, userId);
     if (containerResult) return containerResult;
     return { status: 'NOT_FOUND' };
   }
@@ -126,13 +118,13 @@ export async function resolveTaskTarget({
     if (prefixMatches.length > 1) return { status: 'AMBIGUOUS', candidates: prefixMatches };
   }
 
-  const exact = dbTasks.filter((task) => normalizeTextForMatching(task.title) === normClean);
+  const exact = dbTasks.filter((task) => normalizeTextForMatching(task.title) === normalizedQuery);
   if (exact.length === 1) return { status: 'RESOLVED', taskId: exact[0].id, task: exact[0] };
   if (exact.length > 1) return { status: 'AMBIGUOUS', candidates: exact };
 
   const substringMatches = dbTasks.filter((task) => {
     const normalizedTitle = normalizeTextForMatching(task.title);
-    return normalizedTitle.includes(normClean) || normClean.includes(normalizedTitle);
+    return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle);
   });
   if (substringMatches.length === 1) {
     return { status: 'RESOLVED', taskId: substringMatches[0].id, task: substringMatches[0] };
@@ -140,7 +132,7 @@ export async function resolveTaskTarget({
   if (substringMatches.length > 1) return { status: 'AMBIGUOUS', candidates: substringMatches };
 
   const scored = dbTasks
-    .map((task) => ({ task, score: calculateMatchScore(cleanQuery, task.title) }))
+    .map((task) => ({ task, score: calculateMatchScore(rawStr, task.title) }))
     .filter(({ score }) => score >= 0.5)
     .sort((a, b) => b.score - a.score);
 
@@ -153,7 +145,7 @@ export async function resolveTaskTarget({
     return { status: 'AMBIGUOUS', candidates: scored.map(({ task }) => task) };
   }
 
-  const containerResult = await resolveUserContainer(cleanQuery, normClean, userId);
+  const containerResult = await resolveUserContainer(rawStr, normalizedQuery, userId);
   if (containerResult) return containerResult;
   return { status: 'NOT_FOUND' };
 }
