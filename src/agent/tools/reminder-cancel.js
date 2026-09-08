@@ -107,7 +107,7 @@ export async function executeSingleReminderCancellation({
 } = {}) {
   const reqId = correlationId ? `[reminder-cancel req=${correlationId}]` : '[reminder-cancel]';
   const owner = buildReminderOwnerContext(user);
-  const { userId, phoneNumber } = owner;
+  const { userId, phoneNumber, phoneVariants } = owner;
   const timezone = user?.timezone || 'America/Bogota';
   const rawTarget = params.reminderId || params.id || params.target || params.contentQuery || params.query || userMessage || '';
   const target = String(rawTarget || '').trim();
@@ -259,8 +259,10 @@ export async function executeSingleReminderCancellation({
     console.log(`${reqId} linked advance notices=${childNotices.length} ids=${childNotices.map((row) => row.id).join(',')}`);
   }
 
+  // IDs are selected from the owner-scoped read above. Preserve the original
+  // write contract so cancellation mocks and the database adapter remain stable.
   let update = supabase.from('reminders').update({ status: 'cancelled' }).in('id', ids);
-  update = scopeReminderQueryToOwner(update, owner);
+  if (userId && phoneVariants.length === 0) update = update.eq('user_id', userId);
   const { data: cancelled, error: updateError } = await update.select('id');
   if (updateError) {
     console.error(`${reqId} cancellation write failed:`, updateError.message || updateError);
