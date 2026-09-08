@@ -8,7 +8,6 @@ export async function executeTaskUpdate({
   params = {},
   user = null,
   language = 'es',
-  userMessage = '',
   referenceTime = null,
 } = {}) {
   const userId = user?.id;
@@ -16,7 +15,7 @@ export async function executeTaskUpdate({
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
   const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
 
-  if (!targetQuery && !userMessage) {
+  if (!targetQuery) {
     return {
       success: false,
       action: 'missing_target_id',
@@ -31,7 +30,6 @@ export async function executeTaskUpdate({
     target: targetQuery,
     userId,
     userOrPhone: user || phoneNumber,
-    userMessage,
     operation: 'update',
     allowedStatuses: ['pending', 'completed'],
   });
