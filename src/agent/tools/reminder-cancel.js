@@ -1,10 +1,6 @@
 import { supabase } from '../../infrastructure/database/index.js';
 import { resolveEntityReference } from '../core/working-memory.js';
 import {
-  isStrictUUID,
-  calculateMatchScore,
-} from '../../shared/entity-resolution.js';
-import {
   parseAdvanceNoticeContent,
   isAdvanceNoticeContent,
   belongsToMainReminder,
@@ -14,6 +10,11 @@ import {
   isReminderOwned,
   scopeReminderQueryToOwner,
 } from './reminder-owner.js';
+import {
+  findReminderByExactReference,
+  buildReminderReferenceCandidates,
+  resolveReminderByScore,
+} from './reminder-reference.js';
 
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
@@ -62,22 +63,6 @@ function recurrenceFingerprint(reminder, timezone) {
   if (rule === 'monthly') return `${rule}|${parts?.day || ''}|${clock}`;
   if (rule === 'weekly' || rule.startsWith('weekly:')) return `${rule}|${parts?.weekday || ''}|${clock}`;
   return `${rule}|${clock}`;
-}
-
-function resolveByScore(reference, reminders) {
-  const scored = reminders
-    .map((reminder) => ({ reminder, score: calculateMatchScore(reference, reminder.content || '') }))
-    .filter(({ score }) => score >= 0.5)
-    .sort((a, b) => b.score - a.score);
-
-  if (scored.length === 0) return { status: 'NOT_FOUND' };
-  if (scored.length === 1) return { status: 'RESOLVED', reminder: scored[0].reminder };
-
-  const [top, runnerUp] = scored;
-  if (top.score >= 0.75 && (top.score - runnerUp.score) >= 0.20) {
-    return { status: 'RESOLVED', reminder: top.reminder };
-  }
-  return { status: 'AMBIGUOUS', reminders: scored.map(({ reminder }) => reminder) };
 }
 
 function cancellationCard({ reminder, recurring, language }) {
@@ -154,27 +139,13 @@ export async function executeSingleReminderCancellation({
     };
   }
 
-  let base = null;
-  if (isStrictUUID(target)) {
-    base = owned.find((row) => row.id === target) || null;
-  } else if (target.length >= 8) {
-    base = owned.find((row) => row.id.startsWith(target)) || null;
-  }
+  let base = findReminderByExactReference(target, owned);
 
   if (!base) {
-    const candidates = activePrimary.map((row) => ({
-      id: row.id,
-      internalId: row.id,
-      type: 'reminder',
-      content: row.content,
-      summary: row.content,
-      time: row.send_at,
-      raw: row,
-    }));
     const resolved = resolveEntityReference({
       userOrPhone: user || phoneNumber,
       reference: target,
-      candidates,
+      candidates: buildReminderReferenceCandidates(activePrimary),
       preferredType: 'reminder',
     });
     if (resolved.status === 'RESOLVED' && resolved.item?.internalId) {
@@ -184,7 +155,7 @@ export async function executeSingleReminderCancellation({
   }
 
   if (!base) {
-    const scored = resolveByScore(target, activePrimary);
+    const scored = resolveReminderByScore(target, activePrimary);
     if (scored.status === 'RESOLVED') {
       base = scored.reminder;
       console.log(`${reqId} target resolved via semantic score id=${base.id}`);
