@@ -76,9 +76,9 @@ export async function executeTool({
         const action = params?.action || 'create';
         if (action === 'list') result = await executeTaskReadTool({ params, user, language });
         else if (action === 'create') result = await executeTaskCreate({ params, user, language, referenceTime });
-        else if (action === 'complete') result = await executeTaskComplete({ params, user, language, userMessage });
-        else if (action === 'update') result = await executeTaskUpdate({ params, user, language, userMessage, referenceTime });
-        else if (action === 'delete') result = await executeTaskDelete({ params, user, language, userMessage });
+        else if (action === 'complete') result = await executeTaskComplete({ params, user, language });
+        else if (action === 'update') result = await executeTaskUpdate({ params, user, language, referenceTime });
+        else if (action === 'delete') result = await executeTaskDelete({ params, user, language });
         else result = unsupportedDomainAction('manage_task', action);
         break;
       }
