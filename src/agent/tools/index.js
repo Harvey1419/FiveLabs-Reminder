@@ -1,8 +1,8 @@
-import { executeReminderTool } from './reminders.js';
 import { executeReminderCreate } from './reminder-create.js';
 import { executeReminderUpdate } from './reminder-update.js';
 import { executeReminderReadTool } from './reminder-read.js';
 import { executeSingleReminderCancellation } from './reminder-cancel.js';
+import { executeBulkReminderCancellation } from './reminder-bulk-cancel.js';
 import { executeReminderAcknowledgement } from './reminder-acknowledge.js';
 import { executeTaskTool } from './tasks.js';
 import { executeTaskReadTool } from './task-read.js';
@@ -65,9 +65,9 @@ export async function executeTool({
         if (action === 'list') result = await executeReminderReadTool({ params, user, language, referenceTime });
         else if (action === 'create') result = await executeReminderCreate({ params, user, isPro, language, referenceTime });
         else if (action === 'update') result = await executeReminderUpdate({ params, user, isPro, language, referenceTime });
-        else if (action === 'cancel' && !isBulkCancellation) result = await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId });
+        else if (action === 'cancel' && isBulkCancellation) result = await executeBulkReminderCancellation({ params, user, language, referenceTime, clarificationResolution });
+        else if (action === 'cancel') result = await executeSingleReminderCancellation({ params, user, language, userMessage, correlationId });
         else if (action === 'acknowledge') result = await executeReminderAcknowledgement({ params, user, language, correlationId });
-        else if (isBulkCancellation) result = await executeReminderTool({ action, params, user, isPro, language, userMessage, referenceTime, clarificationResolution });
         else result = unsupportedDomainAction('manage_reminder', action);
         break;
       }
