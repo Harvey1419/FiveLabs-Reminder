@@ -139,11 +139,20 @@ function structuredDecisionError(language) {
     : 'Tuve un pequeño problema interpretando ese mensaje. Envíamelo de nuevo, por favor.';
 }
 
+function buildRecoveryMessages({ prompt, pastTurns, messageText }) {
+  const recoveryInstruction = `\n\n## RECUPERACIÓN DE PROTOCOLO\nTu respuesta anterior no usó el protocolo estructurado. Devuelve exactamente una llamada a execute_turn. No respondas en prosa fuera de la llamada. Si el turno es conversación normal, agradecimiento, despedida, pregunta personal respondible desde el contexto o charla cotidiana, usa conversation.reply con el texto natural en content. Si el turno consulta o modifica estado operativo, usa el dominio correspondiente para que Node consulte la fuente de verdad.`;
+  return [
+    { role: 'system', content: `${prompt}${recoveryInstruction}` },
+    ...pastTurns,
+    { role: 'user', content: messageText },
+  ];
+}
+
 /**
  * Canonical agent route:
- * context -> one Hermes decision -> semantic TurnIntent -> deterministic tools -> cards.
- * Every model turn is structured. Conversation is represented as
- * conversation.reply; model prose is never an alternate execution path.
+ * context -> Hermes semantic decision -> TurnIntent -> deterministic tools -> cards.
+ * Model prose is never an alternate execution path. Providers run in compatible
+ * auto tool mode; a prose-only miss gets one compact structured recovery pass.
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
@@ -235,6 +244,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ...pastTurns,
     { role: 'user', content: messageText },
   ];
+  const intentTools = isAttachmentOnlyTurn ? [] : getIntentToolDefinitions({ isAdmin });
 
   const modelStart = Date.now();
   let modelResponse;
@@ -242,8 +252,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     modelResponse = await callChatCompletion(messages, {
       max_tokens: 2000,
       correlationId: options?.correlationId,
-      tools: isAttachmentOnlyTurn ? [] : getIntentToolDefinitions({ isAdmin }),
-      toolChoice: isAttachmentOnlyTurn ? 'none' : 'required',
+      tools: intentTools,
+      toolChoice: isAttachmentOnlyTurn ? 'none' : 'auto',
       returnMessage: true,
       purpose: 'initial',
     });
@@ -252,9 +262,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     modelResponse = { content: '', tool_calls: [], unavailable: true };
   }
   let modelElapsedMs = Date.now() - modelStart;
-  const decision = normalizeModelResponse(modelResponse);
+  let decision = normalizeModelResponse(modelResponse);
   console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
-  const collected = collectIntent(decision.toolCalls, { isAdmin });
+  let collected = collectIntent(decision.toolCalls, { isAdmin });
 
   if (!collected.valid) {
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
@@ -268,14 +278,48 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
+  if (!collected.intent && !isAttachmentOnlyTurn && !decision.unavailable) {
+    console.warn(`[router req=${requestId}] prose-only semantic miss; attempting one structured recovery`);
+    const recoveryStart = Date.now();
+    try {
+      const recoveryResponse = await callChatCompletion(buildRecoveryMessages({ prompt, pastTurns, messageText }), {
+        max_tokens: 1200,
+        correlationId: options?.correlationId,
+        tools: intentTools,
+        toolChoice: 'auto',
+        returnMessage: true,
+        purpose: 'structured_recovery',
+        startStage: 'secondary',
+      });
+      modelElapsedMs += Date.now() - recoveryStart;
+      decision = normalizeModelResponse(recoveryResponse);
+      collected = collectIntent(decision.toolCalls, { isAdmin });
+      console.log(`[router req=${requestId}] recovery decision toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
+    } catch (error) {
+      modelElapsedMs += Date.now() - recoveryStart;
+      console.warn(`[router req=${requestId}] structured recovery failed:`, error.message);
+      decision = { content: '', toolCalls: [], unavailable: true };
+      collected = { valid: true, intent: null };
+    }
+
+    if (!collected.valid) {
+      console.warn(`[router req=${requestId}] rejected recovered semantic intent: ${collected.errorCode} ${collected.error}`);
+      return {
+        intent: 'clarification',
+        entities: { _conversationState: getClarificationStateSnapshot(user) },
+        language,
+        confirmation: safeIntentError(language),
+        ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+        plan: { type: 'invalid_recovered_intent' }, executionFacts: [], memoryDisposition: 'skip_operational',
+      };
+    }
+  }
+
   if (!collected.intent) {
-    // A model-generated prose answer is not an execution protocol. Never send
-    // it as a fallback because it can reconstruct stale operational state from
-    // history and bypass verified cards/tools.
     const confirmation = decision.unavailable && decision.content
       ? sanitizeResponseText(decision.content)
       : structuredDecisionError(language);
-    console.warn(`[router req=${requestId}] structured decision missing; refusing prose bypass`);
+    console.warn(`[router req=${requestId}] structured decision missing after recovery; refusing prose bypass`);
     return {
       intent: 'clarification', entities: { _conversationState: getClarificationStateSnapshot(user) }, language, confirmation,
       ctaUrl: null, ctaHeader: null, ctaButtonText: null, plan: { type: 'missing_structured_decision' }, executionFacts: [], memoryDisposition: 'skip_operational',
