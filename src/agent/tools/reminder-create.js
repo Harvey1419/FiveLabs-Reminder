@@ -17,6 +17,7 @@ import {
   formatReminderCreateOutcomeCard,
 } from './formatters.js';
 import { resolveReminderProUpgradeContext } from './reminder-pro.js';
+import { buildAdvanceNoticeContent } from './reminder-advance.js';
 
 function localDateKey(date, timezone) {
   return date.toLocaleDateString('sv-SE', { timeZone: timezone });
@@ -252,7 +253,7 @@ export async function executeReminderCreate({
 
     if (item.advDate) {
       if (item.advDate.getTime() > referenceDate.getTime()) {
-        const advContent = `🔔 [Aviso Previo] En ${item.advanceMinutes || 15} minutos: ${item.content}`;
+        const advContent = buildAdvanceNoticeContent(item.content, item.advanceMinutes || 15);
         const advReminder = await saveReminder({
           userId,
           phoneNumber,
