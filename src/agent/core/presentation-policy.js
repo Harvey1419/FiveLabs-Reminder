@@ -82,11 +82,15 @@ function groupKey(fact) {
 export function classifyTurnPresentation(facts) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length <= 1) return PRESENTATION_KINDS.SINGLE;
-  if (safeFacts.some((fact) => fact.requiresClarification)) return PRESENTATION_KINDS.CLARIFICATION;
 
   const succeeded = safeFacts.filter((fact) => fact.success);
   const failed = safeFacts.filter((fact) => !fact.success);
+  const clarifications = failed.filter((fact) => fact.requiresClarification);
+
+  // A clarification is local to the action that needs it. It must not destroy
+  // aggregation of other verified actions from the same user turn.
   if (succeeded.length > 0 && failed.length > 0) return PRESENTATION_KINDS.PARTIAL_SUCCESS;
+  if (succeeded.length === 0 && clarifications.length > 0) return PRESENTATION_KINDS.CLARIFICATION;
   if (succeeded.length === 0) return PRESENTATION_KINDS.FAILURE_BATCH;
 
   return succeeded.every((fact) => groupKey(fact) === groupKey(succeeded[0]))
@@ -178,8 +182,6 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
   const domain = getFactDomain(facts[0]);
   const operation = getFactOperation(facts[0]);
 
-  // Rich domain presenters are used only when they own the whole response.
-  // Inside a mixed turn we render compact verified items to avoid nested cards.
   if (includeHeader && domain === 'reminder' && operation === 'create') {
     return formatCanonicalReminderCreateBatch(
       facts.map((fact) => fact.presentationData),
@@ -202,6 +204,14 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
   const count = lines.length || facts.length;
   if (!includeHeader) return lines.join('\n');
   return `${icon} *${domainLabel} · ${count} ${opLabel}*${lines.length ? `\n\n${lines.join('\n')}` : ''}`;
+}
+
+function formatSuccesses(facts, language) {
+  if (!facts.length) return '';
+  const homogeneous = facts.every((fact) => groupKey(fact) === groupKey(facts[0]));
+  return homogeneous
+    ? formatHomogeneousGroup(facts, language)
+    : formatMixedSuccess(facts, language);
 }
 
 function formatMixedSuccess(facts, language) {
@@ -238,6 +248,17 @@ function formatFailures(failed, language) {
   return `${header}\n${lines.join('\n')}`;
 }
 
+function formatClarifications(clarifications, language) {
+  if (!clarifications.length) return '';
+  const header = language === 'en'
+    ? `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'item needs clarification' : 'items need clarification'}*`
+    : `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'necesita aclaración' : 'necesitan aclaración'}*`;
+  const bodies = clarifications
+    .map((fact) => sanitizeResponseText(fact?.card || fact?.summary || ''))
+    .filter(Boolean);
+  return `${header}${bodies.length ? `\n\n${bodies.join('\n\n')}` : ''}`;
+}
+
 /**
  * Turn-level presentation policy.
  * Tools expose verified facts; this layer decides how the whole user turn is communicated.
@@ -249,19 +270,19 @@ export function composeTurnPresentation(facts, language = 'es') {
 
   const kind = classifyTurnPresentation(safeFacts);
   if (kind === PRESENTATION_KINDS.SINGLE) return safeFacts[0].card || safeFacts[0].summary || '';
-  if (kind === PRESENTATION_KINDS.CLARIFICATION) {
-    return safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n');
-  }
 
   const succeeded = safeFacts.filter((fact) => fact.success);
-  const failed = safeFacts.filter((fact) => !fact.success);
+  const clarifications = safeFacts.filter((fact) => !fact.success && fact.requiresClarification);
+  const hardFailures = safeFacts.filter((fact) => !fact.success && !fact.requiresClarification);
 
-  let successBody = '';
-  if (succeeded.length > 0) {
-    successBody = kind === PRESENTATION_KINDS.HOMOGENEOUS_BATCH
-      ? formatHomogeneousGroup(succeeded, language)
-      : formatMixedSuccess(succeeded, language);
+  if (kind === PRESENTATION_KINDS.CLARIFICATION) {
+    return formatClarifications(clarifications, language)
+      || safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n');
   }
 
-  return [successBody, formatFailures(failed, language)].filter(Boolean).join('\n\n');
+  return [
+    formatSuccesses(succeeded, language),
+    formatClarifications(clarifications, language),
+    formatFailures(hardFailures, language),
+  ].filter(Boolean).join('\n\n');
 }
