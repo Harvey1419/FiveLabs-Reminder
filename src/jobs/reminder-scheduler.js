@@ -41,7 +41,7 @@ function isNudgeDue(reminder, now = Date.now()) {
  * advance its next send_at in-place instead of materializing another row.
  * Lifecycle fields describe the most recent delivery/acknowledgement.
  */
-async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null } = {}) {
+async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, deliveryId = null } = {}) {
   const reference = dispatchedAt || new Date();
   const nextSendAt = computeNextRecurringSendAt(reminder.send_at, reminder.recurrence_rule, reference);
   if (!nextSendAt) {
@@ -54,9 +54,9 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null }
     claimed_by: null,
     claimed_at: null,
     lock_until: null,
-    // Delivery ids are occurrence-specific. Keeping an old one would allow a
-    // delayed provider callback to mutate the lifecycle of the next run.
-    delivery_id: null,
+    // Keep the provider id for the most recent execution so delayed Meta/Kapso
+    // delivery callbacks can still reconcile against this stable reminder row.
+    delivery_id: deliveryId || reminder.delivery_id || null,
   };
 
   if (dispatchedAt) {
@@ -71,7 +71,7 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null }
     .from('reminders')
     .update(updates)
     .eq('id', reminder.id)
-    .select('id, send_at, recurrence_rule, status, sent_at, acknowledged_at')
+    .select('id, send_at, recurrence_rule, status, sent_at, acknowledged_at, delivery_id')
     .maybeSingle();
 
   if (error || !data) {
@@ -79,7 +79,7 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null }
   }
 
   console.log(
-    `[scheduler worker=${WORKER_ID}] recurring reminder advanced in-place id=${reminder.id} next=${data.send_at} rule=${data.recurrence_rule}`,
+    `[scheduler worker=${WORKER_ID}] recurring reminder advanced in-place id=${reminder.id} next=${data.send_at} rule=${data.recurrence_rule} deliveryId=${data.delivery_id || 'none'}`,
   );
   return data;
 }
@@ -242,7 +242,7 @@ export async function processReminder(reminder) {
     const dispatchedAt = new Date();
 
     if (recurring) {
-      await advanceRecurringReminderInPlace(reminder, { dispatchedAt });
+      await advanceRecurringReminderInPlace(reminder, { dispatchedAt, deliveryId });
     } else {
       await markReminderAsDispatched(reminder.id, { deliveryId });
       if (reminder.requires_confirmation) {
