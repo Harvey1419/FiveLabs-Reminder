@@ -11,7 +11,6 @@ const TOOL_DOMAINS = Object.freeze({
   [TOOL_NAMES.MANAGE_ENTITY]: 'entity',
   [TOOL_NAMES.MANAGE_MEMORY]: 'memory',
   [TOOL_NAMES.MANAGE_SUBSCRIPTION]: 'subscription',
-  [TOOL_NAMES.GET_SUBSCRIPTION_LINK]: 'subscription',
   [TOOL_NAMES.MANAGE_GOOGLE_CALENDAR]: 'calendar',
   [TOOL_NAMES.GET_UNIFIED_AGENDA]: 'agenda',
   [TOOL_NAMES.ADMIN_METRICS]: 'admin',
