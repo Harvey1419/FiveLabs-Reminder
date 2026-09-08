@@ -3,10 +3,9 @@ import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
 import {
   formatCanonicalReminderCreate,
-  formatCanonicalReminderCreateBatch,
-  formatCanonicalReminderCancelBatch,
   formatCanonicalReminderList,
 } from '../../shared/reminder-presentation.js';
+import { composeTurnPresentation } from './presentation-policy.js';
 
 function getSafeSummary(result, language) {
   const fallback = result?.success
@@ -73,40 +72,19 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
-    // Structured, backend-verified data used only by the presentation layer to
-    // aggregate homogeneous multi-action turns. Never interpreted as user intent.
+    // Verified execution metadata. Presentation may group/render it, but never
+    // reinterpret it as user intent or mutate domain state.
     presentationData: result?.data ?? null,
+    presentationParams: params && typeof params === 'object' ? { ...params } : {},
+    presentationContext: getPresentationContext(result, language),
   });
 }
 
-function isReminderAction(fact, action) {
-  return fact?.tool === TOOL_NAMES.MANAGE_REMINDER && fact?.requestedAction === action;
-}
-
-function aggregateSuccessfulReminderFacts(succeeded, language) {
-  if (succeeded.length < 2) return null;
-
-  if (succeeded.every((fact) => isReminderAction(fact, 'create') && fact.presentationData)) {
-    const timezone = succeeded
-      .map((fact) => fact.presentationData?.timezone)
-      .find(Boolean) || 'UTC';
-    return formatCanonicalReminderCreateBatch(
-      succeeded.map((fact) => fact.presentationData),
-      { language, timezone },
-    );
-  }
-
-  if (succeeded.every((fact) => isReminderAction(fact, 'cancel') && fact.presentationData)) {
-    return formatCanonicalReminderCancelBatch(
-      succeeded.map((fact) => fact.presentationData),
-      { language },
-    );
-  }
-
-  return null;
-}
-
-/** Backend-owned cards are the primary WhatsApp presentation. */
+/**
+ * Backend-owned facts are composed once at the turn boundary. Individual tools
+ * may provide canonical entity cards, but turn-level UX belongs to the central
+ * Presentation Policy.
+ */
 export function composeExecutionReply(facts, language = 'es', options = {}) {
   const safeFacts = (facts || []).filter(Boolean);
   if (safeFacts.length === 0) return '';
@@ -116,38 +94,7 @@ export function composeExecutionReply(facts, language = 'es', options = {}) {
     : null;
   const before = typeof framing?.before === 'string' ? sanitizeResponseText(framing.before) : '';
   const after = typeof framing?.after === 'string' ? sanitizeResponseText(framing.after) : '';
-  const frame = (body) => [before, body, after].filter(Boolean).join('\n\n');
+  const body = sanitizeResponseText(composeTurnPresentation(safeFacts, language));
 
-  if (safeFacts.length === 1) {
-    return frame(safeFacts[0].card || safeFacts[0].summary);
-  }
-
-  if (safeFacts.some((fact) => fact.requiresClarification)) {
-    return frame(safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
-  }
-
-  const succeeded = safeFacts.filter((fact) => fact.success);
-  const failed = safeFacts.filter((fact) => !fact.success);
-  const aggregateSuccessCard = aggregateSuccessfulReminderFacts(succeeded, language);
-
-  if (failed.length === 0 && aggregateSuccessCard) {
-    return frame(sanitizeResponseText(aggregateSuccessCard));
-  }
-
-  if (failed.length === 0) {
-    return frame(safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
-  }
-
-  const header = succeeded.length > 0
-    ? (language === 'en'
-      ? `I completed ${succeeded.length} action${succeeded.length === 1 ? '' : 's'}, but ${failed.length} could not be completed:`
-      : `Completé ${succeeded.length} ${succeeded.length === 1 ? 'acción' : 'acciones'}, pero ${failed.length} no ${failed.length === 1 ? 'se pudo completar' : 'se pudieron completar'}:`)
-    : (language === 'en' ? 'I could not complete the requested actions:' : 'No pude completar las acciones solicitadas:');
-
-  const successSection = aggregateSuccessCard
-    ? sanitizeResponseText(aggregateSuccessCard)
-    : succeeded.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n');
-  const failureLines = failed.map((fact) => `⚠️ ${fact.card || fact.summary}`);
-  const body = [header, successSection, failureLines.join('\n')].filter(Boolean).join('\n\n');
-  return frame(body);
+  return [before, body, after].filter(Boolean).join('\n\n');
 }
