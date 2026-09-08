@@ -52,7 +52,7 @@ function summarizeAction(action = {}) {
 
 function normalizeModelResponse(modelResponse) {
   if (!modelResponse || typeof modelResponse !== 'object' || Array.isArray(modelResponse)) {
-    return { content: typeof modelResponse === 'string' ? modelResponse.trim() : '', toolCalls: [] };
+    return { content: typeof modelResponse === 'string' ? modelResponse.trim() : '', toolCalls: [], unavailable: false };
   }
   const toolCalls = (modelResponse.tool_calls || []).map((toolCall, index) => ({
     id: toolCall.id || `call_${index + 1}`,
@@ -62,6 +62,7 @@ function normalizeModelResponse(modelResponse) {
   return {
     content: typeof modelResponse.content === 'string' ? modelResponse.content.trim() : '',
     toolCalls,
+    unavailable: modelResponse.unavailable === true,
   };
 }
 
@@ -87,6 +88,14 @@ function collectIntent(toolCalls, { isAdmin = false } = {}) {
     return { valid: false, errorCode: 'TURN_ACTION_LIMIT', error: 'La solicitud contiene demasiadas acciones para un solo turno.' };
   }
   return { valid: true, intent: { actions, excluded } };
+}
+
+function conversationReplyFromActions(actions = []) {
+  return actions
+    .filter((action) => action.domain === 'conversation' && action.action === 'reply')
+    .map((action) => sanitizeResponseText(action.content || ''))
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
@@ -124,10 +133,17 @@ function safeIntentError(language) {
     : 'Entendí que quieres que haga algo, pero no pude convertirlo en una acción segura. Dímelo de nuevo en una sola frase.';
 }
 
+function structuredDecisionError(language) {
+  return language === 'en'
+    ? 'I had a small problem interpreting that message. Please send it again.'
+    : 'Tuve un pequeño problema interpretando ese mensaje. Envíamelo de nuevo, por favor.';
+}
+
 /**
  * Canonical agent route:
  * context -> one Hermes decision -> semantic TurnIntent -> deterministic tools -> cards.
- * No manifest compiler, coverage verifier, repair loop or presentation model.
+ * Every model turn is structured. Conversation is represented as
+ * conversation.reply; model prose is never an alternate execution path.
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
@@ -227,17 +243,17 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       max_tokens: 2000,
       correlationId: options?.correlationId,
       tools: isAttachmentOnlyTurn ? [] : getIntentToolDefinitions({ isAdmin }),
-      toolChoice: 'auto',
+      toolChoice: isAttachmentOnlyTurn ? 'none' : 'required',
       returnMessage: true,
       purpose: 'initial',
     });
   } catch (error) {
     console.warn(`[router req=${requestId}] model failed:`, error.message);
-    modelResponse = { content: '', tool_calls: [] };
+    modelResponse = { content: '', tool_calls: [], unavailable: true };
   }
   let modelElapsedMs = Date.now() - modelStart;
   const decision = normalizeModelResponse(modelResponse);
-  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length}`);
+  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
   const collected = collectIntent(decision.toolCalls, { isAdmin });
 
   if (!collected.valid) {
@@ -253,14 +269,16 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
 
   if (!collected.intent) {
-    const fallback = language === 'en'
-      ? 'I could not form a response right now. Please try again.'
-      : 'No pude formular una respuesta en este momento. Inténtalo de nuevo.';
-    const confirmation = sanitizeResponseText(decision.content || fallback);
-    console.log(`[router req=${requestId}] chat out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
+    // A model-generated prose answer is not an execution protocol. Never send
+    // it as a fallback because it can reconstruct stale operational state from
+    // history and bypass verified cards/tools.
+    const confirmation = decision.unavailable && decision.content
+      ? sanitizeResponseText(decision.content)
+      : structuredDecisionError(language);
+    console.warn(`[router req=${requestId}] structured decision missing; refusing prose bypass`);
     return {
-      intent: 'chat', entities: { _conversationState: getClarificationStateSnapshot(user) }, language, confirmation,
-      ctaUrl: null, ctaHeader: null, ctaButtonText: null, plan: { type: 'chat' }, executionFacts: [], memoryDisposition: 'extract',
+      intent: 'clarification', entities: { _conversationState: getClarificationStateSnapshot(user) }, language, confirmation,
+      ctaUrl: null, ctaHeader: null, ctaButtonText: null, plan: { type: 'missing_structured_decision' }, executionFacts: [], memoryDisposition: 'skip_operational',
     };
   }
 
@@ -272,7 +290,27 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   });
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 
-  for (const action of runtimeIntent.actions) {
+  const conversationReply = conversationReplyFromActions(runtimeIntent.actions);
+  const operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
+
+  if (operationalActions.length === 0) {
+    const confirmation = conversationReply || structuredDecisionError(language);
+    console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
+    return {
+      intent: 'chat',
+      entities: { _conversationState: getClarificationStateSnapshot(user) },
+      language,
+      confirmation,
+      ctaUrl: null,
+      ctaHeader: null,
+      ctaButtonText: null,
+      plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
+      executionFacts: [],
+      memoryDisposition: 'extract',
+    };
+  }
+
+  for (const action of operationalActions) {
     const isEmptyReminderUpdate = action.domain === 'reminder'
       && action.action === 'update'
       && !action.content
@@ -289,7 +327,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
 
   const toolStart = Date.now();
-  const execution = await executeTurnIntent(runtimeIntent, {
+  const execution = await executeTurnIntent({ ...runtimeIntent, actions: operationalActions }, {
     user, isPro, language,
     userMessage: trustedMessageText || messageText,
     referenceTime: requestReferenceTime,
@@ -304,10 +342,10 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     );
   });
 
-  let framing = null;
+  let framing = conversationReply ? { before: conversationReply, after: '' } : null;
   if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
-    framing = await callResponseSynthesis({
+    const excludedFraming = await callResponseSynthesis({
       userText: trustedMessageText || messageText,
       facts: execution.facts,
       excludedClauses: execution.excluded,
@@ -315,6 +353,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       correlationId: options?.correlationId,
     });
     modelElapsedMs += Date.now() - synthesisStart;
+    const before = [conversationReply, excludedFraming?.before].filter(Boolean).join('\n\n');
+    framing = before ? { before, after: '' } : null;
   }
 
   let finalReply = composeExecutionReply(execution.facts, language, { framing });
@@ -325,9 +365,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const primary = execution.records[0] || null;
   const ctaFact = execution.facts.find((fact) => fact.ctaUrl) || null;
   const ctaRecord = execution.records.find(({ result }) => result?.ctaUrl || result?.data?.auth_url || result?.data?.checkout_url) || null;
-  const memoryDisposition = runtimeIntent.actions.some((action) => action.domain !== 'clarification')
-    ? 'skip_operational'
-    : 'extract';
 
   console.log(`[router req=${requestId}] action out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms tools=${toolElapsedMs}ms actions=${runtimeIntent.actions.length})`);
 
@@ -344,6 +381,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ctaButtonText: ctaFact?.ctaButtonText || null,
     plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
     executionFacts: execution.facts,
-    memoryDisposition,
+    memoryDisposition: 'skip_operational',
   };
 }
