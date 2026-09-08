@@ -6,6 +6,9 @@ import {
   calculateMatchScore,
 } from '../../shared/entity-resolution.js';
 
+const ADVANCE_NOTICE_PREFIX = '🔔 [Aviso Previo] En ';
+const ADVANCE_NOTICE_SEPARATOR = ' minutos: ';
+
 function ownerPhoneVariants(phoneNumber) {
   const clean = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
   return Array.from(new Set([
@@ -25,6 +28,37 @@ function isOwned(reminder, userId, phoneVariants) {
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
     && !reminder?.acknowledged_at;
+}
+
+/**
+ * Advance notices are implementation children of a user-facing reminder.
+ * Their storage format is produced by Node itself, so decoding it here is a
+ * deterministic internal protocol operation, not natural-language parsing.
+ */
+function parseAdvanceNoticeContent(content) {
+  const value = String(content || '');
+  if (!value.startsWith(ADVANCE_NOTICE_PREFIX)) return null;
+  const separatorIndex = value.indexOf(ADVANCE_NOTICE_SEPARATOR, ADVANCE_NOTICE_PREFIX.length);
+  if (separatorIndex === -1) return null;
+
+  const minutesText = value.slice(ADVANCE_NOTICE_PREFIX.length, separatorIndex).trim();
+  const advanceMinutes = Number(minutesText);
+  const baseContent = value.slice(separatorIndex + ADVANCE_NOTICE_SEPARATOR.length).trim();
+  if (!Number.isInteger(advanceMinutes) || advanceMinutes <= 0 || !baseContent) return null;
+  return { advanceMinutes, baseContent };
+}
+
+function isAdvanceNotice(reminder) {
+  return Boolean(parseAdvanceNoticeContent(reminder?.content));
+}
+
+function belongsToMainReminder(notice, main) {
+  const parsed = parseAdvanceNoticeContent(notice?.content);
+  if (!parsed || parsed.baseContent !== main?.content) return false;
+  const noticeTime = new Date(notice?.send_at || 0).getTime();
+  const mainTime = new Date(main?.send_at || 0).getTime();
+  if (!Number.isFinite(noticeTime) || !Number.isFinite(mainTime)) return false;
+  return noticeTime + (parsed.advanceMinutes * 60 * 1000) === mainTime;
 }
 
 function localParts(value, timezone) {
@@ -51,10 +85,9 @@ function localParts(value, timezone) {
 }
 
 /**
- * Temporary logical-series fingerprint for the existing recurrence model.
- * The scheduler materializes each next occurrence as a new row and does not
- * yet persist a series_id, so content + recurrence + local cadence position
- * is the safest stable identity available without a schema migration.
+ * Compatibility fingerprint for recurring rows created before stable recurring
+ * IDs were introduced. New recurring reminders retain one UUID, but older data
+ * may still contain sibling rows that belong to the same logical routine.
  */
 function recurrenceFingerprint(reminder, timezone) {
   const rule = String(reminder?.recurrence_rule || '').trim().toLowerCase();
@@ -84,7 +117,7 @@ function resolveByScore(reference, reminders) {
   return { status: 'AMBIGUOUS', reminders: scored.map(({ reminder }) => reminder) };
 }
 
-function cancellationCard({ reminder, count, recurring, language }) {
+function cancellationCard({ reminder, recurring, language }) {
   const content = reminder?.content || (language === 'en' ? 'Reminder' : 'Recordatorio');
   if (recurring) {
     return language === 'en'
@@ -98,9 +131,9 @@ function cancellationCard({ reminder, count, recurring, language }) {
 
 /**
  * Canonical single reminder cancellation.
- * A recurring target represents its logical active series, not one generated
- * occurrence row. Bulk scopes remain in reminders.js because they own their
- * typed confirmation flow.
+ * A recurring target represents its logical active series. Advance notices are
+ * children of their main reminder and never compete as independent human-facing
+ * cancellation candidates.
  */
 export async function executeSingleReminderCancellation({
   params = {},
@@ -154,7 +187,8 @@ export async function executeSingleReminderCancellation({
 
   const owned = (rows || []).filter((row) => isOwned(row, userId, phoneVariants));
   const active = owned.filter(isActive);
-  console.log(`${reqId} candidates owned=${owned.length} active=${active.length}`);
+  const activePrimary = active.filter((row) => !isAdvanceNotice(row));
+  console.log(`${reqId} candidates owned=${owned.length} active=${active.length} primary=${activePrimary.length}`);
 
   if (!target) {
     return {
@@ -174,7 +208,7 @@ export async function executeSingleReminderCancellation({
   }
 
   if (!base) {
-    const candidates = active.map((row) => ({
+    const candidates = activePrimary.map((row) => ({
       id: row.id,
       internalId: row.id,
       type: 'reminder',
@@ -196,7 +230,7 @@ export async function executeSingleReminderCancellation({
   }
 
   if (!base) {
-    const scored = resolveByScore(target, active);
+    const scored = resolveByScore(target, activePrimary);
     if (scored.status === 'RESOLVED') {
       base = scored.reminder;
       console.log(`${reqId} target resolved via semantic score id=${base.id}`);
@@ -225,21 +259,27 @@ export async function executeSingleReminderCancellation({
   }
 
   const recurring = Boolean(base.recurrence_rule);
-  let targets = [];
+  let primaryTargets = [];
 
   if (recurring) {
     const fingerprint = recurrenceFingerprint(base, timezone);
-    targets = active.filter((row) => (
+    primaryTargets = activePrimary.filter((row) => (
       row.content === base.content
       && row.recurrence_rule === base.recurrence_rule
       && recurrenceFingerprint(row, timezone) === fingerprint
     ));
-    console.log(`${reqId} recurring series rule=${base.recurrence_rule} fingerprint=${fingerprint} activeOccurrences=${targets.length}`);
+    console.log(`${reqId} recurring series rule=${base.recurrence_rule} fingerprint=${fingerprint} activeOccurrences=${primaryTargets.length}`);
   } else if (isActive(base)) {
-    targets = [base];
+    primaryTargets = [base];
   }
 
-  if (targets.length === 0) {
+  // If an internal UUID explicitly points to an advance notice, honour that
+  // exact technical target. Human-facing resolution never chooses notices.
+  if (primaryTargets.length === 0 && isAdvanceNotice(base) && isActive(base)) {
+    primaryTargets = [base];
+  }
+
+  if (primaryTargets.length === 0) {
     const message = recurring
       ? (language === 'en' ? 'That recurring reminder is already cancelled.' : 'Ese recordatorio recurrente ya está cancelado.')
       : (language === 'en' ? 'That reminder is already cancelled or completed.' : 'Ese recordatorio ya está cancelado o completado.');
@@ -248,14 +288,23 @@ export async function executeSingleReminderCancellation({
       success: true,
       complete: true,
       action: 'reminder_already_inactive',
-      data: { cancelledCount: 0, recurring, targetId: base.id },
+      data: { cancelledCount: 0, recurring, targetId: base.id, content: base.content },
       rawSummary: message,
       formattedCard: message,
       confirmation: message,
     };
   }
 
-  const ids = targets.map((row) => row.id);
+  const childNotices = isAdvanceNotice(base)
+    ? []
+    : active.filter((row) => isAdvanceNotice(row) && primaryTargets.some((main) => belongsToMainReminder(row, main)));
+  const targets = [...primaryTargets, ...childNotices];
+  const ids = Array.from(new Set(targets.map((row) => row.id)));
+
+  if (childNotices.length > 0) {
+    console.log(`${reqId} linked advance notices=${childNotices.length} ids=${childNotices.map((row) => row.id).join(',')}`);
+  }
+
   let update = supabase.from('reminders').update({ status: 'cancelled' }).in('id', ids);
   if (userId && phoneVariants.length === 0) update = update.eq('user_id', userId);
   const { data: cancelled, error: updateError } = await update.select('id');
@@ -271,7 +320,7 @@ export async function executeSingleReminderCancellation({
 
   const cancelledCount = cancelled?.length || 0;
   console.log(`${reqId} cancelled count=${cancelledCount} recurring=${recurring} ids=${ids.join(',')}`);
-  const card = cancellationCard({ reminder: base, count: cancelledCount, recurring, language });
+  const card = cancellationCard({ reminder: base, recurring, language });
   return {
     success: cancelledCount > 0,
     complete: cancelledCount === ids.length,
@@ -279,9 +328,11 @@ export async function executeSingleReminderCancellation({
     action: recurring ? 'cancelled_recurring_reminder_series' : 'cancelled_reminder',
     data: {
       cancelledCount,
+      logicalCancelledCount: primaryTargets.length,
+      linkedAdvanceNoticesCancelled: childNotices.length,
       recurring,
       recurrenceRule: base.recurrence_rule || null,
-      content: base.content,
+      content: isAdvanceNotice(base) ? (parseAdvanceNoticeContent(base.content)?.baseContent || base.content) : base.content,
     },
     rawSummary: card,
     formattedCard: card,
