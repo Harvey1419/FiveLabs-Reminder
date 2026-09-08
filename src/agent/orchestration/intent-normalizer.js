@@ -115,18 +115,27 @@ function normalizeRecurrenceValue(value) {
 }
 
 /**
- * A recurring reminder represents the next occurrence of a routine, not a
- * request to schedule an already elapsed occurrence. For daily routines with a
- * clock time and no future date, move only the first occurrence to tomorrow;
- * the scheduler keeps the recurrence afterwards.
+ * A recurring reminder represents the next occurrence of a routine, not an
+ * already elapsed wall-clock occurrence. This invariant applies both when a
+ * routine is created and when an existing recurring reminder is edited.
  */
 function normalizeRecurringReminder(action, context) {
-  if (action.domain !== 'reminder' || !action.recurrence) return action;
+  if (action.domain !== 'reminder' || !['create', 'update'].includes(action.action)) return action;
 
-  const recurrence = normalizeRecurrenceValue(action.recurrence);
-  let normalized = recurrence === action.recurrence ? action : { ...action, recurrence };
+  const workingItem = action.action === 'update' && action.target
+    ? resolveWorkingItem(context.user, action.target, 'reminder')
+    : null;
+  const inheritedRecurrence = workingItem?.raw?.recurrence_rule
+    || workingItem?.raw?.recurrenceRule
+    || null;
+  const requestedRecurrence = action.recurrence ? normalizeRecurrenceValue(action.recurrence) : null;
+  const recurrence = requestedRecurrence || inheritedRecurrence;
 
-  if (normalized.action !== 'create' || recurrence !== 'daily' || !normalized.schedule) return normalized;
+  let normalized = requestedRecurrence && requestedRecurrence !== action.recurrence
+    ? { ...action, recurrence: requestedRecurrence }
+    : action;
+
+  if (recurrence !== 'daily' || !normalized.schedule) return normalized;
   if (!['local_time', 'relative_day_time'].includes(normalized.schedule.kind)) return normalized;
   if (normalized.schedule.kind === 'relative_day_time' && (normalized.schedule.dayOffset ?? 0) !== 0) return normalized;
 
