@@ -5,9 +5,11 @@ import {
   isStrictUUID,
   calculateMatchScore,
 } from '../../shared/entity-resolution.js';
-
-const ADVANCE_NOTICE_PREFIX = '🔔 [Aviso Previo] En ';
-const ADVANCE_NOTICE_SEPARATOR = ' minutos: ';
+import {
+  parseAdvanceNoticeContent,
+  isAdvanceNoticeContent,
+  belongsToMainReminder,
+} from './reminder-advance.js';
 
 function ownerPhoneVariants(phoneNumber) {
   const clean = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
@@ -30,35 +32,8 @@ function isActive(reminder) {
     && !reminder?.acknowledged_at;
 }
 
-/**
- * Advance notices are implementation children of a user-facing reminder.
- * Their storage format is produced by Node itself, so decoding it here is a
- * deterministic internal protocol operation, not natural-language parsing.
- */
-function parseAdvanceNoticeContent(content) {
-  const value = String(content || '');
-  if (!value.startsWith(ADVANCE_NOTICE_PREFIX)) return null;
-  const separatorIndex = value.indexOf(ADVANCE_NOTICE_SEPARATOR, ADVANCE_NOTICE_PREFIX.length);
-  if (separatorIndex === -1) return null;
-
-  const minutesText = value.slice(ADVANCE_NOTICE_PREFIX.length, separatorIndex).trim();
-  const advanceMinutes = Number(minutesText);
-  const baseContent = value.slice(separatorIndex + ADVANCE_NOTICE_SEPARATOR.length).trim();
-  if (!Number.isInteger(advanceMinutes) || advanceMinutes <= 0 || !baseContent) return null;
-  return { advanceMinutes, baseContent };
-}
-
 function isAdvanceNotice(reminder) {
-  return Boolean(parseAdvanceNoticeContent(reminder?.content));
-}
-
-function belongsToMainReminder(notice, main) {
-  const parsed = parseAdvanceNoticeContent(notice?.content);
-  if (!parsed || parsed.baseContent !== main?.content) return false;
-  const noticeTime = new Date(notice?.send_at || 0).getTime();
-  const mainTime = new Date(main?.send_at || 0).getTime();
-  if (!Number.isFinite(noticeTime) || !Number.isFinite(mainTime)) return false;
-  return noticeTime + (parsed.advanceMinutes * 60 * 1000) === mainTime;
+  return isAdvanceNoticeContent(reminder?.content);
 }
 
 function localParts(value, timezone) {
