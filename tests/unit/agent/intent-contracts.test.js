@@ -61,6 +61,36 @@ describe('direct TurnIntent contract', () => {
     });
   });
 
+  it('rejects reminder.update without an existing-item target', () => {
+    const result = validateTurnIntent({
+      actions: [{
+        domain: 'reminder',
+        action: 'update',
+        content: 'Tomar vitaminas',
+        schedule: { kind: 'local_time', hour: 7, minute: 30, clockMode: 'explicit_am' },
+      }],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('MISSING_TARGET');
+  });
+
+  it('teaches the model that explicit new reminders stay creates despite Working Memory', () => {
+    const [tool] = getIntentToolDefinitions();
+    const description = tool.function.description;
+    expect(description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
+    expect(description).toContain('even if Working Memory contains an older reminder');
+    expect(description).toContain('one reminder.create action for each requested reminder');
+  });
+
+  it('teaches the model the hard temporal distinction for tomorrow-at-time', () => {
+    const [tool] = getIntentToolDefinitions();
+    const description = tool.function.description;
+    const scheduleKind = tool.function.parameters.properties.actions.items.properties.schedule.properties.kind.description;
+    expect(description).toContain('“mañana a las 10:15” => relative_day_time');
+    expect(scheduleKind).toContain('Use relative_offset only for durations from now');
+    expect(scheduleKind).toContain('Use relative_day_time for “tomorrow at 10:15”');
+  });
+
   it('teaches the model that fulfilled reminders are acknowledged, not updated', () => {
     const [tool] = getIntentToolDefinitions();
     const description = tool.function.description;
