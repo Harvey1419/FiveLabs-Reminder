@@ -1,5 +1,4 @@
 import { supabase } from '../../infrastructure/database/index.js';
-import { normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { resolveEntityReference } from '../core/working-memory.js';
 import {
   isStrictUUID,
@@ -10,22 +9,11 @@ import {
   isAdvanceNoticeContent,
   belongsToMainReminder,
 } from './reminder-advance.js';
-
-function ownerPhoneVariants(phoneNumber) {
-  const clean = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
-  return Array.from(new Set([
-    phoneNumber,
-    clean,
-    clean ? `+${clean}` : null,
-  ].filter(Boolean)));
-}
-
-function isOwned(reminder, userId, phoneVariants) {
-  return Boolean(
-    (userId && reminder?.user_id === userId)
-    || (reminder?.phone_number && phoneVariants.includes(reminder.phone_number)),
-  );
-}
+import {
+  buildReminderOwnerContext,
+  isReminderOwned,
+  scopeReminderQueryToOwner,
+} from './reminder-owner.js';
 
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
@@ -118,16 +106,15 @@ export async function executeSingleReminderCancellation({
   correlationId = null,
 } = {}) {
   const reqId = correlationId ? `[reminder-cancel req=${correlationId}]` : '[reminder-cancel]';
-  const userId = user?.id || null;
-  const phoneNumber = user?.phone_number || null;
+  const owner = buildReminderOwnerContext(user);
+  const { userId, phoneNumber, phoneVariants } = owner;
   const timezone = user?.timezone || 'America/Bogota';
-  const phoneVariants = ownerPhoneVariants(phoneNumber);
   const rawTarget = params.reminderId || params.id || params.target || params.contentQuery || params.query || userMessage || '';
   const target = String(rawTarget || '').trim();
 
   console.log(`${reqId} start target=${JSON.stringify(target)} user=${userId || phoneNumber || 'unknown'}`);
 
-  if (!userId && phoneVariants.length === 0) {
+  if (!owner.hasOwner) {
     return {
       success: false,
       action: 'missing_owner',
@@ -139,15 +126,7 @@ export async function executeSingleReminderCancellation({
   let query = supabase
     .from('reminders')
     .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
-
-  if (userId && phoneVariants.length > 0) {
-    const phoneConditions = phoneVariants.map((phone) => `phone_number.eq.${phone}`).join(',');
-    query = query.or(`user_id.eq.${userId},${phoneConditions}`);
-  } else if (userId) {
-    query = query.eq('user_id', userId);
-  } else {
-    query = query.in('phone_number', phoneVariants);
-  }
+  query = scopeReminderQueryToOwner(query, owner);
 
   const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(200);
   if (error) {
@@ -160,7 +139,7 @@ export async function executeSingleReminderCancellation({
     };
   }
 
-  const owned = (rows || []).filter((row) => isOwned(row, userId, phoneVariants));
+  const owned = (rows || []).filter((row) => isReminderOwned(row, owner));
   const active = owned.filter(isActive);
   const activePrimary = active.filter((row) => !isAdvanceNotice(row));
   console.log(`${reqId} candidates owned=${owned.length} active=${active.length} primary=${activePrimary.length}`);
@@ -280,6 +259,8 @@ export async function executeSingleReminderCancellation({
     console.log(`${reqId} linked advance notices=${childNotices.length} ids=${childNotices.map((row) => row.id).join(',')}`);
   }
 
+  // IDs are selected from the owner-scoped read above. Preserve the original
+  // write contract so cancellation mocks and the database adapter remain stable.
   let update = supabase.from('reminders').update({ status: 'cancelled' }).in('id', ids);
   if (userId && phoneVariants.length === 0) update = update.eq('user_id', userId);
   const { data: cancelled, error: updateError } = await update.select('id');

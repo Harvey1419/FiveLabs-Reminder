@@ -1,15 +1,9 @@
 import { supabase } from '../../infrastructure/database/index.js';
-import { normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { formatHumanFriendlyDateTime, getDayBounds } from '../../shared/time.js';
-
-function ownerPhoneVariants(phoneNumber) {
-  const clean = phoneNumber ? normalizePhoneNumber(phoneNumber) || phoneNumber : null;
-  return Array.from(new Set([
-    phoneNumber,
-    clean,
-    clean ? `+${clean}` : null,
-  ].filter(Boolean)));
-}
+import {
+  buildReminderOwnerContext,
+  scopeReminderQueryToOwner,
+} from './reminder-owner.js';
 
 function isVisiblePendingReminder(reminder) {
   if (!reminder || reminder.status !== 'pending') return false;
@@ -25,11 +19,10 @@ export async function executeReminderReadTool({
   language = 'es',
   referenceTime = null,
 } = {}) {
-  const userId = user?.id || null;
-  const phoneNumber = user?.phone_number || null;
+  const owner = buildReminderOwnerContext(user);
+  const { userId, phoneNumber } = owner;
   const timezone = user?.timezone || 'America/Bogota';
   const locale = user?.locale || (language === 'en' ? 'en-US' : 'es-CO');
-  const phones = ownerPhoneVariants(phoneNumber);
   const reference = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
   const now = Number.isNaN(reference.getTime()) ? new Date() : reference;
   const nowIso = now.toISOString();
@@ -38,15 +31,8 @@ export async function executeReminderReadTool({
   const todayStartIso = bounds.timeMin.toISOString();
   const todayEndIso = bounds.timeMax.toISOString();
 
-  let query = supabase.from('reminders').select('*');
-  if (userId && phones.length > 0) {
-    const phoneConditions = phones.map((p) => `phone_number.eq.${p}`).join(',');
-    query = query.or(`user_id.eq.${userId},${phoneConditions}`);
-  } else if (userId) {
-    query = query.eq('user_id', userId);
-  } else if (phones.length > 0) {
-    query = query.in('phone_number', phones);
-  } else {
+  let query = scopeReminderQueryToOwner(supabase.from('reminders').select('*'), owner);
+  if (!query) {
     return {
       success: false,
       action: 'missing_owner',
