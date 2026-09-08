@@ -65,6 +65,7 @@ function mockRecurringAdvance() {
         status: capturedUpdates?.status,
         sent_at: capturedUpdates?.sent_at || null,
         acknowledged_at: capturedUpdates?.acknowledged_at ?? null,
+        delivery_id: capturedUpdates?.delivery_id ?? null,
       },
       error: null,
     })),
@@ -110,7 +111,7 @@ describe('scheduler delivery truth', () => {
     expect(markReminderAsFailed).toHaveBeenCalledWith('reminder-1');
   });
 
-  it('advances a recurring reminder in-place and preserves its UUID', async () => {
+  it('advances a recurring reminder in-place, preserves its UUID and keeps the latest delivery id', async () => {
     const db = mockRecurringAdvance();
     sendReminderMessage.mockResolvedValue({ success: true, messageId: 'wamid.RECURRING' });
 
@@ -119,7 +120,7 @@ describe('scheduler delivery truth', () => {
     expect(db.getId()).toBe('reminder-1');
     expect(db.getUpdates()).toMatchObject({
       status: 'pending',
-      delivery_id: null,
+      delivery_id: 'wamid.RECURRING',
       acknowledged_at: null,
       nudge_count: 0,
     });
@@ -141,6 +142,7 @@ describe('scheduler delivery truth', () => {
 
     expect(db.getId()).toBe('reminder-1');
     expect(db.getUpdates().status).toBe('pending');
+    expect(db.getUpdates().delivery_id).toBe('wamid.RECURRING_CONFIRM');
     expect(db.getUpdates().last_nudged_at).toBeTruthy();
     expect(db.getUpdates().acknowledged_at).toBeNull();
     expect(db.getUpdates().nudge_count).toBe(0);
