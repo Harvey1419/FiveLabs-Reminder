@@ -5,6 +5,7 @@ import { executeSingleReminderCancellation } from './reminder-cancel.js';
 import { executeBulkReminderCancellation } from './reminder-bulk-cancel.js';
 import { executeReminderAcknowledgement } from './reminder-acknowledge.js';
 import { executeTaskCreate } from './task-create.js';
+import { executeTaskComplete } from './task-complete.js';
 import { executeTaskTool } from './tasks.js';
 import { executeTaskReadTool } from './task-read.js';
 import { executeEntityTool } from './entities.js';
@@ -18,7 +19,7 @@ import { TOOL_NAMES } from '../contracts/tool-names.js';
 
 export { TOOL_NAMES } from '../contracts/tool-names.js';
 
-const TASK_MUTATION_ACTIONS = new Set(['complete', 'update', 'delete']);
+const TASK_MUTATION_ACTIONS = new Set(['update', 'delete']);
 
 function unsupportedDomainAction(domain, action) {
   return {
@@ -76,6 +77,7 @@ export async function executeTool({
         const action = params?.action || 'create';
         if (action === 'list') result = await executeTaskReadTool({ params, user, language });
         else if (action === 'create') result = await executeTaskCreate({ params, user, language, referenceTime });
+        else if (action === 'complete') result = await executeTaskComplete({ params, user, language, userMessage });
         else if (TASK_MUTATION_ACTIONS.has(action)) result = await executeTaskTool({ action, params, user, language, userMessage, referenceTime });
         else result = unsupportedDomainAction('manage_task', action);
         break;
