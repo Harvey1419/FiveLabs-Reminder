@@ -1,7 +1,12 @@
 import { sanitizeResponseText } from './working-memory.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
-import { formatCanonicalReminderCreate, formatCanonicalReminderList } from '../../shared/reminder-presentation.js';
+import {
+  formatCanonicalReminderCreate,
+  formatCanonicalReminderCreateBatch,
+  formatCanonicalReminderCancelBatch,
+  formatCanonicalReminderList,
+} from '../../shared/reminder-presentation.js';
 
 function getSafeSummary(result, language) {
   const fallback = result?.success
@@ -68,7 +73,37 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
+    // Structured, backend-verified data used only by the presentation layer to
+    // aggregate homogeneous multi-action turns. Never interpreted as user intent.
+    presentationData: result?.data ?? null,
   });
+}
+
+function isReminderAction(fact, action) {
+  return fact?.tool === TOOL_NAMES.MANAGE_REMINDER && fact?.requestedAction === action;
+}
+
+function aggregateSuccessfulReminderFacts(succeeded, language) {
+  if (succeeded.length < 2) return null;
+
+  if (succeeded.every((fact) => isReminderAction(fact, 'create') && fact.presentationData)) {
+    const timezone = succeeded
+      .map((fact) => fact.presentationData?.timezone)
+      .find(Boolean) || 'UTC';
+    return formatCanonicalReminderCreateBatch(
+      succeeded.map((fact) => fact.presentationData),
+      { language, timezone },
+    );
+  }
+
+  if (succeeded.every((fact) => isReminderAction(fact, 'cancel') && fact.presentationData)) {
+    return formatCanonicalReminderCancelBatch(
+      succeeded.map((fact) => fact.presentationData),
+      { language },
+    );
+  }
+
+  return null;
 }
 
 /** Backend-owned cards are the primary WhatsApp presentation. */
@@ -83,22 +118,25 @@ export function composeExecutionReply(facts, language = 'es', options = {}) {
   const after = typeof framing?.after === 'string' ? sanitizeResponseText(framing.after) : '';
   const frame = (body) => [before, body, after].filter(Boolean).join('\n\n');
 
-  const renderedCards = safeFacts
-    .map((fact) => fact.card || fact.summary)
-    .filter(Boolean);
-
   if (safeFacts.length === 1) {
-    return frame(renderedCards[0] || safeFacts[0].summary);
+    return frame(safeFacts[0].card || safeFacts[0].summary);
   }
 
   if (safeFacts.some((fact) => fact.requiresClarification)) {
-    return frame(renderedCards.join('\n\n'));
+    return frame(safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
   }
 
   const succeeded = safeFacts.filter((fact) => fact.success);
   const failed = safeFacts.filter((fact) => !fact.success);
+  const aggregateSuccessCard = aggregateSuccessfulReminderFacts(succeeded, language);
 
-  if (failed.length === 0) return frame(renderedCards.join('\n\n'));
+  if (failed.length === 0 && aggregateSuccessCard) {
+    return frame(sanitizeResponseText(aggregateSuccessCard));
+  }
+
+  if (failed.length === 0) {
+    return frame(safeFacts.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
+  }
 
   const header = succeeded.length > 0
     ? (language === 'en'
@@ -106,6 +144,10 @@ export function composeExecutionReply(facts, language = 'es', options = {}) {
       : `Completé ${succeeded.length} ${succeeded.length === 1 ? 'acción' : 'acciones'}, pero ${failed.length} no ${failed.length === 1 ? 'se pudo completar' : 'se pudieron completar'}:`)
     : (language === 'en' ? 'I could not complete the requested actions:' : 'No pude completar las acciones solicitadas:');
 
-  const lines = safeFacts.map((fact) => `${fact.success ? '✅' : '⚠️'} ${fact.card || fact.summary}`);
-  return frame(`${header}\n${lines.join('\n')}`);
+  const successSection = aggregateSuccessCard
+    ? sanitizeResponseText(aggregateSuccessCard)
+    : succeeded.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n');
+  const failureLines = failed.map((fact) => `⚠️ ${fact.card || fact.summary}`);
+  const body = [header, successSection, failureLines.join('\n')].filter(Boolean).join('\n\n');
+  return frame(body);
 }
