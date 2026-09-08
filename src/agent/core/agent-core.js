@@ -43,6 +43,32 @@ export function formatCompactOverview(overview) {
   ].join('\n');
 }
 
+/**
+ * Active follow-ups are different from the generic live overview: they are
+ * backend-verified interaction state that Hermes may use to resolve a user's
+ * acknowledgement such as "listo" or "ya lo hice". Internal IDs are never
+ * exposed to the model; only stable human references are included.
+ */
+export function formatActiveFollowups(overview) {
+  const reminders = Array.isArray(overview?.pendingConfirmationReminders)
+    ? overview.pendingConfirmationReminders
+    : [];
+  if (reminders.length === 0) return '';
+
+  const lines = reminders.slice(0, 5).map((reminder, index) => {
+    const content = String(reminder?.content || reminder?.title || 'Recordatorio').trim();
+    const time = reminder?.localFormatted || reminder?.localTime || '';
+    const nudgeCount = Number.isFinite(Number(reminder?.nudgeCount)) ? Number(reminder.nudgeCount) : 0;
+    return `${index + 1}. followupRef={position:${index + 1}} | ${content}${time ? ` | ${time}` : ''} | avisos_enviados=${nudgeCount}`;
+  });
+
+  return [
+    '[Seguimientos activos — estado operativo autorizado]',
+    ...lines,
+    'Estos elementos sí son contexto operativo vigente. Si el usuario confirma que la acción ya ocurrió o quedó hecha, usa reminder/acknowledge con una referencia humana inequívoca al seguimiento correspondiente. No inventes IDs. Si hay varios y el mensaje no permite saber cuál, pide aclaración.',
+  ].join('\n');
+}
+
 export function buildAgentCorePrompt({
   nowStr,
   nowHumanStr,
@@ -62,6 +88,7 @@ export function buildAgentCorePrompt({
     ? `🟢 Conectado${googleAccountEmail ? ` (${googleAccountEmail})` : ''}`
     : '🔴 No conectado';
   const compactOverview = formatCompactOverview(overview);
+  const activeFollowups = formatActiveFollowups(overview);
   const safeDisplayName = String(displayName || '')
     .replace(/[<>\r\n]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -91,6 +118,7 @@ No investigues ni produzcas contenido profesional general. No enseñes, escribas
 Piensa primero en significado y objetivo. Toda salida hacia Node es estructurada; no existe una ruta paralela de prosa libre.
 - Conversación, afirmaciones personales, agradecimiento, despedida, desahogo y preguntas respondibles desde memoria/contexto personal usan conversation/reply con una respuesta breve y natural.
 - El Estado vivo resumido NO es una fuente autorizada para enumerar pendientes, agenda o cosas por hacer. Solo da orientación y nunca contiene la verdad completa.
+- Los Seguimientos activos son la excepción: son estado operativo autorizado para resolver respuestas al aviso que Hermes acaba de enviar. No sirven para enumerar toda la agenda, pero sí para saber qué recordatorio espera confirmación.
 - Toda pregunta que pida inventario vivo —“qué tengo hoy”, “qué tenemos pendiente”, “qué viene”, “cómo está mi agenda”— requiere una lectura de agenda. Si no se expresa rango temporal, usa agenda/read sin scope: Node resolverá all_pending. Si se expresa hoy, mañana, semana, fecha o rango, conserva ese significado en scope/schedule.
 - Si el usuario pide explícitamente solo recordatorios, solo tareas o solo Google Calendar, usa ese dominio en vez de agenda. Nunca reconstruyas estado operativo desde el historial mediante conversation/reply.
 - Una pregunta no autoriza una mutación. Una petición inequívoca sí, salvo que falte un dato indispensable o el backend exija confirmación.
@@ -99,7 +127,7 @@ Piensa primero en significado y objetivo. Toda salida hacia Node es estructurada
 - Para reminder/create, el usuario está introduciendo un recordatorio nuevo: contenido + tiempo/recurrencia describen ese nuevo objeto y no debe existir target. Si el usuario introduce varios recordatorios nuevos en el mismo mensaje, emite un reminder/create independiente por cada uno.
 - Para reminder/update debe existir semánticamente un recordatorio anterior al que el usuario se está refiriendo. target identifica ese objeto existente; content/title/schedule/recurrence contienen únicamente el cambio solicitado. No uses update solo porque haya un reminder en Working Memory.
 - Usa el contexto reciente para referencias como “la segunda”, “eso”, “muévelo” o “ya lo hice”. El mensaje actual explícito tiene prioridad sobre contexto y memoria.
-- Si existe un recordatorio de seguimiento activo en el contexto y el usuario comunica que la acción real ya ocurrió, ya la hizo o quedó cumplida —por ejemplo “listo”, “ya salí”, “sí, ya lo hice”, “ya está”, “te decía que ya salí”— eso significa completar/confirmar ese recordatorio: usa reminder/acknowledge con el recordatorio activo como target. No uses reminder/update para expresar cumplimiento.
+- Si existe un recordatorio de seguimiento activo en el contexto y el usuario comunica que la acción real ya ocurrió, ya la hizo o quedó cumplida —por ejemplo “listo”, “ya salí”, “sí, ya lo hice”, “ya está”, “te decía que ya salí”— eso significa completar/confirmar ese recordatorio: usa reminder/acknowledge con el recordatorio activo como target. No uses reminder/update para expresar cumplimiento. Si existe exactamente un seguimiento activo, una confirmación breve se refiere a ese seguimiento salvo que el usuario cambie explícitamente de tema.
 - reminder/update significa exclusivamente modificar datos almacenados del recordatorio, como su texto, fecha/hora, recurrencia o aviso previo. Si no hay ningún campo que cambiar, update no es la operación correcta.
 - Si el usuario pide eliminar, borrar, cancelar o quitar un recordatorio existente, usa reminder/cancel. No traduzcas una eliminación a update. Si el recordatorio es recurrente, cancelar ese recordatorio significa cancelar la serie activa completa salvo que el usuario indique explícitamente que solo quiere omitir una ocurrencia concreta.
 - Si el usuario corrige algo existente, actualízalo en vez de borrar y recrear.
@@ -121,7 +149,7 @@ Las cards verificadas del backend son parte importante de la experiencia: consé
 Para conversation/reply usa una o dos frases naturales y fáciles de leer en WhatsApp.
 
 ## CONTEXTO DISPONIBLE
-${workingMemoryText ? `### Contexto conversacional inmediato\n${workingMemoryText}\n` : ''}${compactOverview ? `### Estado vivo resumido — metadata no autoritativa\n${compactOverview}\n` : ''}### Memoria persistente recuperada por relevancia
+${activeFollowups ? `### Seguimientos activos — contexto operativo autorizado\n${activeFollowups}\n` : ''}${workingMemoryText ? `### Contexto conversacional inmediato\n${workingMemoryText}\n` : ''}${compactOverview ? `### Estado vivo resumido — metadata no autoritativa\n${compactOverview}\n` : ''}### Memoria persistente recuperada por relevancia
 <user_memories>
 ${memoryHints || '(Ninguna memoria relevante para este turno)'}
 </user_memories>`;
