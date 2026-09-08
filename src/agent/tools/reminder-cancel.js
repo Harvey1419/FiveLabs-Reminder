@@ -87,14 +87,13 @@ export async function executeSingleReminderCancellation({
   params = {},
   user = null,
   language = 'es',
-  userMessage = '',
   correlationId = null,
 } = {}) {
   const reqId = correlationId ? `[reminder-cancel req=${correlationId}]` : '[reminder-cancel]';
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber, phoneVariants } = owner;
   const timezone = user?.timezone || 'America/Bogota';
-  const rawTarget = params.reminderId || params.id || params.target || params.contentQuery || params.query || userMessage || '';
+  const rawTarget = params.reminderId || params.id || params.target || params.contentQuery || params.query || '';
   const target = String(rawTarget || '').trim();
 
   console.log(`${reqId} start target=${JSON.stringify(target)} user=${userId || phoneNumber || 'unknown'}`);
