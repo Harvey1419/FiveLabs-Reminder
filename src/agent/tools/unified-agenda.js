@@ -40,7 +40,9 @@ export async function executeUnifiedAgendaTool({
       action: 'unified_agenda_listed',
       data: { ...agenda, timezone, locale },
       ctaUrl: authUrl,
-      ctaHeader: authUrl ? (language === 'en' ? '📋 Your agenda' : '📋 Tu agenda') : null,
+      // The body already contains the canonical agenda title. Keep the CTA
+      // header neutral so WhatsApp does not render “Tu agenda” twice.
+      ctaHeader: authUrl ? 'Hermes TempleLabs' : null,
       ctaButtonText: authUrl ? (language === 'en' ? 'Connect' : 'Conectar') : null,
       rawSummary: language === 'en' ? 'Agenda loaded.' : 'Agenda consultada.',
     };
