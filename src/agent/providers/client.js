@@ -81,15 +81,46 @@ function classifyThrownFailure(error) {
   return 'network_error';
 }
 
-function compactErrorBody(rawBody) {
+function compactErrorBody(rawBody, { includeProviderDetails = false, apiKey = null } = {}) {
   if (!rawBody) return '';
+  let message = rawBody;
   try {
     const parsed = JSON.parse(rawBody);
-    const message = parsed?.error?.message || parsed?.message || rawBody;
-    return String(message).replace(/\s+/g, ' ').slice(0, 240);
+    message = parsed?.error?.message || parsed?.message || rawBody;
+    if (includeProviderDetails) {
+      // OpenRouter's generic wrapper can hide the actual strict-schema rejection.
+      // Read only diagnostic fields, never dump headers, requests or failed_generation.
+      const metadata = parsed?.error?.metadata;
+      let providerBody = metadata?.raw;
+      if (typeof providerBody === 'string') {
+        try { providerBody = JSON.parse(providerBody); }
+        catch { providerBody = { message: providerBody }; }
+      }
+      const providerError = providerBody?.error || providerBody;
+      const details = {};
+      for (const [key, value] of Object.entries({
+        provider: metadata?.provider_name,
+        type: providerError?.type ?? metadata?.error_type ?? parsed?.error?.type,
+        code: providerError?.code ?? metadata?.provider_code ?? parsed?.error?.code,
+        param: providerError?.param ?? parsed?.error?.param,
+        message: providerError?.message ?? parsed?.error?.message ?? parsed?.message,
+      })) {
+        if (typeof value !== 'string' && typeof value !== 'number') continue;
+        const text = String(value);
+        details[key] = (apiKey ? text.split(apiKey).join('[REDACTED]') : text)
+          .slice(0, key === 'message' ? 800 : 160);
+      }
+      message = Object.keys(details).length
+        ? JSON.stringify(details)
+        : 'Provider returned an unrecognized error envelope.';
+    }
   } catch {
-    return String(rawBody).replace(/\s+/g, ' ').slice(0, 240);
+    // Non-JSON HTTP failures retain the existing bounded plain-text diagnostic.
   }
+  const text = includeProviderDetails && apiKey
+    ? String(message).split(apiKey).join('[REDACTED]')
+    : String(message);
+  return text.replace(/\s+/g, ' ').slice(0, includeProviderDetails ? 1600 : 240);
 }
 
 function compactProviderFinishDetail(choice, data) {
@@ -249,7 +280,11 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       const rawBody = await res.text().catch(() => '');
       const reason = classifyHttpFailure(res.status);
       if (logPrefix) {
-        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${compactErrorBody(rawBody)}"`);
+        const detail = compactErrorBody(rawBody, {
+          includeProviderDetails: purpose === 'initial' && responseFormat?.type === 'json_schema',
+          apiKey,
+        });
+        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${detail}"`);
       }
       return { ok: false, reason, status: res.status };
     }
