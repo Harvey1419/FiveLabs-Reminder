@@ -142,7 +142,7 @@ function buildDomainCall(action, context) {
         };
       }
       if (action.action === 'update') {
-        const target = intentTarget(action);
+        const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que quieres cambiar.' };
         const updates = {};
         if (action.content || action.title) updates.content = action.content || action.title;
@@ -160,7 +160,7 @@ function buildDomainCall(action, context) {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params };
       }
       if (action.action === 'add_advance') {
-        const target = intentTarget(action);
+        const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio.' };
         if (!Number.isInteger(action.advanceMinutes)) {
           return { valid: false, errorCode: 'INVALID_ADVANCE_MINUTES', error: 'Falta indicar cuántos minutos antes.' };
@@ -171,12 +171,12 @@ function buildDomainCall(action, context) {
         if (['all', 'elapsed'].includes(action.scope)) {
           return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'cancel', scope: action.scope } };
         }
-        const target = intentTarget(action);
+        const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que quieres cancelar.' };
         return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'cancel', target } };
       }
       if (action.action === 'acknowledge') {
-        const target = intentTarget(action);
+        const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que completaste.' };
         return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'acknowledge', target } };
       }
@@ -221,7 +221,7 @@ function buildDomainCall(action, context) {
           },
         };
       }
-      const target = intentTarget(action);
+      const target = action.target;
       if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar la tarea.' };
       if (action.action === 'complete' || action.action === 'delete') {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_TASK, params: { action: action.action, target, ...(action.entityName ? { entityName: action.entityName } : {}) } };
@@ -279,19 +279,16 @@ function buildDomainCall(action, context) {
     }
 
     case 'calendar': {
-      if (action.action === 'create' || action.action === 'update') {
+      if (action.action === 'create') {
+        const title = requiredText(action.title || action.content, 'MISSING_TITLE', 'Falta el nombre del evento.');
+        if (!title.valid) return title;
         const temporal = resolveSchedule(action, context, 'calendar_event');
         if (!temporal.valid) return temporal;
         const params = {
-          action: action.action === 'create' ? 'create_event' : 'update_event',
+          action: 'create_event',
           startDateTime: temporal.canonical,
-          summary: action.title || action.content || action.target,
+          summary: title.value,
         };
-        if (action.action === 'update') {
-          const target = intentTarget(action);
-          if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el evento.' };
-          params.target = target;
-        }
         if (action.endSchedule) {
           const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone });
           if (!end.valid) return end;
@@ -304,8 +301,32 @@ function buildDomainCall(action, context) {
         if (action.addGoogleMeet) params.addGoogleMeet = true;
         return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params };
       }
+      if (action.action === 'update') {
+        const target = action.target;
+        if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el evento.' };
+        const params = { action: 'update_event', target };
+        if (action.title || action.content) params.summary = action.title || action.content;
+        if (action.schedule) {
+          const temporal = resolveSchedule(action, context, 'calendar_event');
+          if (!temporal.valid) return temporal;
+          params.startDateTime = temporal.canonical;
+        }
+        if (action.endSchedule) {
+          const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone });
+          if (!end.valid) return end;
+          params.endDateTime = end.canonical;
+        }
+        if (action.durationMinutes) params.durationMinutes = action.durationMinutes;
+        if (action.description) params.description = action.description;
+        if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
+        if (action.addGoogleMeet) params.addGoogleMeet = true;
+        if (!params.summary && !params.startDateTime && !params.endDateTime && !params.durationMinutes && !params.description && !params.advanceMinutes && !params.addGoogleMeet) {
+          return { valid: false, errorCode: 'MISSING_UPDATES', error: 'No se indicó qué cambiar del evento.' };
+        }
+        return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params };
+      }
       if (action.action === 'delete') {
-        const target = intentTarget(action);
+        const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el evento.' };
         return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'delete_event', target } };
       }
@@ -503,7 +524,7 @@ async function executePendingAction(action, context) {
       ...(proposed.preserveNames?.length ? { preserveNames: proposed.preserveNames } : {}),
     };
     if (action.action === 'revise') {
-      if (action.target || action.entityName) params.targetName = action.target || action.entityName;
+      if (action.entityName) params.targetName = action.entityName;
       if (action.category) params.category = action.category;
       if (action.scope) params.scope = action.scope;
       if (action.preserveNames) params.preserveNames = action.preserveNames;
