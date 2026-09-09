@@ -282,9 +282,9 @@ describe('Hermes direct TurnIntent router', () => {
     }));
   });
 
-  it('executes a semantic memory alias without any legacy manifest compilation', async () => {
+  it('executes canonical memory.save without any legacy manifest compilation', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
-      actions: [{ domain: 'memory', action: 'add', content: 'Trabajo en Globant' }],
+      actions: [{ domain: 'memory', action: 'save', content: 'Trabajo en Globant' }],
     }));
     executeTool.mockResolvedValue({
       success: true,

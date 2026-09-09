@@ -30,16 +30,17 @@ describe('Hermes product-quality core', () => {
     expect(action).not.toHaveProperty('contextRef');
   });
 
-  it('normalizes harmless semantic verb variation at the Node boundary', () => {
-    expect(normalizeIntentAction('memory', 'add')).toBe('save');
-    expect(normalizeIntentAction('memory', 'recall')).toBe('search');
-    expect(normalizeIntentAction('task', 'done')).toBe('complete');
+  it('keeps action normalization technical and rejects semantic aliases at the Node boundary', () => {
+    expect(normalizeIntentAction('memory', ' SAVE ')).toBe('save');
+    expect(normalizeIntentAction('task', 'in-progress')).toBe('in_progress');
+    expect(normalizeIntentAction('memory', 'add')).toBe('add');
+    expect(normalizeIntentAction('task', 'done')).toBe('done');
 
     const result = validateTurnIntent({
       actions: [{ domain: 'memory', action: 'store', content: 'Trabajo en Globant' }],
     });
-    expect(result.valid).toBe(true);
-    expect(result.intent.actions[0].action).toBe('save');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('UNSUPPORTED_ACTION');
   });
 
   it('keeps live overview as counts only so it cannot answer inventory queries from stale prompt state', () => {
