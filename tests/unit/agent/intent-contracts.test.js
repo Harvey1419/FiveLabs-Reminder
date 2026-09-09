@@ -2,16 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions } from '../../../src/agent/contracts/intent-contracts.js';
 
 describe('direct TurnIntent contract', () => {
-  it('normalizes semantic aliases inside the execution boundary', () => {
+  it('normalizes semantic aliases only for domains not yet converged', () => {
     expect(normalizeIntentAction('conversation', 'respond')).toBe('reply');
     expect(normalizeIntentAction('memory', 'add')).toBe('save');
     expect(normalizeIntentAction('memory', 'recall')).toBe('search');
     expect(normalizeIntentAction('task', 'done')).toBe('complete');
     expect(normalizeIntentAction('agenda', 'show')).toBe('read');
-    expect(normalizeIntentAction('reminder', 'rename')).toBe('update');
-    expect(normalizeIntentAction('reminder', 'edit')).toBe('update');
     expect(normalizeIntentAction('task', 'change')).toBe('update');
     expect(normalizeIntentAction('calendar', 'reschedule')).toBe('update');
+  });
+
+  it('rejects non-canonical reminder action aliases', () => {
+    expect(normalizeIntentAction('reminder', 'rename')).toBe('rename');
+    expect(normalizeIntentAction('reminder', 'edit')).toBe('edit');
+
+    const result = validateTurnIntent({
+      actions: [{ domain: 'reminder', action: 'rename', target: 'Test Update', newName: 'cita en cerámica Italia' }],
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('UNSUPPORTED_ACTION');
   });
 
   it('accepts a small semantic action list', () => {
@@ -48,9 +58,9 @@ describe('direct TurnIntent contract', () => {
     expect(result.errorCode).toBe('MISSING_CONTENT');
   });
 
-  it('accepts a natural reminder rename without exposing storage fields to the model', () => {
+  it('accepts a canonical reminder rename as update plus newName', () => {
     const result = validateTurnIntent({
-      actions: [{ domain: 'reminder', action: 'rename', target: 'Test Update', newName: 'cita en cerámica Italia' }],
+      actions: [{ domain: 'reminder', action: 'update', target: 'Test Update', newName: 'cita en cerámica Italia' }],
     });
     expect(result.valid).toBe(true);
     expect(result.intent.actions[0]).toMatchObject({
