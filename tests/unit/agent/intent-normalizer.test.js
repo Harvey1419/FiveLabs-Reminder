@@ -116,7 +116,7 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[0].schedule.kind).toBe('local_time');
   });
 
-  it('turns a partial calendar update into a patch that preserves the referenced event title/time', () => {
+  it('keeps partial calendar updates as pure semantic deltas without inheriting stale title/time', () => {
     saveWorkingMemory(user, {
       source: 'calendar',
       scope: 'today',
@@ -136,10 +136,13 @@ describe('semantic intent runtime normalization', () => {
     }, context);
 
     expect(normalized.actions[0]).toMatchObject({
-      title: 'Reunión de equipo',
-      schedule: { kind: 'inherit_context' },
+      domain: 'calendar',
+      action: 'update',
+      target: 'la primera',
       description: 'Llevar avances',
     });
+    expect(normalized.actions[0]).not.toHaveProperty('title');
+    expect(normalized.actions[0]).not.toHaveProperty('schedule');
     clearWorkingMemory(user);
   });
 });
