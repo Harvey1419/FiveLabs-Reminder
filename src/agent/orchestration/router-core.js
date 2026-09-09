@@ -121,6 +121,9 @@ function conversationReplyFromActions(actions = []) {
 
 function nullableSchema(schema) {
   const node = structuredClone(schema);
+  // Groq strict rejects uniqueItems. Keep it in the canonical contract;
+  // validateTurnIntent enforces missingFields uniqueness before execution.
+  delete node.uniqueItems;
   if (node.items) node.items = nullableSchema(node.items);
   if (node.properties) {
     const originallyRequired = new Set(node.required || []);
