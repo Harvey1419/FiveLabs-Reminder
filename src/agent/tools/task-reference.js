@@ -1,4 +1,5 @@
 import { supabase } from '../../infrastructure/database/index.js';
+import { getWorkingMemory } from '../core/working-memory.js';
 import { resolveContextReference } from '../core/context-reference.js';
 import {
   isStrictUUID,
@@ -66,9 +67,9 @@ export async function resolveTaskTarget({
   }
 
   const refRes = resolveContextReference({
-    userOrPhone,
     reference: rawStr,
     preferredType: 'task',
+    workingMemory: getWorkingMemory(userOrPhone),
   });
 
   if (refRes.status === 'RESOLVED' && refRes.item?.internalId) {
