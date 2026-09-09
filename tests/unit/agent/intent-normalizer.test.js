@@ -62,7 +62,7 @@ describe('semantic intent runtime normalization', () => {
         domain: 'reminder',
         action: 'create',
         content: 'Hacer Duolingo',
-        recurrence: 'todos los días',
+        recurrence: 'daily',
         schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
       }],
     }, eveningContext);
@@ -87,7 +87,7 @@ describe('semantic intent runtime normalization', () => {
         domain: 'reminder',
         action: 'create',
         content: 'Hacer Duolingo',
-        recurrence: 'cada día',
+        recurrence: 'daily',
         schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
       }],
     }, morningContext);
