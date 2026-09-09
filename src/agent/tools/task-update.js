@@ -12,7 +12,7 @@ export async function executeTaskUpdate({
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
-  const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
+  const targetQuery = params.target || null;
 
   if (!targetQuery) {
     return {
@@ -75,11 +75,11 @@ export async function executeTaskUpdate({
     };
   }
 
-  const updatesObj = params.updates || params;
+  const updatesObj = params.updates || {};
   const title = updatesObj.title;
   const priority = updatesObj.priority;
   const status = updatesObj.status;
-  const dueDate = updatesObj.dueDate !== undefined ? updatesObj.dueDate : updatesObj.due_date;
+  const dueDate = updatesObj.dueDate;
   const updates = {};
 
   if (title) updates.title = String(title).trim();

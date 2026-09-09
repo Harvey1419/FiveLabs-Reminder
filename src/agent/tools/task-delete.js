@@ -8,7 +8,7 @@ export async function executeTaskDelete({
 } = {}) {
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
-  const targetQuery = params.taskId || params.id || params.target || params.title || params.query || null;
+  const targetQuery = params.target || null;
 
   if (!targetQuery) {
     return {
