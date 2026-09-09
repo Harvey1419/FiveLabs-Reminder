@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
 import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
@@ -15,6 +16,17 @@ const context = {
 describe('architecture hardening', () => {
   it('loads the canonical intent executor boundary', () => {
     expect(typeof executeTurnIntent).toBe('function');
+  });
+
+  it('keeps a single semantic boundary before deterministic domain tools', () => {
+    const providerSource = readFileSync(new URL('../../../src/agent/providers/client.js', import.meta.url), 'utf8');
+    const executorSource = readFileSync(new URL('../../../src/agent/orchestration/intent-executor.js', import.meta.url), 'utf8');
+    const toolsSource = readFileSync(new URL('../../../src/agent/tools/index.js', import.meta.url), 'utf8');
+
+    expect(providerSource).not.toContain('callPendingTransitionVerification');
+    expect(providerSource).not.toContain('verify_pending_transition');
+    expect(executorSource).not.toContain('userMessage: context.userMessage');
+    expect(toolsSource).not.toContain('userMessage');
   });
 
   it('normalizes collection scopes from one vocabulary', () => {

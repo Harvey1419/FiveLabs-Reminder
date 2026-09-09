@@ -4,7 +4,6 @@ import {
   callChatCompletion,
   callMemoryExtraction,
   callOpenRouterChat,
-  callPendingTransitionVerification,
 } from '../../../src/agent/providers/client.js';
 import { processDocumentOrImage } from '../../../src/integrations/media/document-processor.js';
 import { generateEmbedding } from '../../../src/integrations/ai/embeddings.js';
@@ -150,29 +149,6 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
     expect(payloads.map((payload) => payload.model)).toEqual([
       'openai/gpt-oss-120b', 'z-ai/glm-5.3-flash', 'qwen/qwen3.7-flash', 'openai/gpt-oss-120b',
     ]);
-  });
-
-  it('uses Qwen auto tool choice when GLM cannot verify a pending transition', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('rate limited', { status: 429 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        provider: 'Alibaba', choices: [{ finish_reason: 'tool_calls', message: {
-          content: null, tool_calls: [{ id: 'verify-1', type: 'function', function: {
-            name: 'verify_pending_transition',
-            arguments: '{"transition":"execute_pending","confidence":"high"}',
-          } }],
-        } }],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
-    const result = await callPendingTransitionVerification({
-      userText: 'Sí',
-      pendingState: { count: 1, selectedPosition: 1, selected: { status: 'not_executed' } },
-      proposedOperation: { kind: 'execute_pending' },
-    });
-    expect(result).toEqual({ transition: 'execute_pending', confidence: 'high' });
-    const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
-    expect(payloads[0].tool_choice).toBe('required');
-    expect(payloads[1].model).toBe('qwen/qwen3.7-flash');
-    expect(payloads[1].tool_choice).toBe('auto');
   });
 
   it('keeps the foreground Qwen tool fallback compatible and large enough', async () => {
