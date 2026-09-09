@@ -37,7 +37,6 @@ function buildReminderProposal(item, targetDate) {
   return {
     content: item.content,
     targetTime: targetDate.toISOString(),
-    sourceTimeText: item.sourceTimeText,
     advanceMinutes: item.advanceMinutes || null,
     recurrence: item.recurrenceRule || null,
     requiresConfirmation: Boolean(item.requiresConfirmation),
@@ -50,7 +49,6 @@ function buildReminderProposal(item, targetDate) {
 
 function buildTemporalRejection({
   content,
-  sourceTimeText,
   advanceMinutes,
   mainDate,
   referenceDate,
@@ -69,7 +67,6 @@ function buildTemporalRejection({
     question: sameLocalDay && clock
       ? (isEnglish ? `Did you mean tomorrow at ${clock}?` : `¿Quieres que lo programe mañana a las ${clock}?`)
       : (isEnglish ? 'What new date and time should I use?' : '¿Qué nueva fecha y hora quieres usar?'),
-    sourceTimeText,
     advanceMinutes: advanceMinutes || null,
     proposedReminder,
   };
@@ -104,7 +101,6 @@ export async function executeReminderCreate({
   for (const item of rawItems) {
     const content = item.content || item.reminder || item.text || item.title || '';
     const targetTime = item.targetTime || item.sendAt || item.time || item.date || '';
-    const sourceTimeText = item.sourceTimeText || item.source_time_text || '';
     const advanceMinutes = item.advanceMinutes || item.advance_minutes || null;
     const advanceNoticeTime = item.advanceNoticeTime || item.advance_notice_time || null;
     const recurrenceRule = item.recurrence || item.recurrenceRule || item.recurrence_rule || null;
@@ -133,7 +129,6 @@ export async function executeReminderCreate({
         question: language === 'en'
           ? `When should I remind you about “${content}”?`
           : `¿Cuándo quieres que te recuerde “${content}”?`,
-        sourceTimeText,
         advanceMinutes,
       });
       continue;
@@ -148,15 +143,12 @@ export async function executeReminderCreate({
         reason: language === 'en'
           ? 'recurring reminders require Reminder Pro.'
           : 'los recordatorios recurrentes requieren Reminder Pro.',
-        sourceTimeText,
         advanceMinutes,
       });
       continue;
     }
 
-    const mainDate = parseTargetTime(targetTime, timezone, referenceDate, {
-      rollForwardTimeOnly: !sourceTimeText,
-    });
+    const mainDate = parseTargetTime(targetTime, timezone, referenceDate);
     if (!mainDate || Number.isNaN(mainDate.getTime())) {
       rejectedItems.push({
         type: 'reminder',
@@ -166,7 +158,6 @@ export async function executeReminderCreate({
         question: language === 'en'
           ? `What date and time should I use for “${content}”?`
           : `¿Qué fecha y hora quieres usar para “${content}”?`,
-        sourceTimeText,
         advanceMinutes,
       });
       continue;
@@ -177,7 +168,6 @@ export async function executeReminderCreate({
       const proposedDate = sameLocalDay ? shiftZonedCalendarDays(mainDate, 1, timezone) : null;
       rejectedItems.push(buildTemporalRejection({
         content,
-        sourceTimeText,
         advanceMinutes,
         mainDate,
         referenceDate,
@@ -185,7 +175,6 @@ export async function executeReminderCreate({
         language,
         proposedReminder: buildReminderProposal({
           content,
-          sourceTimeText,
           advanceMinutes,
           recurrenceRule,
           requiresConfirmation,
@@ -212,7 +201,6 @@ export async function executeReminderCreate({
           reason: language === 'en'
             ? 'reminders for future days require Reminder Pro.'
             : 'los recordatorios para días futuros requieren Reminder Pro.',
-          sourceTimeText,
           formattedTime: formatHumanFriendlyDateTime(mainDate, timezone, language),
           advanceMinutes,
         });
@@ -238,7 +226,6 @@ export async function executeReminderCreate({
       maxNudges,
       replacePending,
       checklist,
-      sourceTimeText,
     });
   }
 
@@ -279,7 +266,6 @@ export async function executeReminderCreate({
           reason: language === 'en'
             ? 'the requested advance-notice moment has already passed; the main reminder was still scheduled.'
             : 'el momento del aviso previo ya pasó; el recordatorio principal sí fue programado.',
-          sourceTimeText: item.sourceTimeText,
         });
       }
     }
@@ -331,7 +317,6 @@ export async function executeReminderCreate({
     .map((item) => ({
       type: 'reminder',
       content: item.content,
-      sourceTimeText: item.sourceTimeText,
       advanceMinutes: item.advanceMinutes,
       reason: item.reason,
       question: item.question,
