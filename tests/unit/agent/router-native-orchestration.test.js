@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 describe('Hermes direct TurnIntent router', () => {
-  it('delivers normal conversation through conversation.reply with one structured model decision', async () => {
+  it('delivers normal conversation through conversation.reply with one required structured model decision', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Te llamas Juan.' }],
     }));
@@ -66,98 +66,57 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.intent).toBe('chat');
     expect(result.plan.actions).toEqual([{ domain: 'conversation', action: 'reply' }]);
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'auto' }));
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
+      toolChoice: 'required', purpose: 'initial',
+    }));
     expect(executeTool).not.toHaveBeenCalled();
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
 
-  it('recovers a prose-only operational miss into a verified reminder.list instead of sending stale prose', async () => {
-    callChatCompletion
-      .mockResolvedValueOnce({
-        role: 'assistant',
-        content: '🔔 Recordatorios pendientes: algo reconstruido del historial',
-        tool_calls: [],
-      })
-      .mockResolvedValueOnce(modelToolCall({
-        actions: [{ domain: 'reminder', action: 'list' }],
-      }));
-    executeTool.mockResolvedValue({
-      success: true,
-      complete: true,
-      action: 'listed_reminders',
-      rawSummary: 'Recordatorios consultados.',
-      data: {
-        timezone: 'America/Bogota',
-        locale: 'es-CO',
-        reminders: [{
-          id: 'r1',
-          content: 'Me amo mucho',
-          send_at: '2026-09-08T13:00:00.000Z',
-          recurrence_rule: 'daily',
-          status: 'pending',
-        }],
-      },
+  it('never trusts prose-only operational output or sends a second semantic recovery call', async () => {
+    callChatCompletion.mockResolvedValue({
+      role: 'assistant',
+      content: '🔔 Recordatorios pendientes: algo reconstruido del historial',
+      tool_calls: [],
     });
 
     const result = await routeMessage('¿Qué recordatorios tengo pendientes?', user, []);
 
-    expect(callChatCompletion).toHaveBeenCalledTimes(2);
-    expect(callChatCompletion.mock.calls[0][1]).toMatchObject({ toolChoice: 'auto', purpose: 'initial' });
-    expect(callChatCompletion.mock.calls[1][1]).toMatchObject({
-      toolChoice: 'auto', purpose: 'structured_recovery', startStage: 'secondary',
-    });
-    expect(result.confirmation).toContain('🔔 *Recordatorios pendientes*');
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(result.intent).toBe('clarification');
+    expect(result.plan.type).toBe('missing_structured_decision');
     expect(result.confirmation).not.toContain('algo reconstruido');
-    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
-      toolName: 'manage_reminder',
-      params: expect.objectContaining({ action: 'list' }),
-    }));
+    expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('recovers ordinary prose conversation into conversation.reply without executing a domain tool', async () => {
-    callChatCompletion
-      .mockResolvedValueOnce({ role: 'assistant', content: '¡Con gusto! 😊', tool_calls: [] })
-      .mockResolvedValueOnce(modelToolCall({
-        actions: [{ domain: 'conversation', action: 'reply', content: '¡Con gusto! 😊' }],
-      }));
+  it('never uses prose-only conversation as a bypass around execute_turn', async () => {
+    callChatCompletion.mockResolvedValue({ role: 'assistant', content: '¡Con gusto! 😊', tool_calls: [] });
 
     const result = await routeMessage('Gracias', user, []);
 
-    expect(callChatCompletion).toHaveBeenCalledTimes(2);
-    expect(result.intent).toBe('chat');
-    expect(result.confirmation).toBe('¡Con gusto! 😊');
-    expect(executeTool).not.toHaveBeenCalled();
-  });
-
-  it('still refuses prose when structured recovery also misses', async () => {
-    callChatCompletion
-      .mockResolvedValueOnce({ role: 'assistant', content: 'texto no verificado', tool_calls: [] })
-      .mockResolvedValueOnce({ role: 'assistant', content: 'otro texto no estructurado', tool_calls: [] });
-
-    const result = await routeMessage('¿Qué recordatorios tengo pendientes?', user, []);
-
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
     expect(result.intent).toBe('clarification');
     expect(result.plan.type).toBe('missing_structured_decision');
-    expect(result.confirmation).not.toContain('texto no verificado');
-    expect(result.confirmation).not.toContain('otro texto no estructurado');
+    expect(result.confirmation).not.toContain('¡Con gusto!');
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('routes a normal typed standalone greeting through Hermes conversation.reply', async () => {
+  it('routes a normal typed standalone greeting through Hermes conversation.reply in one call', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: '¡Hola! 👋 ¿En qué te ayudo?' }],
     }));
 
-    const result = await routeMessage('Hola', user, []);
+    const result = await routeMessage('Hola hola', user, []);
 
     expect(result.intent).toBe('chat');
     expect(result.confirmation).toContain('¡Hola!');
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callChatCompletion.mock.calls[0][1]).toMatchObject({ toolChoice: 'required', purpose: 'initial' });
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('routes an audio transcript that looks like a greeting through the same Hermes path', async () => {
+  it('routes an audio transcript through the same required structured path', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }],
     }));
@@ -165,7 +124,7 @@ describe('Hermes direct TurnIntent router', () => {
     const result = await routeMessage('Hola', user, [], { inputModality: 'audio', correlationId: 'audio-greeting-test' });
 
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'auto' }));
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
     expect(result.intent).toBe('chat');
     expect(result.confirmation).toBe('Entendido.');
   });
@@ -223,7 +182,7 @@ describe('Hermes direct TurnIntent router', () => {
     }));
     expect(result.confirmation).toContain('📋 *Pendientes actuales*');
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'auto' }));
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
