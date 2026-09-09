@@ -6,10 +6,12 @@ import {
   getEntitiesByUser,
   deleteEntities,
 } from '../../infrastructure/database/index.js';
-import { formatEntityDeletedCard, formatEntityListCard } from './formatters.js';
 
 /**
  * Domain tool for managing entities / projects / contacts.
+ * Successful operations return structured truth; presentation happens at the
+ * ExecutionFacts boundary. Destructive confirmation and ambiguity messages
+ * remain operational contracts owned by this tool.
  */
 export async function executeEntityTool({ action, params = {}, user, language = 'es', clarificationResolution = false }) {
   const userId = user?.id;
@@ -47,16 +49,10 @@ export async function executeEntityTool({ action, params = {}, user, language = 
         };
       }
 
-      const rawSummary = language === 'en'
-        ? `📁 *Project / Entity registered:*\n*${entity.name}* (${entity.category || 'general'})`
-        : `📁 *Proyecto / Contacto registrado:*\n*${entity.name}* (${entity.category || 'general'})`;
-
       return {
         success: true,
         action: 'created_entity',
         data: entity,
-        rawSummary,
-        formattedCard: rawSummary,
       };
     }
 
@@ -89,16 +85,10 @@ export async function executeEntityTool({ action, params = {}, user, language = 
         };
       }
 
-      const rawSummary = language === 'en'
-        ? `✏️ *Project renamed:* "${oldName}" ➔ *"${newName}"* (Updated in all linked tasks).`
-        : `✏️ *Proyecto renombrado:* "${oldName}" ➔ *"${newName}"* (Actualizado en todas las tareas vinculadas).`;
-
       return {
         success: true,
         action: 'renamed_entity',
         data: res,
-        rawSummary,
-        formattedCard: rawSummary,
       };
     }
 
@@ -131,45 +121,30 @@ export async function executeEntityTool({ action, params = {}, user, language = 
         };
       }
 
-      const rawSummary = language === 'en'
-        ? `🔀 *Merged:* "${sourceName}" merged into *"${targetName}"* (${res.tasksMovedCount} tasks moved).`
-        : `🔀 *Fusión completada:* "${sourceName}" se unió a *"${targetName}"* (${res.tasksMovedCount} tareas migradas).`;
-
       return {
         success: true,
         action: 'merged_entities',
         data: res,
-        rawSummary,
-        formattedCard: rawSummary,
       };
     }
 
     case 'deduplicate': {
       const { category } = params;
       const res = await deduplicateEntities(userId, category);
-      const rawSummary = language === 'en'
-        ? `🧹 *Deduplication complete:* Merged ${res.mergedCount} redundant entities.`
-        : `🧹 *Limpieza completada:* Se fusionaron ${res.mergedCount} entidades redundantes.`;
-
       return {
         success: true,
         action: 'deduplicated_entities',
         data: res,
-        rawSummary,
-        formattedCard: rawSummary,
       };
     }
 
     case 'list': {
       const { category = null, limit = 20 } = params;
       const entities = await getEntitiesByUser({ userId, category, limit });
-      const formattedCard = formatEntityListCard(entities, category, language);
       return {
         success: true,
         action: 'listed_entities',
         data: entities,
-        rawSummary: formattedCard,
-        formattedCard,
       };
     }
 
@@ -243,15 +218,12 @@ export async function executeEntityTool({ action, params = {}, user, language = 
         };
       }
 
-      const formattedCard = formatEntityDeletedCard(preview, language);
       return {
         success: true,
         complete: preview.complete !== false,
         partialSuccess: preview.partialSuccess === true,
         action: 'deleted_entities',
         data: preview,
-        rawSummary: formattedCard,
-        formattedCard,
       };
     }
 
