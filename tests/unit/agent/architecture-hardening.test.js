@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
+import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
 import { createExecutionFact } from '../../../src/agent/core/execution-facts.js';
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
 import { normalizeAgendaScope, normalizeTaskScope, parseTaskScope } from '../../../src/shared/agenda-scopes.js';
@@ -12,6 +13,10 @@ const context = {
 };
 
 describe('architecture hardening', () => {
+  it('loads the canonical intent executor boundary', () => {
+    expect(typeof executeTurnIntent).toBe('function');
+  });
+
   it('normalizes collection scopes from one vocabulary', () => {
     expect(normalizeAgendaScope('pendientes')).toBe('all_pending');
     expect(normalizeTaskScope('todos')).toBe('all_pending');
