@@ -23,11 +23,7 @@ const DOMAIN_ACTIONS = Object.freeze({
 const ACTION_ALIASES = Object.freeze({
   conversation: Object.freeze({ chat: 'reply', respond: 'reply', answer: 'reply' }),
   agenda: Object.freeze({ get: 'read', show: 'read', list: 'read', view: 'read', pending: 'read' }),
-  reminder: Object.freeze({
-    add: 'create', set: 'create', get: 'list', read: 'list', show: 'list', search: 'list',
-    remove: 'cancel', delete: 'cancel', dismiss: 'acknowledge', done: 'acknowledge', complete: 'acknowledge',
-    rename: 'update', edit: 'update', change: 'update', modify: 'update', reschedule: 'update', move: 'update',
-  }),
+  reminder: Object.freeze({}),
   task: Object.freeze({
     add: 'create', get: 'list', read: 'list', show: 'list', search: 'list', done: 'complete', finish: 'complete',
     remove: 'delete', cancel: 'delete', rename: 'update', edit: 'update', change: 'update', modify: 'update',
