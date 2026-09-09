@@ -2,14 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions } from '../../../src/agent/contracts/intent-contracts.js';
 
 describe('direct TurnIntent contract', () => {
-  it('normalizes semantic aliases only for domains not yet converged', () => {
-    expect(normalizeIntentAction('conversation', 'respond')).toBe('reply');
-    expect(normalizeIntentAction('memory', 'add')).toBe('save');
-    expect(normalizeIntentAction('memory', 'recall')).toBe('search');
-    expect(normalizeIntentAction('task', 'done')).toBe('complete');
-    expect(normalizeIntentAction('agenda', 'show')).toBe('read');
-    expect(normalizeIntentAction('task', 'change')).toBe('update');
-    expect(normalizeIntentAction('calendar', 'reschedule')).toBe('update');
+  it('keeps normalization syntactic and rejects semantic aliases', () => {
+    expect(normalizeIntentAction('conversation', ' Reply ')).toBe('reply');
+    expect(normalizeIntentAction('calendar', 'next-event')).toBe('next_event');
+    expect(normalizeIntentAction('conversation', 'respond')).toBe('respond');
+    expect(normalizeIntentAction('memory', 'add')).toBe('add');
+    expect(normalizeIntentAction('task', 'done')).toBe('done');
+    expect(normalizeIntentAction('agenda', 'show')).toBe('show');
+    expect(normalizeIntentAction('task', 'change')).toBe('change');
+    expect(normalizeIntentAction('calendar', 'reschedule')).toBe('reschedule');
   });
 
   it('rejects non-canonical reminder action aliases', () => {
@@ -131,9 +132,9 @@ describe('direct TurnIntent contract', () => {
     expect(result.errorCode).toBe('UNSUPPORTED_DOMAIN');
   });
 
-  it('keeps harmless memory verb variation inside the semantic boundary', () => {
+  it('rejects memory verb aliases instead of translating them', () => {
     const result = validateTurnIntent({ actions: [{ domain: 'memory', action: 'store', content: 'Trabajo en Globant' }] });
-    expect(result.valid).toBe(true);
-    expect(result.intent.actions[0].action).toBe('save');
+    expect(result.valid).toBe(false);
+    expect(result.errorCode).toBe('UNSUPPORTED_ACTION');
   });
 });
