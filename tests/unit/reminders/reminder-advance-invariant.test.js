@@ -88,12 +88,11 @@ describe('advance-notice scheduling invariant', () => {
     const result = await executeReminderCreate({
       params: {
         items: [
-          { content: 'Llevar a mi amorcito', targetTime: 'PT10M', sourceTimeText: 'en 10 minutos' },
-          { content: 'Decirle que la amo mucho', targetTime: 'PT20M', sourceTimeText: 'en 20 minutos' },
+          { content: 'Llevar a mi amorcito', targetTime: 'PT10M' },
+          { content: 'Decirle que la amo mucho', targetTime: 'PT20M' },
           {
             content: 'Cita de Borona en el veterinario',
             targetTime: '2026-09-04T16:00:00-05:00',
-            sourceTimeText: 'A las 4 de la tarde',
             advanceMinutes: 30,
           },
         ],
@@ -125,7 +124,6 @@ describe('advance-notice scheduling invariant', () => {
       proposedReminder: {
         content: 'Cita de Borona en el veterinario',
         targetTime: '2026-09-05T21:00:00.000Z',
-        sourceTimeText: 'A las 4 de la tarde',
         advanceMinutes: 30,
       },
     });
@@ -154,7 +152,6 @@ describe('advance-notice scheduling invariant', () => {
         items: [{
           content: 'Cita veterinaria',
           targetTime: '2026-09-04T21:00:00.000Z',
-          sourceTimeText: 'A las cuatro tenemos cita en el veterinario',
         }],
       },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
@@ -183,7 +180,6 @@ describe('advance-notice scheduling invariant', () => {
         items: [{
           content: 'Llamada importante',
           targetTime: '2026-09-04T22:30:00-05:00',
-          sourceTimeText: 'hoy a las 10:30 pm',
           advanceMinutes: 30,
         }],
       },
