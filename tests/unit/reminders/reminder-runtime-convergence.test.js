@@ -28,4 +28,13 @@ describe('reminder runtime convergence', () => {
 
     expect(source).not.toContain('executeReminderTool');
   });
+
+  it('does not pass raw user language into reminder create payloads', () => {
+    const executorSource = fs.readFileSync(
+      path.resolve('src/agent/orchestration/intent-executor.js'),
+      'utf8',
+    );
+
+    expect(executorSource).not.toContain('sourceTimeText');
+  });
 });
