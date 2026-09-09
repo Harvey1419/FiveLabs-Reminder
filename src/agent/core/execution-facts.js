@@ -8,6 +8,14 @@ import {
   formatCanonicalTaskUpdate,
 } from '../../shared/task-presentation.js';
 import {
+  formatCanonicalEntityCreate,
+  formatCanonicalEntityDeduplicate,
+  formatCanonicalEntityDelete,
+  formatCanonicalEntityList,
+  formatCanonicalEntityMerge,
+  formatCanonicalEntityRename,
+} from '../../shared/entity-presentation.js';
+import {
   formatCanonicalReminderAcknowledge,
   formatCanonicalReminderCancel,
   formatCanonicalReminderCreate,
@@ -47,6 +55,15 @@ function getCanonicalCard(toolName, params, result, language) {
     if (params?.action === 'complete' && result?.data) return formatCanonicalTaskComplete(result.data, presentation);
     if (params?.action === 'update' && result?.data) return formatCanonicalTaskUpdate(result.data, presentation);
     if (params?.action === 'delete') return formatCanonicalTaskDelete(result?.data, presentation);
+  }
+
+  if (toolName === TOOL_NAMES.MANAGE_ENTITY) {
+    if (['create', 'upsert'].includes(params?.action) && result?.data) return formatCanonicalEntityCreate(result.data, presentation);
+    if (params?.action === 'rename') return formatCanonicalEntityRename(result?.data, params, presentation);
+    if (params?.action === 'merge') return formatCanonicalEntityMerge(result?.data, params, presentation);
+    if (params?.action === 'deduplicate') return formatCanonicalEntityDeduplicate(result?.data, presentation);
+    if (params?.action === 'list') return formatCanonicalEntityList(result?.data, { ...presentation, category: params?.category || null });
+    if (params?.action === 'delete') return formatCanonicalEntityDelete(result?.data, presentation);
   }
 
   if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'create' && result?.data) {
