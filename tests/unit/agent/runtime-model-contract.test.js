@@ -82,7 +82,8 @@ function structuredResponse(intent) {
 function expectStrictSchema(node, canonical, nullable = false) {
   const types = Array.isArray(node.type) ? node.type : [node.type];
   expect(types).toEqual(nullable ? [canonical.type, 'null'] : [canonical.type]);
-  for (const key of ['description', 'minimum', 'maximum', 'minItems', 'maxItems', 'uniqueItems']) {
+  expect(node).not.toHaveProperty('uniqueItems');
+  for (const key of ['description', 'minimum', 'maximum', 'minItems', 'maxItems']) {
     expect(node[key]).toEqual(canonical[key]);
   }
   if (canonical.enum) expect(node.enum).toEqual(nullable ? [...canonical.enum, null] : canonical.enum);
@@ -96,6 +97,41 @@ function expectStrictSchema(node, canonical, nullable = false) {
   }
   if (canonical.items) expectStrictSchema(node.items, canonical.items);
 }
+
+describe('canonical uniqueness after Groq schema adaptation', () => {
+  it.each([
+    { missingFields: [] },
+    { missingFields: ['main_time'] },
+    { missingFields: ['advance_minutes'] },
+    { missingFields: ['main_time', 'advance_minutes'] },
+    { missingFields: ['advance_minutes', 'main_time'] },
+  ])('preserves valid missingFields without rewriting their order: %j', ({ missingFields }) => {
+    const intent = { actions: [{ domain: 'clarification', action: 'request', missingFields }] };
+    const snapshot = structuredClone(intent);
+
+    const result = validateTurnIntent(intent);
+
+    expect(result.valid).toBe(true);
+    expect(result.intent.actions[0].missingFields).toEqual(missingFields);
+    expect(intent).toEqual(snapshot);
+    expect(TURN_INTENT_SCHEMA.properties.actions.items.properties.missingFields.uniqueItems).toBe(true);
+  });
+
+  it.each(['main_time', 'advance_minutes'])('rejects duplicated %s before exposing an executable intent', (field) => {
+    const intent = { actions: [
+      reminderAction,
+      { domain: 'clarification', action: 'request', missingFields: [field, field] },
+    ] };
+    const snapshot = structuredClone(intent);
+
+    const result = validateTurnIntent(intent);
+
+    expect(result).toMatchObject({ valid: false, errorCode: 'INVALID_PARAMETERS' });
+    expect(result).not.toHaveProperty('intent');
+    expect(intent).toEqual(snapshot);
+    expect(TURN_INTENT_SCHEMA).toEqual(canonicalSnapshot);
+  });
+});
 
 describe('foreground strict Structured Outputs boundary', () => {
   let fetchMock;
@@ -175,6 +211,22 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(validateTurnIntent.mock.results[0].value.valid).toBe(true);
     expect(result.plan.type).toBe('turn_intent');
     expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['main_time', 'advance_minutes'])('rejects duplicate %s from structured content before executing any action in the turn', async (field) => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+      reminderAction,
+      { domain: 'clarification', action: 'request', missingFields: [field, field] },
+    ] }));
+
+    const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(validateTurnIntent).toHaveBeenCalledTimes(1);
+    expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('INVALID_PARAMETERS');
+    expect(result.executionFacts).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

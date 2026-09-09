@@ -142,6 +142,12 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw)) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
+    // Groq's provider-facing schema cannot enforce this canonical constraint.
+    if (Array.isArray(raw.missingFields)
+      && actionSchema.properties.missingFields.uniqueItems
+      && new Set(raw.missingFields).size !== raw.missingFields.length) {
+      return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'missingFields no admite valores duplicados.' };
+    }
     normalizedActions.push({ ...raw, domain, action });
   }
   const excluded = Array.isArray(intent.excluded) ? intent.excluded.filter((item) => item && typeof item.quote === 'string' && item.quote.trim()) : [];
