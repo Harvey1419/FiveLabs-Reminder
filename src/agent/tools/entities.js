@@ -16,7 +16,7 @@ import {
 export async function executeEntityTool({ action, params = {}, user, language = 'es', clarificationResolution = false }) {
   const userId = user?.id;
 
-  const normalizedAction = String(action || 'create').replace(/_entity$/, '');
+  const normalizedAction = String(action || 'create');
 
   switch (normalizedAction) {
     case 'create':
@@ -149,7 +149,7 @@ export async function executeEntityTool({ action, params = {}, user, language = 
     }
 
     case 'delete': {
-      const targetName = params.targetName || params.name || null;
+      const targetName = params.targetName || null;
       const category = params.category || null;
       const scope = params.scope || 'single';
       const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
