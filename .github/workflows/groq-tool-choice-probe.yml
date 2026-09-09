@@ -1,8 +1,8 @@
 name: Groq Tool Choice Probe
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [test/groq-tool-choice-probe]
     paths:
       - 'scripts/evals/groq-tool-choice-probe.js'
       - '.github/workflows/groq-tool-choice-probe.yml'
