@@ -320,6 +320,26 @@ export async function handleWebhook(req, res) {
         mediaElapsedMs = Date.now() - mediaStart;
       }
 
+      if (!messageText && (isAudio || isImage || isDocument)) {
+        const mediaLabel = isAudio ? 'audio' : (isImage ? 'imagen' : 'documento');
+        const failureText = `No pude procesar ese ${mediaLabel} en este momento. No ejecuté ninguna acción basada en su contenido; puedes reenviarlo o escribir la instrucción en texto.`;
+        await sendWhatsAppText({
+          phoneNumberId,
+          phoneNumber,
+          bsuid,
+          text: failureText,
+        });
+        await saveMessage({
+          userId: user.id,
+          phoneNumber: recipientIdentifier,
+          role: 'assistant',
+          content: failureText,
+          intent: 'media_error',
+          entities: {},
+        });
+        return;
+      }
+
       if (!messageText) {
         return;
       }
@@ -374,9 +394,11 @@ export async function handleWebhook(req, res) {
       }
       touchUserLastActive(user.id, recipientIdentifier);
 
-      // 4. Fetch updated conversation history including this message
+      // 4. Fetch updated conversation history including this message. Typed
+      // Working Memory is persisted in assistant entities, so a larger window
+      // also survives process restarts without reconstructing identity from prose.
       const tHist0 = Date.now();
-      const history = await getRecentMessages(recipientIdentifier, 16);
+      const history = await getRecentMessages(recipientIdentifier, 40);
       const dbHistoryMs = Date.now() - tHist0;
 
       // 5. Route every turn through the canonical Hermes pipeline. A no-caption
