@@ -163,7 +163,6 @@ describe('Hermes product-quality audit P0 regressions', () => {
       { domain: 'task', action: 'delete', title: 'Informe final' },
       { domain: 'calendar', action: 'update', title: 'Reunión final' },
       { domain: 'calendar', action: 'delete', title: 'Reunión final' },
-      { domain: 'reminder', action: 'acknowledge', content: 'Comprar leche' },
       { domain: 'reminder', action: 'cancel', content: 'Comprar leche' },
     ];
 
@@ -172,6 +171,11 @@ describe('Hermes product-quality audit P0 regressions', () => {
       expect(result.valid, `${action.domain}.${action.action}`).toBe(false);
       expect(result.errorCode).toBe('MISSING_TARGET');
     }
+  });
+
+  it('allows acknowledge without target so Node can bind exactly one authoritative active follow-up', () => {
+    const result = validateTurnIntent({ actions: [{ domain: 'reminder', action: 'acknowledge' }] });
+    expect(result.valid).toBe(true);
   });
 
   it('pending.revise uses target only to select a proposal and never as destructive entity identity', async () => {
