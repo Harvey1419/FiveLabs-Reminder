@@ -586,7 +586,6 @@ export async function executeTurnIntent(intent, context) {
           user: context.user,
           isPro: context.isPro,
           language: context.language,
-          userMessage: context.userMessage,
           correlationId: context.correlationId,
           referenceTime: context.referenceTime,
         });
