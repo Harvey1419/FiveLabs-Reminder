@@ -1,5 +1,5 @@
 import { supabase } from '../../infrastructure/database/index.js';
-import { resolveEntityReference } from '../core/working-memory.js';
+import { resolveContextReference } from '../core/context-reference.js';
 import {
   parseAdvanceNoticeContent,
   isAdvanceNoticeContent,
@@ -141,7 +141,7 @@ export async function executeSingleReminderCancellation({
   let base = findReminderByExactReference(target, owned);
 
   if (!base) {
-    const resolved = resolveEntityReference({
+    const resolved = resolveContextReference({
       userOrPhone: user || phoneNumber,
       reference: target,
       candidates: buildReminderReferenceCandidates(activePrimary),
@@ -149,7 +149,7 @@ export async function executeSingleReminderCancellation({
     });
     if (resolved.status === 'RESOLVED' && resolved.item?.internalId) {
       base = owned.find((row) => row.id === resolved.item.internalId) || resolved.item.raw || null;
-      console.log(`${reqId} target resolved via entity context id=${base?.id || 'none'} status=${base?.status || 'unknown'}`);
+      console.log(`${reqId} target resolved via structured context id=${base?.id || 'none'} status=${base?.status || 'unknown'}`);
     }
   }
 
@@ -157,7 +157,7 @@ export async function executeSingleReminderCancellation({
     const scored = resolveReminderByScore(target, activePrimary);
     if (scored.status === 'RESOLVED') {
       base = scored.reminder;
-      console.log(`${reqId} target resolved via semantic score id=${base.id}`);
+      console.log(`${reqId} target resolved via deterministic score id=${base.id}`);
     } else if (scored.status === 'AMBIGUOUS') {
       console.warn(`${reqId} ambiguous target matches=${scored.reminders.length}`);
       return {

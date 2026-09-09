@@ -1,5 +1,5 @@
 import { supabase } from '../../infrastructure/database/index.js';
-import { resolveEntityReference } from '../core/working-memory.js';
+import { resolveContextReference } from '../core/context-reference.js';
 import {
   isStrictUUID,
   normalizeTextForMatching,
@@ -65,7 +65,7 @@ export async function resolveTaskTarget({
     return { status: 'RESOLVED', taskId: rawStr };
   }
 
-  const refRes = resolveEntityReference({
+  const refRes = resolveContextReference({
     userOrPhone,
     reference: rawStr,
     preferredType: 'task',
@@ -89,7 +89,6 @@ export async function resolveTaskTarget({
       task: refRes.item.raw || refRes.item,
     };
   }
-  if (refRes.status === 'RESOLVED_CONTAINER') return refRes;
   if (refRes.status === 'AMBIGUOUS') return { status: 'AMBIGUOUS', candidates: refRes.candidates };
 
   if (!userId) return { status: 'NOT_FOUND' };
