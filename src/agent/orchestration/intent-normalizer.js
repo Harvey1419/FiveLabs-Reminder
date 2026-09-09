@@ -1,5 +1,8 @@
-import { getWorkingMemory, resolveEntityReference } from '../core/working-memory.js';
-import { parseOrdinalReference } from '../../shared/entity-resolution.js';
+import { getWorkingMemory } from '../core/working-memory-store.js';
+import {
+  parseStructuredOrdinal,
+  resolveContextReference,
+} from '../core/context-reference.js';
 import { getLocalDateParts } from '../../shared/time.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import {
@@ -11,13 +14,17 @@ import {
 function resolveWorkingItem(user, target, preferredType) {
   const reference = String(target || '').trim();
   if (!reference) return null;
-  const resolved = resolveEntityReference({ userOrPhone: user, reference, preferredType });
+  const resolved = resolveContextReference({
+    reference,
+    preferredType,
+    workingMemory: getWorkingMemory(user),
+  });
   return resolved.status === 'RESOLVED' ? resolved.item : null;
 }
 
 function normalizePendingTarget(action, user) {
   if (action.domain !== 'pending') return action;
-  const ordinal = parseOrdinalReference(String(action.target || ''));
+  const ordinal = parseStructuredOrdinal(String(action.target || ''));
   if (ordinal !== -1) return action;
   const count = getWorkingMemory(user)?.pendingClarifications?.length || 0;
   return count > 0 ? { ...action, target: String(count) } : action;
