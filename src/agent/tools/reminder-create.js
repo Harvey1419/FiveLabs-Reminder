@@ -86,11 +86,7 @@ export async function executeReminderCreate({
   const userHasPro = isPro || user?.is_admin === true || hasProAccess(subscription, user);
   const enforceBilling = shouldEnforceBillingForUser(user);
 
-  let itemsCandidate = params.items || params.create || params.reminders || (Array.isArray(params) ? params : null);
-  if (itemsCandidate && typeof itemsCandidate === 'object' && !Array.isArray(itemsCandidate) && itemsCandidate.items) {
-    itemsCandidate = itemsCandidate.items;
-  }
-  const rawItems = Array.isArray(itemsCandidate) && itemsCandidate.length > 0 ? itemsCandidate : [params];
+  const rawItems = Array.isArray(params.items) && params.items.length > 0 ? params.items : [];
 
   const requestedReference = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
   const referenceDate = Number.isNaN(requestedReference.getTime()) ? new Date() : requestedReference;
@@ -99,15 +95,15 @@ export async function executeReminderCreate({
   const savedReminders = [];
 
   for (const item of rawItems) {
-    const content = item.content || item.reminder || item.text || item.title || '';
-    const targetTime = item.targetTime || item.sendAt || item.time || item.date || '';
-    const advanceMinutes = item.advanceMinutes || item.advance_minutes || null;
-    const advanceNoticeTime = item.advanceNoticeTime || item.advance_notice_time || null;
-    const recurrenceRule = item.recurrence || item.recurrenceRule || item.recurrence_rule || null;
-    const requiresConfirmation = item.requiresConfirmation || item.requires_confirmation || false;
-    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || item.nudge_interval_minutes || null;
-    const maxNudges = item.maxNudges || item.max_nudges || null;
-    const replacePending = item.replacePending || item.replace_pending || false;
+    const content = item.content || '';
+    const targetTime = item.targetTime || '';
+    const advanceMinutes = item.advanceMinutes || null;
+    const advanceNoticeTime = item.advanceNoticeTime || null;
+    const recurrenceRule = item.recurrence || null;
+    const requiresConfirmation = item.requiresConfirmation || false;
+    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || null;
+    const maxNudges = item.maxNudges || null;
+    const replacePending = item.replacePending || false;
     const checklist = item.checklist || null;
 
     if (!content) {
