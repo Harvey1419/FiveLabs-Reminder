@@ -185,7 +185,7 @@ describe('Unified Agenda & Morning Briefing', () => {
         ? createFluentQueryMock([reminder]) : createFluentQueryMock([]));
       vi.spyOn(db, 'acknowledgeReminder').mockResolvedValue({ ...reminder, acknowledged_at: new Date().toISOString() });
 
-      const res = await executeCanonical('manage_reminder', { action: 'acknowledge', query: 'veterinaria' }, testUser);
+      const res = await executeCanonical('manage_reminder', { action: 'acknowledge', target: 'veterinaria' }, testUser);
       expect(res.success).toBe(true);
       expect(res.rawSummary).not.toContain(reminder.id);
     });
