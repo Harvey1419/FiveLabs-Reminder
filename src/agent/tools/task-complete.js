@@ -3,7 +3,6 @@ import {
   updateTask,
 } from '../../infrastructure/database/index.js';
 import { getWorkingMemory } from '../core/working-memory.js';
-import { formatTaskCompletedCard } from './formatters.js';
 import { resolveTaskTarget } from './task-reference.js';
 
 /** Canonical task completion mutation. */
@@ -60,18 +59,11 @@ export async function executeTaskComplete({
     const completedCount = typeof result === 'object'
       ? (result?.completedCount || 0)
       : (Number(result) || 0);
-    const card = formatTaskCompletedCard({
-      completedCount,
-      entityName: resolvedEntityName,
-    }, language);
 
     return {
       success: true,
       action: 'completed_tasks',
       data: { completedCount, entityName: resolvedEntityName },
-      rawSummary: card,
-      formattedCard: card,
-      confirmation: card,
     };
   }
 
@@ -118,17 +110,10 @@ export async function executeTaskComplete({
     const completedCount = typeof result === 'object'
       ? (result?.completedCount || 0)
       : (Number(result) || 0);
-    const card = formatTaskCompletedCard({
-      completedCount,
-      entityName: resolution.entityName,
-    }, language);
     return {
       success: true,
       action: 'completed_tasks',
       data: { completedCount, entityName: resolution.entityName },
-      rawSummary: card,
-      formattedCard: card,
-      confirmation: card,
     };
   }
 
@@ -194,15 +179,11 @@ export async function executeTaskComplete({
   }
 
   const completedTask = updateResult.data || updateResult;
-  const formattedCard = formatTaskCompletedCard(completedTask, language);
   return {
     success: true,
     action: 'completed_task',
     taskId: completedTask.id,
     title: completedTask.title,
     data: completedTask,
-    rawSummary: formattedCard,
-    formattedCard,
-    confirmation: formattedCard,
   };
 }
