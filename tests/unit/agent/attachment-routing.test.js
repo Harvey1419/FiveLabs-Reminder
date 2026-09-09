@@ -39,15 +39,7 @@ const user = {
 };
 
 function modelToolCall(payload) {
-  return {
-    role: 'assistant',
-    content: null,
-    tool_calls: [{
-      id: 'turn_attachment',
-      type: 'function',
-      function: { name: 'execute_turn', arguments: JSON.stringify(payload) },
-    }],
-  };
+  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
 }
 
 beforeEach(() => {
@@ -79,11 +71,11 @@ describe('canonical attachment routing', () => {
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
 
     const options = callChatCompletion.mock.calls[0][1];
-    expect(options.toolChoice).toBe('required');
-    expect(options.tools).toHaveLength(1);
-    expect(options.tools[0].function.name).toBe('execute_turn');
-    expect(options.tools[0].function.parameters.properties.actions.items.properties.domain.enum)
-      .toEqual(['conversation']);
+    expect(options.toolChoice).toBe('none');
+    expect(options.tools).toBeNull();
+    expect(options.responseFormat.type).toBe('json_schema');
+    expect(options.responseFormat.json_schema.strict).toBe(true);
+    expect(options.responseFormat.json_schema.schema.properties.actions.items.properties.domain.enum).toEqual(['conversation']);
   });
 
   it('rejects an operational action from attachment-only evidence even when quoted context is present', async () => {

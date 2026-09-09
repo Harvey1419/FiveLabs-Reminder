@@ -38,15 +38,7 @@ const user = {
 };
 
 function modelToolCall(payload) {
-  return {
-    role: 'assistant',
-    content: null,
-    tool_calls: [{
-      id: 'turn_1',
-      type: 'function',
-      function: { name: 'execute_turn', arguments: JSON.stringify(payload) },
-    }],
-  };
+  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
 }
 
 beforeEach(() => {
@@ -67,7 +59,7 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.plan.actions).toEqual([{ domain: 'conversation', action: 'reply' }]);
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
     expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({
-      toolChoice: 'required', purpose: 'initial',
+      toolChoice: 'none', purpose: 'initial', responseFormat: expect.objectContaining({ type: 'json_schema' }),
     }));
     expect(executeTool).not.toHaveBeenCalled();
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
@@ -85,7 +77,7 @@ describe('Hermes direct TurnIntent router', () => {
 
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
     expect(result.intent).toBe('clarification');
-    expect(result.plan.type).toBe('missing_structured_decision');
+    expect(result.plan.type).toBe('invalid_intent');
     expect(result.confirmation).not.toContain('algo reconstruido');
     expect(executeTool).not.toHaveBeenCalled();
   });
@@ -97,7 +89,7 @@ describe('Hermes direct TurnIntent router', () => {
 
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
     expect(result.intent).toBe('clarification');
-    expect(result.plan.type).toBe('missing_structured_decision');
+    expect(result.plan.type).toBe('invalid_intent');
     expect(result.confirmation).not.toContain('¡Con gusto!');
     expect(executeTool).not.toHaveBeenCalled();
   });
@@ -112,7 +104,7 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.intent).toBe('chat');
     expect(result.confirmation).toContain('¡Hola!');
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion.mock.calls[0][1]).toMatchObject({ toolChoice: 'required', purpose: 'initial' });
+    expect(callChatCompletion.mock.calls[0][1]).toMatchObject({ toolChoice: 'none', purpose: 'initial', responseFormat: expect.objectContaining({ type: 'json_schema' }) });
     expect(executeTool).not.toHaveBeenCalled();
   });
 
@@ -124,7 +116,7 @@ describe('Hermes direct TurnIntent router', () => {
     const result = await routeMessage('Hola', user, [], { inputModality: 'audio', correlationId: 'audio-greeting-test' });
 
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'none', responseFormat: expect.objectContaining({ type: 'json_schema' }) }));
     expect(result.intent).toBe('chat');
     expect(result.confirmation).toBe('Entendido.');
   });
@@ -182,7 +174,7 @@ describe('Hermes direct TurnIntent router', () => {
     }));
     expect(result.confirmation).toContain('📋 *Pendientes actuales*');
     expect(callChatCompletion).toHaveBeenCalledTimes(1);
-    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'required' }));
+    expect(callChatCompletion).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ toolChoice: 'none', responseFormat: expect.objectContaining({ type: 'json_schema' }) }));
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
