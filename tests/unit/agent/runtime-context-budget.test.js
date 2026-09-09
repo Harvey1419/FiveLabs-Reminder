@@ -31,9 +31,11 @@ describe('Hermes runtime context budget', () => {
 
   it('keeps semantic operation detail in the execute_turn contract instead of duplicating it in the core prompt', () => {
     const [tool] = getIntentToolDefinitions();
-    expect(tool.function.description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
-    expect(tool.function.description).toContain('TEMPORAL SEMANTICS ARE ALSO A HARD BOUNDARY');
-    expect(tool.function.description).toContain('action=acknowledge');
-    expect(tool.function.description.length).toBeLessThan(6500);
+    const description = tool.function.description;
+    expect(description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
+    expect(description).toContain('Temporal meaning must remain typed');
+    expect(description).toContain('reminder.acknowledge');
+    expect(description).toContain('Completion is not an update');
+    expect(description.length).toBeLessThan(2600);
   });
 });
