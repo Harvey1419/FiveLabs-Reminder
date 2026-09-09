@@ -257,7 +257,10 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
     const data = await res.json();
     const choice = data.choices?.[0] || {};
     const responseMessage = choice.message || {};
-    const raw = cleanModelText(extractTextContent(responseMessage.content));
+    // Strict JSON is protocol data: prose cleanup would mutate string values
+    // or turn an invalid envelope into an apparently valid decision.
+    const text = extractTextContent(responseMessage.content);
+    const raw = responseFormat?.type === 'json_schema' ? text.trim() : cleanModelText(text);
     const toolCalls = Array.isArray(responseMessage.tool_calls) ? responseMessage.tool_calls : [];
     const finishReason = choice.finish_reason || null;
     const actualProvider = data.provider || requestedProviders[0] || 'default';

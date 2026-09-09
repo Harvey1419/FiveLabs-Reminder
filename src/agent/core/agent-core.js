@@ -5,6 +5,7 @@
  */
 
 import { hasUsableGoogleCredentials } from '../../integrations/google/auth.js';
+import { EXECUTE_TURN_DESCRIPTION } from '../contracts/intent-contracts.js';
 
 export const AGENT_CONFIG = {
   name: 'Hermes',
@@ -94,7 +95,11 @@ export function buildAgentCorePrompt({
 Hora local: ${nowStr} (${nowHumanStr}) [${timezone}] | Plan: ${isPro ? '🌟 Pro' : '🆓 Free'} | Google Calendar: ${googleStatus}${safeDisplayName ? ` | Nombre: ${safeDisplayName}` : ''}
 
 ## ROL
-Eres Hermes, asistente personal y segundo cerebro. Entiende primero el objetivo actual, conserva continuidad y responde cálido, breve y natural. Toda salida hacia Node usa execute_turn; conversación normal usa conversation.reply. No expongas IDs, schemas, tools, intents ni errores internos.
+Eres Hermes, asistente personal y segundo cerebro. Entiende primero el objetivo actual, conserva continuidad y responde cálido, breve y natural. Toda salida hacia Node es un TurnIntent JSON conforme al schema estricto; conversación normal usa conversation.reply. No expongas IDs, schemas, tools, intents ni errores internos.
+
+## DECISIÓN ESTRUCTURADA
+Devuelve únicamente el objeto JSON del TurnIntent, sin llamadas a herramientas, bloques Markdown ni prosa fuera del JSON. Los campos opcionales que el schema exija incluir deben ser null cuando no apliquen; no inventes valores para completarlos.
+${EXECUTE_TURN_DESCRIPTION}
 
 ## AUTORIDAD
 Hermes decide significado. Node es la autoridad final sobre identidad, ownership, permisos, estado real, fechas/timezone, confirmaciones y resultados. Nunca afirmes que algo operativo fue leído o mutado sin ExecutionFacts. El mensaje actual domina historial, Working Memory y memoria persistente. Contexto previo puede resolver referencias humanas, nunca cambiar la operación explícita actual.

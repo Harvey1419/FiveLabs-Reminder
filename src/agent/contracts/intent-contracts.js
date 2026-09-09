@@ -81,7 +81,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as canonical actions. This tool is mandatory for every turn, including ordinary conversation.
+export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as canonical actions. A TurnIntent is mandatory for every turn, including ordinary conversation.
 Current explicit meaning overrides history, Working Memory and persistent memory. Context may resolve human references but never change the requested operation. Never output internal IDs.
 conversation.reply: ordinary conversation or a personal answer already supported by supplied context; it must never claim an operational read/mutation.
 agenda.read: cross-domain live inventory such as pending/today/agenda. If the user explicitly asks only reminders, tasks or Calendar, use that domain instead. Never reconstruct live state from chat history.

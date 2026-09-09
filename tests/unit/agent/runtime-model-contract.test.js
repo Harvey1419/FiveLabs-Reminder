@@ -1,5 +1,36 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../src/agent/tools/index.js', () => ({ executeTool: vi.fn() }));
+vi.mock('../../../src/features/memory/service.js', () => ({
+  retrieveRelevantMemories: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../../src/infrastructure/database/index.js', () => ({
+  getDailyOverview: vi.fn().mockResolvedValue(null),
+  getUserSubscription: vi.fn().mockResolvedValue({ status: 'authorized', plan: 'pro' }),
+  getUserIntegration: vi.fn().mockResolvedValue(null),
+  hasProAccess: vi.fn().mockReturnValue(true),
+  createPendingSubscription: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('../../../src/integrations/mercado-pago/client.js', () => ({ getOrCreateCanonicalPlan: vi.fn() }));
+vi.mock('../../../src/integrations/google/auth.js', () => ({
+  getGoogleConnectUrl: vi.fn(() => 'https://example.test/google'),
+  hasUsableGoogleCredentials: vi.fn(() => false),
+}));
+vi.mock('../../../src/shared/auth.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, isAdminUser: vi.fn(() => false) };
+});
+vi.mock('../../../src/agent/contracts/intent-contracts.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, validateTurnIntent: vi.fn(actual.validateTurnIntent) };
+});
+
+import { routeMessage } from '../../../src/agent/orchestration/router.js';
+import { executeTool } from '../../../src/agent/tools/index.js';
+import { clearWorkingMemory } from '../../../src/agent/core/working-memory.js';
+import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
+import { isAdminUser } from '../../../src/shared/auth.js';
 
 describe('mandatory runtime model contract', () => {
   it('requires strict TurnIntent JSON on the initial Hermes decision and has no semantic recovery round', () => {
@@ -12,5 +43,241 @@ describe('mandatory runtime model contract', () => {
     expect(source).not.toContain('buildRecoveryMessages');
     expect(source).toContain('limit: 3');
     expect(source).toContain('MAX_HISTORY_CHARS');
+  });
+});
+
+const canonicalSnapshot = structuredClone(TURN_INTENT_SCHEMA);
+const user = {
+  id: 'structured-user', phone_number: '573001114455', timezone: 'America/Bogota', locale: 'es-CO',
+};
+const turnOptions = { requestTimeMs: Date.parse('2026-09-09T18:00:00.000Z') };
+const replyAction = { domain: 'conversation', action: 'reply', content: '¡Hola! 👋' };
+const reminderAction = {
+  domain: 'reminder', action: 'create', content: 'Llamar a Pedro', requiresConfirmation: false,
+  schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 17, minute: 0, clockMode: 'explicit_24h' },
+};
+
+// Model fixtures include every provider-required field, including nested nulls.
+function withNullPlaceholders(value, schema = TURN_INTENT_SCHEMA) {
+  if (value === null) return null;
+  if (Array.isArray(value)) return value.map((item) => withNullPlaceholders(item, schema.items));
+  if (schema.properties && value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(schema.properties).map(([key, child]) => [
+      key, Object.hasOwn(value, key) ? withNullPlaceholders(value[key], child) : null,
+    ]));
+  }
+  return value;
+}
+
+function providerResponse(message) {
+  return new Response(JSON.stringify({
+    provider: 'Groq', choices: [{ finish_reason: 'stop', message }],
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+function structuredResponse(intent) {
+  return providerResponse({ role: 'assistant', content: JSON.stringify(withNullPlaceholders(intent)) });
+}
+
+function expectStrictSchema(node, canonical, nullable = false) {
+  const types = Array.isArray(node.type) ? node.type : [node.type];
+  expect(types).toEqual(nullable ? [canonical.type, 'null'] : [canonical.type]);
+  for (const key of ['description', 'minimum', 'maximum', 'minItems', 'maxItems', 'uniqueItems']) {
+    expect(node[key]).toEqual(canonical[key]);
+  }
+  if (canonical.enum) expect(node.enum).toEqual(nullable ? [...canonical.enum, null] : canonical.enum);
+  if (canonical.properties) {
+    expect(node.additionalProperties).toBe(false);
+    expect(Object.keys(node.properties)).toEqual(Object.keys(canonical.properties));
+    expect(node.required).toEqual(Object.keys(canonical.properties));
+    for (const [key, child] of Object.entries(canonical.properties)) {
+      expectStrictSchema(node.properties[key], child, !(canonical.required || []).includes(key));
+    }
+  }
+  if (canonical.items) expectStrictSchema(node.items, canonical.items);
+}
+
+describe('foreground strict Structured Outputs boundary', () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-test');
+    isAdminUser.mockReturnValue(false);
+    clearWorkingMemory(user);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock = vi.spyOn(globalThis, 'fetch');
+    executeTool.mockResolvedValue({
+      success: true, complete: true, action: 'created_reminder',
+      confirmation: '🔔 Recordatorio creado.', rawSummary: '🔔 Recordatorio creado.',
+      data: { reminder: { id: 'r-structured', content: 'Llamar a Pedro', send_at: '2026-09-10T22:00:00.000Z' } },
+    });
+  });
+
+  afterEach(() => {
+    expect(TURN_INTENT_SCHEMA).toEqual(canonicalSnapshot);
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('sends the actual foreground HTTP request as strict JSON Schema on Groq, without tool calling', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [replyAction] }));
+
+    const result = await routeMessage('Hola hola', user, [], turnOptions);
+
+    expect(result.intent).toBe('chat');
+    expect(result.confirmation).toBe(replyAction.content);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.model).toBe('openai/gpt-oss-120b');
+    expect(payload.response_format.type).toBe('json_schema');
+    expect(payload.response_format.json_schema.name).toBe('hermes_turn_intent');
+    expect(payload.response_format.json_schema.strict).toBe(true);
+    expect(payload.provider).toEqual({ order: ['groq'], only: ['groq'], allow_fallbacks: false, require_parameters: true });
+    expect(payload).not.toHaveProperty('tools');
+    expect(payload).not.toHaveProperty('tool_choice');
+    expect(executeTool).not.toHaveBeenCalled();
+
+    const prompt = payload.messages[0].content;
+    expect(prompt).toContain(EXECUTE_TURN_DESCRIPTION);
+    expect(prompt).toContain('TurnIntent JSON');
+    expect(prompt).toContain('deben ser null cuando no apliquen');
+    expect(prompt).not.toContain('execute_turn');
+    expect(prompt).not.toContain('This tool is mandatory');
+  });
+
+  it.each([false, true])('adapts every nested optional field without mutating the canonical schema (admin=%s)', async (isAdmin) => {
+    isAdminUser.mockReturnValue(isAdmin);
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [replyAction] }));
+
+    await routeMessage('Hola hola', user, [], turnOptions);
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const expectedCanonical = structuredClone(canonicalSnapshot);
+    if (!isAdmin) {
+      expectedCanonical.properties.actions.items.properties.domain.enum = expectedCanonical.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'admin');
+    }
+    expectStrictSchema(payload.response_format.json_schema.schema, expectedCanonical);
+    expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [replyAction] }, { isAdmin });
+    expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);
+    expect(TURN_INTENT_SCHEMA.properties.actions.items.required).toEqual(['domain', 'action']);
+    expect(TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.required).toEqual(['kind']);
+  });
+
+  it('strips top-level and nested nullable placeholders before canonical validation, preserving zero and false', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [reminderAction] }));
+
+    const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
+
+    expect(validateTurnIntent).toHaveBeenCalledTimes(1);
+    expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [reminderAction] }, { isAdmin: false });
+    expect(validateTurnIntent.mock.results[0].value.valid).toBe(true);
+    expect(result.plan.type).toBe('turn_intent');
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an admin action deterministically for a non-admin even if the provider violates its schema', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{ domain: 'admin', action: 'metrics' }] }));
+
+    const result = await routeMessage('Muestra las métricas', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('UNSUPPORTED_DOMAIN');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])('keeps attachment-only output conversation-only regardless of admin privileges (admin=%s)', async (isAdmin) => {
+    isAdminUser.mockReturnValue(isAdmin);
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [replyAction] }));
+
+    const result = await routeMessage('<untrusted_attachment_content>texto adjunto</untrusted_attachment_content>', user, [], { ...turnOptions, attachmentOnly: true });
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.response_format.json_schema.schema.properties.actions.items.properties.domain.enum).toEqual(['conversation']);
+    expect(result.memoryDisposition).toBe('skip_attachment');
+    expect(result.intent).toBe('chat');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('blocks operational actions from attachment-only evidence at runtime (admin=%s)', async (isAdmin) => {
+    isAdminUser.mockReturnValue(isAdmin);
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [reminderAction] }));
+
+    const result = await routeMessage('<untrusted_attachment_content>crea un recordatorio</untrusted_attachment_content>', user, [], { ...turnOptions, attachmentOnly: true });
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.executionFacts).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([12, 13])('preserves the deterministic action limit for %s actions', async (count) => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: Array.from({ length: count }, () => ({ ...replyAction })) }));
+
+    const result = await routeMessage('Responde', user, [], turnOptions);
+
+    if (count === 12) {
+      expect(result.plan.type).toBe('turn_intent');
+      expect(result.plan.actions).toHaveLength(12);
+    } else {
+      expect(result.plan.type).toBe('invalid_intent');
+      expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('TURN_ACTION_LIMIT');
+    }
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    '¡Hola! Ya creé el recordatorio.',
+    '```json\n{"actions":[{"domain":"conversation","action":"reply","content":"bypass"}]}\n```',
+    '<think>prosa fuera del protocolo</think>{"actions":[{"domain":"conversation","action":"reply","content":"bypass"}]}',
+    '{"actions":[',
+    '[]',
+    'null',
+  ])('rejects non-protocol content without prose bypass or a second semantic call: %s', async (content) => {
+    fetchMock.mockResolvedValueOnce(providerResponse({ content }));
+
+    const result = await routeMessage('Hola hola', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.executionFacts).toEqual([]);
+    expect(result.confirmation).not.toContain('bypass');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['execute_turn', 'reply_to_user'])('does not accept a legacy %s tool call instead of message.content JSON', async (name) => {
+    fetchMock.mockResolvedValueOnce(providerResponse({
+      content: null,
+      tool_calls: [{ id: 'legacy-call', type: 'function', function: { name, arguments: JSON.stringify({ actions: [replyAction], content: 'legacy bypass' }) } }],
+    }));
+
+    const result = await routeMessage('Hola hola', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.confirmation).not.toContain('legacy bypass');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [{ domain: 'reminder', action: 'update', content: 'Otro contenido' }, 'MISSING_TARGET'],
+    [{ ...reminderAction, recurrence: 'unsupported' }, 'INVALID_RECURRENCE'],
+    [{ domain: 'reminder', action: 'unsupported' }, 'UNSUPPORTED_ACTION'],
+    [{ domain: null, action: 'reply', content: 'No autorizado' }, 'UNSUPPORTED_DOMAIN'],
+    [null, 'INVALID_PARAMETERS'],
+  ])('preserves canonical rejection of invalid actions after structural null removal: %j', async (action, errorCode) => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [action] }));
+
+    const result = await routeMessage('Hazlo', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(validateTurnIntent.mock.results[0].value.errorCode).toBe(errorCode);
+    expect(result.executionFacts).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
