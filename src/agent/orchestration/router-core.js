@@ -26,6 +26,10 @@ import { getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } fr
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
+const MAX_HISTORY_TURNS = 30;
+const MAX_HISTORY_CHARS = 12000;
+const MAX_HISTORY_TURN_CHARS = 2000;
+
 function safeLogSnippet(value, maxLength = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (!text) return '';
@@ -40,6 +44,24 @@ function summarizeAction(action = {}) {
   if (action.recurrence) parts.push(`recurrence=${action.recurrence}`);
   if (action.content || action.title || action.newName) parts.push('hasContentDelta=true');
   return parts.join(' ');
+}
+
+function compactHistoryForModel(history = []) {
+  const valid = history
+    .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
+    .slice(-MAX_HISTORY_TURNS)
+    .map(({ role, content }) => ({ role, content: content.slice(-MAX_HISTORY_TURN_CHARS) }));
+
+  const selected = [];
+  let usedChars = 0;
+  for (let index = valid.length - 1; index >= 0; index -= 1) {
+    const turn = valid[index];
+    const size = turn.content.length;
+    if (selected.length > 0 && usedChars + size > MAX_HISTORY_CHARS) break;
+    selected.push(turn);
+    usedChars += size;
+  }
+  return selected.reverse();
 }
 
 function normalizeModelResponse(modelResponse) {
@@ -93,9 +115,7 @@ function conversationReplyFromActions(actions = []) {
 function getAttachmentOnlyIntentTools({ isAdmin = false } = {}) {
   const tools = getIntentToolDefinitions({ isAdmin });
   const actionSchema = tools?.[0]?.function?.parameters?.properties?.actions?.items;
-  if (actionSchema?.properties?.domain) {
-    actionSchema.properties.domain.enum = ['conversation'];
-  }
+  if (actionSchema?.properties?.domain) actionSchema.properties.domain.enum = ['conversation'];
   return tools;
 }
 
@@ -110,11 +130,6 @@ function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
   };
 }
 
-/**
- * Bind backend-authoritative interaction state to semantic actions without
- * exposing database IDs to the model. This never infers an operation: it only
- * fills identity for an acknowledge action Hermes has already selected.
- */
 export function bindAuthoritativeFollowupTargets(intent, overview) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
   const active = Array.isArray(overview?.pendingConfirmationReminders)
@@ -180,8 +195,8 @@ function safeIntentError(language) {
 
 function structuredDecisionError(language) {
   return language === 'en'
-    ? 'I had a small problem interpreting that message. Please send it again.'
-    : 'Tuve un pequeño problema interpretando ese mensaje. Envíamelo de nuevo, por favor.';
+    ? 'I could not produce a safe structured decision for that message. Please send it again.'
+    : 'No pude producir una decisión estructurada segura para ese mensaje. Envíamelo de nuevo, por favor.';
 }
 
 function providerUnavailableError(language) {
@@ -190,20 +205,11 @@ function providerUnavailableError(language) {
     : 'Ahora mismo no pude acceder al proveedor de IA. No ejecuté ninguna acción. Inténtalo de nuevo en un momento.';
 }
 
-function buildRecoveryMessages({ prompt, pastTurns, messageText }) {
-  const recoveryInstruction = `\n\n## RECUPERACIÓN DE PROTOCOLO\nTu respuesta anterior no usó el protocolo estructurado. Devuelve exactamente una llamada a execute_turn. No respondas en prosa fuera de la llamada. Si el turno es conversación normal, agradecimiento, despedida, pregunta personal respondible desde el contexto o charla cotidiana, usa conversation.reply con el texto natural en content. Si el turno consulta o modifica estado operativo, usa el dominio correspondiente para que Node consulte la fuente de verdad.`;
-  return [
-    { role: 'system', content: `${prompt}${recoveryInstruction}` },
-    ...pastTurns,
-    { role: 'user', content: messageText },
-  ];
-}
-
 /**
  * Canonical agent route:
- * context -> Hermes semantic decision -> TurnIntent -> deterministic tools -> cards.
- * Model prose is never an alternate execution path. All ordinary conversation,
- * including greetings, uses conversation.reply through the same protocol.
+ * context -> one Hermes semantic decision -> TurnIntent -> deterministic tools -> cards.
+ * execute_turn is mandatory even for ordinary conversation; there is no prose
+ * bypass and no second semantic recovery call.
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
@@ -235,7 +241,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   const contextStart = Date.now();
   const [relevantMemories, dailyOverview, subscription, googleIntegration] = await Promise.all([
-    retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 5 }),
+    retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 3 }),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
     user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
@@ -268,14 +274,12 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name,
   });
 
-  let pastTurns = Array.isArray(history) ? history.slice() : [];
-  const lastTurn = pastTurns.at(-1);
-  if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) pastTurns.pop();
-  pastTurns = pastTurns
-    .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
-    .slice(-30)
-    .map(({ role, content }) => ({ role, content }));
+  let rawPastTurns = Array.isArray(history) ? history.slice() : [];
+  const lastTurn = rawPastTurns.at(-1);
+  if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) rawPastTurns.pop();
+  const pastTurns = compactHistoryForModel(rawPastTurns);
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
+  const historyChars = pastTurns.reduce((sum, turn) => sum + turn.content.length, 0);
 
   const messages = [
     { role: 'system', content: prompt },
@@ -286,14 +290,16 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ? getAttachmentOnlyIntentTools({ isAdmin })
     : getIntentToolDefinitions({ isAdmin });
 
+  console.log(`[router req=${requestId}] model context promptChars=${prompt.length} historyTurns=${pastTurns.length} historyChars=${historyChars} memories=${relevantMemories?.length || 0}`);
+
   const modelStart = Date.now();
   let modelResponse;
   try {
     modelResponse = await callChatCompletion(messages, {
-      max_tokens: 2000,
+      max_tokens: 1400,
       correlationId: options?.correlationId,
       tools: intentTools,
-      toolChoice: isAttachmentOnlyTurn ? 'required' : 'auto',
+      toolChoice: 'required',
       returnMessage: true,
       purpose: 'initial',
     });
@@ -302,7 +308,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     modelResponse = { content: '', tool_calls: [], unavailable: true };
   }
   let modelElapsedMs = Date.now() - modelStart;
-  let decision = normalizeModelResponse(modelResponse);
+  const decision = normalizeModelResponse(modelResponse);
   console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
   let collected = collectIntent(decision.toolCalls, { isAdmin });
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
@@ -319,48 +325,11 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
-  if (!collected.intent && !isAttachmentOnlyTurn && !decision.unavailable) {
-    console.warn(`[router req=${requestId}] prose-only semantic miss; attempting one structured recovery`);
-    const recoveryStart = Date.now();
-    try {
-      const recoveryResponse = await callChatCompletion(buildRecoveryMessages({ prompt, pastTurns, messageText }), {
-        max_tokens: 1200,
-        correlationId: options?.correlationId,
-        tools: intentTools,
-        toolChoice: 'auto',
-        returnMessage: true,
-        purpose: 'structured_recovery',
-        startStage: 'secondary',
-      });
-      modelElapsedMs += Date.now() - recoveryStart;
-      decision = normalizeModelResponse(recoveryResponse);
-      collected = collectIntent(decision.toolCalls, { isAdmin });
-      console.log(`[router req=${requestId}] recovery decision toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
-    } catch (error) {
-      modelElapsedMs += Date.now() - recoveryStart;
-      console.warn(`[router req=${requestId}] structured recovery failed:`, error.message);
-      decision = { content: '', toolCalls: [], unavailable: true };
-      collected = { valid: true, intent: null };
-    }
-
-    if (!collected.valid) {
-      console.warn(`[router req=${requestId}] rejected recovered semantic intent: ${collected.errorCode} ${collected.error}`);
-      return {
-        intent: 'clarification',
-        entities: conversationStateEntities(user),
-        language,
-        confirmation: safeIntentError(language),
-        ctaUrl: null, ctaHeader: null, ctaButtonText: null,
-        plan: { type: 'invalid_recovered_intent' }, executionFacts: [], memoryDisposition: 'skip_operational',
-      };
-    }
-  }
-
   if (!collected.intent) {
     const confirmation = decision.unavailable
       ? providerUnavailableError(language)
       : structuredDecisionError(language);
-    console.warn(`[router req=${requestId}] structured decision missing after recovery; refusing prose bypass`);
+    console.warn(`[router req=${requestId}] required execute_turn missing; refusing prose bypass`);
     return {
       intent: 'clarification',
       entities: conversationStateEntities(user),
