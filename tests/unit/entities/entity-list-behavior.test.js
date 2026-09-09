@@ -11,11 +11,13 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 
 const { getEntitiesByUser, deleteEntities } = await import('../../../src/infrastructure/database/index.js');
 const { executeEntityTool } = await import('../../../src/agent/tools/entities.js');
+const { createExecutionFact } = await import('../../../src/agent/core/execution-facts.js');
+const { TOOL_NAMES } = await import('../../../src/agent/contracts/tool-names.js');
 
 describe('entity list behavior', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('returns project names instead of only a count', async () => {
+  it('returns project names as structured truth and presents them canonically', async () => {
     getEntitiesByUser.mockResolvedValue([
       { id: 'one', name: 'Reminder Pro', category: 'project' },
       { id: 'two', name: 'trabajo', category: 'project' },
@@ -28,14 +30,23 @@ describe('entity list behavior', () => {
       language: 'es',
     });
 
-    expect(result.success).toBe(true);
-    expect(result.formattedCard).toContain('Tus proyectos');
-    expect(result.formattedCard).not.toContain('(2)');
-    expect(result.formattedCard).toContain('*Reminder Pro*');
-    expect(result.formattedCard).toContain('*trabajo*');
+    expect(result).toMatchObject({ success: true, action: 'listed_entities' });
+    expect(result.data).toHaveLength(2);
+    expect(result.formattedCard).toBeUndefined();
+
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_ENTITY,
+      params: { action: 'list', category: 'project' },
+      result,
+      language: 'es',
+    });
+    expect(fact.card).toContain('Tus proyectos');
+    expect(fact.card).not.toContain('(2)');
+    expect(fact.card).toContain('*Reminder Pro*');
+    expect(fact.card).toContain('*trabajo*');
   });
 
-  it('labels categories when listing all entities', async () => {
+  it('labels categories through the canonical entity presenter', async () => {
     getEntitiesByUser.mockResolvedValue([
       { id: 'one', name: 'Toriú', category: 'company' },
       { id: 'two', name: 'trabajo', category: 'project' },
@@ -48,10 +59,18 @@ describe('entity list behavior', () => {
       language: 'es',
     });
 
-    expect(result.formattedCard).toContain('Tus entidades registradas');
-    expect(result.formattedCard).not.toContain('(2)');
-    expect(result.formattedCard).toContain('*Toriú* — empresa');
-    expect(result.formattedCard).toContain('*trabajo* — proyecto');
+    expect(result.data).toHaveLength(2);
+    expect(result.formattedCard).toBeUndefined();
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_ENTITY,
+      params: { action: 'list' },
+      result,
+      language: 'es',
+    });
+    expect(fact.card).toContain('Tus entidades registradas');
+    expect(fact.card).not.toContain('(2)');
+    expect(fact.card).toContain('*Toriú* — empresa');
+    expect(fact.card).toContain('*trabajo* — proyecto');
   });
 
   it('stages destructive project deletion and preserves explicit exceptions', async () => {
@@ -96,7 +115,7 @@ describe('entity list behavior', () => {
     expect(result.formattedCard).toContain('tarea completada permanecerá');
   });
 
-  it('executes a previously confirmed project deletion', async () => {
+  it('executes a confirmed deletion as structured truth and presents cleanup canonically', async () => {
     deleteEntities.mockResolvedValue({
       success: true,
       entities: [{ id: 'one', name: 'Trabajo', category: 'project' }],
@@ -115,10 +134,18 @@ describe('entity list behavior', () => {
     });
 
     expect(result).toMatchObject({ success: true, action: 'deleted_entities' });
-    expect(result.formattedCard).toContain('Proyecto eliminado');
-    expect(result.formattedCard).toContain('Trabajo');
-    expect(result.formattedCard).toContain('tarea pendiente asociada');
-    expect(result.formattedCard).toContain('recordatorio relacionado');
-    expect(result.formattedCard).toContain('tarea completada permanece');
+    expect(result.formattedCard).toBeUndefined();
+
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_ENTITY,
+      params: { action: 'delete', targetName: 'Trabajo', category: 'project', scope: 'single' },
+      result,
+      language: 'es',
+    });
+    expect(fact.card).toContain('Proyecto eliminado');
+    expect(fact.card).toContain('Trabajo');
+    expect(fact.card).toContain('tarea pendiente asociada');
+    expect(fact.card).toContain('recordatorio relacionado');
+    expect(fact.card).toContain('tarea completada permanece');
   });
 });
