@@ -1,0 +1,26 @@
+name: Groq Tool Choice Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/evals/groq-tool-choice-probe.js'
+      - '.github/workflows/groq-tool-choice-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GROQ_PROBE_REPETITIONS: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run live Groq probe
+        if: ${{ env.OPENROUTER_API_KEY != '' }}
+        run: node scripts/evals/groq-tool-choice-probe.js
+      - name: Report missing credential
+        if: ${{ env.OPENROUTER_API_KEY == '' }}
+        run: echo 'OPENROUTER_API_KEY is not configured as a GitHub Actions secret; live probe skipped.'
