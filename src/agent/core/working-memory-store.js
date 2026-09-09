@@ -126,7 +126,6 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
       ? memoryData.pendingClarifications.map((item) => ({
         type: item.type || 'clarification',
         content: String(item.content || '').trim(),
-        sourceTimeText: String(item.sourceTimeText || '').trim(),
         advanceMinutes: Number.isFinite(Number(item.advanceMinutes)) ? Number(item.advanceMinutes) : null,
         reason: String(item.reason || '').trim(),
         question: String(item.question || '').trim(),
@@ -134,7 +133,6 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
           ? {
             content: String(item.proposedReminder.content || item.content || '').trim(),
             targetTime: String(item.proposedReminder.targetTime).trim(),
-            sourceTimeText: String(item.proposedReminder.sourceTimeText || item.sourceTimeText || '').trim(),
             advanceMinutes: Number.isFinite(Number(item.proposedReminder.advanceMinutes))
               ? Number(item.proposedReminder.advanceMinutes)
               : null,
@@ -204,7 +202,7 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     pendingSection = [
       '[Typed Pending State — propuestas de fondo NO ejecutadas]',
       ...lines,
-      'Si el mensaje actual responde o modifica una propuesta, usa exactamente una transición: execute_pending, discard_pending, revise_pending o clarification_request. Si cambia de tema y no aborda la propuesta, atiende el mensaje actual sin forzar una transición y conserva este estado pendiente. No repitas acciones ya completadas ni trates la propuesta como ejecutada.',
+      'Si el mensaje actual responde o modifica una propuesta, usa exactamente una transición canónica: pending.execute, pending.discard, pending.revise o clarification.request. Si cambia de tema y no aborda la propuesta, atiende el mensaje actual sin forzar una transición y conserva este estado pendiente. No repitas acciones ya completadas ni trates la propuesta como ejecutada.',
     ];
     if (!wm.items || wm.items.length === 0) return pendingSection.join('\n');
   }
@@ -226,8 +224,8 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
 
   const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
   const containerInstruction = wm.activeEntity
-    ? ` Para operar sobre toda la lista/contenedor "${wm.activeEntity}": usa scope: "all", entityName: "${wm.activeEntity}".`
-    : ' Para operar sobre todo el conjunto: usa scope: "all".';
+    ? ` Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá las tareas o entidad vigentes contra la fuente de verdad.`
+    : '';
 
   return [
     ...pendingSection,
