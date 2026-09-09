@@ -22,7 +22,7 @@ import { composeExecutionReply } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
-import { getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
+import { getForegroundToolDefinitions, getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
@@ -82,9 +82,16 @@ function normalizeModelResponse(modelResponse) {
 
 function collectIntent(toolCalls, { isAdmin = false } = {}) {
   const executeCalls = toolCalls.filter((call) => call.name === TOOL_NAMES.EXECUTE_TURN);
-  const unknownCalls = toolCalls.filter((call) => call.name !== TOOL_NAMES.EXECUTE_TURN);
-  if (unknownCalls.length > 0) {
-    return { valid: false, errorCode: 'UNKNOWN_TOOL', error: 'El modelo intentó usar una capacidad no disponible.' };
+  const replyCalls = toolCalls.filter((call) => call.name === TOOL_NAMES.REPLY_TO_USER);
+  const unknownCalls = toolCalls.filter((call) => ![TOOL_NAMES.EXECUTE_TURN, TOOL_NAMES.REPLY_TO_USER].includes(call.name));
+  if (unknownCalls.length > 0 || (executeCalls.length > 0 && replyCalls.length > 0) || replyCalls.length > 1) {
+    return { valid: false, errorCode: 'UNKNOWN_TOOL', error: 'El modelo intentó usar una combinación de capacidades no disponible.' };
+  }
+  if (replyCalls.length === 1) {
+    const parsed = parseIntentArguments(replyCalls[0].arguments);
+    const content = typeof parsed?.content === 'string' ? parsed.content.trim() : '';
+    if (!content) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'reply_to_user requiere contenido.' };
+    return { valid: true, intent: { actions: [{ domain: 'conversation', action: 'reply', content }], excluded: [] } };
   }
   if (executeCalls.length === 0) return { valid: true, intent: null };
 
@@ -288,7 +295,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   ];
   const intentTools = isAttachmentOnlyTurn
     ? getAttachmentOnlyIntentTools({ isAdmin })
-    : getIntentToolDefinitions({ isAdmin });
+    : getForegroundToolDefinitions({ isAdmin });
 
   console.log(`[router req=${requestId}] model context promptChars=${prompt.length} historyTurns=${pastTurns.length} historyChars=${historyChars} memories=${relevantMemories?.length || 0}`);
 
@@ -329,7 +336,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     const confirmation = decision.unavailable
       ? providerUnavailableError(language)
       : structuredDecisionError(language);
-    console.warn(`[router req=${requestId}] required execute_turn missing; refusing prose bypass`);
+    console.warn(`[router req=${requestId}] required structured tool missing; refusing prose bypass`);
     return {
       intent: 'clarification',
       entities: conversationStateEntities(user),

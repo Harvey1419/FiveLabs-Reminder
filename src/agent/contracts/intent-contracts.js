@@ -99,6 +99,26 @@ export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   return [{ type: 'function', function: { name: TOOL_NAMES.EXECUTE_TURN, description: EXECUTE_TURN_DESCRIPTION, parameters } }];
 }
 
+export function getConversationToolDefinition() {
+  return {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.REPLY_TO_USER,
+      description: 'Reply naturally when the current turn requires no operational read or mutation. Never claim that a task, reminder, calendar, memory, subscription, pending proposal, or agenda operation was executed.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { content: { type: 'string', minLength: 1 } },
+        required: ['content'],
+      },
+    },
+  };
+}
+
+export function getForegroundToolDefinitions({ isAdmin = false } = {}) {
+  return [...getIntentToolDefinitions({ isAdmin }), getConversationToolDefinition()];
+}
+
 export function normalizeIntentAction(_domain, action) { return String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_'); }
 function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
 function mutationRequiresTarget(domain, action, raw) {

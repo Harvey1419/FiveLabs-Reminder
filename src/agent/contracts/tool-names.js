@@ -1,5 +1,6 @@
 export const TOOL_NAMES = Object.freeze({
   EXECUTE_TURN: 'execute_turn',
+  REPLY_TO_USER: 'reply_to_user',
   MANAGE_REMINDER: 'manage_reminder',
   MANAGE_TASK: 'manage_task',
   MANAGE_ENTITY: 'manage_entity',

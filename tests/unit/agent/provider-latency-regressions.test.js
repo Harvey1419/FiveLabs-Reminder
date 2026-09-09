@@ -66,10 +66,7 @@ describe('foreground provider latency policy', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expect(payloads[0].provider.only).toEqual(['groq']);
-    expect(payloads[0].tool_choice).toEqual({
-      type: 'function',
-      function: { name: 'execute_turn' },
-    });
+    expect(payloads[0].tool_choice).toBe('required');
     expect(payloads[1].provider.only).toEqual(['baseten/fp8']);
   });
 
