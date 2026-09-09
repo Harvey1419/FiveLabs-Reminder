@@ -2,6 +2,8 @@ export {
   saveWorkingMemory,
   getWorkingMemory,
   clearWorkingMemory,
+  getWorkingMemorySnapshot,
+  hydrateWorkingMemoryFromHistory,
   formatWorkingMemoryPrompt,
   sanitizeResponseText,
   tokenizeText,
