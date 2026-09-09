@@ -13,7 +13,6 @@ import {
 import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
-import { callPendingTransitionVerification } from '../providers/client.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -487,35 +486,6 @@ async function executePendingAction(action, context) {
   }
 
   const selected = pending[position - 1];
-  const requestedTransition = action.action === 'execute'
-    ? 'execute_pending'
-    : action.action === 'discard' ? 'discard_pending' : 'revise_pending';
-
-  const verification = await callPendingTransitionVerification({
-    userText: context.userMessage,
-    pendingState: {
-      count: pending.length,
-      selectedPosition: position,
-      selected: {
-        content: selected.content,
-        question: selected.question,
-        proposedAt: selected.proposedReminder?.targetTime || null,
-        proposedOperation: selected.proposedOperation || null,
-        status: 'not_executed',
-      },
-    },
-    proposedOperation: { kind: requestedTransition, schedule: action.schedule || null },
-    latestAssistantMessage: context.latestAssistantMessage || '',
-    correlationId: context.correlationId,
-  });
-
-  if (!verification || verification.confidence !== 'high' || verification.transition !== requestedTransition) {
-    const question = context.language === 'en'
-      ? 'Should I execute the pending proposal, change it, or discard it?'
-      : '¿Quieres que ejecute la propuesta pendiente, que la modifique o que la descarte?';
-    return { toolName: 'orchestrator', params: {}, result: failedResult('PENDING_TRANSITION_UNCERTAIN', question, context.language, { requiresClarification: true }) };
-  }
-
   const remaining = pending.filter((_item, index) => index !== position - 1);
   if (action.action === 'discard') {
     saveRemainingPendingState(context.user, memory, remaining);
