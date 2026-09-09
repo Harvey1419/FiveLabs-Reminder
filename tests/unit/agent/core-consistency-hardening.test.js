@@ -43,7 +43,7 @@ describe('core consistency hardening', () => {
     expect(normalized.actions[0].target).toBe('la segunda');
     expect(normalized.actions[0].title).toBeUndefined();
     expect(normalized.actions[0].content).toBeUndefined();
-    expect(normalized.actions[0].schedule).toEqual({ kind: 'inherit_context' });
+    expect(normalized.actions[0].schedule).toBeUndefined();
   });
 
   it('treats inherit_context without cached time as a no-op patch instead of inventing a time', () => {

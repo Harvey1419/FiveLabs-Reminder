@@ -107,7 +107,7 @@ describe('direct TurnIntent contract', () => {
     const description = tool.function.description;
     expect(description).toContain('action=acknowledge');
     expect(description).toContain('Completion is not an update');
-    expect(description).toContain('reminder.update only when changing stored reminder fields');
+    expect(description).toContain('Use reminder.update only when the user refers to an EXISTING reminder');
   });
 
   it('teaches the model that operational inventory cannot use conversation.reply', () => {

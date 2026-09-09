@@ -111,8 +111,12 @@ export async function extractAndSaveMemories({
 }) {
   if (!userId || !userText) return [];
 
-  if (memoryDisposition === 'skip_operational') {
-    console.log('[memoryService] SKIPPED extraction: semantic turn classification is operational-only.');
+  // skip_operational still blocks an unresolved/proposed operational turn that
+  // produced no execution facts. Once verified execution facts exist, filtering
+  // is clause-based so durable residual user facts from the same message remain
+  // eligible for learning.
+  if (memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
+    console.log('[memoryService] SKIPPED extraction: unresolved operational-only turn.');
     return [];
   }
 

@@ -50,7 +50,7 @@ describe('architecture hardening', () => {
     }, context);
     expect(normalized.actions[0].title).toBeUndefined();
     expect(normalized.actions[0].content).toBeUndefined();
-    expect(normalized.actions[0].schedule).toEqual({ kind: 'inherit_context' });
+    expect(normalized.actions[0].schedule).toBeUndefined();
   });
 
   it('uses result presentation context instead of silently assuming Bogota', () => {

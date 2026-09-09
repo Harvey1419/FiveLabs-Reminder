@@ -91,6 +91,39 @@ describe('durable memory extraction policy', () => {
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
+  it('preserves a durable residual fact even when the same turn executed an operational action', async () => {
+    const userText = 'Borona es mi perrita. Recuérdame su cita mañana a las 4.';
+    const fact = {
+      ...reminderFact,
+      card: 'Recordatorio programado: cita de Borona mañana a las 4.',
+    };
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{
+      topicKey: 'pet/borona/relation',
+      category: 'fact',
+      content: 'Borona es la perrita del usuario.',
+      evidence: 'Borona es mi perrita',
+      entityName: 'Borona',
+      entityCategory: 'pet',
+    }]));
+
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1',
+      userText,
+      assistantReply: 'Cita programada.',
+      executionFacts: [fact],
+      memoryDisposition: 'skip_operational',
+    });
+
+    expect(saved).toHaveLength(1);
+    expect(saveMemory).toHaveBeenCalledWith(expect.objectContaining({
+      topicKey: 'pet/borona/relation',
+      content: 'Borona es la perrita del usuario.',
+    }));
+    const prompt = callMemoryExtraction.mock.calls[0][0];
+    expect(prompt[1].content).toContain('Borona es mi perrita');
+    expect(prompt[1].content).not.toContain('Recuérdame su cita mañana a las 4');
+  });
+
   it('skips an unfinished appointment turn using semantic orchestration metadata', async () => {
     const saved = await extractAndSaveMemories({
       userId: 'user-1',

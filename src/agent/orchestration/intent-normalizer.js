@@ -80,7 +80,7 @@ function normalizeReadScope(action, context) {
         .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
         .join('-');
       const explicit = buildExplicitTaskDateScope(localDate);
-      if (explicit) return { ...action, scope: explicit };
+      return explicit ? { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
     }
   }
 
@@ -142,28 +142,8 @@ function normalizeRecurringReminder(action, context) {
 }
 
 /**
- * Calendar updates are patches. Reuse live context when it is known, but never
- * turn an identity reference ("la segunda", an event name, etc.) into content.
- */
-function normalizeCalendarPatch(action, context) {
-  if (action.domain !== 'calendar' || action.action !== 'update') return action;
-
-  const item = resolveWorkingItem(context.user, action.target, 'calendar_event');
-  const existingTitle = item?.summary || item?.title || item?.content || item?.raw?.summary || null;
-  const normalized = { ...action };
-
-  if (!normalized.title && !normalized.content && existingTitle) {
-    normalized.title = existingTitle;
-  }
-  if (!normalized.schedule) {
-    normalized.schedule = { kind: 'inherit_context' };
-  }
-  return normalized;
-}
-
-/**
  * Add deterministic runtime context only. This layer never changes semantic
- * domain/action and never performs a second language classification.
+ * domain/action and never turns identity/context into patch content.
  */
 export function normalizeTurnIntentForRuntime(intent, context) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
@@ -174,7 +154,6 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);
     action = normalizeRecurringReminder(action, context);
-    action = normalizeCalendarPatch(action, context);
     return action;
   });
   return { ...intent, actions };
