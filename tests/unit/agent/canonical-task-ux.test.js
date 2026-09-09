@@ -52,4 +52,71 @@ describe('canonical task UX', () => {
     expect(fact.card).not.toContain('[Reminder]');
     expect(fact.card).not.toContain('legacy agenda formatter should not win');
   });
+
+  it('renders task.create from structured data instead of the tool formatter', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'create' },
+      result: {
+        success: true,
+        action: 'created_tasks_batch',
+        data: [{ id: '1', title: 'Preparar propuesta', entityName: 'Trabajo' }],
+        formattedCard: 'legacy create card',
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toContain('✅ *Tarea creada*');
+    expect(fact.card).toContain('📁 *Trabajo*\n• Preparar propuesta');
+    expect(fact.card).not.toContain('legacy create card');
+  });
+
+  it('renders task.complete from verified task data', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'complete' },
+      result: {
+        success: true,
+        action: 'completed_task',
+        data: { id: '1', title: 'Enviar factura', entities: { name: 'Trabajo' } },
+        formattedCard: 'legacy complete card',
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toContain('✅ *Tarea completada*');
+    expect(fact.card).toContain('📁 *Trabajo*\n• Enviar factura');
+    expect(fact.card).not.toContain('legacy complete card');
+  });
+
+  it('renders task.update and task.delete through the canonical boundary', () => {
+    const updated = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'update' },
+      result: {
+        success: true,
+        action: 'updated_task',
+        data: { id: '1', title: 'Enviar factura final', entities: { name: 'Trabajo' } },
+        formattedCard: 'legacy update card',
+      },
+      language: 'es',
+    });
+    const deleted = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'delete' },
+      result: {
+        success: true,
+        action: 'deleted_task',
+        data: { id: '1', title: 'Enviar factura final' },
+        formattedCard: 'legacy delete card',
+      },
+      language: 'es',
+    });
+
+    expect(updated.card).toContain('🔄 *Tarea actualizada*');
+    expect(updated.card).toContain('📁 *Trabajo*\n• Enviar factura final');
+    expect(updated.card).not.toContain('legacy update card');
+    expect(deleted.card).toBe('🗑️ *Tarea eliminada*\n\n• Enviar factura final');
+    expect(deleted.card).not.toContain('legacy delete card');
+  });
 });
