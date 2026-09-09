@@ -11,7 +11,7 @@ import {
   formatHumanFriendlyDateTime,
   DEFAULT_TIMEZONE,
 } from '../../shared/time.js';
-import { resolveEntityReference } from '../core/working-memory.js';
+import { resolveContextReference } from '../core/context-reference.js';
 import { isStrictUUID } from '../../shared/entity-resolution.js';
 import { formatReminderUpdatedCard } from './formatters.js';
 import {
@@ -87,7 +87,7 @@ async function resolveTargetReminder({ target, owner, user }) {
       : { targetId: null, pending, notFound: true };
   }
 
-  const resolution = resolveEntityReference({
+  const resolution = resolveContextReference({
     userOrPhone: user || owner.phoneNumber,
     reference: targetText,
     candidates: pending,
