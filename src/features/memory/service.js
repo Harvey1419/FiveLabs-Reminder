@@ -1,5 +1,4 @@
 import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
-import { getActiveMemories } from '../../infrastructure/database/memories.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
@@ -111,10 +110,6 @@ export async function extractAndSaveMemories({
 }) {
   if (!userId || !userText) return [];
 
-  // skip_operational still blocks an unresolved/proposed operational turn that
-  // produced no execution facts. Once verified execution facts exist, filtering
-  // is clause-based so durable residual user facts from the same message remain
-  // eligible for learning.
   if (memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
     console.log('[memoryService] SKIPPED extraction: unresolved operational-only turn.');
     return [];
@@ -128,9 +123,7 @@ export async function extractAndSaveMemories({
 
   const trimmed = trustedUserText.toLowerCase();
   const PURE_TRIVIAL_REGEX = /^(hola|hi|hey|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|ok|listo|dale|gracias|muchas\s+gracias|de\s+nada|chao|adi[oó]s|done|ya|perfecto|entendido)$/i;
-  if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) {
-    return [];
-  }
+  if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) return [];
 
   const eligibleText = getMemoryEligibleText(trustedUserText, executionFacts);
   if (!eligibleText) {
@@ -141,18 +134,12 @@ export async function extractAndSaveMemories({
   try {
     const messages = [
       { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
-      {
-        role: 'user',
-        content: `User text (the only factual source):\n<user_text>${eligibleText}</user_text>`,
-      },
+      { role: 'user', content: `User text (the only factual source):\n<user_text>${eligibleText}</user_text>` },
     ];
 
     const rawResponse = await callMemoryExtraction(messages, { temperature: 0, max_tokens: 500 });
     const candidates = parseJsonArray(rawResponse);
-
-    if (!Array.isArray(candidates) || candidates.length === 0) {
-      return [];
-    }
+    if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
     const saved = [];
     for (const item of candidates) {
@@ -165,7 +152,6 @@ export async function extractAndSaveMemories({
 
       let canonicalName = item.entityName ? String(item.entityName).trim() : null;
       let matchedEntity = null;
-
       if (canonicalName) {
         try {
           matchedEntity = await findOrCreateEntityFuzzy({
@@ -173,16 +159,13 @@ export async function extractAndSaveMemories({
             name: canonicalName,
             category: item.entityCategory || 'other',
           });
-          if (matchedEntity?.name) {
-            canonicalName = matchedEntity.name;
-          }
+          if (matchedEntity?.name) canonicalName = matchedEntity.name;
         } catch (entErr) {
           console.warn('[memoryService] entity fuzzy match error:', entErr.message);
         }
       }
 
       const safeTopicKey = canonicalizeTopicKey(item.topicKey, canonicalName, item.category);
-
       const mem = await saveMemory({
         userId,
         topicKey: safeTopicKey,
@@ -195,7 +178,6 @@ export async function extractAndSaveMemories({
         console.log(`[memoryService] SAVED MEMORY (${safeTopicKey}): "${item.content}"`);
       }
     }
-
     return saved;
   } catch (err) {
     console.error('[memoryService] extractAndSaveMemories threw:', err);
@@ -204,9 +186,8 @@ export async function extractAndSaveMemories({
 }
 
 /**
- * Stable self-knowledge is not ordinary RAG. These weights rank structured
- * memory records for the small core profile that travels with every meaningful
- * turn. They inspect stored taxonomy, never wording from the current query.
+ * Structured profile ranking remains available for explicit profile-oriented
+ * surfaces, but is not injected unconditionally into every Hermes turn.
  */
 const CORE_PROFILE_ASPECTS = new Set([
   'identity', 'name', 'residence', 'location', 'occupation', 'work', 'job',
@@ -217,7 +198,6 @@ function coreProfileScore(memory) {
   const topic = String(memory?.topic_key || '').toLowerCase();
   const category = String(memory?.category || '').toLowerCase();
   if (!topic) return 0;
-
   if (topic.startsWith('profile/')) return 100;
   if (topic.startsWith('preference/')) return 95;
   if (category === 'preference') return 90;
@@ -225,7 +205,6 @@ function coreProfileScore(memory) {
   const segments = topic.split('/').filter(Boolean);
   const aspect = segments.at(-1) || '';
   if (CORE_PROFILE_ASPECTS.has(aspect) && category === 'fact') return 80;
-
   return 0;
 }
 
@@ -239,34 +218,13 @@ export function selectCoreProfileMemories(memories, limit = 10) {
     .map(({ memory }) => ({ ...memory, category: `core_profile:${memory.category || 'fact'}` }));
 }
 
-function mergeMemoryContext(coreProfile, semanticMemories, limit) {
-  const merged = [];
-  const seen = new Set();
-  const add = (memory) => {
-    if (!memory?.content) return;
-    const identity = memory.id || memory.topic_key || `${memory.category}:${memory.content}`;
-    if (seen.has(identity)) return;
-    seen.add(identity);
-    merged.push(memory);
-  };
-
-  for (const memory of coreProfile || []) add(memory);
-  for (const memory of semanticMemories || []) add(memory);
-
-  const safeLimit = Math.min(Math.max(5, Number(limit) || 5) + 10, 20);
-  return merged.slice(0, safeLimit);
-}
-
 /**
- * Retrieve second-brain context in two complementary lanes:
- * 1) a compact stable core profile, always available on meaningful turns;
- * 2) semantic recall specific to the current message.
- *
- * Both lanes use the same active memories table and are deduplicated before the
- * prompt, so there is still exactly one persistent source of truth.
+ * Retrieve only query-relevant durable memory for the foreground turn.
+ * `limit` is the total prompt budget, not a semantic result count plus an
+ * additional always-on profile. Relevance is delegated to the hybrid semantic
+ * search (vector threshold + FTS); Node does not maintain a phrase list for
+ * greetings or other conversational forms.
  */
-const PURE_TRIVIAL_INTERACTION_REGEX = /^(hola|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|muchas\s+gracias|mil\s+gracias|de\s+nada|ok|listo|dale|de\s+una|perfecto|entendido|chao|adi[oó]s|hasta\s+luego|done|ya)$/i;
-
 export async function retrieveRelevantMemories({ userId, queryText, limit = 5 }) {
   if (!userId || !queryText) return [];
 
@@ -276,20 +234,17 @@ export async function retrieveRelevantMemories({ userId, queryText, limit = 5 })
     .trim();
   if (!retrievalQuery) return [];
 
+  // Attachment content is untrusted evidence. With only a tiny trusted caption,
+  // avoid allowing the attachment body to drive durable-memory retrieval.
   if (hasAttachmentEvidence && retrievalQuery.split(/\s+/).length <= 5) return [];
 
-  const clean = retrievalQuery.toLowerCase().replace(/[.,!?:;¿¡]/g, '');
-  if (clean.length < 4 || PURE_TRIVIAL_INTERACTION_REGEX.test(clean)) {
-    return [];
-  }
-
-  const [activeMemories, semanticMemories] = await Promise.all([
-    getActiveMemories({ userId, limit: 40 }),
-    searchMemories({ userId, query: retrievalQuery, limit }),
-  ]);
-
-  const coreProfile = selectCoreProfileMemories(activeMemories, 10);
-  return mergeMemoryContext(coreProfile, semanticMemories, limit);
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 10);
+  const semanticMemories = await searchMemories({
+    userId,
+    query: retrievalQuery,
+    limit: safeLimit,
+  });
+  return (Array.isArray(semanticMemories) ? semanticMemories : []).slice(0, safeLimit);
 }
 
 function parseJsonArray(text) {
@@ -368,6 +323,5 @@ function getMemoryCandidateRejection(item, sourceText, executionFacts) {
   if (corpus && (tokenOverlap(evidence, corpus) >= 0.5 || tokenOverlap(item.content, corpus) >= 0.5)) {
     return 'overlaps_operational_execution';
   }
-
   return null;
 }
