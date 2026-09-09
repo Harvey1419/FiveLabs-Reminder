@@ -1,5 +1,6 @@
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { sanitizeResponseText } from './working-memory.js';
+import { formatCanonicalTaskCreate } from '../../shared/task-presentation.js';
 import {
   formatCanonicalReminderCreateBatch,
   formatCanonicalReminderCancelBatch,
@@ -155,25 +156,10 @@ function compactFactLines(fact) {
 function formatTaskCreateBatch(facts, language) {
   const items = facts.flatMap((fact) => asArray(fact.presentationData));
   if (items.length === 0) return null;
-  const header = language === 'en'
-    ? `✅ *${items.length} task${items.length === 1 ? '' : 's'} created*`
-    : `✅ *${items.length} ${items.length === 1 ? 'tarea creada' : 'tareas creadas'}*`;
-
-  const groups = new Map();
-  for (const item of items) {
-    const project = item?.entityName || (language === 'en' ? 'No project' : 'Sin proyecto');
-    if (!groups.has(project)) groups.set(project, []);
-    groups.get(project).push(item);
-  }
-
-  const sections = [];
-  for (const [project, projectItems] of groups.entries()) {
-    const noProjectLabel = language === 'en' ? 'No project' : 'Sin proyecto';
-    const showProject = project !== noProjectLabel || groups.size > 1;
-    const lines = projectItems.map((item) => `• ${item.title || item.content || (language === 'en' ? 'Task' : 'Tarea')}`);
-    sections.push(`${showProject ? `📁 *${project}*\n` : ''}${lines.join('\n')}`);
-  }
-  return `${header}\n\n${sections.join('\n\n')}`;
+  return formatCanonicalTaskCreate(items, {
+    language,
+    timezone: facts.map((fact) => fact.presentationContext?.timezone).find(Boolean) || 'UTC',
+  });
 }
 
 function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) {
