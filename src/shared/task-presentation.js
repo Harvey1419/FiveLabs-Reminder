@@ -53,3 +53,70 @@ export function formatTaskProjectGroups(tasks = [], {
     return `${projectIcon} *${project}*\n${lines.join('\n')}`;
   }).join('\n\n');
 }
+
+function normalizeTaskArray(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.tasks)) return data.tasks;
+  if (data && typeof data === 'object') return [data];
+  return [];
+}
+
+export function formatCanonicalTaskCreate(data, {
+  language = 'es',
+  timezone = 'UTC',
+} = {}) {
+  const tasks = normalizeTaskArray(data);
+  if (tasks.length === 0) return language === 'en' ? '✅ *Task created*' : '✅ *Tarea creada*';
+  const header = language === 'en'
+    ? `✅ *${tasks.length === 1 ? 'Task created' : `${tasks.length} tasks created`}*`
+    : `✅ *${tasks.length === 1 ? 'Tarea creada' : `${tasks.length} tareas creadas`}*`;
+  const groups = formatTaskProjectGroups(tasks, { language, timezone, isMultiDay: true });
+  return `${header}${groups ? `\n\n${groups}` : ''}`;
+}
+
+export function formatCanonicalTaskComplete(data, {
+  language = 'es',
+  timezone = 'UTC',
+} = {}) {
+  if (data?.completedCount !== undefined) {
+    const count = Number(data.completedCount || 0);
+    const project = String(data.entityName || '').trim();
+    const header = language === 'en'
+      ? `✅ *${count === 1 ? '1 task completed' : `${count} tasks completed`}*`
+      : `✅ *${count === 1 ? '1 tarea completada' : `${count} tareas completadas`}*`;
+    if (!project) return header;
+    return `${header}\n\n📁 *${project}*`;
+  }
+
+  const tasks = normalizeTaskArray(data);
+  const task = tasks[0];
+  if (!task) return language === 'en' ? '✅ *Task completed*' : '✅ *Tarea completada*';
+  const header = language === 'en' ? '✅ *Task completed*' : '✅ *Tarea completada*';
+  const groups = formatTaskProjectGroups([task], { language, timezone, isMultiDay: false });
+  return `${header}${groups ? `\n\n${groups}` : ''}`;
+}
+
+export function formatCanonicalTaskUpdate(data, {
+  language = 'es',
+  timezone = 'UTC',
+} = {}) {
+  const tasks = normalizeTaskArray(data);
+  const task = tasks[0];
+  if (!task) return language === 'en' ? '🔄 *Task updated*' : '🔄 *Tarea actualizada*';
+
+  const header = language === 'en' ? '🔄 *Task updated*' : '🔄 *Tarea actualizada*';
+  const groups = formatTaskProjectGroups([task], { language, timezone, isMultiDay: true });
+  const priority = task?.priority && task.priority !== 'medium'
+    ? `\n${language === 'en' ? '⚡ Priority' : '⚡ Prioridad'}: ${task.priority}`
+    : '';
+  return `${header}${groups ? `\n\n${groups}` : ''}${priority}`;
+}
+
+export function formatCanonicalTaskDelete(data, {
+  language = 'es',
+} = {}) {
+  const task = normalizeTaskArray(data)[0] || null;
+  const header = language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*';
+  const title = String(task?.title || task?.content || '').trim();
+  return title ? `${header}\n\n• ${title}` : header;
+}

@@ -76,12 +76,14 @@ export async function executeTaskDelete({
     };
   }
 
-  const confirmation = language === 'en' ? '🗑️ *Task deleted*' : '🗑️ *Tarea eliminada*';
+  const resolvedTask = resolution.task || resolution.item?.raw || resolution.item || null;
   return {
     success: true,
     action: 'deleted_task',
-    rawSummary: language === 'en' ? 'Task deleted.' : 'Tarea eliminada.',
-    formattedCard: confirmation,
-    confirmation,
+    data: {
+      id: resolution.taskId,
+      title: resolvedTask?.title || resolvedTask?.summary || null,
+      entityName: resolvedTask?.entities?.name || resolvedTask?.entityName || null,
+    },
   };
 }

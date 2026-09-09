@@ -1,7 +1,6 @@
 import { updateTask } from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
-import { formatTaskUpdatedCard } from './formatters.js';
 import { resolveTaskTarget } from './task-reference.js';
 
 export async function executeTaskUpdate({
@@ -123,15 +122,11 @@ export async function executeTaskUpdate({
   }
 
   const updatedTask = updateResult.data || updateResult;
-  const formattedCard = formatTaskUpdatedCard(updatedTask, language);
   return {
     success: true,
     action: 'updated_task',
     taskId: updatedTask.id,
     title: updatedTask.title,
     data: updatedTask,
-    rawSummary: formattedCard,
-    formattedCard,
-    confirmation: formattedCard,
   };
 }

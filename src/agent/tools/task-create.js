@@ -5,7 +5,6 @@ import {
 } from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
-import { formatTaskCreatedCard } from './formatters.js';
 
 /** Canonical task creation mutation. Natural-language interpretation belongs
  * upstream; this module only validates and persists structured task data. */
@@ -155,12 +154,9 @@ export async function executeTaskCreate({
     };
   }
 
-  const formattedCard = formatTaskCreatedCard(createdTasks, language);
   return {
     success: true,
     action: 'created_tasks_batch',
     data: createdTasks,
-    rawSummary: formattedCard,
-    formattedCard,
   };
 }

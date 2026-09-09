@@ -2,6 +2,12 @@ import { sanitizeResponseText } from './working-memory.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { formatCanonicalAgenda, formatCanonicalTaskList } from '../../shared/agenda-presentation.js';
 import {
+  formatCanonicalTaskComplete,
+  formatCanonicalTaskCreate,
+  formatCanonicalTaskDelete,
+  formatCanonicalTaskUpdate,
+} from '../../shared/task-presentation.js';
+import {
   formatCanonicalReminderAcknowledge,
   formatCanonicalReminderCancel,
   formatCanonicalReminderCreate,
@@ -35,8 +41,12 @@ function getCanonicalCard(toolName, params, result, language) {
     return formatCanonicalAgenda(result.data, presentation);
   }
 
-  if (toolName === TOOL_NAMES.MANAGE_TASK && params?.action === 'list' && result?.data) {
-    return formatCanonicalTaskList(result.data, presentation);
+  if (toolName === TOOL_NAMES.MANAGE_TASK) {
+    if (params?.action === 'list' && result?.data) return formatCanonicalTaskList(result.data, presentation);
+    if (params?.action === 'create' && result?.data) return formatCanonicalTaskCreate(result.data, presentation);
+    if (params?.action === 'complete' && result?.data) return formatCanonicalTaskComplete(result.data, presentation);
+    if (params?.action === 'update' && result?.data) return formatCanonicalTaskUpdate(result.data, presentation);
+    if (params?.action === 'delete') return formatCanonicalTaskDelete(result?.data, presentation);
   }
 
   if (toolName === TOOL_NAMES.MANAGE_REMINDER && params?.action === 'create' && result?.data) {
