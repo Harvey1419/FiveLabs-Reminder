@@ -20,33 +20,6 @@ const DOMAIN_ACTIONS = Object.freeze({
   admin: new Set(['metrics']),
 });
 
-const ACTION_ALIASES = Object.freeze({
-  conversation: Object.freeze({ chat: 'reply', respond: 'reply', answer: 'reply' }),
-  agenda: Object.freeze({ get: 'read', show: 'read', list: 'read', view: 'read', pending: 'read' }),
-  reminder: Object.freeze({}),
-  task: Object.freeze({
-    add: 'create', get: 'list', read: 'list', show: 'list', search: 'list', done: 'complete', finish: 'complete',
-    remove: 'delete', cancel: 'delete', rename: 'update', edit: 'update', change: 'update', modify: 'update',
-    reschedule: 'update', move: 'update',
-  }),
-  entity: Object.freeze({ get: 'list', read: 'list', show: 'list', remove: 'delete' }),
-  calendar: Object.freeze({
-    add: 'create', get: 'list', read: 'list', show: 'list', find: 'search', remove: 'delete',
-    rename: 'update', edit: 'update', change: 'update', modify: 'update', reschedule: 'update', move: 'update',
-  }),
-  memory: Object.freeze({
-    read: 'search', get: 'search', recall: 'search', retrieve: 'search', remember: 'search', find: 'search',
-    show: 'list', all: 'list',
-    add: 'save', create: 'save', store: 'save', learn: 'save', set: 'save', write: 'save',
-    remember_fact: 'save', memorize: 'save', persist: 'save',
-    remove: 'forget', delete: 'forget', erase: 'forget',
-  }),
-  subscription: Object.freeze({ get: 'status', read: 'status', checkout: 'link', remove: 'cancel' }),
-  pending: Object.freeze({ accept: 'execute', confirm: 'execute', reject: 'discard', cancel: 'discard', modify: 'revise', update: 'revise' }),
-  clarification: Object.freeze({ ask: 'request' }),
-  admin: Object.freeze({ read: 'metrics', get: 'metrics' }),
-});
-
 const typedSchedule = {
   type: 'object',
   additionalProperties: false,
@@ -76,7 +49,7 @@ const actionSchema = {
   additionalProperties: false,
   properties: {
     domain: { type: 'string', enum: DOMAINS, description: 'Semantic domain. Choose by current user meaning, never by keyword matching or stale Working Memory.' },
-    action: { type: 'string', description: 'Plain semantic operation. For create, the user introduces a new object. For update, the user refers to an existing object and changes it.' },
+    action: { type: 'string', description: 'Canonical semantic operation for the selected domain. Use only the action vocabulary documented for execute_turn; Node does not translate semantic aliases.' },
     target: { type: 'string', description: 'Human reference to an EXISTING item such as its title, “la segunda”, or “2”. Never an internal ID. Omit target for create actions; Working Memory may resolve a target but must never invent one for a new object.' },
     content: { type: 'string', description: 'For conversation.reply, the concise natural-language reply. For reminder/task create, the new object content. For update, only the requested content delta—not the existing object identity.' },
     title: { type: 'string' },
@@ -173,12 +146,8 @@ export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   }];
 }
 
-export function normalizeIntentAction(domain, action) {
-  const normalizedDomain = String(domain || '').trim().toLowerCase();
-  const normalizedAction = String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (!normalizedAction) return '';
-  if (DOMAIN_ACTIONS[normalizedDomain]?.has(normalizedAction)) return normalizedAction;
-  return ACTION_ALIASES[normalizedDomain]?.[normalizedAction] || normalizedAction;
+export function normalizeIntentAction(_domain, action) {
+  return String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
 
 export function validateTurnIntent(intent, { isAdmin = false } = {}) {
