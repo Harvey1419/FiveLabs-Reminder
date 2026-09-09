@@ -1,0 +1,66 @@
+name: Apply Groq Conversation Tool Experiment
+on:
+  push:
+    branches: [fix/groq-conversation-tool]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Patch conversation protocol
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/agent/contracts/tool-names.js')
+          s=p.read_text()
+          s=s.replace("  EXECUTE_TURN: 'execute_turn',", "  EXECUTE_TURN: 'execute_turn',\n  REPLY_TO_USER: 'reply_to_user',")
+          p.write_text(s)
+
+          p=Path('src/agent/contracts/intent-contracts.js')
+          s=p.read_text()
+          marker="export function getIntentToolDefinitions({ isAdmin = false } = {}) {"
+          insert="""export function getConversationToolDefinition() {\n  return {\n    type: 'function',\n    function: {\n      name: TOOL_NAMES.REPLY_TO_USER,\n      description: 'Reply naturally when the current turn requires no operational read or mutation. Never claim that a task, reminder, calendar, memory, subscription, pending proposal, or agenda operation was executed.',\n      parameters: {\n        type: 'object',\n        additionalProperties: false,\n        properties: { content: { type: 'string', minLength: 1 } },\n        required: ['content'],\n      },\n    },\n  };\n}\n\nexport function getForegroundToolDefinitions({ isAdmin = false } = {}) {\n  return [...getIntentToolDefinitions({ isAdmin }), getConversationToolDefinition()];\n}\n\n"""
+          s=s.replace(marker, marker)
+          # insert helpers after getIntentToolDefinitions function's one-line body
+          needle="  return [{ type: 'function', function: { name: TOOL_NAMES.EXECUTE_TURN, description: EXECUTE_TURN_DESCRIPTION, parameters } }];\n}\n\n"
+          s=s.replace(needle, needle+insert)
+          p.write_text(s)
+
+          p=Path('src/agent/orchestration/router-core.js')
+          s=p.read_text()
+          s=s.replace("import { getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';", "import { getForegroundToolDefinitions, getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';")
+          old="""function collectIntent(toolCalls, { isAdmin = false } = {}) {\n  const executeCalls = toolCalls.filter((call) => call.name === TOOL_NAMES.EXECUTE_TURN);\n  const unknownCalls = toolCalls.filter((call) => call.name !== TOOL_NAMES.EXECUTE_TURN);\n  if (unknownCalls.length > 0) {\n    return { valid: false, errorCode: 'UNKNOWN_TOOL', error: 'El modelo intentó usar una capacidad no disponible.' };\n  }\n  if (executeCalls.length === 0) return { valid: true, intent: null };\n\n  const actions = [];\n"""
+          new="""function collectIntent(toolCalls, { isAdmin = false } = {}) {\n  const executeCalls = toolCalls.filter((call) => call.name === TOOL_NAMES.EXECUTE_TURN);\n  const replyCalls = toolCalls.filter((call) => call.name === TOOL_NAMES.REPLY_TO_USER);\n  const unknownCalls = toolCalls.filter((call) => ![TOOL_NAMES.EXECUTE_TURN, TOOL_NAMES.REPLY_TO_USER].includes(call.name));\n  if (unknownCalls.length > 0 || (executeCalls.length > 0 && replyCalls.length > 0) || replyCalls.length > 1) {\n    return { valid: false, errorCode: 'UNKNOWN_TOOL', error: 'El modelo intentó usar una combinación de capacidades no disponible.' };\n  }\n  if (replyCalls.length === 1) {\n    const parsed = parseIntentArguments(replyCalls[0].arguments);\n    const content = typeof parsed?.content === 'string' ? parsed.content.trim() : '';\n    if (!content) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'reply_to_user requiere contenido.' };\n    return { valid: true, intent: { actions: [{ domain: 'conversation', action: 'reply', content }], excluded: [] } };\n  }\n  if (executeCalls.length === 0) return { valid: true, intent: null };\n\n  const actions = [];\n"""
+          if old not in s: raise SystemExit('collectIntent anchor missing')
+          s=s.replace(old,new)
+          s=s.replace("    : getIntentToolDefinitions({ isAdmin });", "    : getForegroundToolDefinitions({ isAdmin });")
+          s=s.replace("console.warn(`[router req=${requestId}] required execute_turn missing; refusing prose bypass`);", "console.warn(`[router req=${requestId}] required structured tool missing; refusing prose bypass`);")
+          p.write_text(s)
+
+          p=Path('src/agent/providers/client.js')
+          s=p.read_text()
+          s=s.replace("      // GPT-OSS/Groq is most reliable when the only canonical foreground tool is\n      // selected explicitly instead of using generic `required`. Hermes still\n      // validates that execute_turn is actually returned before accepting output.\n      requiredToolName: 'execute_turn',\n", "")
+          p.write_text(s)
+          PY
+      - run: npm install --global pnpm@9.15.9
+      - run: pnpm install --frozen-lockfile
+      - name: Validate
+        run: |
+          find src scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          pnpm run test:unit
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name 'Hermes CI'
+          git config user.email 'actions@users.noreply.github.com'
+          rm .github/workflows/apply-groq-conversation-tool.yml
+          git add src tests .github/workflows/apply-groq-conversation-tool.yml
+          git commit -m 'fix: expose explicit conversational tool to Groq'
+          git push origin HEAD:fix/groq-conversation-tool
