@@ -24,8 +24,9 @@ function resolveWorkingItem(user, target, preferredType) {
 
 function normalizePendingTarget(action, user) {
   if (action.domain !== 'pending') return action;
-  const ordinal = parseStructuredOrdinal(String(action.target || ''));
-  if (ordinal !== -1) return action;
+  const rawTarget = String(action.target || '').trim();
+  const ordinal = parseStructuredOrdinal(rawTarget);
+  if (rawTarget && ordinal !== -1) return action;
   const count = getWorkingMemory(user)?.pendingClarifications?.length || 0;
   return count > 0 ? { ...action, target: String(count) } : action;
 }
