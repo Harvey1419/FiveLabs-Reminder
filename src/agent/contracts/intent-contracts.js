@@ -50,11 +50,11 @@ const actionSchema = {
   properties: {
     domain: { type: 'string', enum: DOMAINS, description: 'Semantic domain. Choose by current user meaning, never by keyword matching or stale Working Memory.' },
     action: { type: 'string', description: 'Canonical semantic operation for the selected domain. Use only the action vocabulary documented for execute_turn; Node does not translate semantic aliases.' },
-    target: { type: 'string', description: 'Human reference to an EXISTING item such as its title, “la segunda”, or “2”. Never an internal ID. Omit target for create actions; Working Memory may resolve a target but must never invent one for a new object.' },
+    target: { type: 'string', description: 'Human reference to an EXISTING item such as its title, “la segunda”, or “2”. Never an internal ID. Existing-object mutations require target. For pending actions, target selects the pending proposal only and is never reused as domain-object identity. Omit target for create actions.' },
     content: { type: 'string', description: 'For conversation.reply, the concise natural-language reply. For reminder/task create, the new object content. For update, only the requested content delta—not the existing object identity.' },
     title: { type: 'string' },
     description: { type: 'string' },
-    entityName: { type: 'string' },
+    entityName: { type: 'string', description: 'Entity/container name. On pending.revise this may express a revised entity identity; target still refers only to the pending proposal.' },
     oldName: { type: 'string' },
     newName: { type: 'string', description: 'New human-facing name/title when renaming an existing reminder, task, calendar event or entity.' },
     sourceName: { type: 'string' },
@@ -122,12 +122,13 @@ For a general cross-domain question such as “qué tengo hoy”, “qué tenemo
 If the user explicitly names only reminders, tasks or Google Calendar, use that domain instead of agenda. Live operational state must never be answered with conversation.reply or reconstructed from chat history.
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: use reminder.create when the user introduces a new reminder, even if Working Memory contains an older reminder. A new reminder has content plus its requested schedule/recurrence and NO target. If one message introduces several new reminders, emit one reminder.create action for each requested reminder. Never reinterpret new reminders as edits merely because a previous reminder is in context.
 Use reminder.update only when the user refers to an EXISTING reminder and asks to change it. update requires a human target identifying that existing reminder; content/title/schedule/recurrence carry only the requested delta. For a pure rename, put the existing item in target and the new title in newName. For time changes, keep only the temporal delta in schedule.
+The same identity rule applies to task and calendar mutations: target identifies the existing object; title/content/schedule/description are patch fields only and can never substitute for a missing target.
 When the current context contains an active reminder notification/follow-up and the user says the real-world action is already done or happened (for example “listo”, “ya salí”, “ya lo hice”, “ya está”, “te decía que ya salí”), use domain=reminder action=acknowledge with that reminder as target. Completion is not an update. Use reminder.update only when changing stored reminder fields such as content, time, recurrence or advance notice.
 If the user asks to delete, remove, cancel or get rid of an existing reminder, use domain=reminder action=cancel, never update. For a recurring reminder, cancelling the reminder means cancelling its active series unless the user explicitly asks to skip only one occurrence.
 For recurring reminders, keep recurrence on the same reminder action. Use recurrence=daily for “todos los días/every day”, weekdays for business days, weekly for weekly routines and monthly for monthly routines. A recurring clock time means the next future occurrence of that routine; Node chooses the correct first date if today's occurrence already passed.
 TEMPORAL SEMANTICS ARE ALSO A HARD BOUNDARY: relative_offset is only for elapsed durations from now such as “en 30 minutos”. “mañana a las 10:15” => relative_day_time with dayOffset=1 and the clock fields. “el viernes a las 3” => weekday_time. A date/day plus clock time must never become relative_offset.
 A plain durable personal statement is conversation.reply + background learning. Use memory.save only when the user explicitly asks to remember/store something now; use memory.search only when supplied memory context is insufficient.
-Use target only for an existing item. Keep time meaning in schedule; Node resolves dates/timezones. Put an advance notice on the same reminder/event action via advanceMinutes whenever possible.
+Use target only for an existing item. For pending.execute/discard/revise, target selects the pending proposal; it must never be reused as the entity/reminder identity inside that proposal. Keep time meaning in schedule; Node resolves dates/timezones. Put an advance notice on the same reminder/event action via advanceMinutes whenever possible.
 For mixed messages, excluded contains only the exact clauses that must not execute. Use conversation.reply only for a conversational clause that genuinely needs a user-facing reply; do not duplicate verified operational cards.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
@@ -148,6 +149,20 @@ export function getIntentToolDefinitions({ isAdmin = false } = {}) {
 
 export function normalizeIntentAction(_domain, action) {
   return String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function hasTarget(raw) {
+  return typeof raw?.target === 'string' && raw.target.trim().length > 0;
+}
+
+function mutationRequiresTarget(domain, action, raw) {
+  if (domain === 'reminder') {
+    if (action === 'cancel' && ['all', 'elapsed'].includes(raw.scope)) return false;
+    return ['update', 'cancel', 'acknowledge', 'add_advance'].includes(action);
+  }
+  if (domain === 'task') return ['update', 'complete', 'delete'].includes(action);
+  if (domain === 'calendar') return ['update', 'delete'].includes(action);
+  return false;
 }
 
 export function validateTurnIntent(intent, { isAdmin = false } = {}) {
@@ -177,8 +192,8 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) {
       return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     }
-    if (domain === 'reminder' && action === 'update' && !(typeof raw.target === 'string' && raw.target.trim())) {
-      return { valid: false, errorCode: 'MISSING_TARGET', error: 'reminder.update requiere una referencia explícita a un recordatorio existente.' };
+    if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw)) {
+      return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     }
     if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) {
       return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
