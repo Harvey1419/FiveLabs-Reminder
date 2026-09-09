@@ -398,6 +398,7 @@ export async function callChatCompletion(messages, {
   returnMessage = false,
   purpose = 'initial',
   startStage = null,
+  responseFormat: requestedResponseFormat = null,
 } = {}) {
   const openrouterKey = getOpenRouterApiKey();
   const nativeToolMode = Array.isArray(tools);
@@ -427,9 +428,9 @@ export async function callChatCompletion(messages, {
     purpose,
     temperature,
     maxTokens: max_tokens,
-    responseFormat: nativeToolMode ? null : { type: 'json_object' },
-    tools,
-    toolChoice,
+    responseFormat: requestedResponseFormat || (nativeToolMode ? null : { type: 'json_object' }),
+    tools: requestedResponseFormat ? null : tools,
+    toolChoice: requestedResponseFormat ? 'none' : toolChoice,
     returnMessage,
     logPrefix,
   });

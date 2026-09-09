@@ -40,15 +40,7 @@ const user = {
 };
 
 function modelToolCall(payload) {
-  return {
-    role: 'assistant',
-    content: null,
-    tool_calls: [{
-      id: 'turn-provider',
-      type: 'function',
-      function: { name: 'execute_turn', arguments: JSON.stringify(payload) },
-    }],
-  };
+  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
 }
 
 beforeEach(() => {

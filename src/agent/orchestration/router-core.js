@@ -22,7 +22,7 @@ import { composeExecutionReply } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
-import { getForegroundToolDefinitions, getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
+import { TURN_INTENT_SCHEMA, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
@@ -119,11 +119,41 @@ function conversationReplyFromActions(actions = []) {
     .join('\n\n');
 }
 
-function getAttachmentOnlyIntentTools({ isAdmin = false } = {}) {
-  const tools = getIntentToolDefinitions({ isAdmin });
-  const actionSchema = tools?.[0]?.function?.parameters?.properties?.actions?.items;
-  if (actionSchema?.properties?.domain) actionSchema.properties.domain.enum = ['conversation'];
-  return tools;
+function nullableSchema(schema) {
+  const node = structuredClone(schema);
+  if (node.items) node.items = nullableSchema(node.items);
+  if (node.properties) {
+    const originallyRequired = new Set(node.required || []);
+    for (const [key, child] of Object.entries(node.properties)) {
+      const converted = nullableSchema(child);
+      if (!originallyRequired.has(key)) {
+        const types = Array.isArray(converted.type) ? converted.type : [converted.type];
+        if (converted.type && !types.includes('null')) converted.type = [...types, 'null'];
+        if (Array.isArray(converted.enum) && !converted.enum.includes(null)) converted.enum = [...converted.enum, null];
+      }
+      node.properties[key] = converted;
+    }
+    node.required = Object.keys(node.properties);
+    node.additionalProperties = false;
+  }
+  return node;
+}
+function stripStructuredNulls(value) {
+  if (Array.isArray(value)) return value.map(stripStructuredNulls);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== null).map(([key, child]) => [key, stripStructuredNulls(child)]));
+}
+function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
+  const schema = structuredClone(TURN_INTENT_SCHEMA);
+  const domains = schema.properties.actions.items.properties.domain.enum;
+  schema.properties.actions.items.properties.domain.enum = attachmentOnly ? ['conversation'] : domains.filter((domain) => isAdmin || domain !== 'admin');
+  return nullableSchema(schema);
+}
+function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
+  if (modelResponse?.unavailable) return { unavailable: true, validation: null };
+  const parsed = parseIntentArguments(modelResponse?.content);
+  if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };
+  return { unavailable: false, validation: validateTurnIntent(stripStructuredNulls(parsed), { isAdmin }) };
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
@@ -293,9 +323,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ...pastTurns,
     { role: 'user', content: messageText },
   ];
-  const intentTools = isAttachmentOnlyTurn
-    ? getAttachmentOnlyIntentTools({ isAdmin })
-    : getForegroundToolDefinitions({ isAdmin });
+  const turnResponseFormat = { type: 'json_schema', json_schema: { name: 'hermes_turn_intent', strict: true, schema: getStructuredTurnSchema({ isAdmin, attachmentOnly: isAttachmentOnlyTurn }) } };
 
   console.log(`[router req=${requestId}] model context promptChars=${prompt.length} historyTurns=${pastTurns.length} historyChars=${historyChars} memories=${relevantMemories?.length || 0}`);
 
@@ -305,8 +333,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     modelResponse = await callChatCompletion(messages, {
       max_tokens: 1400,
       correlationId: options?.correlationId,
-      tools: intentTools,
-      toolChoice: 'required',
+      tools: null,
+      toolChoice: 'none',
+      responseFormat: turnResponseFormat,
       returnMessage: true,
       purpose: 'initial',
     });
@@ -316,8 +345,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
   let modelElapsedMs = Date.now() - modelStart;
   const decision = normalizeModelResponse(modelResponse);
-  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
-  let collected = collectIntent(decision.toolCalls, { isAdmin });
+  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms structuredChars=${decision.content.length} unavailable=${decision.unavailable}`);
+  const structuredDecision = parseStructuredTurnDecision(decision, { isAdmin });
+  let collected = structuredDecision.unavailable ? { valid: true, intent: null } : structuredDecision.validation;
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
 
   if (!collected.valid) {
