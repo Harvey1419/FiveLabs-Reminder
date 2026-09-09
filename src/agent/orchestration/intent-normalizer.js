@@ -80,7 +80,7 @@ function normalizeReadScope(action, context) {
         .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
         .join('-');
       const explicit = buildExplicitTaskDateScope(localDate);
-      if (explicit) return { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
+      return explicit ? { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
     }
   }
 
