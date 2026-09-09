@@ -15,59 +15,19 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Patch runtime
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('src/agent/providers/client.js'); s=p.read_text()
-          old="""  const result = await runOpenRouterChain(messages, profiles, {\n    apiKey: openrouterKey,\n    purpose,\n    temperature,\n    maxTokens: max_tokens,\n    responseFormat: nativeToolMode ? null : { type: 'json_object' },\n    tools,\n    toolChoice,\n    returnMessage,\n    logPrefix,\n  });"""
-          new="""  const structuredTurnMode = purpose === 'initial' && optionsResponseFormat;\n  const result = await runOpenRouterChain(messages, profiles, {\n    apiKey: openrouterKey,\n    purpose,\n    temperature,\n    maxTokens: max_tokens,\n    responseFormat: optionsResponseFormat || (nativeToolMode ? null : { type: 'json_object' }),\n    tools: structuredTurnMode ? null : tools,\n    toolChoice: structuredTurnMode ? 'none' : toolChoice,\n    returnMessage,\n    logPrefix,\n  });"""
-          # add responseFormat option alias without colliding with internal call
-          s=s.replace("  startStage = null,\n} = {}) {", "  startStage = null,\n  responseFormat: optionsResponseFormat = null,\n} = {}) {")
-          if old not in s: raise SystemExit('client call anchor missing')
-          s=s.replace(old,new); p.write_text(s)
-
-          p=Path('src/agent/orchestration/router-core.js'); s=p.read_text()
-          s=s.replace("import { getForegroundToolDefinitions, getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';", "import { TURN_INTENT_SCHEMA, getIntentToolDefinitions, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';")
-          # attachment-only schema helper
-          marker="function getAttachmentOnlyIntentTools({ isAdmin = false } = {}) {"
-          helper="""function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {\n  const schema = structuredClone(TURN_INTENT_SCHEMA);\n  const domainEnum = schema.properties.actions.items.properties.domain.enum;\n  schema.properties.actions.items.properties.domain.enum = attachmentOnly\n    ? ['conversation']\n    : domainEnum.filter((domain) => isAdmin || domain !== 'admin');\n  return schema;\n}\n\nfunction parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {\n  if (modelResponse?.unavailable) return { unavailable: true, validation: null };\n  const parsed = parseIntentArguments(modelResponse?.content);\n  if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };\n  return { unavailable: false, validation: validateTurnIntent(parsed, { isAdmin }) };\n}\n\n"""
-          s=s.replace(marker,helper+marker)
-          old="""  const intentTools = isAttachmentOnlyTurn\n    ? getAttachmentOnlyIntentTools({ isAdmin })\n    : getForegroundToolDefinitions({ isAdmin });"""
-          new="""  const structuredTurnSchema = getStructuredTurnSchema({ isAdmin, attachmentOnly: isAttachmentOnlyTurn });\n  const turnResponseFormat = {\n    type: 'json_schema',\n    json_schema: { name: 'hermes_turn_intent', strict: true, schema: structuredTurnSchema },\n  };"""
-          if old not in s: raise SystemExit('router tools anchor missing')
-          s=s.replace(old,new)
-          old2="""      tools: intentTools,\n      toolChoice: 'required',\n      returnMessage: true,\n      purpose: 'initial',"""
-          new2="""      tools: null,\n      toolChoice: 'none',\n      responseFormat: turnResponseFormat,\n      returnMessage: true,\n      purpose: 'initial',"""
-          if old2 not in s: raise SystemExit('router model call anchor missing')
-          s=s.replace(old2,new2)
-          # replace decision collection block
-          start="""  const decision = normalizeModelResponse(modelResponse);\n  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);"""
-          repl="""  const decision = normalizeModelResponse(modelResponse);\n  console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms structuredChars=${decision.content.length} unavailable=${decision.unavailable}`);"""
-          s=s.replace(start,repl)
-          # locate collectIntent usage after model call and replace with structured validation
-          s=s.replace("let collected = collectIntent(decision.toolCalls, { isAdmin });", "const structured = parseStructuredTurnDecision({ content: decision.content, unavailable: decision.unavailable }, { isAdmin });\n  let collected = structured.unavailable ? { valid: true, intent: null } : structured.validation;")
-          p.write_text(s)
-
-          # tests: adapt provider latency assertions to structured-output primary
-          p=Path('tests/unit/agent/provider-latency-regressions.test.js'); s=p.read_text()
-          s=s.replace("      tools: [{ type: 'function', function: { name: 'execute_turn', parameters: { type: 'object' } } }],\n      toolChoice: 'required',", "      tools: null,\n      toolChoice: 'none',\n      responseFormat: { type: 'json_schema', json_schema: { name: 'turn', strict: true, schema: { type: 'object', properties: {}, required: [], additionalProperties: false } } },")
-          s=s.replace("    expect(result.tool_calls).toHaveLength(1);", "    expect(result.content).toBeTruthy();")
-          s=s.replace("    expect(payloads[0].tool_choice).toBe('required');", "    expect(payloads[0].tool_choice).toBeUndefined();\n    expect(payloads[0].response_format.type).toBe('json_schema');")
-          p.write_text(s)
-          PY
+      - name: Apply migration
+        run: python3 scripts/migrate-structured-turn.py
       - run: npm install --global pnpm@9.15.9
       - run: pnpm install --frozen-lockfile
       - name: Validate
         run: |
           find src scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check
           pnpm run test:unit
-      - name: Commit and remove temporary workflow
+      - name: Commit
         run: |
           git config user.name 'Hermes CI'
           git config user.email 'actions@users.noreply.github.com'
-          rm .github/workflows/apply-structured-turnintent.yml
-          git add src tests .github/workflows/apply-structured-turnintent.yml
-          git commit -m 'fix: use structured TurnIntent output for foreground decisions'
+          rm .github/workflows/apply-structured-turnintent.yml scripts/migrate-structured-turn.py
+          git add -A
+          git commit -m 'fix: use strict structured TurnIntent output'
           git push origin HEAD:fix/groq-structured-turnintent
