@@ -44,7 +44,6 @@ export async function executeTool({
   user = null,
   isPro: requestedIsPro,
   language: requestedLanguage,
-  userMessage = '',
   correlationId = null,
   referenceTime = null,
   clarificationResolution = false,

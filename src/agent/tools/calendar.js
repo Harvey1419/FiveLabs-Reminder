@@ -404,24 +404,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // Determine advance notice minutes:
-      // 1. Explicit parameter from user / LLM
-      // 2. User preference in memory (e.g. "avísame 15 minutos antes")
-      // 3. Default: at the event time (0 minutes)
-      let advanceMinutes = params.advanceMinutes !== undefined && params.advanceMinutes !== null
+      // advanceMinutes is semantic intent. Calendar executes the structured value
+      // and never parses user/persistent-memory prose to infer one.
+      const advanceMinutes = params.advanceMinutes !== undefined && params.advanceMinutes !== null
         ? Number(params.advanceMinutes)
-        : null;
-
-      if (advanceMinutes === null) {
-        const memories = user?.memories || [];
-        const prefText = memories.map(m => m.content || '').join(' ');
-        const match = prefText.match(/(\d+)\s*(minutos?|mins?)\s*antes/i);
-        if (match) {
-          advanceMinutes = parseInt(match[1], 10);
-        } else {
-          advanceMinutes = 0;
-        }
-      }
+        : 0;
 
       let reminderCreated = false;
       let reminderSendAt = null;
