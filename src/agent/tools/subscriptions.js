@@ -13,8 +13,7 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
   const phoneNumber = user?.phone_number;
 
   switch (action) {
-    case 'get_link':
-    case 'get_subscription_link': {
+    case 'get_link': {
       try {
         const plan = await getOrCreateCanonicalPlan({
           reason: 'Hermes TempleLabs Pro',
@@ -69,9 +68,7 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
       }
     }
 
-    case 'cancel':
-    case 'unsubscribe':
-    case 'delete': {
+    case 'cancel': {
       const res = await cancelUserSubscription(userId);
       if (!res.success) {
         return {
