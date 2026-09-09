@@ -26,6 +26,26 @@ describe('semantic intent runtime normalization', () => {
     clearWorkingMemory(user);
   });
 
+  it('binds an implicit pending action to the latest pending clarification without overwriting explicit targets', () => {
+    saveWorkingMemory(user, {
+      source: 'reminder',
+      scope: 'clarification',
+      pendingClarifications: [{ content: 'Uno' }, { content: 'Dos' }],
+      items: [],
+    });
+
+    const implicit = normalizeTurnIntentForRuntime({
+      actions: [{ domain: 'pending', action: 'execute' }],
+    }, context);
+    const explicit = normalizeTurnIntentForRuntime({
+      actions: [{ domain: 'pending', action: 'execute', target: 'la primera' }],
+    }, context);
+
+    expect(implicit.actions[0].target).toBe('2');
+    expect(explicit.actions[0].target).toBe('la primera');
+    clearWorkingMemory(user);
+  });
+
   it('fills a missing calendar year from the user-local reference date', () => {
     const normalized = normalizeTurnIntentForRuntime({
       actions: [{
