@@ -3,7 +3,6 @@ import {
   searchMemories,
   getActiveMemories,
   forgetMemories,
-  forgetMemoriesByTopic,
 } from '../../infrastructure/database/index.js';
 import { formatMemoryListCard } from './formatters.js';
 
@@ -12,13 +11,13 @@ import { formatMemoryListCard } from './formatters.js';
  */
 export async function executeMemoryTool({ action, params = {}, user, language = 'es' }) {
   const userId = user?.id;
-  const normalizedAction = String(action || params.action || 'save').replace(/_memory$/, '');
+  const normalizedAction = String(action || 'save');
 
   switch (normalizedAction) {
     case 'save': {
-      const content = params.content || params.text || params.fact || params.memory || '';
+      const content = params.content || '';
       const category = params.category || 'fact';
-      const topicKey = params.topicKey || params.topic_key || null;
+      const topicKey = params.topicKey || null;
 
       if (!content) {
         return {
@@ -64,7 +63,7 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
     }
 
     case 'search': {
-      const query = params.query || params.queryText || params.searchQuery || params.content || '';
+      const query = params.query || '';
       const limit = params.limit || 5;
 
       const results = await searchMemories({
@@ -104,10 +103,9 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
       };
     }
 
-    case 'forget':
-    case 'delete': {
-      const topicKey = params.topicKey || params.topic_key || params.topic || null;
-      const query = params.query || params.queryText || params.content || params.text || null;
+    case 'forget': {
+      const topicKey = params.topicKey || null;
+      const query = params.query || null;
       const effectiveTerm = topicKey || query || '';
 
       const res = await forgetMemories({
