@@ -131,10 +131,6 @@ function createForegroundProfiles() {
         exclude: true,
       },
       parallelToolCalls: undefined,
-      // GPT-OSS/Groq is most reliable when the only canonical foreground tool is
-      // selected explicitly instead of using generic `required`. Hermes still
-      // validates that execute_turn is actually returned before accepting output.
-      requiredToolName: 'execute_turn',
       // Keep one retry only for a malformed/empty structured response. Provider
       // finish errors skip immediately to the independent fallback below.
       emptyContentRetries: 1,
