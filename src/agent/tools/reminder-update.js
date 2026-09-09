@@ -120,7 +120,7 @@ export async function executeReminderUpdate({
   const enforceBilling = shouldEnforceBillingForUser(user);
 
   const updates = params.updates || {};
-  const targetReminderId = params.reminderId || params.target || params.id || updates.reminderId || updates.id || null;
+  const targetReminderId = params.target || null;
 
   if (!targetReminderId) {
     return {
@@ -187,7 +187,7 @@ export async function executeReminderUpdate({
   }
 
   const resolvedTargetId = resolved.targetId;
-  const isAdvanceNotice = params.advanceMinutes !== undefined || params.isAdvanceNotice === true;
+  const isAdvanceNotice = params.advanceMinutes !== undefined;
 
   if (isAdvanceNotice) {
     const baseReminder = resolved.exactReminder
@@ -262,10 +262,10 @@ export async function executeReminderUpdate({
   }
 
   const dbUpdates = {};
-  const newContent = params.content || params.text || updates.content || updates.text;
+  const newContent = updates.content;
   if (newContent) dbUpdates.content = String(newContent).trim();
 
-  const rawTargetTime = params.targetTime || params.sendAt || updates.targetTime || updates.sendAt || updates.time || updates.date;
+  const rawTargetTime = updates.targetTime;
   if (rawTargetTime) {
     const parsedDate = parseTargetTime(rawTargetTime, timezone, referenceTime);
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
@@ -294,13 +294,8 @@ export async function executeReminderUpdate({
     dbUpdates.status = 'pending';
   }
 
-  const recurrenceProvided = Object.prototype.hasOwnProperty.call(params, 'recurrence')
-    || Object.prototype.hasOwnProperty.call(params, 'recurrenceRule')
-    || Object.prototype.hasOwnProperty.call(updates, 'recurrence')
-    || Object.prototype.hasOwnProperty.call(updates, 'recurrenceRule')
-    || Object.prototype.hasOwnProperty.call(updates, 'recurrence_rule');
-  if (recurrenceProvided) {
-    const newRecurrence = params.recurrence ?? params.recurrenceRule ?? updates.recurrence ?? updates.recurrenceRule ?? updates.recurrence_rule ?? null;
+  if (Object.prototype.hasOwnProperty.call(updates, 'recurrence')) {
+    const newRecurrence = updates.recurrence ?? null;
     if (enforceBilling && newRecurrence && !userHasPro) {
       const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language);
       return proRequiredResult({ language, proUpgrade });
