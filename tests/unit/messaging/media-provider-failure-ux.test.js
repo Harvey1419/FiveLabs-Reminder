@@ -7,7 +7,7 @@ vi.mock('../../../src/agent/orchestration/router.js', () => ({
 vi.mock('../../../src/integrations/whatsapp/kapso-client.js', () => ({
   sendWhatsAppText: vi.fn(),
   sendWhatsAppCtaUrl: vi.fn(),
-  sendTypingIndicator: vi.fn(),
+  sendTypingIndicator: vi.fn(() => Promise.resolve()),
   downloadMedia: vi.fn(),
   normalizePhoneNumber: vi.fn((value) => String(value || '').replace(/\D/g, '')),
 }));
