@@ -4,16 +4,16 @@ import {
 } from '../../shared/entity-resolution.js';
 
 const ORDINALS = new Map([
-  ['1', 1], ['#1', 1], ['primero', 1], ['primera', 1], ['primer', 1], ['el primero', 1], ['la primera', 1], ['first', 1], ['the first', 1],
-  ['2', 2], ['#2', 2], ['segundo', 2], ['segunda', 2], ['el segundo', 2], ['la segunda', 2], ['second', 2], ['the second', 2],
-  ['3', 3], ['#3', 3], ['tercero', 3], ['tercera', 3], ['tercer', 3], ['el tercero', 3], ['la tercera', 3], ['third', 3], ['the third', 3],
-  ['4', 4], ['#4', 4], ['cuarto', 4], ['cuarta', 4], ['el cuarto', 4], ['la cuarta', 4], ['fourth', 4], ['the fourth', 4],
-  ['5', 5], ['#5', 5], ['quinto', 5], ['quinta', 5], ['el quinto', 5], ['la quinta', 5], ['fifth', 5], ['the fifth', 5],
-  ['6', 6], ['#6', 6], ['sexto', 6], ['sexta', 6], ['el sexto', 6], ['la sexta', 6], ['sixth', 6], ['the sixth', 6],
-  ['7', 7], ['#7', 7], ['septimo', 7], ['septima', 7], ['el septimo', 7], ['la septima', 7], ['seventh', 7], ['the seventh', 7],
-  ['8', 8], ['#8', 8], ['octavo', 8], ['octava', 8], ['el octavo', 8], ['la octava', 8], ['eighth', 8], ['the eighth', 8],
-  ['9', 9], ['#9', 9], ['noveno', 9], ['novena', 9], ['el noveno', 9], ['la novena', 9], ['ninth', 9], ['the ninth', 9],
-  ['10', 10], ['#10', 10], ['decimo', 10], ['decima', 10], ['el decimo', 10], ['la decima', 10], ['tenth', 10], ['the tenth', 10],
+  ['1', 1], ['#1', 1], ['el 1', 1], ['la 1', 1], ['opcion 1', 1], ['primero', 1], ['primera', 1], ['primer', 1], ['el primero', 1], ['la primera', 1], ['first', 1], ['the first', 1],
+  ['2', 2], ['#2', 2], ['el 2', 2], ['la 2', 2], ['opcion 2', 2], ['segundo', 2], ['segunda', 2], ['el segundo', 2], ['la segunda', 2], ['second', 2], ['the second', 2],
+  ['3', 3], ['#3', 3], ['el 3', 3], ['la 3', 3], ['opcion 3', 3], ['tercero', 3], ['tercera', 3], ['tercer', 3], ['el tercero', 3], ['la tercera', 3], ['third', 3], ['the third', 3],
+  ['4', 4], ['#4', 4], ['el 4', 4], ['la 4', 4], ['opcion 4', 4], ['cuarto', 4], ['cuarta', 4], ['el cuarto', 4], ['la cuarta', 4], ['fourth', 4], ['the fourth', 4],
+  ['5', 5], ['#5', 5], ['el 5', 5], ['la 5', 5], ['opcion 5', 5], ['quinto', 5], ['quinta', 5], ['el quinto', 5], ['la quinta', 5], ['fifth', 5], ['the fifth', 5],
+  ['6', 6], ['#6', 6], ['el 6', 6], ['la 6', 6], ['opcion 6', 6], ['sexto', 6], ['sexta', 6], ['el sexto', 6], ['la sexta', 6], ['sixth', 6], ['the sixth', 6],
+  ['7', 7], ['#7', 7], ['el 7', 7], ['la 7', 7], ['opcion 7', 7], ['septimo', 7], ['septima', 7], ['el septimo', 7], ['la septima', 7], ['seventh', 7], ['the seventh', 7],
+  ['8', 8], ['#8', 8], ['el 8', 8], ['la 8', 8], ['opcion 8', 8], ['octavo', 8], ['octava', 8], ['el octavo', 8], ['la octava', 8], ['eighth', 8], ['the eighth', 8],
+  ['9', 9], ['#9', 9], ['el 9', 9], ['la 9', 9], ['opcion 9', 9], ['noveno', 9], ['novena', 9], ['el noveno', 9], ['la novena', 9], ['ninth', 9], ['the ninth', 9],
+  ['10', 10], ['#10', 10], ['el 10', 10], ['la 10', 10], ['opcion 10', 10], ['decimo', 10], ['decima', 10], ['el decimo', 10], ['la decima', 10], ['tenth', 10], ['the tenth', 10],
   ['ultimo', -1], ['ultima', -1], ['el ultimo', -1], ['la ultima', -1], ['last', -1], ['the last', -1],
 ]);
 
