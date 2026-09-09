@@ -5,9 +5,11 @@ import {
   getWorkingMemory,
   saveWorkingMemory,
   clearWorkingMemory,
-  resolveEntityReference,
-} from '../core/working-memory.js';
-import { parseOrdinalReference } from '../../shared/entity-resolution.js';
+} from '../core/working-memory-store.js';
+import {
+  parseStructuredOrdinal,
+  resolveContextReference,
+} from '../core/context-reference.js';
 import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
@@ -39,7 +41,11 @@ function requiredText(value, errorCode, message) {
 function resolveWorkingItem(user, target, preferredType = null) {
   const reference = String(target || '').trim();
   if (!reference) return null;
-  const resolved = resolveEntityReference({ userOrPhone: user, reference, preferredType });
+  const resolved = resolveContextReference({
+    reference,
+    preferredType,
+    workingMemory: getWorkingMemory(user),
+  });
   return resolved.status === 'RESOLVED' ? resolved.item : null;
 }
 
@@ -462,7 +468,7 @@ function saveRemainingPendingState(user, memory, pendingClarifications) {
 function pendingPosition(action, count) {
   const numeric = Number.parseInt(String(action.target || ''), 10);
   if (Number.isInteger(numeric) && numeric >= 1 && numeric <= count) return numeric;
-  const ordinal = parseOrdinalReference(String(action.target || ''));
+  const ordinal = parseStructuredOrdinal(String(action.target || ''));
   if (Number.isInteger(ordinal) && ordinal >= 1 && ordinal <= count) return ordinal;
   return count === 1 ? 1 : null;
 }
