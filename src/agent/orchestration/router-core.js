@@ -208,7 +208,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
     .trim();
   const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(String(messageText || ''));
-  const isAttachmentOnlyTurn = hasAttachmentEvidence && !trustedMessageText;
+  const isAttachmentOnlyTurn = options?.attachmentOnly === true || (hasAttachmentEvidence && !trustedMessageText);
 
   hydrateClarificationStateFromHistory(user, history);
 
