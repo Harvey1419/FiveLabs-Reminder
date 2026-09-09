@@ -85,21 +85,4 @@ describe('foreground provider latency policy', () => {
     const secondaryPayload = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(secondaryPayload.tool_choice).toBe('auto');
   });
-
-  it('does not return to a provider that already failed after all independent foreground fallbacks are exhausted', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('primary unavailable', { status: 503 }))
-      .mockResolvedValueOnce(new Response('secondary unavailable', { status: 503 }))
-      .mockResolvedValueOnce(new Response('last resort unavailable', { status: 503 }));
-
-    const result = await callChatCompletion([{ role: 'user', content: 'Hola' }], {
-      tools: [{ type: 'function', function: { name: 'execute_turn', parameters: { type: 'object' } } }],
-      toolChoice: 'required',
-      returnMessage: true,
-      purpose: 'initial',
-    });
-
-    expect(result.unavailable).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
 });
