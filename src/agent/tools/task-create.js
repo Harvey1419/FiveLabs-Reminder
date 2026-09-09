@@ -18,19 +18,12 @@ export async function executeTaskCreate({
   const phoneNumber = user?.phone_number;
   const timezone = user?.timezone || DEFAULT_TIMEZONE;
 
-  const rawItems = Array.isArray(params.items) && params.items.length > 0
-    ? params.items
-    : (Array.isArray(params.titles) && params.titles.length > 0
-      ? params.titles.map((title) => ({ title, ...params }))
-      : [params]);
+  const rawItems = Array.isArray(params.items) && params.items.length > 0 ? params.items : [];
 
   const createdTasks = [];
   let lastFailure = null;
 
-  const hasAnyTitle = rawItems.some((item) => {
-    const title = item.title || item.content || item.name || item.text || '';
-    return Boolean(String(title).trim());
-  });
+  const hasAnyTitle = rawItems.some((item) => Boolean(String(item.title || '').trim()));
 
   if (!hasAnyTitle) {
     return {
@@ -43,13 +36,13 @@ export async function executeTaskCreate({
   }
 
   for (const item of rawItems) {
-    const title = item.title || item.content || item.name || item.text || '';
-    const entityName = item.entityName || item.entity_name || item.project || params.entityName || null;
-    const entityCategory = item.entityCategory || item.entity_category || params.entityCategory || 'project';
-    const dueDate = item.dueDate || item.due_date || item.targetTime || params.dueDate || null;
-    const priority = item.priority || params.priority || 'medium';
-    const description = item.description || params.description || null;
-    const scheduleReminder = item.scheduleReminder ?? params.scheduleReminder ?? true;
+    const title = item.title || '';
+    const entityName = item.entityName || null;
+    const entityCategory = item.entityCategory || 'project';
+    const dueDate = item.dueDate || null;
+    const priority = item.priority || 'medium';
+    const description = item.description || null;
+    const scheduleReminder = item.scheduleReminder ?? true;
 
     const cleanTitle = String(title).trim();
     if (!cleanTitle) continue;
