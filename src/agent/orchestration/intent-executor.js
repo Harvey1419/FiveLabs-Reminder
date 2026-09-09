@@ -133,7 +133,6 @@ function buildDomainCall(action, context) {
             items: [{
               content: content.value,
               targetTime: temporal.canonical,
-              sourceTimeText: context.userMessage,
               ...(action.advanceMinutes ? { advanceMinutes: action.advanceMinutes } : {}),
               ...(action.recurrence ? { recurrence: action.recurrence } : {}),
               ...(action.requiresConfirmation ? { requiresConfirmation: true } : {}),
@@ -571,7 +570,7 @@ async function executePendingAction(action, context) {
 
   const params = {
     action: 'create',
-    items: [{ ...proposal, targetTime, sourceTimeText: context.userMessage }],
+    items: [{ ...proposal, targetTime }],
   };
   const result = await executeTool({ ...context, toolName: TOOL_NAMES.MANAGE_REMINDER, params, clarificationResolution: true });
   if (result.success) saveRemainingPendingState(context.user, memory, remaining);
