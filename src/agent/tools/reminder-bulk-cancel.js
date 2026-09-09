@@ -14,7 +14,7 @@ export async function executeBulkReminderCancellation({
 } = {}) {
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber, phoneVariants } = owner;
-  const scope = params.scope === 'elapsed' ? 'elapsed' : ((params.scope === 'all' || params.cancelAll) ? 'all' : null);
+  const scope = params.scope === 'elapsed' ? 'elapsed' : (params.scope === 'all' ? 'all' : null);
 
   if (!scope) {
     return {
