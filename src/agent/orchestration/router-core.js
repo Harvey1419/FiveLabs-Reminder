@@ -84,6 +84,26 @@ function conversationReplyFromActions(actions = []) {
     .join('\n\n');
 }
 
+function getAttachmentOnlyIntentTools({ isAdmin = false } = {}) {
+  const tools = getIntentToolDefinitions({ isAdmin });
+  const actionSchema = tools?.[0]?.function?.parameters?.properties?.actions?.items;
+  if (actionSchema?.properties?.domain) {
+    actionSchema.properties.domain.enum = ['conversation'];
+  }
+  return tools;
+}
+
+function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
+  if (!isAttachmentOnlyTurn || !collected?.valid || !collected.intent) return collected;
+  const hasOperationalAction = collected.intent.actions.some((action) => action?.domain !== 'conversation');
+  if (!hasOperationalAction) return collected;
+  return {
+    valid: false,
+    errorCode: 'UNTRUSTED_ATTACHMENT_ACTION',
+    error: 'El contenido de un adjunto sin instrucción confiable del usuario no puede originar acciones operativas.',
+  };
+}
+
 /**
  * Bind backend-authoritative interaction state to semantic actions without
  * exposing database IDs to the model. This never infers an operation: it only
@@ -241,7 +261,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ...pastTurns,
     { role: 'user', content: messageText },
   ];
-  const intentTools = isAttachmentOnlyTurn ? [] : getIntentToolDefinitions({ isAdmin });
+  const intentTools = isAttachmentOnlyTurn
+    ? getAttachmentOnlyIntentTools({ isAdmin })
+    : getIntentToolDefinitions({ isAdmin });
 
   const modelStart = Date.now();
   let modelResponse;
@@ -250,7 +272,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       max_tokens: 2000,
       correlationId: options?.correlationId,
       tools: intentTools,
-      toolChoice: isAttachmentOnlyTurn ? 'none' : 'auto',
+      toolChoice: isAttachmentOnlyTurn ? 'required' : 'auto',
       returnMessage: true,
       purpose: 'initial',
     });
@@ -262,6 +284,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let decision = normalizeModelResponse(modelResponse);
   console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms toolCalls=${decision.toolCalls.length} proseChars=${decision.content.length} unavailable=${decision.unavailable}`);
   let collected = collectIntent(decision.toolCalls, { isAdmin });
+  collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
 
   if (!collected.valid) {
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
@@ -348,7 +371,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       ctaButtonText: null,
       plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
       executionFacts: [],
-      memoryDisposition: 'extract',
+      memoryDisposition: isAttachmentOnlyTurn ? 'skip_attachment' : 'extract',
     };
   }
 
