@@ -23,7 +23,11 @@ import {
   zonedTimeToUtc,
   DEFAULT_TIMEZONE,
 } from '../../shared/time.js';
-import { resolveEntityReference } from '../core/working-memory.js';
+import {
+  parseStructuredOrdinal,
+  resolveContextReference,
+} from '../core/context-reference.js';
+import { getWorkingMemory } from '../core/working-memory-store.js';
 
 /**
  * Normalizes raw Google Calendar event into explicit civil or timed representation.
@@ -492,8 +496,9 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         let domainCandidates = null;
         const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
 
-        // If target is a search query (not an ordinal position "1", "primero"), retrieve domain candidates from Google Calendar
-        const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
+        // Exact structured ordinals refer to the current ordered context.
+        // Other targets are resolved against a fresh Google Calendar candidate set.
+        const isOrdinal = parseStructuredOrdinal(targetRef) !== null;
 
         if (!isOrdinal || hasExplicitScope) {
           try {
@@ -525,11 +530,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           }
         }
 
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
+        const refRes = resolveContextReference({
           reference: targetRef,
           candidates: domainCandidates,
           preferredType: 'calendar_event',
+          workingMemory: getWorkingMemory(user || phoneNumber),
         });
         if (refRes.status === 'RESOLVED') {
           eventId = refRes.item.internalId;
@@ -636,7 +641,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         let domainCandidates = null;
         const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
 
-        const isOrdinal = /^(#?\d+|el\s+\d+|primero|primera|segundo|segunda|tercero|tercera|cuarto|cuarta|quinto|quinta|el\s+primero|la\s+primera|el\s+segundo|la\s+segunda|el\s+mas\s+temprano|el\s+más\s+temprano|el\s+ultimo|el\s+último)$/i.test(targetRef);
+        const isOrdinal = parseStructuredOrdinal(targetRef) !== null;
 
         if (!isOrdinal || hasExplicitScope) {
           try {
@@ -668,11 +673,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           }
         }
 
-        const refRes = resolveEntityReference({
-          userOrPhone: user || phoneNumber,
+        const refRes = resolveContextReference({
           reference: targetRef,
           candidates: domainCandidates,
           preferredType: 'calendar_event',
+          workingMemory: getWorkingMemory(user || phoneNumber),
         });
         if (refRes.status === 'RESOLVED') {
           eventId = refRes.item.internalId;
