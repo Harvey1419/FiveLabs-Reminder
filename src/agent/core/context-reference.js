@@ -1,4 +1,3 @@
-import { getWorkingMemory } from './working-memory.js';
 import {
   normalizeTextForMatching,
   calculateMatchScore,
@@ -45,7 +44,7 @@ function shapeCandidate(candidate, index) {
   };
 }
 
-function buildPool({ userOrPhone, candidates, preferredType }) {
+function buildPool({ workingMemory, candidates, preferredType }) {
   let pool = [];
 
   // Explicit candidates are authoritative for mutation/read scope. Working
@@ -53,8 +52,7 @@ function buildPool({ userOrPhone, candidates, preferredType }) {
   if (Array.isArray(candidates) && candidates.length > 0) {
     pool = candidates.map(shapeCandidate).filter((item) => Boolean(item.internalId));
   } else {
-    const memory = getWorkingMemory(userOrPhone);
-    pool = Array.isArray(memory?.items) ? memory.items.slice() : [];
+    pool = Array.isArray(workingMemory?.items) ? workingMemory.items.slice() : [];
   }
 
   if (preferredType) pool = pool.filter((item) => item.type === preferredType);
@@ -62,14 +60,15 @@ function buildPool({ userOrPhone, candidates, preferredType }) {
 }
 
 /**
- * Resolve an already-structured reference against current candidates or working
- * memory. This module deliberately does not interpret conversational intent.
+ * Resolve an already-structured reference against current candidates or supplied
+ * working-memory state. This module has no storage dependency and deliberately
+ * does not interpret conversational intent.
  */
 export function resolveContextReference({
-  userOrPhone,
   reference,
   candidates = null,
   preferredType = null,
+  workingMemory = null,
 } = {}) {
   if (reference === null || reference === undefined) {
     return { status: 'NOT_FOUND', reason: 'EMPTY_REFERENCE' };
@@ -78,7 +77,7 @@ export function resolveContextReference({
   const rawReference = String(reference).trim();
   if (!rawReference) return { status: 'NOT_FOUND', reason: 'EMPTY_REFERENCE' };
 
-  const pool = buildPool({ userOrPhone, candidates, preferredType });
+  const pool = buildPool({ workingMemory, candidates, preferredType });
   if (pool.length === 0) return { status: 'NOT_FOUND', reason: 'NO_CANDIDATES_AVAILABLE' };
 
   const ordinal = parseStructuredOrdinal(rawReference);
