@@ -93,6 +93,38 @@ export function formatCalendarEventLine(ev, timezone = DEFAULT_TIMEZONE, languag
 }
 
 /**
+ * Resolve a canonical mutation target. Identity comes only from params.target;
+ * patch fields such as startDateTime/summary never participate in lookup.
+ */
+async function resolveCalendarMutationTarget({ target, user, phoneNumber, userId, timezone }) {
+  const targetRef = String(target || '').trim();
+  if (!targetRef) return { status: 'NOT_FOUND' };
+
+  let domainCandidates = null;
+  const isOrdinal = parseStructuredOrdinal(targetRef) !== null;
+
+  if (!isOrdinal) {
+    try {
+      domainCandidates = await listCalendarEvents(userId, {
+        timeMin: new Date(),
+        timeMax: null,
+        q: targetRef,
+        timezone,
+      });
+    } catch (fetchErr) {
+      console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
+    }
+  }
+
+  return resolveContextReference({
+    reference: targetRef,
+    candidates: domainCandidates,
+    preferredType: 'calendar_event',
+    workingMemory: getWorkingMemory(user || phoneNumber),
+  });
+}
+
+/**
  * Domain tool for managing Google Calendar synchronization (Architecture V3).
  */
 export async function executeCalendarTool({ action, params = {}, user, language = 'es', referenceTime = null }) {
@@ -117,8 +149,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
   };
 
   switch (action) {
-    case 'get_connect_link':
-    case 'connect': {
+    case 'get_connect_link': {
       if (isConnected) {
         try {
           // Token presence is not proof of a live connection: revoked refresh
@@ -212,7 +243,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const queryParam = params.query || params.q || params.semanticFilter || null;
+      const queryParam = params.query || null;
       const effectiveScope = action === 'next_event' ? 'next_event' : (params.scope || 'default_upcoming');
       const resolved = resolveCalendarTemporalScope({ ...params, scope: effectiveScope }, tz);
 
@@ -476,89 +507,50 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      let eventId = params.eventId || params.id;
-      const hasExplicitScope = Boolean(params.date || params.startDateTime || params.scope);
-
-      if (!eventId || String(eventId).length < 8) {
-        let domainCandidates = null;
-        const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
-
-        // Exact structured ordinals refer to the current ordered context.
-        // Other targets are resolved against a fresh Google Calendar candidate set.
-        const isOrdinal = parseStructuredOrdinal(targetRef) !== null;
-
-        if (!isOrdinal || hasExplicitScope) {
-          try {
-            let timeMin = new Date();
-            let timeMax = null;
-
-            if (hasExplicitScope) {
-              const scopeRes = resolveCalendarTemporalScope(
-                {
-                  date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
-                  scope: params.scope || (params.date || params.startDateTime ? 'explicit_date' : null),
-                },
-                tz
-              );
-              timeMin = scopeRes.timeMin;
-              timeMax = scopeRes.timeMax;
-            }
-
-            const liveEvents = await listCalendarEvents(userId, {
-              timeMin,
-              timeMax,
-              q: params.query || params.target || null,
-              timezone: tz,
-            });
-
-            domainCandidates = liveEvents || [];
-          } catch (fetchErr) {
-            console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
-          }
-        }
-
-        const refRes = resolveContextReference({
-          reference: targetRef,
-          candidates: domainCandidates,
-          preferredType: 'calendar_event',
-          workingMemory: getWorkingMemory(user || phoneNumber),
-        });
-        if (refRes.status === 'RESOLVED') {
-          eventId = refRes.item.internalId;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple calendar events match. Please clarify which one you want to update.'
-              : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas actualizar.',
-            rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
-            confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
-          };
-        }
-      }
-
-      if (!eventId) {
-        if (hasExplicitScope) {
-          const notFoundMsg = language === 'en'
-            ? 'No event found on Google Calendar for that date. Would you like me to schedule a new one?'
-            : 'No encontré ningún evento en Google Calendar para esa fecha. ¿Deseas que lo agende como uno nuevo?';
-          return {
-            success: false,
-            action: 'event_not_found',
-            errorCode: 'NOT_FOUND',
-            error: notFoundMsg,
-            rawSummary: notFoundMsg,
-            confirmation: notFoundMsg,
-          };
-        }
+      const targetRef = String(params.target || '').trim();
+      if (!targetRef) {
         return {
           success: false,
-          action: 'missing_event_id',
+          action: 'missing_event_target',
           errorCode: 'MISSING_TARGET_ID',
-          error: 'Falta el ID del evento a actualizar en Google Calendar.',
-          confirmation: '⚠️ No encontré el evento a actualizar. Por favor indica la fecha o el nombre del evento.',
+          error: 'Falta identificar el evento a actualizar en Google Calendar.',
+          confirmation: '⚠️ No encontré el evento a actualizar. Por favor indica el nombre o referencia del evento.',
+        };
+      }
+
+      const refRes = await resolveCalendarMutationTarget({
+        target: targetRef,
+        user,
+        phoneNumber,
+        userId,
+        timezone: tz,
+      });
+
+      if (refRes.status === 'AMBIGUOUS') {
+        return {
+          success: false,
+          action: 'ambiguous_target',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: language === 'en'
+            ? 'Multiple calendar events match. Please clarify which one you want to update.'
+            : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas actualizar.',
+          rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
+          confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas actualizar.',
+        };
+      }
+
+      const eventId = refRes.status === 'RESOLVED' ? refRes.item.internalId : null;
+      if (!eventId) {
+        const notFoundMsg = language === 'en'
+          ? 'I could not find that event in Google Calendar.'
+          : 'No encontré ese evento en Google Calendar.';
+        return {
+          success: false,
+          action: 'event_not_found',
+          errorCode: 'NOT_FOUND',
+          error: notFoundMsg,
+          rawSummary: notFoundMsg,
+          confirmation: notFoundMsg,
         };
       }
 
@@ -620,89 +612,51 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      let eventId = params.eventId || params.id;
-      let resolvedRef = null;
-      const hasExplicitScope = Boolean(params.date || params.startDateTime || params.scope);
-
-      if (!eventId || String(eventId).length < 8) {
-        let domainCandidates = null;
-        const targetRef = String(eventId || params.target || params.summary || params.query || '').trim();
-
-        const isOrdinal = parseStructuredOrdinal(targetRef) !== null;
-
-        if (!isOrdinal || hasExplicitScope) {
-          try {
-            let timeMin = new Date();
-            let timeMax = null;
-
-            if (hasExplicitScope) {
-              const scopeRes = resolveCalendarTemporalScope(
-                {
-                  date: params.date || (params.startDateTime ? String(params.startDateTime).split('T')[0] : null),
-                  scope: params.scope || (params.date || params.startDateTime ? 'explicit_date' : null),
-                },
-                tz
-              );
-              timeMin = scopeRes.timeMin;
-              timeMax = scopeRes.timeMax;
-            }
-
-            const liveEvents = await listCalendarEvents(userId, {
-              timeMin,
-              timeMax,
-              q: params.query || params.target || null,
-              timezone: tz,
-            });
-
-            domainCandidates = liveEvents || [];
-          } catch (fetchErr) {
-            console.warn('[calendarTools] Domain candidate retrieval error:', fetchErr.message);
-          }
-        }
-
-        const refRes = resolveContextReference({
-          reference: targetRef,
-          candidates: domainCandidates,
-          preferredType: 'calendar_event',
-          workingMemory: getWorkingMemory(user || phoneNumber),
-        });
-        if (refRes.status === 'RESOLVED') {
-          eventId = refRes.item.internalId;
-          resolvedRef = refRes.item;
-        } else if (refRes.status === 'AMBIGUOUS') {
-          return {
-            success: false,
-            action: 'ambiguous_target',
-            errorCode: 'AMBIGUOUS_TARGET',
-            error: language === 'en'
-              ? 'Multiple calendar events match. Please clarify which one you want to delete.'
-              : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas eliminar.',
-            rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
-            confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
-          };
-        }
-      }
-
-      if (!eventId) {
-        if (hasExplicitScope) {
-          const notFoundMsg = language === 'en'
-            ? 'No event found on Google Calendar for that date.'
-            : 'No encontré ningún evento en Google Calendar para esa fecha.';
-          return {
-            success: false,
-            action: 'event_not_found',
-            errorCode: 'NOT_FOUND',
-            error: notFoundMsg,
-            rawSummary: notFoundMsg,
-            confirmation: notFoundMsg,
-          };
-        }
+      const targetRef = String(params.target || '').trim();
+      if (!targetRef) {
         return {
           success: false,
-          action: 'missing_event_id',
+          action: 'missing_event_target',
           errorCode: 'MISSING_TARGET_ID',
-          error: 'Falta el ID del evento a eliminar en Google Calendar.',
-          confirmation: '⚠️ No encontré el evento a eliminar. Por favor indica la fecha o el nombre del evento.',
+          error: 'Falta identificar el evento a eliminar en Google Calendar.',
+          confirmation: '⚠️ No encontré el evento a eliminar. Por favor indica el nombre o referencia del evento.',
+        };
+      }
+
+      const refRes = await resolveCalendarMutationTarget({
+        target: targetRef,
+        user,
+        phoneNumber,
+        userId,
+        timezone: tz,
+      });
+
+      if (refRes.status === 'AMBIGUOUS') {
+        return {
+          success: false,
+          action: 'ambiguous_target',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: language === 'en'
+            ? 'Multiple calendar events match. Please clarify which one you want to delete.'
+            : 'Hay múltiples eventos de calendario que coinciden. Por favor aclara cuál deseas eliminar.',
+          rawSummary: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
+          confirmation: 'Hay múltiples eventos que coinciden. Por favor aclara cuál deseas eliminar.',
+        };
+      }
+
+      const eventId = refRes.status === 'RESOLVED' ? refRes.item.internalId : null;
+      const resolvedRef = refRes.status === 'RESOLVED' ? refRes.item : null;
+      if (!eventId) {
+        const notFoundMsg = language === 'en'
+          ? 'I could not find that event in Google Calendar.'
+          : 'No encontré ese evento en Google Calendar.';
+        return {
+          success: false,
+          action: 'event_not_found',
+          errorCode: 'NOT_FOUND',
+          error: notFoundMsg,
+          rawSummary: notFoundMsg,
+          confirmation: notFoundMsg,
         };
       }
 
