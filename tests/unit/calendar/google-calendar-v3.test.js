@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { resolveCalendarTemporalScope } from '../../../src/shared/time.js';
 import { generateDeterministicCalendarEventId } from '../../../src/integrations/google/calendar.js';
@@ -100,6 +101,15 @@ describe('Google Calendar current architecture', () => {
       expect(actionProps.domain.enum).toContain('calendar');
       expect(actionProps.action).toBeDefined();
       expect(actionProps.target.description).toContain('Never an internal ID');
+    });
+
+    it('keeps calendar mutation identity separate from patch fields and legacy aliases', () => {
+      const source = readFileSync(new URL('../../../src/agent/tools/calendar.js', import.meta.url), 'utf8');
+      expect(source).toContain("String(params.target || '').trim()");
+      expect(source).not.toContain('params.eventId || params.id');
+      expect(source).not.toContain('params.query || params.q || params.semanticFilter');
+      expect(source).not.toContain('Boolean(params.date || params.startDateTime || params.scope)');
+      expect(source).not.toContain("case 'connect':");
     });
 
     it('prompt exposes Calendar connection state and keeps Node authoritative', () => {
