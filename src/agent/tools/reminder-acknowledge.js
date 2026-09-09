@@ -19,7 +19,7 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
   const reqId = correlationId ? `[reminder-ack req=${correlationId}]` : '[reminder-ack]';
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber } = owner;
-  const target = String(params.reminderId || params.id || params.target || params.contentQuery || params.query || '').trim();
+  const target = String(params.target || '').trim();
 
   if (!target) return { success: false, action: 'missing_target', errorCode: 'MISSING_TARGET', error: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?', requiresClarification: true };
   if (!owner.hasOwner) return { success: false, action: 'missing_owner', errorCode: 'ACCESS_DENIED', error: language === 'en' ? 'I could not verify reminder ownership.' : 'No pude verificar la propiedad del recordatorio.' };
