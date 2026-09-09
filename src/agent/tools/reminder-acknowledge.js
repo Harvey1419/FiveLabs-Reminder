@@ -1,6 +1,6 @@
 import { supabase, acknowledgeReminder } from '../../infrastructure/database/index.js';
 import { stripReminderPrefix } from '../../integrations/whatsapp/kapso-client.js';
-import { resolveEntityReference } from '../core/working-memory.js';
+import { resolveContextReference } from '../core/context-reference.js';
 import { formatReminderAcknowledgedCard } from './formatters.js';
 import {
   buildReminderOwnerContext,
@@ -36,7 +36,7 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
   let matched = findReminderByExactReference(target, owned);
 
   if (!matched && active.length > 0) {
-    const resolved = resolveEntityReference({
+    const resolved = resolveContextReference({
       userOrPhone: user || phoneNumber,
       reference: target,
       candidates: buildReminderReferenceCandidates(active),
