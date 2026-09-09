@@ -29,7 +29,13 @@ const { createCalendarEvent } = await import('../../../src/integrations/google/c
 const { executeCalendarTool } = await import('../../../src/agent/tools/calendar.js');
 const { executeTurnIntent } = await import('../../../src/agent/orchestration/intent-executor.js');
 const { validateTurnIntent } = await import('../../../src/agent/contracts/intent-contracts.js');
-const { saveWorkingMemory, clearWorkingMemory } = await import('../../../src/agent/core/working-memory-store.js');
+const {
+  saveWorkingMemory,
+  clearWorkingMemory,
+  getWorkingMemory,
+  getWorkingMemorySnapshot,
+  hydrateWorkingMemoryFromHistory,
+} = await import('../../../src/agent/core/working-memory-store.js');
 
 const user = {
   id: 'user-audit',
@@ -203,5 +209,55 @@ describe('Hermes product-quality audit P0 regressions', () => {
     expect(call.params.targetName).toBe('Proyecto B');
     expect(call.params.targetName).not.toBe('2');
     expect(call.params.preserveNames).toEqual(['Proyecto X']);
+  });
+});
+
+describe('Hermes product-quality audit continuity regressions', () => {
+  it('rehydrates typed Working Memory from persisted assistant history after an in-memory restart', () => {
+    saveWorkingMemory(user, {
+      source: 'unified',
+      scope: 'all_pending',
+      entityType: 'all',
+      lastAction: 'list',
+      items: [
+        { type: 'task', internalId: 'task-1', title: 'Comprar comida' },
+        { type: 'reminder', internalId: 'reminder-2', content: 'Llamar a Laura' },
+      ],
+    });
+    const snapshot = getWorkingMemorySnapshot(user);
+    expect(snapshot?.items).toHaveLength(2);
+
+    clearWorkingMemory(user);
+    expect(getWorkingMemory(user)).toBeNull();
+
+    hydrateWorkingMemoryFromHistory(user, [{
+      role: 'assistant',
+      content: 'Pendientes listados.',
+      createdAt: new Date().toISOString(),
+      entities: { _workingMemory: snapshot },
+    }]);
+
+    const restored = getWorkingMemory(user);
+    expect(restored?.items).toHaveLength(2);
+    expect(restored?.items[1].internalId).toBe('reminder-2');
+  });
+
+  it('does not revive stale persisted Working Memory indefinitely', () => {
+    saveWorkingMemory(user, {
+      source: 'unified',
+      scope: 'all_pending',
+      items: [{ type: 'task', internalId: 'task-stale', title: 'Vieja' }],
+    });
+    const snapshot = getWorkingMemorySnapshot(user);
+    clearWorkingMemory(user);
+
+    hydrateWorkingMemoryFromHistory(user, [{
+      role: 'assistant',
+      content: 'Estado viejo.',
+      createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      entities: { _workingMemory: snapshot },
+    }]);
+
+    expect(getWorkingMemory(user)).toBeNull();
   });
 });
