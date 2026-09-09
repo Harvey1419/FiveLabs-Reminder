@@ -17,7 +17,7 @@ const ORDINALS = new Map([
   ['ultimo', -1], ['ultima', -1], ['el ultimo', -1], ['la ultima', -1], ['last', -1], ['the last', -1],
 ]);
 
-function parseStructuredOrdinal(reference) {
+export function parseStructuredOrdinal(reference) {
   const raw = String(reference || '').trim().toLowerCase();
   if (!raw) return null;
   const normalized = normalizeTextForMatching(raw);
