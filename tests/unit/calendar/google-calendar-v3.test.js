@@ -100,7 +100,7 @@ describe('Google Calendar current architecture', () => {
       const actionProps = definitions[0].function.parameters.properties.actions.items.properties;
       expect(actionProps.domain.enum).toContain('calendar');
       expect(actionProps.action).toBeDefined();
-      expect(actionProps.target.description).toContain('Never an internal ID');
+      expect(actionProps.target.description.toLowerCase()).toContain('never an internal id');
     });
 
     it('keeps calendar mutation identity separate from patch fields and legacy aliases', () => {
