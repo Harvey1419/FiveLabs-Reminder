@@ -93,8 +93,7 @@ export async function executeSingleReminderCancellation({
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber, phoneVariants } = owner;
   const timezone = user?.timezone || 'America/Bogota';
-  const rawTarget = params.reminderId || params.id || params.target || params.contentQuery || params.query || '';
-  const target = String(rawTarget || '').trim();
+  const target = String(params.target || '').trim();
 
   console.log(`${reqId} start target=${JSON.stringify(target)} user=${userId || phoneNumber || 'unknown'}`);
 
