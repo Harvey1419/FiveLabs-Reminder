@@ -4,6 +4,7 @@ import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
 ]);
+const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
 
 const DOMAIN_ACTIONS = Object.freeze({
   conversation: new Set(['reply']),
@@ -103,7 +104,11 @@ const actionSchema = {
     schedule: typedSchedule,
     endSchedule: typedSchedule,
     advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080 },
-    recurrence: { type: 'string', description: 'Recurrence semantics for reminders. Prefer canonical values daily, weekdays, weekly, monthly or hourly. Example: “todos los días a las 9” => recurrence=daily plus schedule=local_time at 09:00.' },
+    recurrence: {
+      type: 'string',
+      enum: RECURRENCES,
+      description: 'Canonical recurrence semantics for reminders. “todos los días a las 9” => recurrence=daily plus schedule=local_time at 09:00.',
+    },
     requiresConfirmation: { type: 'boolean' },
     nudgeIntervalMinutes: { type: 'integer', minimum: 1, maximum: 10080 },
     maxNudges: { type: 'integer', minimum: 1, maximum: 100 },
@@ -209,6 +214,9 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     }
     if (domain === 'reminder' && action === 'update' && !(typeof raw.target === 'string' && raw.target.trim())) {
       return { valid: false, errorCode: 'MISSING_TARGET', error: 'reminder.update requiere una referencia explícita a un recordatorio existente.' };
+    }
+    if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) {
+      return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
     }
     normalizedActions.push({ ...raw, domain, action });
   }

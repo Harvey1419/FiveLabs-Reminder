@@ -103,24 +103,6 @@ function normalizeUpdateFields(action) {
   return action;
 }
 
-function normalizeRecurrenceValue(value) {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\s-]+/g, '_');
-
-  const aliases = {
-    daily: 'daily', every_day: 'daily', everyday: 'daily', cada_dia: 'daily', todos_los_dias: 'daily', diaria: 'daily', diario: 'daily',
-    weekdays: 'weekdays', weekdays_only: 'weekdays', dias_habiles: 'weekdays', entre_semana: 'weekdays',
-    weekly: 'weekly', every_week: 'weekly', cada_semana: 'weekly', semanal: 'weekly',
-    monthly: 'monthly', every_month: 'monthly', cada_mes: 'monthly', mensual: 'monthly',
-    hourly: 'hourly', every_hour: 'hourly', cada_hora: 'hourly',
-  };
-  return aliases[normalized] || String(value || '').trim();
-}
-
 /**
  * A recurring reminder represents the next occurrence of a routine, not an
  * already elapsed wall-clock occurrence. This invariant applies both when a
@@ -135,28 +117,23 @@ function normalizeRecurringReminder(action, context) {
   const inheritedRecurrence = workingItem?.raw?.recurrence_rule
     || workingItem?.raw?.recurrenceRule
     || null;
-  const requestedRecurrence = action.recurrence ? normalizeRecurrenceValue(action.recurrence) : null;
-  const recurrence = requestedRecurrence || inheritedRecurrence;
+  const recurrence = action.recurrence || inheritedRecurrence;
 
-  let normalized = requestedRecurrence && requestedRecurrence !== action.recurrence
-    ? { ...action, recurrence: requestedRecurrence }
-    : action;
+  if (recurrence !== 'daily' || !action.schedule) return action;
+  if (!['local_time', 'relative_day_time'].includes(action.schedule.kind)) return action;
+  if (action.schedule.kind === 'relative_day_time' && (action.schedule.dayOffset ?? 0) !== 0) return action;
 
-  if (recurrence !== 'daily' || !normalized.schedule) return normalized;
-  if (!['local_time', 'relative_day_time'].includes(normalized.schedule.kind)) return normalized;
-  if (normalized.schedule.kind === 'relative_day_time' && (normalized.schedule.dayOffset ?? 0) !== 0) return normalized;
-
-  const resolved = resolveTypedSchedule(normalized.schedule, {
+  const resolved = resolveTypedSchedule(action.schedule, {
     referenceTime: context.referenceTime,
     timezone: context.timezone,
   });
   const reference = context.referenceTime instanceof Date ? context.referenceTime : new Date(context.referenceTime || Date.now());
-  if (!resolved.valid || !resolved.date || resolved.date.getTime() > reference.getTime()) return normalized;
+  if (!resolved.valid || !resolved.date || resolved.date.getTime() > reference.getTime()) return action;
 
   return {
-    ...normalized,
+    ...action,
     schedule: {
-      ...normalized.schedule,
+      ...action.schedule,
       kind: 'relative_day_time',
       dayOffset: 1,
     },
