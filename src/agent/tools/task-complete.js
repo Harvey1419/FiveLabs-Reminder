@@ -2,7 +2,6 @@ import {
   completeTasksByQuery,
   updateTask,
 } from '../../infrastructure/database/index.js';
-import { getWorkingMemory } from '../core/working-memory.js';
 import { resolveTaskTarget } from './task-reference.js';
 
 /** Canonical task completion mutation. */
@@ -13,59 +12,7 @@ export async function executeTaskComplete({
 } = {}) {
   const userId = user?.id;
   const phoneNumber = user?.phone_number;
-  const { taskId: rawTaskId = null, scope = null, completeAll = false, entityName = null } = params;
-  const targetQuery = rawTaskId || params.id || params.target || params.title || params.query || null;
-
-  if (scope === 'all' || completeAll) {
-    let resolvedEntityName = entityName;
-    let resolvedEntityId = null;
-
-    if (!resolvedEntityName) {
-      if (targetQuery) {
-        const entityResolution = await resolveTaskTarget({
-          target: targetQuery,
-          userId,
-          userOrPhone: user || phoneNumber,
-        });
-        if (entityResolution.status === 'RESOLVED_CONTAINER') {
-          resolvedEntityName = entityResolution.entityName;
-          resolvedEntityId = entityResolution.entityId || null;
-        }
-      }
-
-      if (!resolvedEntityName) {
-        const workingMemory = getWorkingMemory(user || phoneNumber);
-        if (workingMemory?.activeEntity) resolvedEntityName = workingMemory.activeEntity;
-        if (workingMemory?.activeEntityId) resolvedEntityId = workingMemory.activeEntityId;
-      }
-    }
-
-    const result = await completeTasksByQuery({
-      userId,
-      entityName: resolvedEntityName,
-      entityId: resolvedEntityId,
-      completeAll: true,
-    });
-    if (result?.error) {
-      return {
-        success: false,
-        action: 'database_error',
-        errorCode: result.error.code || 'DATABASE_ERROR',
-        error: result.error.message,
-        rawSummary: result.error.message,
-      };
-    }
-
-    const completedCount = typeof result === 'object'
-      ? (result?.completedCount || 0)
-      : (Number(result) || 0);
-
-    return {
-      success: true,
-      action: 'completed_tasks',
-      data: { completedCount, entityName: resolvedEntityName },
-    };
-  }
+  const targetQuery = params.target || null;
 
   if (!targetQuery) {
     const message = language === 'en'
@@ -95,6 +42,7 @@ export async function executeTaskComplete({
     const result = await completeTasksByQuery({
       userId,
       entityName: resolution.entityName,
+      entityId: resolution.entityId || null,
       completeAll: true,
     });
     if (result?.error) {
