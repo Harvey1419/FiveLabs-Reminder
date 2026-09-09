@@ -26,7 +26,7 @@ export async function executeReminderReadTool({
   const reference = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
   const now = Number.isNaN(reference.getTime()) ? new Date() : reference;
   const nowIso = now.toISOString();
-  const rawFilter = String(params.filter || params.type || params.scope || '').toLowerCase().trim();
+  const rawFilter = String(params.filter || params.scope || '').toLowerCase().trim();
   const bounds = getDayBounds('today', timezone);
   const todayStartIso = bounds.timeMin.toISOString();
   const todayEndIso = bounds.timeMax.toISOString();
@@ -43,7 +43,7 @@ export async function executeReminderReadTool({
 
   let filter = 'upcoming';
 
-  if (rawFilter === 'completed_today' || params.status === 'completed') {
+  if (rawFilter === 'completed_today') {
     filter = 'completed_today';
     query = query
       .not('acknowledged_at', 'is', null)
