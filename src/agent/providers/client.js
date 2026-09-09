@@ -131,6 +131,10 @@ function createForegroundProfiles() {
         exclude: true,
       },
       parallelToolCalls: undefined,
+      // GPT-OSS/Groq is most reliable when the only canonical foreground tool is
+      // selected explicitly instead of using generic `required`. Hermes still
+      // validates that execute_turn is actually returned before accepting output.
+      requiredToolName: 'execute_turn',
       // Keep one retry only for a malformed/empty structured response. Provider
       // finish errors skip immediately to the independent fallback below.
       emptyContentRetries: 1,
@@ -332,9 +336,14 @@ async function runOpenRouterChain(messages, profiles, {
       console.log(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=${profile.providers.join(',')} trigger=${previousFailure}`);
     }
 
-    const effectiveToolChoice = toolChoice === 'required' && profile.requiredToolChoiceSupported === false
-      ? 'auto'
-      : toolChoice;
+    const hasRequiredNamedTool = toolChoice === 'required'
+      && profile.requiredToolName
+      && tools?.some((item) => item?.function?.name === profile.requiredToolName);
+    const effectiveToolChoice = hasRequiredNamedTool
+      ? { type: 'function', function: { name: profile.requiredToolName } }
+      : toolChoice === 'required' && profile.requiredToolChoiceSupported === false
+        ? 'auto'
+        : toolChoice;
     let attempt;
     const maxAttempts = 1 + (profile.emptyContentRetries || 0);
 
