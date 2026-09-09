@@ -6,7 +6,8 @@
  */
 
 const workingMemoryStore = new Map();
-const WORKING_MEMORY_TTL_MS = 15 * 60 * 1000;
+const WORKING_MEMORY_TTL_MS = 2 * 60 * 60 * 1000;
+const PERSISTED_WORKING_MEMORY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function sanitizePendingOperation(operation) {
   if (!operation) return null;
@@ -180,6 +181,51 @@ export function getWorkingMemory(userOrPhone) {
 export function clearWorkingMemory(userOrPhone) {
   const keys = getLookupKeys(userOrPhone);
   for (const key of keys) workingMemoryStore.delete(key);
+}
+
+/**
+ * Persistable typed snapshot. Internal IDs remain backend-only inside the
+ * messages.entities JSON and are never rendered into the LLM prompt directly.
+ */
+export function getWorkingMemorySnapshot(userOrPhone) {
+  const memory = getWorkingMemory(userOrPhone);
+  if (!memory) return null;
+  try {
+    return {
+      ...JSON.parse(JSON.stringify(memory)),
+      persistedAt: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Restore the latest typed state from persisted assistant message metadata.
+ * Current in-memory state wins. Stale snapshots are deliberately ignored so a
+ * later "el segundo" cannot bind to an old conversation indefinitely.
+ */
+export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now = new Date()) {
+  if (getWorkingMemory(userOrPhone)) return getWorkingMemory(userOrPhone);
+  const referenceMs = now instanceof Date ? now.getTime() : new Date(now || Date.now()).getTime();
+  const turns = Array.isArray(history) ? history : [];
+
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const turn = turns[index];
+    const snapshot = turn?.entities?._workingMemory;
+    if (!snapshot || typeof snapshot !== 'object') continue;
+
+    const timestampCandidate = turn?.createdAt || snapshot.persistedAt || null;
+    const timestampMs = timestampCandidate ? new Date(timestampCandidate).getTime() : NaN;
+    if (!Number.isFinite(timestampMs) || referenceMs - timestampMs > PERSISTED_WORKING_MEMORY_MAX_AGE_MS || timestampMs > referenceMs + 60_000) {
+      continue;
+    }
+
+    saveWorkingMemory(userOrPhone, snapshot);
+    return getWorkingMemory(userOrPhone);
+  }
+
+  return null;
 }
 
 export function formatWorkingMemoryPrompt(userOrPhone) {
