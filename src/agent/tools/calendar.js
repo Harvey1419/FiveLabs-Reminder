@@ -152,9 +152,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
     case 'get_connect_link': {
       if (isConnected) {
         try {
-          // Token presence is not proof of a live connection: revoked refresh
-          // tokens remain persisted until Google is contacted. An explicit
-          // connect request is rare and is the right moment for a live probe.
           await listCalendarEvents(userId, { timezone: tz, maxResults: 1 });
           const email = integration.account_email ? ` (${integration.account_email})` : '';
           const summary = language === 'en'
@@ -181,8 +178,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
               formattedCard: `⚠️ ${summary}`,
             };
           }
-          // The Calendar integration removes invalid credentials. Continue
-          // below and issue the correct reconnection URL in this same turn.
         }
       }
 
@@ -225,7 +220,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
     case 'list_events':
     case 'search_events':
     case 'next_event': {
-      // 1. STATE DISCONNECTED: Guard before calling Google API
       if (!isConnected) {
         const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
         const summary = language === 'en'
@@ -257,7 +251,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           q: queryParam,
         });
       } catch (err) {
-        // 2. STATE ERROR / UNAVAILABLE: Distinct error reporting
         console.error(`[calendarTools] Google API error for user ${userId}:`, err.message);
 
         if (isGoogleAuthError(err)) {
@@ -287,10 +280,8 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // Normalize all events ensuring civil all-day date integrity
       const events = (rawEvents || []).map(ev => normalizeCalendarEvent(ev, tz));
 
-      // 3. STATE CONNECTED with 0 events
       if (events.length === 0) {
         let summary = '';
         if (resolved.isNextEvent) {
@@ -311,7 +302,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // Handle next_event: strictly sort by civil/timed sortTimestamp ascending
       if (resolved.isNextEvent) {
         events.sort((a, b) => a.sortTimestamp - b.sortTimestamp);
         const ev = events[0];
@@ -338,7 +328,6 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // List of events formatted with civil all-day preservation
       const eventsFormatted = events.map(e => formatCalendarEventLine(e, tz, language)).join('\n');
       const header = language === 'en'
         ? 'Events in your Google Calendar:'
@@ -435,36 +424,27 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      // advanceMinutes is semantic intent. Calendar executes the structured value
-      // and never parses user/persistent-memory prose to infer one.
-      const advanceMinutes = params.advanceMinutes !== undefined && params.advanceMinutes !== null
-        ? Number(params.advanceMinutes)
-        : 0;
-
+      const hasExplicitAdvanceNotice = params.advanceMinutes !== undefined && params.advanceMinutes !== null;
+      const advanceMinutes = hasExplicitAdvanceNotice ? Number(params.advanceMinutes) : null;
       let reminderCreated = false;
       let reminderSendAt = null;
 
-      if (advanceMinutes > 0) {
-        reminderSendAt = new Date(startDateTime.getTime() - Number(advanceMinutes) * 60 * 1000).toISOString();
-      } else {
-        reminderSendAt = startDateTime.toISOString();
-      }
-
-      if (new Date(reminderSendAt).getTime() > Date.now()) {
-        const advContent = advanceMinutes > 0
-          ? `🔔 [Aviso Previo] ${event.summary} en ${advanceMinutes} minutos`
-          : `🔔 ${event.summary}`;
-        try {
-          const inserted = await saveReminder({
-            userId,
-            phoneNumber,
-            content: advContent,
-            sendAt: reminderSendAt,
-            requiresConfirmation: true,
-          });
-          if (inserted) reminderCreated = true;
-        } catch (remErr) {
-          console.warn('[calendarTools] Failed to save linked reminder:', remErr.message);
+      if (hasExplicitAdvanceNotice && Number.isFinite(advanceMinutes) && advanceMinutes > 0) {
+        reminderSendAt = new Date(startDateTime.getTime() - advanceMinutes * 60 * 1000).toISOString();
+        if (new Date(reminderSendAt).getTime() > Date.now()) {
+          const advContent = `🔔 [Aviso Previo] ${event.summary} en ${advanceMinutes} minutos`;
+          try {
+            const inserted = await saveReminder({
+              userId,
+              phoneNumber,
+              content: advContent,
+              sendAt: reminderSendAt,
+              requiresConfirmation: true,
+            });
+            if (inserted) reminderCreated = true;
+          } catch (remErr) {
+            console.warn('[calendarTools] Failed to save linked reminder:', remErr.message);
+          }
         }
       }
 
@@ -473,11 +453,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       let summary = `📅 *Evento agendado en Google Calendar*\n\n• 🏢 *${event.summary}*\n• 📅 ${formattedStartDate}${meetNotice}`;
 
       if (reminderCreated) {
-        if (advanceMinutes > 0) {
-          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatHumanFriendlyDateTime(new Date(reminderSendAt), tz, language)})`;
-        } else {
-          summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• A la misma hora (${formatHumanFriendlyDateTime(startDateTime, tz, language)})`;
-        }
+        summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatHumanFriendlyDateTime(new Date(reminderSendAt), tz, language)})`;
       }
 
       return {
