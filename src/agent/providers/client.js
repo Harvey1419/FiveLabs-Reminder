@@ -1,14 +1,14 @@
 /**
  * Production AI gateway.
  *
- * Foreground routing is explicit and observable:
+ * Foreground routing is explicit and latency-bounded:
  *   1. GPT-OSS 120B on Groq
  *   2. GLM 5.3 Flash on Baseten FP8
  *   3. Qwen 3.7 Flash on Alibaba
- *   4. GPT-OSS/Groq recovery after alternative-provider exhaustion
  *
- * OpenRouter implicit provider fallbacks are disabled on every attempt. Hermes
- * owns the model/provider order and records why each fallback happened.
+ * OpenRouter implicit provider fallbacks are disabled. Hermes owns the route,
+ * validates the canonical execute_turn boundary, and never returns to a provider
+ * that already failed during the same foreground turn.
  */
 
 function parseProviderList(value, defaults) {
@@ -16,7 +16,6 @@ function parseProviderList(value, defaults) {
     ?.split(',')
     .map((provider) => provider.trim())
     .filter(Boolean);
-
   return configured?.length ? configured : defaults;
 }
 
@@ -54,7 +53,6 @@ export function getOpenRouterApiKey() {
 function extractTextContent(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-
   return content
     .filter((part) => part?.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text)
@@ -94,6 +92,19 @@ function compactErrorBody(rawBody) {
   }
 }
 
+function compactProviderFinishDetail(choice, data) {
+  const detail = choice?.error?.message
+    || choice?.error
+    || data?.error?.message
+    || data?.error
+    || choice?.native_finish_reason
+    || '';
+  if (!detail) return '';
+  return String(typeof detail === 'string' ? detail : JSON.stringify(detail))
+    .replace(/\s+/g, ' ')
+    .slice(0, 240);
+}
+
 function buildUnavailableResponse(returnMessage) {
   const unavailable = {
     type: 'chat',
@@ -120,7 +131,9 @@ function createForegroundProfiles() {
         exclude: true,
       },
       parallelToolCalls: undefined,
-      emptyContentRetries: 3,
+      // Keep one retry only for a malformed/empty structured response. Provider
+      // finish errors skip immediately to the independent fallback below.
+      emptyContentRetries: 1,
     },
     {
       stage: 'secondary',
@@ -132,6 +145,9 @@ function createForegroundProfiles() {
         exclude: true,
       },
       parallelToolCalls: undefined,
+      // Baseten currently rejects tool_choice=required for this endpoint. We
+      // send auto but still reject any prose-only response at the Hermes boundary.
+      requiredToolChoiceSupported: false,
     },
     {
       stage: 'last_resort',
@@ -142,18 +158,6 @@ function createForegroundProfiles() {
       parallelToolCalls: undefined,
       requiredToolChoiceSupported: false,
       minCompletionTokens: 2800,
-    },
-    {
-      stage: 'primary_recovery',
-      model: config.primary,
-      providers: config.primaryProviders,
-      timeoutMs: positiveNumber(process.env.OPENROUTER_PRIMARY_TIMEOUT_MS, 9000),
-      reasoning: {
-        effort: process.env.OPENROUTER_PRIMARY_REASONING_EFFORT || 'medium',
-        exclude: true,
-      },
-      parallelToolCalls: undefined,
-      emptyContentRetries: 1,
     },
   ];
 }
@@ -212,7 +216,6 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
 
   try {
     const payload = { model, messages, temperature, max_tokens };
-
     if (responseFormat) payload.response_format = responseFormat;
     if (tools?.length) {
       payload.tools = tools;
@@ -252,15 +255,19 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
     }
 
     const data = await res.json();
-    const responseMessage = data.choices?.[0]?.message || {};
+    const choice = data.choices?.[0] || {};
+    const responseMessage = choice.message || {};
     const raw = cleanModelText(extractTextContent(responseMessage.content));
     const toolCalls = Array.isArray(responseMessage.tool_calls) ? responseMessage.tool_calls : [];
-    const finishReason = data.choices?.[0]?.finish_reason || null;
+    const finishReason = choice.finish_reason || null;
     const actualProvider = data.provider || requestedProviders[0] || 'default';
     const usage = data.usage || {};
 
     if (finishReason === 'error') {
-      if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=provider_finish_error latencyMs=${Date.now() - startMs}`);
+      const detail = compactProviderFinishDetail(choice, data);
+      if (logPrefix) {
+        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=provider_finish_error latencyMs=${Date.now() - startMs}${detail ? ` detail="${detail}"` : ''}`);
+      }
       return { ok: false, reason: 'provider_finish_error', finishReason };
     }
 
@@ -293,7 +300,6 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
         },
       };
     }
-
     return { ok: true, value: raw };
   } catch (error) {
     const reason = classifyThrownFailure(error);
@@ -323,9 +329,7 @@ async function runOpenRouterChain(messages, profiles, {
 
   for (const profile of profiles) {
     if (logPrefix && previousFailure !== 'initial_request') {
-      console.log(
-        `${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=${profile.providers.join(',')} trigger=${previousFailure}`,
-      );
+      console.log(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=${profile.providers.join(',')} trigger=${previousFailure}`);
     }
 
     const effectiveToolChoice = toolChoice === 'required' && profile.requiredToolChoiceSupported === false
@@ -333,12 +337,11 @@ async function runOpenRouterChain(messages, profiles, {
       : toolChoice;
     let attempt;
     const maxAttempts = 1 + (profile.emptyContentRetries || 0);
+
     for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
       attempt = await callOpenRouterAttempt(messages, profile.model, apiKey, {
         temperature,
-        max_tokens: tools?.length
-          ? Math.max(maxTokens, profile.minCompletionTokens || 0)
-          : maxTokens,
+        max_tokens: tools?.length ? Math.max(maxTokens, profile.minCompletionTokens || 0) : maxTokens,
         timeoutMs: profile.timeoutMs,
         providers: profile.providers,
         allowProviderFallbacks: false,
@@ -353,27 +356,24 @@ async function runOpenRouterChain(messages, profiles, {
         stage: profile.stage,
       });
 
-      // Some fallback providers only accept tool_choice=auto. The protocol is
-      // still required by Hermes, so prose-only success from those providers
-      // must not terminate the chain and bypass the structured decision path.
+      // Providers that only accept auto still have to return execute_turn. Prose
+      // cannot terminate the chain when the caller requested a structured turn.
       if (requiredDecisionMissing(attempt, {
         requestedToolChoice: toolChoice,
         tools,
         returnMessage,
       })) {
-        if (logPrefix) {
-          console.warn(`${logPrefix} attempt purpose=${purpose} stage=${profile.stage} outcome=failed reason=required_tool_missing_after_auto_fallback`);
-        }
+        if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${profile.stage} outcome=failed reason=required_tool_missing_after_auto_fallback`);
         attempt = { ok: false, reason: 'required_tool_missing' };
       }
 
+      // Only malformed/empty structured responses get a same-provider retry.
+      // Upstream finish errors are already authoritative provider failures and
+      // move immediately to an independent provider to keep foreground latency bounded.
       const retryableStructuredMiss = attempt.reason === 'empty_content'
-        || attempt.reason === 'required_tool_missing'
-        || (attempt.reason === 'provider_finish_error' && attemptNumber === 1);
+        || attempt.reason === 'required_tool_missing';
       if (attempt.ok || !retryableStructuredMiss || attemptNumber === maxAttempts) break;
-      if (logPrefix) {
-        console.warn(`${logPrefix} retry purpose=${purpose} stage=${profile.stage} reason=${attempt.reason} attempt=${attemptNumber + 1}`);
-      }
+      if (logPrefix) console.warn(`${logPrefix} retry purpose=${purpose} stage=${profile.stage} reason=${attempt.reason} attempt=${attemptNumber + 1}`);
     }
 
     if (attempt.ok) return attempt.value;

@@ -137,17 +137,17 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
     expect(payload.provider.only).toEqual(['baseten/fp8']);
   });
 
-  it('retries GPT-OSS as final recovery when all fallback providers are unavailable', async () => {
+  it('does not return to a failed primary after all independent foreground fallbacks are unavailable', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('primary unavailable', { status: 503 }))
       .mockResolvedValueOnce(new Response('secondary unavailable', { status: 503 }))
-      .mockResolvedValueOnce(new Response('last resort unavailable', { status: 503 }))
-      .mockResolvedValueOnce(openRouterResponse('{"type":"chat","reply":"recovered"}', 'Groq'));
+      .mockResolvedValueOnce(new Response('last resort unavailable', { status: 503 }));
     const result = await callChatCompletion([{ role: 'user', content: 'continúa' }]);
-    expect(result).toContain('recovered');
+    expect(result).toContain('intermitencia');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expect(payloads.map((payload) => payload.model)).toEqual([
-      'openai/gpt-oss-120b', 'z-ai/glm-5.3-flash', 'qwen/qwen3.7-flash', 'openai/gpt-oss-120b',
+      'openai/gpt-oss-120b', 'z-ai/glm-5.3-flash', 'qwen/qwen3.7-flash',
     ]);
   });
 
