@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   saveWorkingMemory,
+  getWorkingMemory,
   clearWorkingMemory,
 } from '../../../src/agent/core/working-memory.js';
 import { resolveContextReference } from '../../../src/agent/core/context-reference.js';
@@ -61,17 +62,17 @@ describe('resolveContextReference', () => {
     });
 
     const resolved = resolveContextReference({
-      userOrPhone: user,
       reference: '1',
       candidates,
       preferredType: 'task',
+      workingMemory: getWorkingMemory(user),
     });
 
     expect(resolved.status).toBe('RESOLVED');
     expect(resolved.item?.internalId).toBe(candidates[0].id);
   });
 
-  it('falls back to working memory only when no current candidate set is supplied', () => {
+  it('uses supplied working memory only when no current candidate set is supplied', () => {
     saveWorkingMemory(user, {
       source: 'task',
       entityType: 'task',
@@ -82,9 +83,9 @@ describe('resolveContextReference', () => {
     });
 
     const resolved = resolveContextReference({
-      userOrPhone: user,
       reference: 'la segunda',
       preferredType: 'task',
+      workingMemory: getWorkingMemory(user),
     });
 
     expect(resolved.status).toBe('RESOLVED');
