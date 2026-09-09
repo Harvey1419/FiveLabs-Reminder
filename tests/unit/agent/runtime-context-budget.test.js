@@ -24,7 +24,7 @@ describe('Hermes runtime context budget', () => {
     });
 
     expect(prompt).toContain('Hermes decide significado');
-    expect(prompt).toContain('Node decide identidad');
+    expect(prompt).toContain('Node es la autoridad final');
     expect(prompt).toContain('Seguimientos activos');
     expect(prompt.length).toBeLessThan(6000);
   });
