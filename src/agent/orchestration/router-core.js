@@ -10,7 +10,13 @@ import {
 import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 import { buildAgentCorePrompt } from '../core/agent-core.js';
-import { formatWorkingMemoryPrompt, getWorkingMemory, sanitizeResponseText } from '../core/working-memory.js';
+import {
+  formatWorkingMemoryPrompt,
+  getWorkingMemory,
+  getWorkingMemorySnapshot,
+  hydrateWorkingMemoryFromHistory,
+  sanitizeResponseText,
+} from '../core/working-memory.js';
 import { hydrateClarificationStateFromHistory, getClarificationStateSnapshot } from './clarification-flow.js';
 import { composeExecutionReply } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
@@ -129,6 +135,14 @@ export function bindAuthoritativeFollowupTargets(intent, overview) {
   };
 }
 
+function conversationStateEntities(user, extra = {}) {
+  return {
+    ...extra,
+    _conversationState: getClarificationStateSnapshot(user),
+    _workingMemory: getWorkingMemorySnapshot(user),
+  };
+}
+
 async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
   let finalText = text || '';
   if (finalText.includes('[auth_url]')) {
@@ -160,14 +174,20 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
 
 function safeIntentError(language) {
   return language === 'en'
-    ? 'I understood that you want me to do something, but I could not safely translate it into an action. Please rephrase it in one sentence.'
-    : 'Entendí que quieres que haga algo, pero no pude convertirlo en una acción segura. Dímelo de nuevo en una sola frase.';
+    ? 'I understood that you want me to do something, but I could not safely translate it into an action. Please send the request again.'
+    : 'Entendí que quieres que haga algo, pero no pude convertirlo en una acción segura. Envíamelo de nuevo, por favor.';
 }
 
 function structuredDecisionError(language) {
   return language === 'en'
     ? 'I had a small problem interpreting that message. Please send it again.'
     : 'Tuve un pequeño problema interpretando ese mensaje. Envíamelo de nuevo, por favor.';
+}
+
+function providerUnavailableError(language) {
+  return language === 'en'
+    ? 'I could not access the AI provider right now. I did not execute any action. Please try again shortly.'
+    : 'Ahora mismo no pude acceder al proveedor de IA. No ejecuté ninguna acción. Inténtalo de nuevo en un momento.';
 }
 
 function buildRecoveryMessages({ prompt, pastTurns, messageText }) {
@@ -211,6 +231,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const isAttachmentOnlyTurn = options?.attachmentOnly === true || (hasAttachmentEvidence && !trustedMessageText);
 
   hydrateClarificationStateFromHistory(user, history);
+  hydrateWorkingMemoryFromHistory(user, history, requestReferenceTime);
 
   const contextStart = Date.now();
   const [relevantMemories, dailyOverview, subscription, googleIntegration] = await Promise.all([
@@ -252,7 +273,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) pastTurns.pop();
   pastTurns = pastTurns
     .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
-    .slice(-14)
+    .slice(-30)
     .map(({ role, content }) => ({ role, content }));
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
 
@@ -290,7 +311,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
     return {
       intent: 'clarification',
-      entities: { _conversationState: getClarificationStateSnapshot(user) },
+      entities: conversationStateEntities(user),
       language,
       confirmation: safeIntentError(language),
       ctaUrl: null, ctaHeader: null, ctaButtonText: null,
@@ -326,7 +347,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       console.warn(`[router req=${requestId}] rejected recovered semantic intent: ${collected.errorCode} ${collected.error}`);
       return {
         intent: 'clarification',
-        entities: { _conversationState: getClarificationStateSnapshot(user) },
+        entities: conversationStateEntities(user),
         language,
         confirmation: safeIntentError(language),
         ctaUrl: null, ctaHeader: null, ctaButtonText: null,
@@ -336,13 +357,21 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
 
   if (!collected.intent) {
-    const confirmation = decision.unavailable && decision.content
-      ? sanitizeResponseText(decision.content)
+    const confirmation = decision.unavailable
+      ? providerUnavailableError(language)
       : structuredDecisionError(language);
     console.warn(`[router req=${requestId}] structured decision missing after recovery; refusing prose bypass`);
     return {
-      intent: 'clarification', entities: { _conversationState: getClarificationStateSnapshot(user) }, language, confirmation,
-      ctaUrl: null, ctaHeader: null, ctaButtonText: null, plan: { type: 'missing_structured_decision' }, executionFacts: [], memoryDisposition: 'skip_operational',
+      intent: 'clarification',
+      entities: conversationStateEntities(user),
+      language,
+      confirmation,
+      ctaUrl: null,
+      ctaHeader: null,
+      ctaButtonText: null,
+      plan: { type: decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision' },
+      executionFacts: [],
+      memoryDisposition: 'skip_operational',
     };
   }
 
@@ -363,7 +392,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
     return {
       intent: 'chat',
-      entities: { _conversationState: getClarificationStateSnapshot(user) },
+      entities: conversationStateEntities(user),
       language,
       confirmation,
       ctaUrl: null,
@@ -435,10 +464,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   return {
     intent: inferIntentFromTool(primary?.toolName),
-    entities: {
+    entities: conversationStateEntities(user, {
       ...(primary?.params && typeof primary.params === 'object' && !Array.isArray(primary.params) ? primary.params : {}),
-      _conversationState: getClarificationStateSnapshot(user),
-    },
+    }),
     language,
     confirmation: finalReply,
     ctaUrl: ctaFact?.ctaUrl || ctaRecord?.result?.data?.auth_url || ctaRecord?.result?.data?.checkout_url || null,
