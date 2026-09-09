@@ -259,7 +259,7 @@ export async function handleWebhook(req, res) {
 
       let locationTz = null;
       let mediaElapsedMs = 0;
-      let directAttachmentReply = null;
+      let attachmentOnly = false;
       if (isLocation) {
         const loc = message.location || {};
         const lat = loc.latitude;
@@ -293,7 +293,7 @@ export async function handleWebhook(req, res) {
           const mimeType = message.image?.mime_type || 'image/jpeg';
           const extracted = await processDocumentOrImage(imageBuffer, mimeType, caption);
           if (extracted) {
-            if (!caption.trim()) directAttachmentReply = extracted;
+            attachmentOnly = !caption.trim();
             messageText = caption
               ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
               : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
@@ -310,7 +310,7 @@ export async function handleWebhook(req, res) {
           const mimeType = message.document?.mime_type || 'application/pdf';
           const extracted = await processDocumentOrImage(docBuffer, mimeType, caption);
           if (extracted) {
-            if (!caption.trim()) directAttachmentReply = extracted;
+            attachmentOnly = !caption.trim();
             messageText = caption
               ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
               : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
@@ -379,23 +379,17 @@ export async function handleWebhook(req, res) {
       const history = await getRecentMessages(recipientIdentifier, 16);
       const dbHistoryMs = Date.now() - tHist0;
 
-      // 5. Route to AI with full batch & natural reply generation
+      // 5. Route every turn through the canonical Hermes pipeline. A no-caption
+      // attachment is explicitly marked so router-core can expose conversation.reply
+      // only while keeping the extracted file content untrusted.
       const routeStart = Date.now();
-      // No-caption attachment extraction is already a user-facing description.
-      // Return it directly: this removes a second LLM call and guarantees that
-      // text found inside an attachment cannot trigger backend tools.
-      const result = directAttachmentReply
-        ? {
-          intent: 'attachment_description',
-          entities: {},
-          language: user.locale?.startsWith('en') ? 'en' : 'es',
-          confirmation: directAttachmentReply,
-          ctaUrl: null,
-          ctaHeader: null,
-          ctaButtonText: null,
-          executionFacts: [],
-        }
-        : await routeMessage(messageText, user, history, { correlationId, requestTimeMs });
+      const inputModality = isImage ? 'image' : isDocument ? 'document' : isAudio ? 'audio' : isLocation ? 'location' : 'text';
+      const result = await routeMessage(messageText, user, history, {
+        correlationId,
+        requestTimeMs,
+        inputModality,
+        attachmentOnly,
+      });
       const routeElapsedMs = Date.now() - routeStart;
 
       // 6. Send confirmation to user via Kapso WhatsApp API
@@ -437,9 +431,9 @@ export async function handleWebhook(req, res) {
         entities: result.entities ?? {},
       });
 
-      // 8. Attachment-only descriptions are observations, not durable user
-      // facts. Do not spend another model call or pollute persistent memory.
-      if (!directAttachmentReply) {
+      // 8. Attachment-only observations are not durable user facts. Captioned
+      // attachments can still contain trusted user text eligible for learning.
+      if (!attachmentOnly) {
         extractMemoryInBackground({
           userId: user.id,
           userText: messageText,
