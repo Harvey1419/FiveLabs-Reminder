@@ -13,6 +13,7 @@ import {
 import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
+import { pinReminderCancellationTargets } from './context-target-pinner.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -578,6 +579,14 @@ export async function executeTurnIntent(intent, context) {
     return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
   }
 
+  // Resolve contextual identities once against the pre-mutation snapshot. This
+  // prevents ordinal drift and lets duplicate human labels be paired safely
+  // when Hermes emitted one cancellation action per listed reminder.
+  const pinnedReminderTargets = pinReminderCancellationTargets(
+    actions,
+    getWorkingMemory(context.user),
+  );
+
   const records = [];
   const facts = [];
 
@@ -601,6 +610,14 @@ export async function executeTurnIntent(intent, context) {
       } else {
         toolName = prepared.toolName;
         params = prepared.params;
+        if (
+          pinnedReminderTargets.has(index)
+          && toolName === TOOL_NAMES.MANAGE_REMINDER
+          && params.action === 'cancel'
+          && !params.scope
+        ) {
+          params = { ...params, target: pinnedReminderTargets.get(index) };
+        }
         result = await executeTool({
           toolName,
           params,
