@@ -77,6 +77,18 @@ function cancellationCard({ reminder, recurring, language }) {
     : `🗑️ *Recordatorio eliminado*\n\n🔔 *${content}*`;
 }
 
+function ambiguousCandidateSnapshot(reminders = []) {
+  return reminders.map((reminder) => ({
+    id: reminder.id,
+    type: 'reminder',
+    content: reminder.content,
+    summary: reminder.content,
+    time: reminder.send_at || null,
+    send_at: reminder.send_at || null,
+    status: reminder.status || null,
+  }));
+}
+
 /**
  * Canonical single reminder cancellation.
  * A recurring target represents its logical active series. Advance notices are
@@ -167,6 +179,9 @@ export async function executeSingleReminderCancellation({
           ? 'Several reminders match. Tell me which one you want to cancel.'
           : 'Hay varios recordatorios que coinciden. Dime cuál quieres eliminar.',
         requiresClarification: true,
+        data: {
+          reminders: ambiguousCandidateSnapshot(scored.reminders),
+        },
       };
     }
   }
