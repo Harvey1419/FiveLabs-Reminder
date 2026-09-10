@@ -2,8 +2,8 @@ import { supabase } from './index.js';
 import { generateEmbedding } from '../../integrations/ai/embeddings.js';
 
 /**
- * Save a new memory record, superseding any existing active memory with the same topicKey,
- * and generating a 768-dim vector embedding for semantic search.
+ * Save a new memory record, superseding any existing active memory with the same topicKey.
+ * Exact repeats are idempotent; new versions receive a 768-dim search embedding.
  *
  * @param {object} params
  * @param {string} params.userId
@@ -33,20 +33,43 @@ export async function saveMemory({
   const safeCategory = VALID_MEM_CATEGORIES.has(rawCat) ? rawCat : 'fact';
 
   try {
-    let oldMemoryId = null;
+    let activeVersions = [];
 
-    // 1. If topicKey provided, look for existing active memory to supersede
+    // 1. Load every active version for the structured identity. Avoid
+    // maybeSingle(): legacy duplicates must not disable future reconciliation.
     if (cleanTopic) {
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from('memories')
-        .select('id')
+        .select('id, user_id, topic_key, category, content, confidence, is_active, valid_from, valid_until, superseded_by, last_accessed_at, created_at')
         .eq('user_id', userId)
         .eq('topic_key', cleanTopic)
         .eq('is_active', true)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      if (existing) {
-        oldMemoryId = existing.id;
+      if (existingError) {
+        console.warn('[memories] active identity lookup failed:', existingError.message);
+        return null;
+      } else {
+        activeVersions = existing || [];
+      }
+
+      // Exact content under the same structured identity is idempotent. The
+      // semantic extractor owns paraphrase equivalence; Node does not guess it.
+      const identical = activeVersions.find((memory) => String(memory.content).trim() === cleanContent);
+      if (identical) {
+        const duplicateIds = activeVersions.filter((memory) => memory.id !== identical.id).map((memory) => memory.id);
+        if (duplicateIds.length > 0) {
+          const { error: reconcileError } = await supabase
+            .from('memories')
+            .update({ is_active: false, superseded_by: identical.id })
+            .eq('user_id', userId)
+            .eq('topic_key', cleanTopic)
+            .eq('is_active', true)
+            .in('id', duplicateIds);
+          if (reconcileError) console.warn('[memories] duplicate identity reconciliation failed:', reconcileError.message);
+        }
+        return identical;
       }
     }
 
@@ -76,15 +99,30 @@ export async function saveMemory({
       return null;
     }
 
-    // 4. Mark old memory as superseded
-    if (oldMemoryId && newMem?.id) {
-      await supabase
+    // 4. A material change creates one new active version and preserves every
+    // previous version as history. Ownership and identity remain explicit.
+    if (activeVersions.length > 0 && newMem?.id) {
+      const previousIds = activeVersions.map((memory) => memory.id);
+      const { error: supersedeError } = await supabase
         .from('memories')
         .update({
           is_active: false,
           superseded_by: newMem.id,
         })
-        .eq('id', oldMemoryId);
+        .eq('user_id', userId)
+        .eq('topic_key', cleanTopic)
+        .eq('is_active', true)
+        .in('id', previousIds);
+      if (supersedeError) {
+        console.error('[memories] previous version supersede failed:', supersedeError);
+        const { error: rollbackError } = await supabase
+          .from('memories')
+          .delete()
+          .eq('user_id', userId)
+          .eq('id', newMem.id);
+        if (rollbackError) console.error('[memories] new version rollback failed:', rollbackError);
+        return null;
+      }
     }
 
     return newMem;

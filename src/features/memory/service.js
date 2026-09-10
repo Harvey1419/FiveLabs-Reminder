@@ -2,6 +2,7 @@ import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infra
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_MAX_CANDIDATES = 16;
+const MEMORY_RELATED_CONTEXT_LIMIT = 8;
 const MEMORY_EXTRACTION_MAX_TOKENS = 3200;
 const MEMORY_EXTRACTION_TIMEOUT_MS = 15000;
 
@@ -9,6 +10,18 @@ const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engin
 Analyze the following conversation turn between User and Assistant.
 
 Extract atomic durable facts, personal preferences, commercial/project decisions, or relationship context that will be useful weeks or months from now. The user text is the ONLY factual source.
+
+QUALITY OVER VOLUME:
+- A normal message should usually produce 0 to 3 high-value memories. The technical maximum exists only for unusually rich onboarding or profile updates.
+- One candidate must express exactly one independently useful idea. Never bundle identity, work, preferences, and procedures into one memory.
+- Do not emit minor details merely because they are present. Prefer fewer durable memories over exhaustive capture.
+
+EXISTING MEMORY IDENTITY:
+- Existing active memories may be supplied only to preserve conceptual identity. They are context, never evidence for a new candidate.
+- If the current user text repeats an existing memory without a material change, emit no candidate for that idea.
+- If the current user text explicitly changes, corrects, or replaces an existing fact or preference, emit the new current fact using the existing memory's exact topicKey. The current user text wins.
+- Create a new topicKey only for a genuinely new concept. Keep it stable and value-independent: never put a city, date, current value, adjective, or wording variant in the aspect when the key represents a mutable profile fact or preference.
+- Never reproduce an existing memory unless the current user text independently supports it with exact evidence.
 
 STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
 - Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
@@ -140,7 +153,10 @@ export async function extractAndSaveMemories({
   try {
     const messages = [
       { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
-      { role: 'user', content: `User text (the only factual source):\n<user_text>${eligibleText}</user_text>` },
+      {
+        role: 'user',
+        content: buildMemoryExtractionInput({ userText: eligibleText, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
+      },
     ];
 
     const rawResponse = await callMemoryExtraction(messages, {
@@ -275,6 +291,28 @@ function parseJsonArray(text) {
   return [];
 }
 
+async function findRelatedActiveMemories(userId, query) {
+  try {
+    const related = await searchMemories({ userId, query, limit: MEMORY_RELATED_CONTEXT_LIMIT });
+    return (Array.isArray(related) ? related : [])
+      .filter((memory) => memory?.topic_key && memory?.content)
+      .slice(0, MEMORY_RELATED_CONTEXT_LIMIT)
+      .map((memory) => ({
+        topicKey: String(memory.topic_key),
+        category: String(memory.category || 'fact'),
+        content: String(memory.content),
+      }));
+  } catch (error) {
+    console.warn('[memoryService] related memory lookup failed:', error.message);
+    return [];
+  }
+}
+
+export function buildMemoryExtractionInput({ userText, existingMemories = [] }) {
+  const related = Array.isArray(existingMemories) ? existingMemories.slice(0, MEMORY_RELATED_CONTEXT_LIMIT) : [];
+  return `Existing active memories (identity context only; never factual evidence):\n<existing_memories>${JSON.stringify(related)}</existing_memories>\n\nUser text (the only factual source):\n<user_text>${userText}</user_text>`;
+}
+
 const OPERATIONAL_MEMORY_TOOLS = new Set([
   'manage_reminder', 'manage_task', 'manage_entity', 'manage_google_calendar', 'get_unified_agenda',
   'manage_memory',
@@ -322,6 +360,7 @@ export function getMemoryEligibleText(userText, executionFacts = []) {
 }
 
 function getMemoryCandidateRejection(item, sourceText, executionFacts) {
+  if (!String(item?.topicKey || '').trim()) return 'missing_topic_key';
   const evidence = String(item?.evidence || '').trim();
   if (!evidence) return 'missing_user_evidence';
 
