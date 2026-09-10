@@ -10,7 +10,7 @@ vi.mock('../../../src/agent/providers/client.js', () => ({
   callMemoryExtraction: vi.fn(),
 }));
 
-const { saveMemory, findOrCreateEntityFuzzy } = await import('../../../src/infrastructure/database/index.js');
+const { saveMemory, searchMemories, findOrCreateEntityFuzzy } = await import('../../../src/infrastructure/database/index.js');
 const { callMemoryExtraction } = await import('../../../src/agent/providers/client.js');
 const { extractAndSaveMemories, getMemoryEligibleText } = await import('../../../src/features/memory/service.js');
 const { isPureQuestionTurn } = await import('../../../src/jobs/memory-extractor.js');
@@ -25,6 +25,7 @@ const reminderFact = {
 describe('durable memory extraction policy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchMemories.mockResolvedValue([]);
     findOrCreateEntityFuzzy.mockResolvedValue({ id: 'entity-1', name: 'Borona' });
     saveMemory.mockResolvedValue({ id: 'memory-1' });
   });
@@ -182,6 +183,77 @@ describe('durable memory extraction policy', () => {
     expect(prompt[1].content).not.toContain('Qué lindo nombre');
   });
 
+  it('gives the same extractor related active identities so a paraphrase can be omitted', async () => {
+    searchMemories.mockResolvedValue([{
+      topic_key: 'profile/residence',
+      category: 'fact',
+      content: 'El usuario vive en Barranquilla.',
+    }]);
+    callMemoryExtraction.mockResolvedValue('[]');
+
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1',
+      userText: 'Mi lugar de residencia sigue siendo Barranquilla.',
+      assistantReply: 'Entendido.',
+    });
+
+    expect(saved).toEqual([]);
+    expect(searchMemories).toHaveBeenCalledWith({
+      userId: 'user-1',
+      query: 'Mi lugar de residencia sigue siendo Barranquilla.',
+      limit: 8,
+    });
+    const input = callMemoryExtraction.mock.calls[0][0][1].content;
+    expect(input).toContain('"topicKey":"profile/residence"');
+    expect(input).toContain('Mi lugar de residencia sigue siendo Barranquilla.');
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('reuses an existing structured identity for an explicit current update', async () => {
+    searchMemories.mockResolvedValue([{
+      topic_key: 'profile/work_location',
+      category: 'fact',
+      content: 'El usuario trabaja en Bucaramanga.',
+    }]);
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{
+      topicKey: 'profile/work_location',
+      category: 'fact',
+      content: 'El usuario ahora trabaja en Barranquilla.',
+      evidence: 'Ahora estoy trabajando en Barranquilla',
+      entityName: null,
+      entityCategory: null,
+    }]));
+
+    await extractAndSaveMemories({
+      userId: 'user-1',
+      userText: 'Ahora estoy trabajando en Barranquilla.',
+      assistantReply: 'Entendido.',
+    });
+
+    expect(saveMemory).toHaveBeenCalledWith(expect.objectContaining({
+      topicKey: 'profile/work_location',
+      content: 'El usuario ahora trabaja en Barranquilla.',
+    }));
+  });
+
+  it('rejects a candidate without a structured topic identity', async () => {
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{
+      topicKey: '',
+      category: 'preference',
+      content: 'El usuario prefiere respuestas breves.',
+      evidence: 'Prefiero respuestas breves',
+      entityName: null,
+      entityCategory: null,
+    }]));
+
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1', userText: 'Prefiero respuestas breves.', assistantReply: 'Entendido.',
+    });
+
+    expect(saved).toEqual([]);
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
   it('uses a bounded high-capacity contract for long onboarding turns', async () => {
     const memories = Array.from({ length: 18 }, (_, index) => ({
       topicKey: `preference/workflow/aspect_${index + 1}`,
@@ -204,6 +276,7 @@ describe('durable memory extraction policy', () => {
       timeoutMs: 15000,
     });
     const prompt = callMemoryExtraction.mock.calls[0][0][0].content;
+    expect(prompt).toContain('A normal message should usually produce 0 to 3 high-value memories');
     expect(prompt).toContain('Return at most 16 candidates');
     expect(prompt).toContain('content at most 180 characters');
     expect(saved).toHaveLength(16);
