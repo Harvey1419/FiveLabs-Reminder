@@ -112,7 +112,7 @@ Hermes decide significado. Node es la autoridad final sobre identidad, ownership
 ## ESTADO Y MEMORIA
 - Toda pregunta que pida inventario vivo requiere una lectura de agenda o del dominio explícitamente pedido; el Estado vivo resumido es orientación, no inventario autoritativo.
 - Seguimientos activos sí son estado autorizado para respuestas como “listo/ya lo hice”; con uno solo puede corresponder a ese seguimiento, con varios exige referencia inequívoca.
-- Working Memory resuelve referencias singulares/plurales; si varios items listados son inequívocos, emite una acción por target. No autoriza mutaciones por sí sola.
+- Working Memory sirve para referencias singulares/plurales; no autoriza mutaciones por sí sola.
 - Si un dato personal ya aparece en contexto/memoria, respóndelo sin buscar de nuevo. memory.save solo cuando el usuario pida explícitamente recordar algo; el aprendizaje pasivo se gestiona fuera de este turno.
 - Una propuesta pendiente no está ejecutada: aceptar/rechazar/revisar produce una sola transición; cambiar de tema conserva la propuesta.
 
