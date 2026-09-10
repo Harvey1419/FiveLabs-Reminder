@@ -6,9 +6,7 @@ function nullable(schema) {
   if (schema.enum) return { anyOf: [schema, { type: 'null' }] };
   if (schema.type) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-    const result = { ...schema, type: [...new Set([...types, 'null'])] };
-    if (schema.enum && !schema.enum.includes(null)) result.enum = [...schema.enum, null];
-    return result;
+    return { ...schema, type: [...new Set([...types, 'null'])] };
   }
   return { anyOf: [schema, { type: 'null' }] };
 }
@@ -33,8 +31,6 @@ function strictProviderSchema(schema) {
 }
 
 function reminderCreateSchedule(canonical) {
-  // Match the resolver's required components. Minute, year and weekOffset keep
-  // their existing deterministic defaults; inherit_context cannot create a new item.
   const components = {
     relative_offset: ['offsetMinutes'],
     relative_day_time: ['dayOffset', 'hour'],
@@ -57,19 +53,22 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   action.properties.domain.enum = attachmentOnly ? ['conversation'] : domains;
   if (attachmentOnly) return strictProviderSchema(schema);
 
-  // The generic branch excludes ALL reminder actions: it cannot bypass the
-  // non-null schedule requirement by also matching reminder.create.
   const other = structuredClone(action);
   other.properties.domain.enum = domains.filter((domain) => domain !== 'reminder');
+  const reminder = structuredClone(action);
+  reminder.properties.domain.enum = ['reminder'];
   const reminderOther = structuredClone(action);
-  reminderOther.properties.domain.enum = ['reminder'];
+  // The enclosing reminder object already enforces the domain. The inner
+  // union has one discriminator, action, with non-overlapping values.
+  reminderOther.properties.domain = { type: 'string' };
   reminderOther.properties.action.enum = getIntentActionsForDomain('reminder').filter((name) => name !== 'create');
   const create = structuredClone(action);
-  create.properties.domain.enum = ['reminder'];
+  create.properties.domain = { type: 'string' };
   create.properties.action.enum = ['create'];
   create.required = [...create.required, 'content', 'schedule'];
   create.properties.schedule = reminderCreateSchedule(action.properties.schedule);
-  schema.properties.actions.items = { anyOf: [create, reminderOther, other] };
+  reminder.anyOf = [create, reminderOther];
+  schema.properties.actions.items = { anyOf: [reminder, other] };
   return strictProviderSchema(schema);
 }
 
