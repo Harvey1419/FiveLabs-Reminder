@@ -206,7 +206,14 @@ describe('foreground strict Structured Outputs boundary', () => {
     // Provider composition changes only: canonical prerequisites remain checked
     // by validateTurnIntent before any domain action, including missing schedules.
     expectedCanonical.properties.actions.items.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
-    expectedCanonical.properties.actions.items.properties.schedule.properties.clockMode.description = 'Use explicit_24h with hour 0..23, or explicit_am/explicit_pm/ambiguous_12h with hour 1..12. Never pair explicit_pm with hour 13..23. Preserve noon as 12 explicit_pm or 12 explicit_24h.';
+    expectedCanonical.properties.actions.items.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
+    expectedCanonical.properties.actions.items.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
+    for (const field of ['schedule', 'endSchedule']) {
+      expectedCanonical.properties.actions.items.properties[field].properties.clockMode = {
+        type: 'string', enum: ['explicit_24h', 'ambiguous_12h'],
+        description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
+      };
+    }
     expectStrictSchema(providerSchema, expectedCanonical);
     expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [replyAction] }, { isAdmin });
     expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);

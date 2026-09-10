@@ -49,8 +49,10 @@ describe('Groq strict provider projection regressions', () => {
 
   it.each(['relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time'])('documents clock encoding without changing deterministic range checks: %s', (kind) => {
     const schedule = getStructuredTurnSchema().properties.actions.items.properties.schedule;
-    expect(schedule.properties.clockMode.enum).toEqual([...TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.properties.clockMode.enum, null]);
-    expect(schedule.properties.clockMode.description).toContain('Never pair explicit_pm with hour 13..23');
+    expect(schedule.properties.clockMode.enum).toEqual(['explicit_24h', 'ambiguous_12h', null]);
+    expect(TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.properties.clockMode.enum).toEqual(['explicit_24h', 'explicit_am', 'explicit_pm', 'ambiguous_12h']);
+    expect(schedule.properties.clockMode.description).toContain('3 PM = 15');
+    expect(schedule.properties.clockMode.description).toContain('Do not invent AM/PM');
     expect(schedule.properties.hour).toEqual({ type: ['integer', 'null'], minimum: 0, maximum: 23 });
     expect(schedule.properties.minute.type).toEqual(['integer', 'null']);
     const base = { kind, dayOffset: 1, year: 2026, month: 9, day: 10, weekday: 'thursday' };

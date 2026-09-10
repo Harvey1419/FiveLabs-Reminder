@@ -1,0 +1,144 @@
+name: One-off foreground diagnostics
+on:
+  push:
+    branches: [fix/groq-provider-compatibility]
+    paths: ['.github/workflows/foreground-oneoff.yml']
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare isolated dependencies and ephemeral public key
+        run: |
+          npm install --global pnpm@9.15.9
+          pnpm install --frozen-lockfile
+          mkdir -p /tmp/foreground-export
+          node --input-type=module <<'NODE'
+          import { generateKeyPairSync } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+          const pair = generateKeyPairSync('rsa', { modulusLength: 3072, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
+          writeFileSync('/tmp/foreground-private.pem', pair.privateKey, { mode: 0o600 });
+          writeFileSync('/tmp/foreground-export/public.pem', pair.publicKey);
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foreground-ephemeral-public-${{ github.run_id }}
+          path: /tmp/foreground-export
+          retention-days: 1
+      - name: Bounded isolated provider diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { privateDecrypt, constants } from 'node:crypto';
+          import { readFileSync, existsSync, unlinkSync } from 'node:fs';
+          import { execFileSync, spawn } from 'node:child_process';
+          const repo = process.env.REPO;
+          const marker = `FOREGROUND_PROBE_${process.env.RUN_ID} `;
+          const api = `https://api.github.com/repos/${repo}`;
+          const headers = { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+          const seen = new Set();
+          const privateKey = readFileSync('/tmp/foreground-private.pem');
+          unlinkSync('/tmp/foreground-private.pem');
+          let key = '';
+          let requests = 0;
+          let finished = false;
+          const deadline = Date.now() + 53 * 60_000;
+          const redact = (text) => key ? String(text).split(key).join('[REDACTED]') : String(text);
+          async function report(id, value) {
+            const text = redact(JSON.stringify(value));
+            console.log(`RESULT command=${id} ${text}`);
+            const response = await fetch(`${api}/issues/57/comments`, { method: 'POST', headers, body: JSON.stringify({ body: `FOREGROUND_RESULT_${process.env.RUN_ID} command=${id}\n\n\`\`\`json\n${text.slice(0, 57000)}\n\`\`\`` }) });
+            if (!response.ok) throw new Error(`Unable to publish bounded result: ${response.status}`);
+          }
+          function child(command, args, env) {
+            return new Promise((resolve) => {
+              const proc = spawn(command, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+              let output = '';
+              const collect = (chunk) => { output = (output + chunk.toString()).slice(-45000); };
+              proc.stdout.on('data', collect); proc.stderr.on('data', collect);
+              proc.on('error', (error) => resolve({ code: -1, output: error.message }));
+              const timer = setTimeout(() => proc.kill('SIGTERM'), 8 * 60_000);
+              proc.on('close', (code) => { clearTimeout(timer); resolve({ code, output: redact(output) }); });
+            });
+          }
+          const probeSource = `
+            import { getStructuredTurnSchema } from './src/agent/contracts/foreground-turn-schema.js';
+            import { buildAgentCorePrompt } from './src/agent/core/agent-core.js';
+            const c = JSON.parse(process.env.PROBE_CONFIG);
+            const key = process.env.OPENROUTER_API_KEY;
+            const routes = { primary: ['openai/gpt-oss-120b','groq','medium'], secondary: ['z-ai/glm-5.3-flash','baseten/fp8','low'], last_resort: ['qwen/qwen3.7-flash','alibaba',null] };
+            const [model, provider, effort] = routes[c.stage || 'primary'];
+            const simple = { type:'object', properties:{reply:{type:'string'}}, required:['reply'], additionalProperties:false };
+            const schema = c.minimal ? simple : getStructuredTurnSchema({isAdmin: c.admin === true});
+            const prompt = c.minimal ? 'Reply to the greeting with a JSON object.' : buildAgentCorePrompt({ nowStr:'2026-09-09 18:00', nowHumanStr:'miércoles 9 de septiembre de 2026', timezone:'America/Bogota', isAdmin:c.admin === true, isPro:true, displayName:'Prueba', memoryHints:'' });
+            const text = c.text || 'Hola hola';
+            const payload = {model, messages:[{role:'system',content:prompt},{role:'user',content:text}], temperature:0, max_tokens:8192, response_format:{type:'json_schema',json_schema:{name:'hermes_turn_intent',strict:true,schema}}, provider:{order:[provider],only:[provider],allow_fallbacks:false,require_parameters:true}};
+            if (effort) payload.reasoning={effort,exclude:true};
+            const start=Date.now();
+            const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(payload),signal:AbortSignal.timeout(45000)});
+            const data=await response.json();
+            const choice=data.choices?.[0];
+            let parsed=null; try {parsed=JSON.parse(choice?.message?.content)} catch {}
+            const error=data.error || choice?.error;
+            const result={status:response.status,id:data.id,provider:data.provider,model:data.model,latencyMs:Date.now()-start,finishReason:choice?.finish_reason,usage:data.usage,structured:parsed,error};
+            console.log(JSON.stringify(result).split(key).join('[REDACTED]'));
+          `;
+          try {
+            while (!finished && Date.now() < deadline && requests < 30) {
+              const response = await fetch(`${api}/issues/57/comments?per_page=100`, { headers });
+              if (!response.ok) throw new Error(`Command read failed: ${response.status}`);
+              const comments = await response.json();
+              for (const comment of comments) {
+                if (seen.has(comment.id) || comment.user?.login !== 'Harvey1419' || !comment.body?.startsWith(marker)) continue;
+                seen.add(comment.id);
+                try {
+                  const config = JSON.parse(comment.body.slice(marker.length));
+                  if (config.credential) {
+                    key = privateDecrypt({key:privateKey,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},Buffer.from(config.credential,'base64')).toString();
+                    if (!key.startsWith('sk-or-')) throw new Error('Invalid credential type');
+                    console.log('::add-mask::'+key);
+                  }
+                  if (config.mode === 'stop') { await report(comment.id,{stopped:true,privateKeyPersisted:false}); finished = true; break; }
+                  if (!key) throw new Error('Ephemeral credential not initialized');
+                  requests += 1;
+                  if (config.ref) {
+                    if (!/^[a-f0-9]{40}$/.test(config.ref)) throw new Error('An exact commit SHA is required');
+                    execFileSync('git',['fetch','--depth=1','origin',config.ref],{stdio:'pipe'});
+                    execFileSync('git',['checkout','--detach','FETCH_HEAD'],{stdio:'pipe'});
+                  }
+                  if (config.mode === 'catalog') {
+                    const entries=[];
+                    for (const name of ['openai/gpt-oss-120b','z-ai/glm-5.3-flash','qwen/qwen3.7-flash']) {
+                      const res=await fetch('https://openrouter.ai/api/v1/models/'+name+'/endpoints',{headers:{Authorization:'Bearer '+key}});
+                      const data=await res.json();
+                      entries.push({name,status:res.status,data});
+                    }
+                    await report(comment.id,{catalog:entries});
+                  } else if (config.mode === 'probe') {
+                    const result=await child('node',['--input-type=module','-e',probeSource],{OPENROUTER_API_KEY:key,PROBE_CONFIG:JSON.stringify(config)});
+                    await report(comment.id,{mode:config.mode,ref:config.ref,...result});
+                  } else if (config.mode === 'acceptance' || config.mode === 'unit') {
+                    if (config.stage && !['primary','secondary','last_resort'].includes(config.stage)) throw new Error('Invalid route stage');
+                    const args=config.mode === 'unit' ? ['run','test:unit'] : ['exec','vitest','run','--config','tests/acceptance/vitest.config.js', ...(config.case ? ['-t',config.case] : [])];
+                    const result=await child('pnpm',args,{OPENROUTER_API_KEY:key,KAPSO_API_KEY:'test-kapso-key',FOREGROUND_ACCEPTANCE_STAGE:config.stage || 'primary'});
+                    const file='foreground-acceptance-'+(config.stage || 'primary')+'.json';
+                    const metadata=config.mode === 'acceptance' && existsSync(file) ? JSON.parse(readFileSync(file,'utf8')) : null;
+                    await report(comment.id,{mode:config.mode,ref:config.ref,stage:config.stage,...result,metadata});
+                  } else throw new Error('Unsupported diagnostic mode');
+                } catch(error) { await report(comment.id,{error:redact(error.message)}); }
+              }
+              if (!finished) await new Promise(resolve=>setTimeout(resolve,4000));
+            }
+          } finally { key=''; privateKey.fill(0); }
+          NODE

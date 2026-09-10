@@ -33,6 +33,8 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
   };
   action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
+  action.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
+  action.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
   for (const field of ['schedule', 'endSchedule']) {
     // Explicit 12h and 24h clocks are semantically equivalent. Ask Hermes for
     // one canonical representation instead of letting the provider mix them.
