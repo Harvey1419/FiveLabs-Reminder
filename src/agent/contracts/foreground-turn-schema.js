@@ -11,7 +11,11 @@ function strictProviderSchema(schema) {
     const required = new Set(node.required || []);
     node.properties = Object.fromEntries(Object.entries(node.properties).map(([key, value]) => {
       const converted = strictProviderSchema(value);
-      return [key, required.has(key) ? converted : { anyOf: [converted, { type: 'null' }] }];
+      if (!required.has(key)) {
+        converted.type = [converted.type, 'null'];
+        if (converted.enum) converted.enum = [...converted.enum, null];
+      }
+      return [key, converted];
     }));
     node.required = Object.keys(node.properties);
     node.additionalProperties = false;
@@ -40,4 +44,3 @@ export function stripStructuredNulls(value) {
     .filter(([, child]) => child !== null)
     .map(([key, child]) => [key, stripStructuredNulls(child)]));
 }
-export const normalizeProviderTurnIntent = stripStructuredNulls;

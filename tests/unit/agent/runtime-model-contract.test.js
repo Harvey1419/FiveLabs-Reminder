@@ -81,12 +81,6 @@ function structuredResponse(intent) {
 }
 
 function expectStrictSchema(node, canonical, nullable = false) {
-  if (nullable) {
-    expect(node.anyOf).toHaveLength(2);
-    expect(node.anyOf[1]).toEqual({ type: 'null' });
-    expectStrictSchema(node.anyOf[0], canonical);
-    return;
-  }
   const types = Array.isArray(node.type) ? node.type : [node.type];
   expect(types).toEqual(nullable ? [canonical.type, 'null'] : [canonical.type]);
   expect(node).not.toHaveProperty('uniqueItems');

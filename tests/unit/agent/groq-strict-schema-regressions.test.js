@@ -4,13 +4,9 @@ import { getStructuredTurnSchema, stripStructuredNulls } from '../../../src/agen
 import { resolveTypedSchedule } from '../../../src/agent/orchestration/typed-schedule.js';
 
 // Groq rejected polymorphic action/schedule unions at compile time and generated
-// invalid values from accepted nested unions. Only nullable unions are emitted.
+// invalid values from accepted nested unions. Nullable types need no object union.
 function inspectProjection(node) {
-  if (node.anyOf) {
-    expect(node.anyOf).toHaveLength(2);
-    expect(node.anyOf[1]).toEqual({ type: 'null' });
-    node.anyOf.forEach(inspectProjection);
-  }
+  expect(node).not.toHaveProperty('anyOf');
   if (node.properties) {
     expect(node.additionalProperties).toBe(false);
     expect(node.required).toEqual(Object.keys(node.properties));
@@ -26,7 +22,7 @@ describe('Groq strict provider projection regressions', () => {
     { isAdmin: true, attachmentOnly: false },
     { isAdmin: false, attachmentOnly: true },
     { isAdmin: true, attachmentOnly: true },
-  ])('uses a closed canonical shape with nullable-only unions: %j', (options) => {
+  ])('uses a closed canonical shape with nullable types and no polymorphic unions: %j', (options) => {
     const before = structuredClone(TURN_INTENT_SCHEMA);
     const schema = getStructuredTurnSchema(options);
     inspectProjection(schema);
@@ -38,12 +34,8 @@ describe('Groq strict provider projection regressions', () => {
 
   it('preserves every optional scalar constraint and removes null without changing false or zero', () => {
     const action = getStructuredTurnSchema().properties.actions.items;
-    expect(action.properties.priority).toEqual({ anyOf: [
-      TURN_INTENT_SCHEMA.properties.actions.items.properties.priority, { type: 'null' },
-    ] });
-    expect(action.properties.advanceMinutes).toEqual({ anyOf: [
-      { type: 'integer', minimum: 1, maximum: 10080 }, { type: 'null' },
-    ] });
+    expect(action.properties.priority).toEqual({ type: ['string', 'null'], enum: [...TURN_INTENT_SCHEMA.properties.actions.items.properties.priority.enum, null] });
+    expect(action.properties.advanceMinutes).toEqual({ type: ['integer', 'null'], minimum: 1, maximum: 10080 });
     expect(stripStructuredNulls({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0, offsetMinutes: null } }))
       .toEqual({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0 } });
   });
@@ -56,11 +48,11 @@ describe('Groq strict provider projection regressions', () => {
   });
 
   it.each(['relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time'])('documents clock encoding without changing deterministic range checks: %s', (kind) => {
-    const schedule = getStructuredTurnSchema().properties.actions.items.properties.schedule.anyOf[0];
-    expect(schedule.properties.clockMode.anyOf[0].enum).toEqual(TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.properties.clockMode.enum);
-    expect(schedule.properties.clockMode.anyOf[0].description).toContain('Never pair explicit_pm with hour 13..23');
-    expect(schedule.properties.hour.anyOf[0]).toEqual({ type: 'integer', minimum: 0, maximum: 23 });
-    expect(schedule.properties.minute.anyOf[1]).toEqual({ type: 'null' });
+    const schedule = getStructuredTurnSchema().properties.actions.items.properties.schedule;
+    expect(schedule.properties.clockMode.enum).toEqual([...TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.properties.clockMode.enum, null]);
+    expect(schedule.properties.clockMode.description).toContain('Never pair explicit_pm with hour 13..23');
+    expect(schedule.properties.hour).toEqual({ type: ['integer', 'null'], minimum: 0, maximum: 23 });
+    expect(schedule.properties.minute.type).toEqual(['integer', 'null']);
     const base = { kind, dayOffset: 1, year: 2026, month: 9, day: 10, weekday: 'thursday' };
     const context = { referenceTime: new Date('2026-09-09T23:00:00Z'), timezone: 'America/Bogota' };
     expect(resolveTypedSchedule({ ...base, hour: 15, clockMode: 'explicit_pm' }, context).errorCode).toBe('INVALID_12H_CLOCK');
