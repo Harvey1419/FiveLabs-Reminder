@@ -1,4 +1,4 @@
-import { TURN_INTENT_SCHEMA } from './intent-contracts.js';
+import { TURN_INTENT_SCHEMA, getIntentActionsForDomain } from './intent-contracts.js';
 
 // Provider-only projection: the canonical schema and deterministic action
 // prerequisites remain authoritative. Avoid polymorphic object unions, whose
@@ -23,6 +23,11 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   const schema = structuredClone(TURN_INTENT_SCHEMA);
   const action = schema.properties.actions.items;
   action.properties.domain.enum = attachmentOnly ? ['conversation'] : action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
+  action.properties.action = {
+    type: 'string',
+    enum: [...new Set(action.properties.domain.enum.flatMap(getIntentActionsForDomain))],
+    description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
+  };
   action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
   action.properties.schedule.properties.clockMode.description = 'Use explicit_24h with hour 0..23, or explicit_am/explicit_pm/ambiguous_12h with hour 1..12. Never pair explicit_pm with hour 13..23. Preserve noon as 12 explicit_pm or 12 explicit_24h.';
   return strictProviderSchema(schema);
