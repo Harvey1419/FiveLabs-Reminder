@@ -3,6 +3,8 @@ import { TURN_INTENT_SCHEMA, getIntentActionsForDomain } from './intent-contract
 // Provider-only projection. TURN_INTENT_SCHEMA remains the canonical contract.
 // Groq strict subset: https://console.groq.com/docs/structured-outputs
 function nullable(schema) {
+  // An enum containing null can become an accidental object discriminator in
+  // Groq. An explicit null union preserves the same allowed values without it.
   if (schema.enum) return { anyOf: [schema, { type: 'null' }] };
   if (schema.type) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
@@ -31,6 +33,8 @@ function strictProviderSchema(schema) {
 }
 
 function reminderCreateSchedule(canonical) {
+  // Match the resolver's required components and clock ranges. Minute, year
+  // and weekOffset retain their existing defaults; creation cannot inherit time.
   const components = {
     relative_offset: ['offsetMinutes'],
     relative_day_time: ['dayOffset', 'hour'],
@@ -42,6 +46,21 @@ function reminderCreateSchedule(canonical) {
     const branch = structuredClone(canonical);
     branch.properties.kind.enum = [kind];
     branch.required = ['kind', ...fields];
+    if (fields.includes('hour')) {
+      branch.anyOf = [
+        { modes: ['explicit_24h'], minimum: 0, maximum: 23 },
+        { modes: ['explicit_am', 'explicit_pm', 'ambiguous_12h'], minimum: 1, maximum: 12 },
+      ].map(({ modes, minimum, maximum }) => {
+        const clock = structuredClone(branch);
+        // Shared enums remain enforced by the enclosing schedule object.
+        // Only clockMode discriminates its nested union.
+        for (const property of Object.values(clock.properties)) delete property.enum;
+        clock.properties.clockMode.enum = modes;
+        clock.properties.hour = { ...clock.properties.hour, minimum, maximum };
+        clock.required = [...clock.required, 'clockMode'];
+        return clock;
+      });
+    }
     return branch;
   }) };
 }
@@ -58,8 +77,8 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   const reminder = structuredClone(action);
   reminder.properties.domain.enum = ['reminder'];
   const reminderOther = structuredClone(action);
-  // The enclosing reminder object already enforces the domain. The inner
-  // union has one discriminator, action, with non-overlapping values.
+  // The enclosing object enforces domain=reminder. The nested action union
+  // has a single discriminator with disjoint values, not overlapping domains.
   reminderOther.properties.domain = { type: 'string' };
   reminderOther.properties.action.enum = getIntentActionsForDomain('reminder').filter((name) => name !== 'create');
   const create = structuredClone(action);
