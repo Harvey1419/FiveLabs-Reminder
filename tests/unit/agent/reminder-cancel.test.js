@@ -218,4 +218,46 @@ describe('series-aware reminder cancellation', () => {
     expect(result.data.linkedAdvanceNoticesCancelled).toBe(0);
     expect(db.updateIn).toHaveBeenCalledWith('id', [morningId]);
   });
+
+  it('returns concrete ambiguous candidates so follow-up context can distinguish duplicates', async () => {
+    const firstId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const secondId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const rows = [
+      {
+        id: firstId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Sacar una cita',
+        recurrence_rule: null,
+        send_at: '2026-09-11T14:00:00.000Z',
+      },
+      {
+        id: secondId,
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Sacar una cita',
+        recurrence_rule: null,
+        send_at: '2026-09-12T14:00:00.000Z',
+      },
+    ];
+    setupSupabase(rows);
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: 'Sacar una cita' },
+      user,
+      language: 'es',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('AMBIGUOUS_TARGET');
+    expect(result.requiresClarification).toBe(true);
+    expect(result.data.reminders).toEqual([
+      expect.objectContaining({ id: firstId, type: 'reminder', content: 'Sacar una cita', time: '2026-09-11T14:00:00.000Z' }),
+      expect.objectContaining({ id: secondId, type: 'reminder', content: 'Sacar una cita', time: '2026-09-12T14:00:00.000Z' }),
+    ]);
+  });
 });
