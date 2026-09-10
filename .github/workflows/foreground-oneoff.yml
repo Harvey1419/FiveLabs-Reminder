@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 jobs:
   diagnose:
     runs-on: ubuntu-latest
@@ -20,8 +21,6 @@ jobs:
           npm install --global pnpm@9.15.9
           pnpm install --frozen-lockfile
           mkdir -p /tmp/foreground-export
-          git archive HEAD > /tmp/foreground-export/source.tar
-          tar -cf /tmp/foreground-export/dependencies.tar node_modules
           node --input-type=module <<'NODE'
           import { generateKeyPairSync } from 'node:crypto';
           import { writeFileSync } from 'node:fs';
@@ -58,6 +57,7 @@ jobs:
           const redact = (text) => key ? String(text).split(key).join('[REDACTED]') : String(text);
           async function report(id, value) {
             const text = redact(JSON.stringify(value));
+            console.log(`RESULT command=${id} ${text}`);
             const response = await fetch(`${api}/issues/57/comments`, { method: 'POST', headers, body: JSON.stringify({ body: `FOREGROUND_RESULT_${process.env.RUN_ID} command=${id}\n\n\`\`\`json\n${text.slice(0, 57000)}\n\`\`\`` }) });
             if (!response.ok) throw new Error(`Unable to publish bounded result: ${response.status}`);
           }
@@ -130,7 +130,7 @@ jobs:
                     await report(comment.id,{mode:config.mode,ref:config.ref,...result});
                   } else if (config.mode === 'acceptance' || config.mode === 'unit') {
                     if (config.stage && !['primary','secondary','last_resort'].includes(config.stage)) throw new Error('Invalid route stage');
-                    const args=config.mode === 'unit' ? ['run','test:unit'] : ['exec','vitest','run','--config','tests/acceptance/vitest.config.js'];
+                    const args=config.mode === 'unit' ? ['run','test:unit'] : ['exec','vitest','run','--config','tests/acceptance/vitest.config.js', ...(config.case ? ['-t',config.case] : [])];
                     const result=await child('pnpm',args,{OPENROUTER_API_KEY:key,KAPSO_API_KEY:'test-kapso-key',FOREGROUND_ACCEPTANCE_STAGE:config.stage || 'primary'});
                     const file='foreground-acceptance-'+(config.stage || 'primary')+'.json';
                     const metadata=config.mode === 'acceptance' && existsSync(file) ? JSON.parse(readFileSync(file,'utf8')) : null;
