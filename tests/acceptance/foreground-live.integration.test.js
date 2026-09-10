@@ -40,7 +40,6 @@ import { executeTool } from '../../src/agent/tools/index.js';
 import { clearWorkingMemory } from '../../src/agent/core/working-memory.js';
 import { isAdminUser } from '../../src/shared/auth.js';
 
-
 const stage = process.env.FOREGROUND_ACCEPTANCE_STAGE || 'primary';
 const routes = {
   primary: ['openai/gpt-oss-120b', 'groq'],
@@ -108,9 +107,16 @@ beforeEach((context) => {
 });
 afterEach((context) => {
   const warnings = console.warn.mock.calls.map((args) => args.join(' '));
+  const execution = console.log.mock.calls.map((args) => args.join(' ')).slice(-12);
   vi.restoreAllMocks();
   if (context.task.result?.state === 'fail') {
-    console.log('ACCEPTANCE_FAILURE ' + JSON.stringify({ case: caseName, warnings: warnings.slice(-5) }));
+    const decisions = responses.map((response) => {
+      try {
+        const parsed = JSON.parse(response?.choices?.[0]?.message?.content);
+        return parsed.actions?.map(({ domain, action, schedule }) => ({ domain, action, schedule }));
+      } catch { return null; }
+    });
+    console.log('ACCEPTANCE_FAILURE ' + JSON.stringify({ case: caseName, warnings: warnings.slice(-5), execution, decisions }));
   }
 });
 afterAll(() => writeFileSync(`foreground-acceptance-${stage}.json`, JSON.stringify(summary, null, 2)));
