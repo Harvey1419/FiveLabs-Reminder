@@ -136,6 +136,45 @@ function compactProviderFinishDetail(choice, data) {
     .slice(0, 240);
 }
 
+function providerErrorObject(error) {
+  let raw = error?.metadata?.raw;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { raw = null; }
+  }
+  return raw?.error || raw || error;
+}
+
+function isProviderRefusal(data, choice = {}) {
+  const message = choice?.message;
+  if (message?.refusal || choice?.finish_reason === 'content_filter') return true;
+  if (Array.isArray(message?.content) && message.content.some((part) => part?.type === 'refusal')) return true;
+  const error = data?.error || choice?.error;
+  const nested = providerErrorObject(error);
+  const refusalCodes = new Set(['content_filter', 'content_policy_violation', 'moderation_blocked', 'refusal', 'safety']);
+  return [error?.code, error?.type, error?.metadata?.error_type, nested?.code, nested?.type]
+    .some((code) => refusalCodes.has(code));
+}
+
+function structuredResponseDiagnostic(data, choice, apiKey) {
+  // Protocol/usage metadata only: no message content, reasoning or request body.
+  const scalar = (value) => typeof value === 'string'
+    ? value.split(apiKey).join('[REDACTED]').slice(0, 160)
+    : typeof value === 'number' && Number.isFinite(value) ? value : null;
+  const usage = data?.usage;
+  return JSON.stringify({
+    generationId: scalar(data?.id),
+    provider: scalar(data?.provider),
+    model: scalar(data?.model),
+    finishReason: scalar(choice?.finish_reason),
+    nativeFinishReason: scalar(choice?.native_finish_reason),
+    choicesCount: Array.isArray(data?.choices) ? data.choices.length : null,
+    contentChars: extractTextContent(choice?.message?.content).length,
+    promptTokens: scalar(usage?.prompt_tokens),
+    completionTokens: scalar(usage?.completion_tokens),
+    reasoningTokens: scalar(usage?.completion_tokens_details?.reasoning_tokens),
+  });
+}
+
 function buildUnavailableResponse(returnMessage) {
   const unavailable = {
     type: 'chat',
@@ -244,9 +283,20 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
 } = {}) {
   const startMs = Date.now();
   const requestedProviders = providers?.length ? providers : [];
+  const strictForeground = purpose === 'initial' && responseFormat?.type === 'json_schema';
+  const failStructured = (reason, data, choice, { terminal = false } = {}) => {
+    if (logPrefix) {
+      const diagnostic = structuredResponseDiagnostic(data, choice, apiKey);
+      const error = data?.error || choice?.error;
+      const detail = error ? compactErrorBody(JSON.stringify({ error }), { includeProviderDetails: true, apiKey }) : '';
+      console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} latencyMs=${Date.now() - startMs} diagnostic=${diagnostic}${detail ? ` detail=${JSON.stringify(detail)}` : ''}`);
+    }
+    return { ok: false, reason, terminal, finishReason: choice?.finish_reason || null };
+  };
 
   try {
     const payload = { model, messages, temperature, max_tokens };
+    if (strictForeground) payload.stream = false;
     if (responseFormat) payload.response_format = responseFormat;
     if (tools?.length) {
       payload.tools = tools;
@@ -286,11 +336,44 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
         });
         console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${detail}"`);
       }
-      return { ok: false, reason, status: res.status };
+      let errorData;
+      if (strictForeground) {
+        try { errorData = JSON.parse(rawBody); } catch { /* already logged the bounded HTTP diagnostic */ }
+      }
+      return { ok: false, reason, status: res.status, terminal: strictForeground && isProviderRefusal(errorData) };
     }
 
-    const data = await res.json();
-    const choice = data.choices?.[0] || {};
+    let data;
+    try { data = await res.json(); }
+    catch (error) {
+      if (strictForeground) return failStructured('invalid_response_json', null, null);
+      throw error;
+    }
+    const choice = data?.choices?.[0] || {};
+    if (strictForeground) {
+      // OpenRouter can return an error-only JSON body with HTTP 200 and no choices.
+      // Inspect it BEFORE treating a missing message as an empty completion.
+      if (isProviderRefusal(data, choice)) return failStructured('provider_refusal', data, choice, { terminal: true });
+      if (data?.error || choice?.error) return failStructured('provider_error', data, choice);
+      if (!data || typeof data !== 'object' || Array.isArray(data)
+        || !Array.isArray(data.choices) || data.choices.length === 0
+        || !choice || typeof choice !== 'object' || Array.isArray(choice)) {
+        return failStructured('invalid_response_envelope', data, choice);
+      }
+      if (choice.finish_reason === 'error') return failStructured('provider_finish_error', data, choice);
+      // A truncated but parseable prefix may contain only part of the requested batch.
+      if (choice.finish_reason === 'length') return failStructured('truncated_structured_output', data, choice);
+      if (!choice.finish_reason) return failStructured('missing_finish_reason', data, choice);
+      if (choice.finish_reason !== 'stop') return failStructured('unexpected_finish_reason', data, choice);
+      if (!choice.message || typeof choice.message !== 'object' || Array.isArray(choice.message)) {
+        return failStructured('invalid_response_message', data, choice);
+      }
+      const content = choice.message.content;
+      if (content !== null && content !== undefined && typeof content !== 'string'
+        && !(Array.isArray(content) && content.every((part) => part?.type === 'text' && typeof part.text === 'string'))) {
+        return failStructured('invalid_response_content', data, choice);
+      }
+    }
     const responseMessage = choice.message || {};
     // Strict JSON is protocol data: prose cleanup would mutate string values
     // or turn an invalid envelope into an apparently valid decision.
@@ -316,6 +399,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
 
     if (!raw && toolCalls.length === 0) {
       const reason = finishReason === 'length' ? 'empty_length' : 'empty_content';
+      if (strictForeground) return failStructured(reason, data, choice);
       if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=${reason} finishReason=${finishReason || 'unknown'} latencyMs=${Date.now() - startMs}`);
       return { ok: false, reason, finishReason };
     }
@@ -335,12 +419,17 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
           model,
           provider: actualProvider,
           routeStage: stage,
+          ...(strictForeground ? {
+            generationId: typeof data.id === 'string' ? data.id : null,
+            usage: { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, reasoningTokens: usage.completion_tokens_details?.reasoning_tokens },
+          } : {}),
         },
       };
     }
     return { ok: true, value: raw };
   } catch (error) {
     const reason = classifyThrownFailure(error);
+    if (strictForeground) return failStructured(reason, { error: { message: String(error?.message || error) } }, null);
     if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} latencyMs=${Date.now() - startMs} detail="${String(error?.message || error).slice(0, 180)}"`);
     return { ok: false, reason };
   }
@@ -419,6 +508,13 @@ async function runOpenRouterChain(messages, profiles, {
       if (logPrefix) console.warn(`${logPrefix} retry purpose=${purpose} stage=${profile.stage} reason=${attempt.reason} attempt=${attemptNumber + 1}`);
     }
 
+    if (attempt.terminal) {
+      if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} stopped reason=provider_refusal`);
+      // Do not evade an explicit safety refusal through an independent model.
+      return returnMessage
+        ? { role: 'assistant', content: '', tool_calls: [], unavailable: true, refused: true }
+        : JSON.stringify({ type: 'chat', reply: 'No puedo completar esa solicitud. No ejecuté ninguna acción.' });
+    }
     if (attempt.ok) return attempt.value;
     previousFailure = attempt.reason;
   }

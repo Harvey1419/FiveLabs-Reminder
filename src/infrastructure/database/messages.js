@@ -161,3 +161,15 @@ export async function getLatestInboundPhoneNumberId(phone, createdBefore = null)
 
   return null;
 }
+
+/** Correlate a conversational delivery callback without reading message content. */
+export async function getAssistantMessageById(messageId) {
+  if (!messageId) return null;
+  const { data, error } = await supabase.from('messages')
+    .select('id')
+    .eq('message_id', messageId)
+    .eq('role', 'assistant')
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}

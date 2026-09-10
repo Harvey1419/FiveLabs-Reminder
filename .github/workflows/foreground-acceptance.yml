@@ -22,6 +22,10 @@ concurrency:
 jobs:
   live:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [primary, secondary, last_resort]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -31,17 +35,6 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
-      - name: Export tracked validation snapshot
-        run: |
-          git archive --format=tar HEAD > foreground-source.tar
-          tar -cf foreground-dependencies.tar node_modules
-      - uses: actions/upload-artifact@v4
-        with:
-          name: foreground-validation-snapshot
-          path: |
-            foreground-source.tar
-            foreground-dependencies.tar
-          retention-days: 1
       - name: Require live credentials
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -50,8 +43,17 @@ jobs:
             echo '::error::Live foreground acceptance requires the OPENROUTER_API_KEY Actions secret. Mock tests do not establish live Groq acceptance.'
             exit 1
           fi
-      - name: Live foreground acceptance
+      - name: Live foreground acceptance (isolated domain writes)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KAPSO_API_KEY: test-kapso-key
+          FOREGROUND_ACCEPTANCE_STAGE: ${{ matrix.stage }}
         run: pnpm exec vitest run --config tests/acceptance/vitest.config.js
+      - name: Keep bounded acceptance metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foreground-acceptance-${{ matrix.stage }}
+          path: foreground-acceptance-${{ matrix.stage }}.json
+          if-no-files-found: ignore
+          retention-days: 7

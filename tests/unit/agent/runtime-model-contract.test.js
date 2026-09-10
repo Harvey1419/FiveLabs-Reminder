@@ -167,6 +167,8 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(payload.model).toBe('openai/gpt-oss-120b');
+    expect(payload.stream).toBe(false);
+    expect(payload.max_tokens).toBe(8192);
     expect(payload.response_format.type).toBe('json_schema');
     expect(payload.response_format.json_schema.name).toBe('hermes_turn_intent');
     expect(payload.response_format.json_schema.strict).toBe(true);
@@ -194,7 +196,42 @@ describe('foreground strict Structured Outputs boundary', () => {
     if (!isAdmin) {
       expectedCanonical.properties.actions.items.properties.domain.enum = expectedCanonical.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'admin');
     }
-    expectStrictSchema(payload.response_format.json_schema.schema, expectedCanonical);
+    const providerSchema = payload.response_format.json_schema.schema;
+    const [create, reminderOther, other] = providerSchema.properties.actions.items.anyOf;
+    const expectedOther = structuredClone(expectedCanonical);
+    expectedOther.properties.actions.items.properties.domain.enum = expectedOther.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'reminder');
+    expectStrictSchema({ ...providerSchema, properties: { ...providerSchema.properties, actions: { ...providerSchema.properties.actions, items: other } } }, expectedOther);
+
+    const canonicalReminderOther = structuredClone(expectedCanonical.properties.actions.items);
+    canonicalReminderOther.properties.domain.enum = ['reminder'];
+    canonicalReminderOther.properties.action.enum = ['update', 'cancel', 'acknowledge', 'list', 'add_advance'];
+    expectStrictSchema(reminderOther, canonicalReminderOther);
+
+    expect(create.properties.domain.enum).toEqual(['reminder']);
+    expect(create.properties.action.enum).toEqual(['create']);
+    expect(create.properties.content.type).toBe('string');
+    expect(create.additionalProperties).toBe(false);
+    expect(create.required).toEqual(Object.keys(create.properties));
+    const scheduleRequirements = [
+      ['relative_offset', ['offsetMinutes']], ['relative_day_time', ['dayOffset', 'hour']],
+      ['calendar_date_time', ['month', 'day', 'hour']], ['weekday_time', ['weekday', 'hour']], ['local_time', ['hour']],
+    ];
+    expect(create.properties.schedule.anyOf).toHaveLength(scheduleRequirements.length);
+    for (const [index, [kind, fields]] of scheduleRequirements.entries()) {
+      const canonicalSchedule = structuredClone(expectedCanonical.properties.actions.items.properties.schedule);
+      canonicalSchedule.properties.kind.enum = [kind];
+      canonicalSchedule.required = ['kind', ...fields];
+      expectStrictSchema(create.properties.schedule.anyOf[index], canonicalSchedule);
+    }
+    const expectedCreate = structuredClone(expectedCanonical.properties.actions.items);
+    expectedCreate.properties.domain.enum = ['reminder'];
+    expectedCreate.properties.action.enum = ['create'];
+    expectedCreate.required.push('content', 'schedule');
+    // Schedule branches are checked above; all other optional fields retain the full contract.
+    const { schedule: _schedule, ...createProps } = create.properties;
+    const { schedule: _expectedSchedule, ...expectedCreateProps } = expectedCreate.properties;
+    expectStrictSchema({ ...create, properties: createProps, required: create.required.filter((key) => key !== 'schedule') },
+      { ...expectedCreate, properties: expectedCreateProps, required: expectedCreate.required.filter((key) => key !== 'schedule') });
     expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [replyAction] }, { isAdmin });
     expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.required).toEqual(['domain', 'action']);
@@ -332,4 +369,75 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it.each([1, 3, 6, 12])('transports %s reminder schedules independently through nullable JSON to exact UTC tool arguments', async (count) => {
+    const actions = Array.from({ length: count }, (_, index) => ({
+      domain: 'reminder', action: 'create', content: `Solicitud ${index + 1}`,
+      schedule: { kind: 'relative_day_time', dayOffset: index % 3 + 1, hour: index + 6, minute: index, clockMode: 'explicit_24h' },
+    }));
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions }));
+    executeTool.mockImplementation(async ({ params }) => ({ success: true, complete: true, action: 'created_reminder', data: { timezone: user.timezone, items: params.items.map((item, index) => ({ ...item, id: `created-${index}`, sendAt: item.targetTime })) } }));
+
+    const result = await routeMessage('Varias solicitudes con sus propios horarios', user, [], turnOptions);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.plan.actions).toHaveLength(count);
+    expect(result.executionFacts).toHaveLength(count);
+    expect(executeTool).toHaveBeenCalledTimes(count);
+    actions.forEach((action, index) => {
+      const expected = new Date(Date.UTC(2026, 8, 9 + action.schedule.dayOffset, action.schedule.hour + 5, action.schedule.minute)).toISOString();
+      expect(executeTool.mock.calls[index][0]).toMatchObject({ toolName: 'manage_reminder', params: { action: 'create', items: [{ content: action.content, targetTime: expected }] } });
+    });
+    expect(result.executionFacts.every((fact) => fact.success)).toBe(true);
+  });
+
+  it.each([null, {}, { kind: 'inherit_context' }])('rejects a malformed create schedule before executing the rest of the batch: %j', async (schedule) => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [reminderAction, { ...reminderAction, schedule }] }));
+    const result = await routeMessage('Dos recordatorios', user, [], turnOptions);
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.executionFacts).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves two explicit hours and clarifies only the ambiguous request, then creates only the clarified item', async () => {
+    // Synthetic equivalent of the incident, not customer data or reconstructed history.
+    const actions = [
+      { domain: 'reminder', action: 'create', content: 'Comprar billetes', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 12, minute: 0, clockMode: 'explicit_pm' } },
+      { domain: 'reminder', action: 'create', content: 'Pedir cita para el viernes', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 9, minute: 0, clockMode: 'explicit_am' } },
+      { domain: 'clarification', action: 'request', content: 'Pedir cita para uñas', missingFields: ['main_time'], question: '¿Cuándo quieres el aviso para pedir la cita de uñas?' },
+    ];
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions }));
+    executeTool.mockImplementation(async ({ params }) => ({ success: true, complete: true, action: 'created_reminder', data: { timezone: user.timezone, items: params.items.map((item) => ({ id: item.content, content: item.content, sendAt: item.targetTime })) } }));
+    const text = 'Mañana al mediodía recuérdame comprar billetes; a las nueve de la mañana pedir cita para el viernes; y recuérdame pedir cita para uñas.';
+    const reference = { requestTimeMs: Date.parse('2026-09-10T00:08:07.000Z') };
+
+    const first = await routeMessage(text, user, [], reference);
+
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    expect(executeTool.mock.calls[0][0].params.items[0].targetTime).toBe('2026-09-10T17:00:00.000Z');
+    expect(executeTool.mock.calls[1][0].params.items[0].targetTime).toBe('2026-09-10T14:00:00.000Z');
+    expect(first.executionFacts.map((fact) => fact.success)).toEqual([true, true, false]);
+    expect(first.executionFacts[2].requiresClarification).toBe(true);
+    expect(first.confirmation).toContain(actions[2].question);
+    expect(first.confirmation).toContain('Comprar billetes');
+    expect(first.confirmation).toContain('Pedir cita para el viernes');
+
+    const finalAction = { domain: 'reminder', action: 'create', content: 'Pedir cita para uñas', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 15, minute: 0, clockMode: 'explicit_24h' } };
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [finalAction] }));
+    const history = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
+    const second = await routeMessage('El aviso de las uñas mañana a las 3 de la tarde', user, history, reference);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(executeTool).toHaveBeenCalledTimes(3);
+    expect(executeTool.mock.calls[2][0].params.items).toEqual([{ content: 'Pedir cita para uñas', targetTime: '2026-09-10T20:00:00.000Z' }]);
+    expect(second.executionFacts).toHaveLength(1);
+  });
+
+  it('never accepts legacy tool calls alongside otherwise valid structured JSON', async () => {
+    fetchMock.mockResolvedValueOnce(providerResponse({ content: JSON.stringify(withNullPlaceholders({ actions: [reminderAction] })), tool_calls: [{ function: { name: 'execute_turn', arguments: '{}' } }] }));
+    const result = await routeMessage('Recuérdame llamar', user, [], turnOptions);
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });

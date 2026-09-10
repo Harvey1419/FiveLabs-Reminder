@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { routeMessage } from '../../agent/orchestration/router.js';
 import { sendWhatsAppText, sendWhatsAppCtaUrl, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
-import { saveMessage, getRecentMessages, isMessageAlreadyProcessed } from '../../infrastructure/database/messages.js';
+import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
 import { updateReminderDeliveryStatus } from '../../infrastructure/database/index.js';
 import { extractMemoryInBackground } from '../../jobs/memory-extractor.js';
@@ -169,17 +169,23 @@ export async function handleWebhook(req, res) {
     // Reconcile provider delivery truth before ignoring status-only events.
     const deliveryStatuses = extractDeliveryStatuses(body);
     if (deliveryStatuses.length > 0) {
-      const reconciliationResults = await Promise.all(
-        deliveryStatuses.map((status) => updateReminderDeliveryStatus(status)),
-      );
-      const reconciledCount = reconciliationResults.filter(Boolean).length;
-      if (reconciledCount === deliveryStatuses.length) {
-        console.log(`[webhook req=${correlationId}] reconciled ${reconciledCount} delivery status event(s)`);
-      } else {
-        console.warn(
-          `[webhook req=${correlationId}] received ${deliveryStatuses.length} delivery status event(s), but only ${reconciledCount} matched and persisted`,
-        );
-      }
+      const outcomes = await Promise.all(deliveryStatuses.map(async (status) => {
+        if (status.deliveryStatus === 'failed') {
+          console.warn(`[webhook req=${correlationId}] provider reported failed message delivery`);
+        }
+        try {
+          if (await updateReminderDeliveryStatus(status)) return 'reminder';
+          if (await getAssistantMessageById(status.deliveryId)) return 'conversation';
+          // A callback can arrive before persistence or refer to another sender.
+          // Unmatched is not proof of a failed reminder update or successful delivery.
+          return 'unmatched';
+        } catch (error) {
+          console.warn(`[webhook req=${correlationId}] delivery status persistence failed:`, String(error?.message || error).slice(0, 180));
+          return 'failed';
+        }
+      }));
+      const count = (kind) => outcomes.filter((outcome) => outcome === kind).length;
+      console.log(`[webhook req=${correlationId}] delivery status outcomes reminder=${count('reminder')} conversation=${count('conversation')} unmatched=${count('unmatched')} failed=${count('failed')}`);
     }
     const isStatusUpdate = deliveryStatuses.length > 0 || Boolean(body.status);
     if (isStatusUpdate && !body.message && !body.entry?.[0]?.changes?.[0]?.value?.messages) {
@@ -416,11 +422,12 @@ export async function handleWebhook(req, res) {
 
       // 6. Send confirmation to user via Kapso WhatsApp API
       let sendElapsedMs = 0;
+      let deliveryResult = null;
       if (result.confirmation) {
         const sendStart = Date.now();
         if (result.ctaUrl) {
           const ctaLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
-          await sendWhatsAppCtaUrl({
+          deliveryResult = await sendWhatsAppCtaUrl({
             phoneNumberId,
             phoneNumber,
             bsuid,
@@ -430,7 +437,7 @@ export async function handleWebhook(req, res) {
             url: result.ctaUrl,
           });
         } else {
-          await sendWhatsAppText({
+          deliveryResult = await sendWhatsAppText({
             phoneNumberId,
             phoneNumber,
             bsuid,
@@ -448,6 +455,7 @@ export async function handleWebhook(req, res) {
         userId: user.id,
         phoneNumber: recipientIdentifier,
         role: 'assistant',
+        messageId: deliveryResult?.success ? (deliveryResult.messageId || null) : null,
         content: result.confirmation ?? '',
         intent: result.intent,
         entities: result.entities ?? {},

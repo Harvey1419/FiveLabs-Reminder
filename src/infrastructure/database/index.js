@@ -366,10 +366,8 @@ export async function updateReminderDeliveryStatus({ deliveryId, deliveryStatus 
     .eq('delivery_id', deliveryId)
     .select('id, status')
     .maybeSingle();
-  if (error) {
-    console.warn('[reminders] delivery status reconciliation failed:', error.message);
-    return null;
-  }
+  // A database failure must not be indistinguishable from an unmatched callback.
+  if (error) throw error;
   return data || null;
 }
 
