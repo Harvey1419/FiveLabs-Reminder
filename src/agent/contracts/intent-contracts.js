@@ -119,6 +119,8 @@ export function getForegroundToolDefinitions({ isAdmin = false } = {}) {
   return [...getIntentToolDefinitions({ isAdmin }), getConversationToolDefinition()];
 }
 
+export function getIntentActionsForDomain(domain) { return [...(DOMAIN_ACTIONS[domain] || [])]; }
+
 export function normalizeIntentAction(_domain, action) { return String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_'); }
 function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
 function mutationRequiresTarget(domain, action, raw) {
@@ -147,6 +149,17 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       && actionSchema.properties.missingFields.uniqueItems
       && new Set(raw.missingFields).size !== raw.missingFields.length) {
       return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'missingFields no admite valores duplicados.' };
+    }
+    if (domain === 'reminder' && action === 'create') {
+      if (!(typeof raw.content === 'string' && raw.content.trim())
+        && !(typeof raw.title === 'string' && raw.title.trim())) {
+        return { valid: false, errorCode: 'MISSING_CONTENT', error: 'La decisión de creación no incluyó contenido.' };
+      }
+      if (!raw.schedule || typeof raw.schedule !== 'object' || Array.isArray(raw.schedule)
+        || !typedSchedule.properties.kind.enum.includes(raw.schedule.kind)
+        || raw.schedule.kind === 'inherit_context') {
+        return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
+      }
     }
     normalizedActions.push({ ...raw, domain, action });
   }

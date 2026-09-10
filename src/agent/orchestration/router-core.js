@@ -22,7 +22,8 @@ import { composeExecutionReply } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
-import { TURN_INTENT_SCHEMA, parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
+import { parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
+import { getStructuredTurnSchema, stripStructuredNulls } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
@@ -77,6 +78,7 @@ function normalizeModelResponse(modelResponse) {
     content: typeof modelResponse.content === 'string' ? modelResponse.content.trim() : '',
     toolCalls,
     unavailable: modelResponse.unavailable === true,
+    refused: modelResponse.refused === true,
   };
 }
 
@@ -119,41 +121,9 @@ function conversationReplyFromActions(actions = []) {
     .join('\n\n');
 }
 
-function nullableSchema(schema) {
-  const node = structuredClone(schema);
-  // Groq strict rejects uniqueItems. Keep it in the canonical contract;
-  // validateTurnIntent enforces missingFields uniqueness before execution.
-  delete node.uniqueItems;
-  if (node.items) node.items = nullableSchema(node.items);
-  if (node.properties) {
-    const originallyRequired = new Set(node.required || []);
-    for (const [key, child] of Object.entries(node.properties)) {
-      const converted = nullableSchema(child);
-      if (!originallyRequired.has(key)) {
-        const types = Array.isArray(converted.type) ? converted.type : [converted.type];
-        if (converted.type && !types.includes('null')) converted.type = [...types, 'null'];
-        if (Array.isArray(converted.enum) && !converted.enum.includes(null)) converted.enum = [...converted.enum, null];
-      }
-      node.properties[key] = converted;
-    }
-    node.required = Object.keys(node.properties);
-    node.additionalProperties = false;
-  }
-  return node;
-}
-function stripStructuredNulls(value) {
-  if (Array.isArray(value)) return value.map(stripStructuredNulls);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== null).map(([key, child]) => [key, stripStructuredNulls(child)]));
-}
-function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
-  const schema = structuredClone(TURN_INTENT_SCHEMA);
-  const domains = schema.properties.actions.items.properties.domain.enum;
-  schema.properties.actions.items.properties.domain.enum = attachmentOnly ? ['conversation'] : domains.filter((domain) => isAdmin || domain !== 'admin');
-  return nullableSchema(schema);
-}
 function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
   if (modelResponse?.unavailable) return { unavailable: true, validation: null };
+  if (modelResponse?.toolCalls?.length) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión foreground no admite llamadas a herramientas.' } };
   const parsed = parseIntentArguments(modelResponse?.content);
   if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };
   return { unavailable: false, validation: validateTurnIntent(stripStructuredNulls(parsed), { isAdmin }) };
@@ -334,7 +304,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let modelResponse;
   try {
     modelResponse = await callChatCompletion(messages, {
-      max_tokens: 1400,
+      // Full nullable JSON for up to twelve actions, with room for model reasoning.
+      max_tokens: 8192,
       correlationId: options?.correlationId,
       tools: null,
       toolChoice: 'none',
@@ -366,7 +337,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
 
   if (!collected.intent) {
-    const confirmation = decision.unavailable
+    const confirmation = decision.refused
+      ? (language === 'en' ? 'I cannot complete that request. I did not execute any action.' : 'No puedo completar esa solicitud. No ejecuté ninguna acción.')
+      : decision.unavailable
       ? providerUnavailableError(language)
       : structuredDecisionError(language);
     console.warn(`[router req=${requestId}] required structured tool missing; refusing prose bypass`);
@@ -378,7 +351,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       ctaUrl: null,
       ctaHeader: null,
       ctaButtonText: null,
-      plan: { type: decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision' },
+      plan: { type: decision.refused ? 'provider_refusal' : decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision' },
       executionFacts: [],
       memoryDisposition: 'skip_operational',
     };
