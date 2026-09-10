@@ -75,7 +75,7 @@ describe('canonical attachment routing', () => {
     expect(options.tools).toBeNull();
     expect(options.responseFormat.type).toBe('json_schema');
     expect(options.responseFormat.json_schema.strict).toBe(true);
-    expect(options.responseFormat.json_schema.schema.properties.actions.items.properties.domain.enum).toEqual(['conversation']);
+    expect(options.responseFormat.json_schema.schema.properties.actions.items.properties.operation.enum).toEqual(['conversation.reply']);
   });
 
   it('rejects an operational action from attachment-only evidence even when quoted context is present', async () => {

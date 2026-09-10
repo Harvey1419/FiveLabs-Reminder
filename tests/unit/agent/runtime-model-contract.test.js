@@ -1,4 +1,4 @@
-import { getIntentActionsForDomain } from '../../../src/agent/contracts/intent-contracts.js';
+import { getCanonicalOperations } from '../../../src/agent/contracts/intent-contracts.js';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,6 +31,7 @@ import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { clearWorkingMemory } from '../../../src/agent/core/working-memory.js';
 import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
+import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { isAdminUser } from '../../../src/shared/auth.js';
 
 describe('mandatory runtime model contract', () => {
@@ -77,7 +78,19 @@ function providerResponse(message) {
 }
 
 function structuredResponse(intent) {
-  return providerResponse({ role: 'assistant', content: JSON.stringify(withNullPlaceholders(intent)) });
+  const providerIntent = {
+    ...intent,
+    actions: intent.actions.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const { domain, action, ...fields } = item;
+      const operation = `${domain}.${action}`;
+      return { operation, ...fields };
+    }),
+  };
+  return providerResponse({
+    role: 'assistant',
+    content: JSON.stringify(withNullPlaceholders(providerIntent, getStructuredTurnSchema())),
+  });
 }
 
 function expectStrictSchema(node, canonical, nullable = false) {
@@ -194,15 +207,20 @@ describe('foreground strict Structured Outputs boundary', () => {
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     const expectedCanonical = structuredClone(canonicalSnapshot);
-    if (!isAdmin) {
-      expectedCanonical.properties.actions.items.properties.domain.enum = expectedCanonical.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'admin');
-    }
     const providerSchema = payload.response_format.json_schema.schema;
-    expectedCanonical.properties.actions.items.properties.action = {
-      type: 'string',
-      enum: [...new Set(expectedCanonical.properties.actions.items.properties.domain.enum.flatMap(getIntentActionsForDomain))],
-      description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
+    const action = expectedCanonical.properties.actions.items;
+    const domains = action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
+    delete action.properties.domain;
+    delete action.properties.action;
+    action.properties = {
+      operation: {
+        type: 'string',
+        enum: getCanonicalOperations({ domains }),
+        description: 'Exact qualified canonical operation. Its domain and action are inseparable; choose one listed value, for example reminder.list or reminder.create.',
+      },
+      ...action.properties,
     };
+    action.required = ['operation'];
     // Provider composition changes only: canonical prerequisites remain checked
     // by validateTurnIntent before any domain action, including missing schedules.
     expectedCanonical.properties.actions.items.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
@@ -268,7 +286,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     const result = await routeMessage('<untrusted_attachment_content>texto adjunto</untrusted_attachment_content>', user, [], { ...turnOptions, attachmentOnly: true });
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(payload.response_format.json_schema.schema.properties.actions.items.properties.domain.enum).toEqual(['conversation']);
+    expect(payload.response_format.json_schema.schema.properties.actions.items.properties.operation.enum).toEqual(['conversation.reply']);
     expect(result.memoryDisposition).toBe('skip_attachment');
     expect(result.intent).toBe('chat');
     expect(executeTool).not.toHaveBeenCalled();

@@ -1,4 +1,8 @@
-import { TURN_INTENT_SCHEMA, getIntentActionsForDomain } from './intent-contracts.js';
+import {
+  TURN_INTENT_SCHEMA,
+  getCanonicalOperations,
+  parseCanonicalOperation,
+} from './intent-contracts.js';
 
 // Provider-only projection: the canonical schema and deterministic action
 // prerequisites remain authoritative. Avoid polymorphic object unions, whose
@@ -26,12 +30,23 @@ function strictProviderSchema(schema) {
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
   const action = schema.properties.actions.items;
-  action.properties.domain.enum = attachmentOnly ? ['conversation'] : action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
-  action.properties.action = {
-    type: 'string',
-    enum: [...new Set(action.properties.domain.enum.flatMap(getIntentActionsForDomain))],
-    description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
+  const domains = attachmentOnly
+    ? ['conversation']
+    : action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
+
+  // Groq rejects the polymorphic unions needed to condition action on domain.
+  // A single qualified enum preserves that relationship without a union or a
+  // Cartesian product. Node projects it back to canonical domain/action below.
+  const { domain: _domain, action: _action, ...sharedProperties } = action.properties;
+  action.properties = {
+    operation: {
+      type: 'string',
+      enum: getCanonicalOperations({ domains }),
+      description: 'Exact qualified canonical operation. Its domain and action are inseparable; choose one listed value, for example reminder.list or reminder.create.',
+    },
+    ...sharedProperties,
   };
+  action.required = ['operation'];
   action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
   action.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
   action.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
@@ -53,4 +68,25 @@ export function stripStructuredNulls(value) {
   return Object.fromEntries(Object.entries(value)
     .filter(([, child]) => child !== null)
     .map(([key, child]) => [key, stripStructuredNulls(child)]));
+}
+
+/** Convert the provider-only qualified operation into canonical TurnIntent. */
+export function projectStructuredTurnIntent(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
+  return {
+    ...value,
+    actions: value.actions.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || item.operation === undefined) return item;
+      const operation = String(item.operation || '').trim().toLowerCase();
+      const parts = operation.split('.');
+      // Known operations use the registry. Unknown but structurally qualified
+      // values are still split so canonical validation can reject the exact
+      // domain/action pair; no natural-language interpretation occurs here.
+      const parsed = parseCanonicalOperation(operation)
+        || (parts.length === 2 && parts.every(Boolean) ? { domain: parts[0], action: parts[1] } : null);
+      if (!parsed) return { ...item };
+      const { operation: _operation, ...fields } = item;
+      return { ...fields, ...parsed };
+    }),
+  };
 }

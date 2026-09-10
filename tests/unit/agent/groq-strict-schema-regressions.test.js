@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
-import { getStructuredTurnSchema, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import {
+  TURN_INTENT_SCHEMA,
+  getCanonicalOperations,
+  validateTurnIntent,
+} from '../../../src/agent/contracts/intent-contracts.js';
+import {
+  getStructuredTurnSchema,
+  projectStructuredTurnIntent,
+  stripStructuredNulls,
+} from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { resolveTypedSchedule } from '../../../src/agent/orchestration/typed-schedule.js';
 
 // Groq rejected polymorphic action/schedule unions at compile time and generated
@@ -27,9 +35,29 @@ describe('Groq strict provider projection regressions', () => {
     const schema = getStructuredTurnSchema(options);
     inspectProjection(schema);
     expect(schema.properties.actions.maxItems).toBe(12);
-    const domains = schema.properties.actions.items.properties.domain.enum;
-    expect(domains).toEqual(options.attachmentOnly ? ['conversation'] : before.properties.actions.items.properties.domain.enum.filter((domain) => options.isAdmin || domain !== 'admin'));
+    const action = schema.properties.actions.items;
+    const domains = options.attachmentOnly
+      ? ['conversation']
+      : before.properties.actions.items.properties.domain.enum.filter((domain) => options.isAdmin || domain !== 'admin');
+    expect(action.properties).not.toHaveProperty('domain');
+    expect(action.properties).not.toHaveProperty('action');
+    expect(action.properties.operation.enum).toEqual(getCanonicalOperations({ domains }));
+    if (!options.attachmentOnly) expect(action.properties.operation.enum).toContain('reminder.list');
+    expect(action.properties.operation.enum).not.toContain('reminder.search');
     expect(TURN_INTENT_SCHEMA).toEqual(before);
+  });
+
+  it('projects one qualified provider operation to one canonical domain/action pair', () => {
+    const providerIntent = { actions: [{ operation: 'reminder.list', scope: 'today' }] };
+    expect(projectStructuredTurnIntent(providerIntent)).toEqual({
+      actions: [{ domain: 'reminder', action: 'list', scope: 'today' }],
+    });
+    expect(validateTurnIntent(projectStructuredTurnIntent(providerIntent))).toMatchObject({ valid: true });
+  });
+
+  it('does not reinterpret unknown qualified operations', () => {
+    const projected = projectStructuredTurnIntent({ actions: [{ operation: 'reminder.search', scope: 'today' }] });
+    expect(validateTurnIntent(projected)).toMatchObject({ valid: false, errorCode: 'UNSUPPORTED_ACTION' });
   });
 
   it('preserves every optional scalar constraint and removes null without changing false or zero', () => {

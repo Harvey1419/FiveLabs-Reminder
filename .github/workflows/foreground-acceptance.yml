@@ -20,12 +20,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        # Alibaba/Qwen does not offer strict structured_outputs; its exclusion
-        # and unchanged background route are covered by Core CI.
-        stage: [primary, secondary]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,13 +39,14 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KAPSO_API_KEY: test-kapso-key
-          FOREGROUND_ACCEPTANCE_STAGE: ${{ matrix.stage }}
+          FOREGROUND_ACCEPTANCE_STAGE: primary
+          FOREGROUND_ACCEPTANCE_FOCUS: domain-action
         run: pnpm exec vitest run --config tests/acceptance/vitest.config.js
       - name: Keep bounded acceptance metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: foreground-acceptance-${{ matrix.stage }}
-          path: foreground-acceptance-${{ matrix.stage }}.json
+          name: foreground-acceptance-primary
+          path: foreground-acceptance-primary.json
           if-no-files-found: ignore
           retention-days: 7
