@@ -23,7 +23,7 @@ import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
-import { getStructuredTurnSchema, stripStructuredNulls } from '../contracts/foreground-turn-schema.js';
+import { getStructuredTurnSchema, normalizeProviderTurnIntent } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 
@@ -126,7 +126,11 @@ function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
   if (modelResponse?.toolCalls?.length) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión foreground no admite llamadas a herramientas.' } };
   const parsed = parseIntentArguments(modelResponse?.content);
   if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };
-  return { unavailable: false, validation: validateTurnIntent(stripStructuredNulls(parsed), { isAdmin }) };
+  try {
+    return { unavailable: false, validation: validateTurnIntent(normalizeProviderTurnIntent(parsed), { isAdmin }) };
+  } catch {
+    return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada contiene discriminadores incompatibles.' } };
+  }
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
