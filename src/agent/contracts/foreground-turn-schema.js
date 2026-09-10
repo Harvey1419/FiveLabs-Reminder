@@ -3,6 +3,7 @@ import { TURN_INTENT_SCHEMA, getIntentActionsForDomain } from './intent-contract
 // Provider-only projection. TURN_INTENT_SCHEMA remains the canonical contract.
 // Groq strict subset: https://console.groq.com/docs/structured-outputs
 function nullable(schema) {
+  if (schema.enum) return { anyOf: [schema, { type: 'null' }] };
   if (schema.type) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
     const result = { ...schema, type: [...new Set([...types, 'null'])] };
