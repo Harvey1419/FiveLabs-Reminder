@@ -1,33 +1,31 @@
 name: Foreground acceptance
-
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
-      - '.github/workflows/foreground-acceptance.yml'
       - 'src/agent/providers/**'
       - 'src/agent/contracts/**'
       - 'src/agent/core/agent-core.js'
-      - 'src/agent/orchestration/**'
+      - 'src/agent/orchestration/router-core.js'
       - 'tests/acceptance/**'
-  workflow_dispatch:
-
+      - '.github/workflows/foreground-acceptance.yml'
 permissions:
   contents: read
-
 concurrency:
   group: foreground-acceptance-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   live:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        stage: [primary, secondary, last_resort]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+        # Alibaba/Qwen does not offer strict structured_outputs; its exclusion
+        # and unchanged background route are covered by Core CI.
+        stage: [primary, secondary]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

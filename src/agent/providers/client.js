@@ -455,6 +455,18 @@ async function runOpenRouterChain(messages, profiles, {
   let previousFailure = 'initial_request';
 
   for (const profile of profiles) {
+    // Verified OpenRouter endpoint capability: this exact Alibaba route offers
+    // response_format but not structured_outputs. Keep it for non-strict flows;
+    // never downgrade the foreground contract or send a known-incompatible request.
+    const unsupportedStrictRoute = purpose === 'initial'
+      && responseFormat?.type === 'json_schema' && responseFormat.json_schema?.strict === true
+      && profile.model === 'qwen/qwen3.7-flash'
+      && profile.providers.length === 1 && profile.providers[0] === 'alibaba';
+    if (unsupportedStrictRoute) {
+      if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=alibaba outcome=skipped reason=unsupported_structured_outputs`);
+      if (previousFailure === 'initial_request') previousFailure = 'unsupported_structured_outputs';
+      continue;
+    }
     if (logPrefix && previousFailure !== 'initial_request') {
       console.log(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=${profile.providers.join(',')} trigger=${previousFailure}`);
     }
