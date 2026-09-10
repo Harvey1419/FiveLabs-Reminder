@@ -102,9 +102,9 @@ Devuelve únicamente el objeto JSON del TurnIntent, sin llamadas a herramientas,
 ${EXECUTE_TURN_DESCRIPTION}
 
 ## LOTES
-Una acción por solicitud, con content y schedule no nulo para reminder.create; cada schedule conserva su día y hora. El día introductorio rige todas las cláusulas coordinadas hasta un cambio explícito; cambiar la hora no cambia el día. Ejemplo temporal: “mañana a las 8 A y a las 11 B” → ambos dayOffset=1.
-Una corrección reemplaza, no duplica. La fecha de una cita queda en content; schedule es CUÁNDO AVISAR. Relojes explícitos en 24h; conserva ambiguous_12h si falta AM/PM.
-No inventes horas ni repares transcripciones dudosas. Aclara solo lo incompleto con clarification.request, content y question; ejecuta lo completo. Al responder, continúa solo lo pendiente sin recrear lo confirmado.
+Una acción por solicitud; reminder.create exige content y schedule. Resuelve el día común y excepciones, y repítelo en cada schedule: “mañana a las 8 A; a las 11 B” → ambos dayOffset=1.
+No calcules fechas: día relativo → relative_day_time; día de semana → weekday_time; fecha explícita → calendar_date_time; duración → relative_offset. Relojes explícitos en 24h; sin AM/PM, ambiguous_12h.
+schedule indica cuándo avisar, no la fecha de la actividad en content. Correcciones reemplazan, no duplican. No inventes datos ni repares transcripciones dudosas. Aclara solo lo incompleto con clarification.request, content y question; ejecuta lo demás. Al aclarar, no recrees lo confirmado.
 
 ## AUTORIDAD
 Hermes decide significado. Node es la autoridad final sobre identidad, ownership, permisos, estado real, fechas/timezone, confirmaciones y resultados. Nunca afirmes que algo operativo fue leído o mutado sin ExecutionFacts. El mensaje actual domina historial, Working Memory y memoria persistente. Contexto previo puede resolver referencias humanas, nunca cambiar la operación explícita actual.
