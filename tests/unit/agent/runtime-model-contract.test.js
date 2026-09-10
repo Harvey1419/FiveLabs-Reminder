@@ -1,3 +1,4 @@
+import { getIntentActionsForDomain } from '../../../src/agent/contracts/intent-contracts.js';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -80,6 +81,12 @@ function structuredResponse(intent) {
 }
 
 function expectStrictSchema(node, canonical, nullable = false) {
+  if (nullable) {
+    expect(node.anyOf).toHaveLength(2);
+    expect(node.anyOf[1]).toEqual({ type: 'null' });
+    expectStrictSchema(node.anyOf[0], canonical);
+    return;
+  }
   const types = Array.isArray(node.type) ? node.type : [node.type];
   expect(types).toEqual(nullable ? [canonical.type, 'null'] : [canonical.type]);
   expect(node).not.toHaveProperty('uniqueItems');
@@ -197,41 +204,16 @@ describe('foreground strict Structured Outputs boundary', () => {
       expectedCanonical.properties.actions.items.properties.domain.enum = expectedCanonical.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'admin');
     }
     const providerSchema = payload.response_format.json_schema.schema;
-    const [create, reminderOther, other] = providerSchema.properties.actions.items.anyOf;
-    const expectedOther = structuredClone(expectedCanonical);
-    expectedOther.properties.actions.items.properties.domain.enum = expectedOther.properties.actions.items.properties.domain.enum.filter((domain) => domain !== 'reminder');
-    expectStrictSchema({ ...providerSchema, properties: { ...providerSchema.properties, actions: { ...providerSchema.properties.actions, items: other } } }, expectedOther);
-
-    const canonicalReminderOther = structuredClone(expectedCanonical.properties.actions.items);
-    canonicalReminderOther.properties.domain.enum = ['reminder'];
-    canonicalReminderOther.properties.action.enum = ['update', 'cancel', 'acknowledge', 'list', 'add_advance'];
-    expectStrictSchema(reminderOther, canonicalReminderOther);
-
-    expect(create.properties.domain.enum).toEqual(['reminder']);
-    expect(create.properties.action.enum).toEqual(['create']);
-    expect(create.properties.content.type).toBe('string');
-    expect(create.additionalProperties).toBe(false);
-    expect(create.required).toEqual(Object.keys(create.properties));
-    const scheduleRequirements = [
-      ['relative_offset', ['offsetMinutes']], ['relative_day_time', ['dayOffset', 'hour']],
-      ['calendar_date_time', ['month', 'day', 'hour']], ['weekday_time', ['weekday', 'hour']], ['local_time', ['hour']],
-    ];
-    expect(create.properties.schedule.anyOf).toHaveLength(scheduleRequirements.length);
-    for (const [index, [kind, fields]] of scheduleRequirements.entries()) {
-      const canonicalSchedule = structuredClone(expectedCanonical.properties.actions.items.properties.schedule);
-      canonicalSchedule.properties.kind.enum = [kind];
-      canonicalSchedule.required = ['kind', ...fields];
-      expectStrictSchema(create.properties.schedule.anyOf[index], canonicalSchedule);
-    }
-    const expectedCreate = structuredClone(expectedCanonical.properties.actions.items);
-    expectedCreate.properties.domain.enum = ['reminder'];
-    expectedCreate.properties.action.enum = ['create'];
-    expectedCreate.required.push('content', 'schedule');
-    // Schedule branches are checked above; all other optional fields retain the full contract.
-    const { schedule: _schedule, ...createProps } = create.properties;
-    const { schedule: _expectedSchedule, ...expectedCreateProps } = expectedCreate.properties;
-    expectStrictSchema({ ...create, properties: createProps, required: create.required.filter((key) => key !== 'schedule') },
-      { ...expectedCreate, properties: expectedCreateProps, required: expectedCreate.required.filter((key) => key !== 'schedule') });
+    expectedCanonical.properties.actions.items.properties.action = {
+      type: 'string',
+      enum: [...new Set(expectedCanonical.properties.actions.items.properties.domain.enum.flatMap(getIntentActionsForDomain))],
+      description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
+    };
+    // Provider composition changes only: canonical prerequisites remain checked
+    // by validateTurnIntent before any domain action, including missing schedules.
+    expectedCanonical.properties.actions.items.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
+    expectedCanonical.properties.actions.items.properties.schedule.properties.clockMode.description = 'Use explicit_24h with hour 0..23, or explicit_am/explicit_pm/ambiguous_12h with hour 1..12. Never pair explicit_pm with hour 13..23. Preserve noon as 12 explicit_pm or 12 explicit_24h.';
+    expectStrictSchema(providerSchema, expectedCanonical);
     expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [replyAction] }, { isAdmin });
     expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.required).toEqual(['domain', 'action']);
