@@ -1,0 +1,57 @@
+name: Foreground acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/foreground-acceptance.yml'
+      - 'src/agent/providers/**'
+      - 'src/agent/contracts/**'
+      - 'src/agent/core/agent-core.js'
+      - 'src/agent/orchestration/**'
+      - 'tests/acceptance/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foreground-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
+      - name: Export tracked validation snapshot
+        run: |
+          git archive --format=tar HEAD > foreground-source.tar
+          tar -cf foreground-dependencies.tar node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foreground-validation-snapshot
+          path: |
+            foreground-source.tar
+            foreground-dependencies.tar
+          retention-days: 1
+      - name: Require live credentials
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo '::error::Live foreground acceptance requires the OPENROUTER_API_KEY Actions secret. Mock tests do not establish live Groq acceptance.'
+            exit 1
+          fi
+      - name: Live foreground acceptance
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          KAPSO_API_KEY: test-kapso-key
+        run: pnpm exec vitest run --config tests/acceptance/vitest.config.js
