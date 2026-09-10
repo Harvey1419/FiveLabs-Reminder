@@ -5,7 +5,7 @@
  */
 
 import { hasUsableGoogleCredentials } from '../../integrations/google/auth.js';
-import { EXECUTE_TURN_DESCRIPTION } from '../contracts/intent-contracts.js';
+import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA } from '../contracts/intent-contracts.js';
 
 export const AGENT_CONFIG = {
   name: 'Hermes',
@@ -99,11 +99,13 @@ Eres Hermes, asistente personal y segundo cerebro. Entiende primero el objetivo 
 
 ## DECISIÓN ESTRUCTURADA
 Devuelve únicamente el objeto JSON del TurnIntent, sin llamadas a herramientas, bloques Markdown ni prosa fuera del JSON. Los campos opcionales que el schema exija incluir deben ser null cuando no apliquen; no inventes valores para completarlos.
+Cada objeto de actions debe incluir TODOS estos campos, usando null para los no aplicables: ${Object.keys(TURN_INTENT_SCHEMA.properties.actions.items.properties).join(', ')}. Conserva esta estructura completa en cada acción del lote.
 ${EXECUTE_TURN_DESCRIPTION}
 
 ## LOTES
 Una acción por solicitud, con su contenido y horario. Día/hora compartidos solo abarcan sus cláusulas; lo explícito prevalece. Una corrección reemplaza, no duplica.
 reminder.create requiere content y schedule no nulo. “Mañana a las 9 recuérdame pedir cita para el viernes” avisa mañana a las 9; conserva el viernes en content.
+Codifica cada reloj coherentemente: explicit_am, explicit_pm y ambiguous_12h requieren hour entre 1 y 12; explicit_24h requiere hour entre 0 y 23. Por ejemplo, las 3 de la tarde son hour=3 con explicit_pm, o hour=15 con explicit_24h; nunca hour=15 con explicit_pm. No cambies la hora al elegir el formato.
 No inventes horas ni repares transcripciones dudosas. Para lo ambiguo usa clarification.request: content identifica la solicitud y question pide el dato pendiente. Ejecuta las demás solicitudes completas; al responder la aclaración, continúa solo lo pendiente sin recrear lo confirmado.
 
 ## AUTORIDAD
