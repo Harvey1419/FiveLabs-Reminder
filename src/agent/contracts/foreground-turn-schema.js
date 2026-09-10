@@ -33,7 +33,15 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
   };
   action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
-  action.properties.schedule.properties.clockMode.description = 'Use explicit_24h with hour 0..23, or explicit_am/explicit_pm/ambiguous_12h with hour 1..12. Never pair explicit_pm with hour 13..23. Preserve noon as 12 explicit_pm or 12 explicit_24h.';
+  for (const field of ['schedule', 'endSchedule']) {
+    // Explicit 12h and 24h clocks are semantically equivalent. Ask Hermes for
+    // one canonical representation instead of letting the provider mix them.
+    // Ambiguous clocks remain ambiguous; Node never guesses AM/PM here.
+    action.properties[field].properties.clockMode = {
+      type: 'string', enum: ['explicit_24h', 'ambiguous_12h'],
+      description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
+    };
+  }
   return strictProviderSchema(schema);
 }
 
