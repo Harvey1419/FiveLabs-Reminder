@@ -71,8 +71,22 @@ beforeEach((context) => {
   responses = [];
   caseName = context.task.name;
   executeTool.mockImplementation(async ({ toolName, params }) => {
-    if (toolName !== 'manage_reminder' || params.action !== 'create') throw new Error('Acceptance sandbox blocks unrelated tools.');
-    return { success: true, complete: true, action: 'created_reminder', data: { timezone: user.timezone, items: params.items.map((item) => ({ id: `synthetic-${item.content}`, content: item.content, sendAt: item.targetTime })) } };
+    if (toolName !== 'manage_reminder') throw new Error('Acceptance sandbox blocks unrelated tools.');
+    if (params.action === 'create') {
+      return { success: true, complete: true, action: 'created_reminder', data: { timezone: user.timezone, items: params.items.map((item) => ({ id: `synthetic-${item.content}`, content: item.content, sendAt: item.targetTime })) } };
+    }
+    if (params.action === 'list') {
+      const reminders = [
+        { id: 'synthetic-alpha', content: 'Revisar Alfa', send_at: '2026-09-10T15:00:00.000Z' },
+        { id: 'synthetic-beta', content: 'Revisar Beta', send_at: '2026-09-10T18:00:00.000Z' },
+        { id: 'synthetic-gamma', content: 'Revisar Gamma', send_at: '2026-09-10T21:00:00.000Z' },
+      ];
+      return { success: true, complete: true, action: 'listed_reminders', data: { reminders, items: reminders, filter: params.filter, timezone: user.timezone, locale: user.locale } };
+    }
+    if (params.action === 'cancel') {
+      return { success: true, complete: true, action: 'cancelled_reminder', data: { id: params.target, content: params.target } };
+    }
+    throw new Error(`Acceptance sandbox blocks reminder.${params.action}.`);
   });
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
     const payload = JSON.parse(init.body);
@@ -113,7 +127,7 @@ afterEach((context) => {
     const decisions = responses.map((response) => {
       try {
         const parsed = JSON.parse(response?.choices?.[0]?.message?.content);
-        return parsed.actions?.map(({ domain, action, schedule }) => ({ domain, action, schedule }));
+        return parsed.actions?.map(({ operation, schedule }) => ({ operation, schedule }));
       } catch { return null; }
     });
     console.log('ACCEPTANCE_FAILURE ' + JSON.stringify({ case: caseName, warnings: warnings.slice(-5), execution, decisions }));
@@ -165,6 +179,34 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(item.content.toLowerCase()).toContain('pedro');
     expect(['2026-09-10T10:00:00.000Z', '2026-09-10T22:00:00.000Z']).toContain(item.targetTime);
     expect(result.executionFacts.every((fact) => fact.success)).toBe(true);
+  });
+
+  it('maps a today reminder inventory to reminder.list with the exact filter', async () => {
+    const result = await routeMessage('¿Qué recordatorios tenemos para hoy?', user, [], reference);
+    assertCompleteDecision();
+    expect(result.plan.actions).toEqual([{ domain: 'reminder', action: 'list' }]);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0]).toMatchObject({
+      toolName: 'manage_reminder',
+      params: { action: 'list', filter: 'pending_today' },
+    });
+  });
+
+  it('keeps plural contextual reminder deletion in the reminder domain', async () => {
+    const first = await routeMessage('¿Qué recordatorios tenemos para hoy?', user, [], reference);
+    const history = [
+      { role: 'user', content: '¿Qué recordatorios tenemos para hoy?' },
+      { role: 'assistant', content: first.confirmation, entities: first.entities },
+    ];
+    const second = await routeMessage('Elimina el primero y el tercero', user, history, reference);
+    assertCompleteDecision(2);
+    expect(second.plan.actions).toEqual([
+      { domain: 'reminder', action: 'cancel' },
+      { domain: 'reminder', action: 'cancel' },
+    ]);
+    const mutations = executeTool.mock.calls.map(([call]) => call).filter((call) => call.params.action === 'cancel');
+    expect(mutations).toHaveLength(2);
+    expect(mutations.map((call) => call.params.target)).toEqual(['synthetic-alpha', 'synthetic-gamma']);
   });
 
   it.each([1, 2, 3])('keeps three different reminder hours associated with their subjects, repetition %i', async () => {

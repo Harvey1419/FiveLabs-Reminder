@@ -20,6 +20,18 @@ const DOMAIN_ACTIONS = Object.freeze({
   admin: new Set(['metrics']),
 });
 
+const STRUCTURAL_ACTION_ALIASES = Object.freeze({
+  reminder: Object.freeze({ delete: 'cancel' }),
+});
+
+function qualifyOperation(domain, action) { return `${domain}.${action}`; }
+
+const CANONICAL_OPERATIONS = Object.freeze(Object.entries(DOMAIN_ACTIONS)
+  .flatMap(([domain, actions]) => [...actions].map((action) => qualifyOperation(domain, action))));
+const CANONICAL_OPERATION_PARTS = new Map(CANONICAL_OPERATIONS.map((operation) => {
+  const separator = operation.indexOf('.');
+  return [operation, Object.freeze({ domain: operation.slice(0, separator), action: operation.slice(separator + 1) })];
+}));
 const typedSchedule = {
   type: 'object',
   additionalProperties: false,
@@ -122,12 +134,21 @@ export function getForegroundToolDefinitions({ isAdmin = false } = {}) {
 
 export function getIntentActionsForDomain(domain) { return [...(DOMAIN_ACTIONS[domain] || [])]; }
 
+export function getCanonicalOperations({ domains = DOMAINS } = {}) {
+  const allowedDomains = new Set(domains);
+  return CANONICAL_OPERATIONS.filter((operation) => allowedDomains.has(CANONICAL_OPERATION_PARTS.get(operation).domain));
+}
+
+export function parseCanonicalOperation(operation) {
+  const parsed = CANONICAL_OPERATION_PARTS.get(String(operation || '').trim().toLowerCase());
+  return parsed ? { ...parsed } : null;
+}
+
 export function normalizeIntentAction(domain, action) {
   const normalized = String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  // Flat provider schemas expose `delete` for other domains; reminder's
-  // canonical equivalent is `cancel`. This is structured-protocol normalization.
-  if (domain === 'reminder' && normalized === 'delete') return 'cancel';
-  return normalized;
+  // Structural wire aliases are accepted only when their canonical meaning is
+  // exact. This never interprets the user's natural language.
+  return STRUCTURAL_ACTION_ALIASES[domain]?.[normalized] || normalized;
 }
 function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
 function mutationRequiresTarget(domain, action, raw) {
