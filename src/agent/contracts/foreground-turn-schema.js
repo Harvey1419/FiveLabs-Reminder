@@ -3,13 +3,9 @@ import { TURN_INTENT_SCHEMA, getIntentActionsForDomain } from './intent-contract
 // Provider-only projection. TURN_INTENT_SCHEMA remains the canonical contract.
 // Groq strict subset: https://console.groq.com/docs/structured-outputs
 function nullable(schema) {
-  // An enum containing null can become an accidental object discriminator in
-  // Groq. An explicit null union preserves the same allowed values without it.
-  if (schema.enum) return { anyOf: [schema, { type: 'null' }] };
-  if (schema.type) {
-    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-    return { ...schema, type: [...new Set([...types, 'null'])] };
-  }
+  // Keep enum/range constraints in a typed non-null branch. Combined nullable
+  // types cause discriminator ambiguity and inconsistent numeric constraints
+  // at the Groq boundary; the explicit union represents the same contract.
   return { anyOf: [schema, { type: 'null' }] };
 }
 
