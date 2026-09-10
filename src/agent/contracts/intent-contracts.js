@@ -86,7 +86,7 @@ Current explicit meaning overrides history, Working Memory and persistent memory
 conversation.reply: ordinary conversation or a personal answer already supported by supplied context; it must never claim an operational read/mutation.
 agenda.read: cross-domain live inventory such as pending/today/agenda. If the user explicitly asks only reminders, tasks or Calendar, use that domain instead. Never reconstruct live state from chat history.
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create introduces a new object and has no target. update/cancel/complete/delete refer to an existing object: target is its human identity and patch fields contain only requested deltas. Never use a patch value to identify the object.
-Reminder removal is reminder.cancel. reminder.delete is a tolerated provider-wire alias that Node canonicalizes to cancel because the flat strict provider schema must also expose delete for other domains; Hermes should still emit cancel. For several referenced reminders, emit one reminder.cancel action per referenced item.
+Reminder removal is reminder.cancel. For several referenced reminders emit one cancel per target.
 reminder.acknowledge: use when an active follow-up's real-world action is done. With exactly one authoritative active follow-up target may be omitted for Node to bind; with several, identify it or clarify. Completion is not an update. Use reminder.update only when changing stored reminder fields.
 Temporal meaning must remain typed: relative_offset only for durations from now; relative_day_time for a relative day plus clock; weekday_time for a named weekday plus clock; local_time for clock only. Node performs date/timezone arithmetic.
 Recurring reminders keep recurrence on the reminder action. Advance notice stays on the same reminder/event via advanceMinutes.
@@ -124,10 +124,8 @@ export function getIntentActionsForDomain(domain) { return [...(DOMAIN_ACTIONS[d
 
 export function normalizeIntentAction(domain, action) {
   const normalized = String(action || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  // The Groq-compatible flat provider schema exposes `delete` because task,
-  // calendar and entity use it. For reminders the canonical equivalent is
-  // `cancel`; this is protocol normalization of an already-structured action,
-  // not natural-language interpretation.
+  // Flat provider schemas expose `delete` for other domains; reminder's
+  // canonical equivalent is `cancel`. This is structured-protocol normalization.
   if (domain === 'reminder' && normalized === 'delete') return 'cancel';
   return normalized;
 }
