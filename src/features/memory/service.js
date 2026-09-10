@@ -1,6 +1,10 @@
 import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
+const MEMORY_MAX_CANDIDATES = 16;
+const MEMORY_EXTRACTION_MAX_TOKENS = 3200;
+const MEMORY_EXTRACTION_TIMEOUT_MS = 15000;
+
 const MEMORY_EXTRACTION_PROMPT = `You are the enterprise memory extraction engine of a personal assistant.
 Analyze the following conversation turn between User and Assistant.
 
@@ -51,6 +55,8 @@ ATOMICITY AND EVIDENCE RULES:
 - Every candidate must include evidence: an exact quote copied from the user text that directly supports the durable fact.
 - Do not infer a relationship or entity type merely from the setting of an appointment.
 - Prefer returning no candidate over storing an uncertain or mixed memory.
+- Return at most ${MEMORY_MAX_CANDIDATES} candidates. If the turn contains more durable information, prioritize identity, working context, explicit preferences, standing responsibilities, and decisions that will be most useful later.
+- Keep every candidate compact: topicKey at most 100 characters, content at most 180 characters, evidence one exact contiguous quote of at most 180 characters, and entityName at most 80 characters.
 
 Respond with ONLY a JSON array:
 [
@@ -137,12 +143,16 @@ export async function extractAndSaveMemories({
       { role: 'user', content: `User text (the only factual source):\n<user_text>${eligibleText}</user_text>` },
     ];
 
-    const rawResponse = await callMemoryExtraction(messages, { temperature: 0, max_tokens: 500 });
+    const rawResponse = await callMemoryExtraction(messages, {
+      temperature: 0,
+      max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
+      timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
+    });
     const candidates = parseJsonArray(rawResponse);
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
     const saved = [];
-    for (const item of candidates) {
+    for (const item of candidates.slice(0, MEMORY_MAX_CANDIDATES)) {
       if (!item.content) continue;
       const rejectionReason = getMemoryCandidateRejection(item, eligibleText, executionFacts);
       if (rejectionReason) {

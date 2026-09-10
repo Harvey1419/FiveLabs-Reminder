@@ -181,4 +181,32 @@ describe('durable memory extraction policy', () => {
     expect(prompt[1].content).toContain('Borona es mi perrita');
     expect(prompt[1].content).not.toContain('Qué lindo nombre');
   });
+
+  it('uses a bounded high-capacity contract for long onboarding turns', async () => {
+    const memories = Array.from({ length: 18 }, (_, index) => ({
+      topicKey: `preference/workflow/aspect_${index + 1}`,
+      category: 'preference',
+      content: `Preferencia profesional durable número ${index + 1}.`,
+      evidence: `preferencia profesional ${index + 1}`,
+      entityName: null,
+      entityCategory: null,
+    }));
+    callMemoryExtraction.mockResolvedValue(JSON.stringify(memories));
+
+    const userText = memories.map((item) => item.evidence).join('. ');
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1', userText, assistantReply: 'Entendido.', executionFacts: [],
+    });
+
+    expect(callMemoryExtraction).toHaveBeenCalledWith(expect.any(Array), {
+      temperature: 0,
+      max_tokens: 3200,
+      timeoutMs: 15000,
+    });
+    const prompt = callMemoryExtraction.mock.calls[0][0][0].content;
+    expect(prompt).toContain('Return at most 16 candidates');
+    expect(prompt).toContain('content at most 180 characters');
+    expect(saved).toHaveLength(16);
+    expect(saveMemory).toHaveBeenCalledTimes(16);
+  });
 });

@@ -392,6 +392,17 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       return { ok: false, reason: 'provider_finish_error', finishReason };
     }
 
+    // Memory extraction is a JSON protocol even though it intentionally stays
+    // compatible with providers that do not support strict response schemas.
+    // Never hand a known-truncated JSON prefix to the parser as a success;
+    // route to the next independent background provider instead.
+    if (purpose === 'memory' && finishReason === 'length') {
+      if (logPrefix) {
+        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=truncated_memory_output finishReason=${finishReason} latencyMs=${Date.now() - startMs}`);
+      }
+      return { ok: false, reason: 'truncated_memory_output', finishReason };
+    }
+
     if (tools?.length && toolChoice === 'required' && toolCalls.length === 0) {
       if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=required_tool_missing finishReason=${finishReason || 'unknown'} latencyMs=${Date.now() - startMs}`);
       return { ok: false, reason: 'required_tool_missing', finishReason };

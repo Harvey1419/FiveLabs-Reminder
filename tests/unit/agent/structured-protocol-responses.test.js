@@ -102,4 +102,20 @@ describe('foreground provider protocol, not HTTP status alone', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response(envelope('<think>hidden</think>{"memories":[]}', null)));
     expect(await callMemoryExtraction([])).toBe('{"memories":[]}');
   });
+
+  it('fails over instead of accepting truncated background memory JSON', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response(envelope('[{"topicKey":"profile/work"', 'length')))
+      .mockResolvedValueOnce(response({
+        ...envelope('[{"topicKey":"profile/work","category":"fact"}]'),
+        provider: 'BaseTen',
+      }));
+
+    expect(await callMemoryExtraction([])).toBe('[{"topicKey":"profile/work","category":"fact"}]');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).provider.only).toEqual(['groq']);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).provider.only).toEqual(['baseten/fp8']);
+    expect(warning()).toContain('reason=truncated_memory_output');
+    expect(console.log.mock.calls.flat().join('\n')).toContain('trigger=truncated_memory_output');
+  });
 });
