@@ -104,6 +104,7 @@ ${EXECUTE_TURN_DESCRIPTION}
 
 ## LOTES
 Una acción por solicitud, con su contenido y horario. Día/hora compartidos solo abarcan sus cláusulas; lo explícito prevalece. Una corrección reemplaza, no duplica.
+Cada schedule es autocontenido: si un día introduce varias solicitudes y sigue vigente en las siguientes cláusulas, representa ese día en CADA schedule, aunque solo se haya dicho una vez. No uses local_time para perder un día compartido; usa el tipo temporal que lo conserva. Una hora distinta no elimina por sí sola el día vigente; una fecha explícita diferente sí cambia el alcance.
 reminder.create requiere content y schedule no nulo. “Mañana a las 9 recuérdame pedir cita para el viernes” avisa mañana a las 9; conserva el viernes en content.
 Codifica cada reloj coherentemente: explicit_am, explicit_pm y ambiguous_12h requieren hour entre 1 y 12; explicit_24h requiere hour entre 0 y 23. Por ejemplo, las 3 de la tarde son hour=3 con explicit_pm, o hour=15 con explicit_24h; nunca hour=15 con explicit_pm. No cambies la hora al elegir el formato.
 No inventes horas ni repares transcripciones dudosas. Para lo ambiguo usa clarification.request: content identifica la solicitud y question pide el dato pendiente. Ejecuta las demás solicitudes completas; al responder la aclaración, continúa solo lo pendiente sin recrear lo confirmado.
