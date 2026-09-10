@@ -9,8 +9,9 @@ function getOpenRouterApiKey() {
     || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY.trim() : null);
 }
 
-export async function generateEmbedding(text) {
-  if (!text || typeof text !== 'string' || text.trim().length === 0) return null;
+export const MEMORY_EMBEDDING_MODEL = 'openai/text-embedding-3-small';
+
+async function requestEmbeddings(input, requestInput = input) {
   const apiKey = getOpenRouterApiKey();
 
   if (!apiKey) {
@@ -28,8 +29,8 @@ export async function generateEmbedding(text) {
         'X-Title': 'Hermes Assistant',
       },
       body: JSON.stringify({
-        model: 'openai/text-embedding-3-small',
-        input: text.trim(),
+        model: MEMORY_EMBEDDING_MODEL,
+        input: requestInput,
         dimensions: 768,
         encoding_format: 'float',
       }),
@@ -38,8 +39,13 @@ export async function generateEmbedding(text) {
 
     if (res.ok) {
       const data = await res.json();
-      const embedding = data.data?.[0]?.embedding;
-      if (Array.isArray(embedding) && embedding.length === 768) return embedding;
+      const embeddings = (data.data || [])
+        .slice()
+        .sort((a, b) => a.index - b.index)
+        .map((item) => item.embedding);
+      if (embeddings.length === input.length && embeddings.every((embedding) => Array.isArray(embedding) && embedding.length === 768)) {
+        return embeddings;
+      }
       console.warn('[embeddingService] OpenRouter returned an invalid embedding shape.');
       return null;
     } else {
@@ -51,4 +57,18 @@ export async function generateEmbedding(text) {
     console.warn('[embeddingService] generateEmbedding failed:', err.message);
     return null;
   }
+}
+
+export async function generateEmbeddings(texts) {
+  const input = (Array.isArray(texts) ? texts : [])
+    .map((text) => (typeof text === 'string' ? text.trim() : ''));
+  if (input.length === 0 || input.some((text) => text.length === 0)) return null;
+  return requestEmbeddings(input);
+}
+
+export async function generateEmbedding(text) {
+  if (!text || typeof text !== 'string' || text.trim().length === 0) return null;
+  const cleanText = text.trim();
+  const embeddings = await requestEmbeddings([cleanText], cleanText);
+  return embeddings?.[0] || null;
 }
