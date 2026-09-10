@@ -64,6 +64,8 @@ beforeAll(() => {
 });
 beforeEach((context) => {
   vi.clearAllMocks();
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   clearWorkingMemory(user);
   isAdminUser.mockReturnValue(false);
   attempts = [];
@@ -104,7 +106,13 @@ beforeEach((context) => {
     return res;
   });
 });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach((context) => {
+  const warnings = console.warn.mock.calls.map((args) => args.join(' '));
+  vi.restoreAllMocks();
+  if (context.task.result?.state === 'fail') {
+    console.log('ACCEPTANCE_FAILURE ' + JSON.stringify({ case: caseName, warnings: warnings.slice(-5) }));
+  }
+});
 afterAll(() => writeFileSync(`foreground-acceptance-${stage}.json`, JSON.stringify(summary, null, 2)));
 
 function assertCompleteDecision(count = 1) {
@@ -133,6 +141,24 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(result.intent).toBe('chat');
     expect(result.confirmation.length).toBeGreaterThan(0);
     expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('accepts the admin schema without using the administrative domain for a greeting', async () => {
+    isAdminUser.mockReturnValue(true);
+    const result = await routeMessage('Hola hola', user, [], reference);
+    assertCompleteDecision();
+    expect(result.intent).toBe('chat');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original single-reminder smoke request executable', async () => {
+    const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], reference);
+    assertCompleteDecision();
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    const item = executeTool.mock.calls[0][0].params.items[0];
+    expect(item.content.toLowerCase()).toContain('pedro');
+    expect(['2026-09-10T10:00:00.000Z', '2026-09-10T22:00:00.000Z']).toContain(item.targetTime);
+    expect(result.executionFacts.every((fact) => fact.success)).toBe(true);
   });
 
   it.each([1, 2, 3])('keeps three different reminder hours associated with their subjects, repetition %i', async () => {
