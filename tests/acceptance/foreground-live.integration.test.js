@@ -41,6 +41,8 @@ import { clearWorkingMemory } from '../../src/agent/core/working-memory.js';
 import { isAdminUser } from '../../src/shared/auth.js';
 
 const stage = process.env.FOREGROUND_ACCEPTANCE_STAGE || 'primary';
+const domainActionFocus = process.env.FOREGROUND_ACCEPTANCE_FOCUS === 'domain-action';
+const extendedIt = domainActionFocus ? it.skip : it;
 const routes = {
   primary: ['openai/gpt-oss-120b', 'groq'],
   secondary: ['z-ai/glm-5.3-flash', 'baseten/fp8'],
@@ -119,7 +121,7 @@ beforeEach((context) => {
     return res;
   });
 });
-afterEach((context) => {
+afterEach(async (context) => {
   const warnings = console.warn.mock.calls.map((args) => args.join(' '));
   const execution = console.log.mock.calls.map((args) => args.join(' ')).slice(-12);
   vi.restoreAllMocks();
@@ -132,6 +134,7 @@ afterEach((context) => {
     });
     console.log('ACCEPTANCE_FAILURE ' + JSON.stringify({ case: caseName, warnings: warnings.slice(-5), execution, decisions }));
   }
+  if (domainActionFocus) await new Promise((resolve) => setTimeout(resolve, 4000));
 });
 afterAll(() => writeFileSync(`foreground-acceptance-${stage}.json`, JSON.stringify(summary, null, 2)));
 
@@ -163,7 +166,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('accepts the admin schema without using the administrative domain for a greeting', async () => {
+  extendedIt('accepts the admin schema without using the administrative domain for a greeting', async () => {
     isAdminUser.mockReturnValue(true);
     const result = await routeMessage('Hola hola', user, [], reference);
     assertCompleteDecision();
@@ -179,6 +182,17 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(item.content.toLowerCase()).toContain('pedro');
     expect(['2026-09-10T10:00:00.000Z', '2026-09-10T22:00:00.000Z']).toContain(item.targetTime);
     expect(result.executionFacts.every((fact) => fact.success)).toBe(true);
+  });
+
+  it('creates several reminders without crossing domain/action boundaries', async () => {
+    const result = await routeMessage('Mañana a las 9 recuérdame revisar Alfa, a las 11 revisar Beta y a las 3 de la tarde revisar Gamma; son tres recordatorios separados.', user, [], reference);
+    assertCompleteDecision();
+    expect(result.plan.actions).toEqual([
+      { domain: 'reminder', action: 'create' },
+      { domain: 'reminder', action: 'create' },
+      { domain: 'reminder', action: 'create' },
+    ]);
+    expect(executeTool).toHaveBeenCalledTimes(3);
   });
 
   it('maps a today reminder inventory to reminder.list with the exact filter', async () => {
@@ -208,7 +222,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(mutations.map((call) => call.params.target)).toEqual(['synthetic-alpha', 'synthetic-gamma']);
   });
 
-  it.each([1, 2, 3])('keeps three different reminder hours associated with their subjects, repetition %i', async () => {
+  extendedIt.each([1, 2, 3])('keeps three different reminder hours associated with their subjects, repetition %i', async () => {
     const text = 'Mañana al mediodía recuérdame revisar Alfa; también mañana a las 9 de la mañana revisar Beta; y el viernes a las 3 de la tarde revisar Gamma. Son tres recordatorios.';
     const result = await routeMessage(text, user, [], reference);
     assertCompleteDecision();
@@ -219,21 +233,21 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     assertReminder(2, 'Gamma', '2026-09-11T20:00:00.000Z');
   });
 
-  it('applies a shared time only to its stated requests', async () => {
+  extendedIt('applies a shared time only to its stated requests', async () => {
     await routeMessage('Mañana a las 9 de la mañana recuérdame revisar Alfa y también revisar Beta. Quiero dos recordatorios a esa hora.', user, [], reference);
     assertCompleteDecision();
     expect(executeTool).toHaveBeenCalledTimes(2);
     assertReminder(0, 'Alfa', tomorrow(9)); assertReminder(1, 'Beta', tomorrow(9));
   });
 
-  it('replaces an explicitly corrected time without creating a duplicate', async () => {
+  extendedIt('replaces an explicitly corrected time without creating a duplicate', async () => {
     await routeMessage('Mañana a las 9 de la mañana, no, mejor a las 10 de la mañana, recuérdame revisar Alfa.', user, [], reference);
     assertCompleteDecision();
     expect(executeTool).toHaveBeenCalledTimes(1);
     assertReminder(0, 'Alfa', tomorrow(10));
   });
 
-  it('distinguishes the reminder time from the appointment date in its content', async () => {
+  extendedIt('distinguishes the reminder time from the appointment date in its content', async () => {
     await routeMessage('Mañana a las 9 de la mañana recuérdame pedir la cita de Alfa para el viernes.', user, [], reference);
     assertCompleteDecision();
     expect(executeTool).toHaveBeenCalledTimes(1);
@@ -241,14 +255,14 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool.mock.calls[0][0].params.items[0].content.toLowerCase()).toContain('viernes');
   });
 
-  it('asks for a genuinely missing time without inventing a schedule', async () => {
+  extendedIt('asks for a genuinely missing time without inventing a schedule', async () => {
     const result = await routeMessage('Recuérdame revisar Alfa.', user, [], reference);
     assertCompleteDecision();
     expect(executeTool).not.toHaveBeenCalled();
     expect(result.plan.actions.some((action) => action.domain === 'clarification')).toBe(true);
   });
 
-  it('completes two timed requests, asks only for the missing one, and continues without recreating the completed items', async () => {
+  extendedIt('completes two timed requests, asks only for the missing one, and continues without recreating the completed items', async () => {
     const text = 'Mañana al mediodía recuérdame revisar Alfa; a las 9 de la mañana revisar Beta; y también recuérdame revisar Gamma, para ese último todavía no te he indicado la hora.';
     const first = await routeMessage(text, user, [], { ...reference, inputModality: 'audio' });
     expect(executeTool).toHaveBeenCalledTimes(2);
@@ -263,7 +277,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(second.executionFacts).toHaveLength(1);
   });
 
-  it.each([1, 6, 12])('returns a complete %i-action nullable batch, not a truncated prefix', async (count) => {
+  extendedIt.each([1, 6, 12])('returns a complete %i-action nullable batch, not a truncated prefix', async (count) => {
     const clauses = Array.from({ length: count }, (_, index) => `a las ${String(index + 6).padStart(2, '0')}:00 recuérdame revisar Prueba${index + 1}`);
     const result = await routeMessage(`Mañana: ${clauses.join('; ')}. Crea un recordatorio separado para cada solicitud.`, user, [], reference);
     assertCompleteDecision();
