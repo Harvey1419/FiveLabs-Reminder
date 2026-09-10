@@ -21,9 +21,10 @@ function candidateSignature(candidates = []) {
  * Working Memory identifies what the user was referring to; domain tools still
  * re-read owner-scoped database state and remain authoritative for execution.
  *
- * If Hermes emits the same human target once per duplicated listed reminder,
- * an otherwise ambiguous set can be paired one-to-one only when the number and
- * candidate set match exactly. Partial ambiguous selections stay unresolved.
+ * Ambiguous structured references may use different human wording while still
+ * resolving to the same exact Working Memory candidate set. Pair those actions
+ * one-to-one only when the action count exactly covers that candidate set.
+ * Partial ambiguous selections remain unresolved instead of guessing.
  */
 export function pinReminderCancellationTargets(actions = [], workingMemory = null) {
   const pinned = new Map();
@@ -50,10 +51,11 @@ export function pinReminderCancellationTargets(actions = [], workingMemory = nul
     const candidates = resolved.candidates.filter((item) => item?.internalId);
     if (candidates.length < 2) return;
 
-    const key = reference;
-    const group = ambiguousGroups.get(key) || [];
+    const signature = candidateSignature(candidates);
+    if (!signature) return;
+    const group = ambiguousGroups.get(signature) || [];
     group.push({ index, candidates });
-    ambiguousGroups.set(key, group);
+    ambiguousGroups.set(signature, group);
   });
 
   for (const group of ambiguousGroups.values()) {
