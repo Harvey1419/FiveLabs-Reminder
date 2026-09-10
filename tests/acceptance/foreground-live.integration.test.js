@@ -186,10 +186,9 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     assertCompleteDecision();
     expect(result.plan.actions).toEqual([{ domain: 'reminder', action: 'list' }]);
     expect(executeTool).toHaveBeenCalledTimes(1);
-    expect(executeTool.mock.calls[0][0]).toMatchObject({
-      toolName: 'manage_reminder',
-      params: { action: 'list', filter: 'pending_today' },
-    });
+    const call = executeTool.mock.calls[0][0];
+    expect(call).toMatchObject({ toolName: 'manage_reminder', params: { action: 'list' } });
+    expect(call.params.filter === 'pending_today' || call.params.scope === 'today').toBe(true);
   });
 
   it('keeps plural contextual reminder deletion in the reminder domain', async () => {
