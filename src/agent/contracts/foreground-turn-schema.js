@@ -30,9 +30,8 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   action.properties.action = {
     type: 'string',
     enum: [...new Set(action.properties.domain.enum.flatMap(getIntentActionsForDomain))],
-    description: 'Unqualified canonical operation only. domain is separate: use domain=reminder and action=create, never action=reminder.create. IMPORTANT domain vocabulary: reminder removal/deletion is action=cancel (reminder.delete does not exist); task/calendar/entity removal is action=delete. For several existing items, emit one canonical action per target instead of inventing a plural action name.',
+    description: 'Unqualified operation only, such as create or reply. domain is separate: use domain=reminder and action=create, never action=reminder.create.',
   };
-  action.properties.target.description += ' Working Memory positions such as "1", "2" and "3" are valid human references when the supplied context lists those items. For an explicit plural reference to several listed items, emit one action per position.';
   action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
   action.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
   action.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
