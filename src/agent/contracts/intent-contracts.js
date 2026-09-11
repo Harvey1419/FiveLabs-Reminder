@@ -167,6 +167,23 @@ function hasCompleteReminderSchedule(schedule) {
   if (schedule.kind === 'local_time') return Number.isInteger(schedule.hour);
   return false;
 }
+function inferPartialReminderScheduleFields(schedule) {
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return [];
+  const hasClock = Number.isInteger(schedule.hour);
+  let hasDate = false;
+  if (schedule.kind === 'relative_day_time') hasDate = Number.isInteger(schedule.dayOffset);
+  if (schedule.kind === 'calendar_date_time') hasDate = Number.isInteger(schedule.month) && Number.isInteger(schedule.day);
+  if (schedule.kind === 'weekday_time') hasDate = typeof schedule.weekday === 'string';
+  if (schedule.kind === 'local_time') {
+    return hasClock ? ['date'] : [];
+  }
+  if (!['relative_day_time', 'calendar_date_time', 'weekday_time'].includes(schedule.kind)) return [];
+  if (!hasDate && !hasClock) return [];
+  return [
+    ...(!hasDate ? ['date'] : []),
+    ...(!hasClock ? ['time'] : []),
+  ];
+}
 function mutationRequiresTarget(domain, action, raw) {
   if (domain === 'reminder') { if (action === 'cancel' && ['all', 'elapsed'].includes(raw.scope)) return false; return ['update', 'cancel', 'add_advance'].includes(action); }
   if (domain === 'task') return ['update', 'complete', 'delete'].includes(action);
@@ -200,35 +217,49 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     const mayInheritPending = ['resolve', 'replace'].includes(pendingIntentEffect)
       && !['conversation', 'clarification', 'pending'].includes(domain);
-    const declaredPendingFields = Array.isArray(raw.missingFields) && raw.missingFields.length > 0;
+    const structurallyMissingScheduleFields = domain === 'reminder'
+      && action === 'create'
+      && !mayInheritPending
+      ? inferPartialReminderScheduleFields(raw.schedule)
+      : [];
+    const declaredMissingFields = Array.isArray(raw.missingFields) ? raw.missingFields : [];
+    if (structurallyMissingScheduleFields.length > 0
+      && declaredMissingFields.length > 0
+      && !structurallyMissingScheduleFields.every((field) => declaredMissingFields.includes(field))) {
+      return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'missingFields no representa los componentes temporales ausentes.' };
+    }
+    const normalizedRaw = structurallyMissingScheduleFields.length > 0 && declaredMissingFields.length === 0
+      ? { ...raw, missingFields: structurallyMissingScheduleFields }
+      : raw;
+    const declaredPendingFields = Array.isArray(normalizedRaw.missingFields) && normalizedRaw.missingFields.length > 0;
     const mayRemainPending = declaredPendingFields;
-    if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
-    if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
+    if (mutationRequiresTarget(domain, action, normalizedRaw) && !hasTarget(normalizedRaw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
+    if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.
-    if (Array.isArray(raw.missingFields)
+    if (Array.isArray(normalizedRaw.missingFields)
       && actionSchema.properties.missingFields.uniqueItems
-      && new Set(raw.missingFields).size !== raw.missingFields.length) {
+      && new Set(normalizedRaw.missingFields).size !== normalizedRaw.missingFields.length) {
       return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'missingFields no admite valores duplicados.' };
     }
     if (domain === 'reminder' && action === 'create') {
-      if (!(typeof raw.content === 'string' && raw.content.trim())
-        && !(typeof raw.title === 'string' && raw.title.trim())
+      if (!(typeof normalizedRaw.content === 'string' && normalizedRaw.content.trim())
+        && !(typeof normalizedRaw.title === 'string' && normalizedRaw.title.trim())
         && !mayInheritPending) {
         return { valid: false, errorCode: 'MISSING_CONTENT', error: 'La decisión de creación no incluyó contenido.' };
       }
-      const knownScheduleKind = raw.schedule
-        && typeof raw.schedule === 'object'
-        && !Array.isArray(raw.schedule)
-        && typedSchedule.properties.kind.enum.includes(raw.schedule.kind)
-        && raw.schedule.kind !== 'inherit_context';
-      if (raw.schedule && !knownScheduleKind) {
+      const knownScheduleKind = normalizedRaw.schedule
+        && typeof normalizedRaw.schedule === 'object'
+        && !Array.isArray(normalizedRaw.schedule)
+        && typedSchedule.properties.kind.enum.includes(normalizedRaw.schedule.kind)
+        && normalizedRaw.schedule.kind !== 'inherit_context';
+      if (normalizedRaw.schedule && !knownScheduleKind) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
-      if (!hasCompleteReminderSchedule(raw.schedule) && !mayRemainPending && !mayInheritPending) {
+      if (!hasCompleteReminderSchedule(normalizedRaw.schedule) && !mayRemainPending && !mayInheritPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
     }
-    normalizedActions.push({ ...raw, domain, action });
+    normalizedActions.push({ ...normalizedRaw, domain, action });
   }
   const excluded = Array.isArray(intent.excluded) ? intent.excluded.filter((item) => item && typeof item.quote === 'string' && item.quote.trim()) : [];
   return {

@@ -464,6 +464,13 @@ function defaultPendingQuestion(actions, language = 'es') {
   }
   if (action?.domain === 'reminder' && action?.action === 'create') {
     const content = action.content || action.title;
+    const missing = new Set(Array.isArray(action.missingFields) ? action.missingFields : []);
+    if (content && missing.size === 1 && missing.has('time')) return language === 'en'
+      ? `What time should I remind you about “${content}”?`
+      : `¿A qué hora quieres que te recuerde “${content}”?`;
+    if (content && missing.size === 1 && missing.has('date')) return language === 'en'
+      ? `What day should I remind you about “${content}”?`
+      : `¿Qué día quieres que te recuerde “${content}”?`;
     if (content) return language === 'en'
       ? `When should I remind you about “${content}”?`
       : `¿Cuándo quieres que te recuerde “${content}”?`;

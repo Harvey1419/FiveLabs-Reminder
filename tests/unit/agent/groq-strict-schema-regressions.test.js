@@ -75,6 +75,44 @@ describe('Groq strict provider projection regressions', () => {
     expect(validation).not.toHaveProperty('intent');
   });
 
+  it.each([
+    [{ kind: 'relative_day_time', dayOffset: 1 }, ['time']],
+    [{ kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' }, ['date']],
+  ])('keeps a typed partial schedule canonical while marking its structural execution blocker: %j', (schedule, missingFields) => {
+    const providerIntent = stripStructuredNulls({
+      actions: [{
+        operation: 'reminder.create',
+        content: 'Pagar factura',
+        schedule,
+        missingFields: null,
+      }],
+    });
+
+    const validation = validateTurnIntent(projectStructuredTurnIntent(providerIntent));
+
+    expect(validation).toMatchObject({
+      valid: true,
+      intent: {
+        actions: [{
+          domain: 'reminder',
+          action: 'create',
+          schedule,
+          missingFields,
+        }],
+      },
+    });
+  });
+
+  it('rejects pending metadata that omits the actual structural schedule blocker', () => {
+    const validation = validateTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar factura',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 },
+      missingFields: ['date'],
+    }] });
+
+    expect(validation).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
+  });
+
   it.each(['relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time'])('documents clock encoding without changing deterministic range checks: %s', (kind) => {
     const schedule = getStructuredTurnSchema().properties.actions.items.properties.schedule;
     expect(schedule.properties.clockMode.enum).toEqual(['explicit_24h', 'ambiguous_12h', null]);
