@@ -53,4 +53,46 @@ describe('active reminder acknowledgement context', () => {
     expect(prompt).not.toContain('AWAITING_ACKNOWLEDGEMENT');
     expect(prompt).not.toContain('emite únicamente reminder.acknowledge');
   });
+
+  it('does not re-expose a stale notification after backend state closes it', () => {
+    saveWorkingMemory(phone, {
+      source: 'reminder',
+      scope: 'today',
+      lastAction: 'nudge',
+      notificationReminderId: 'closed-reminder-id',
+      notificationContent: 'Pagar el recibo',
+      items: [{
+        type: 'reminder',
+        internalId: 'closed-reminder-id',
+        summary: 'Pagar el recibo',
+      }],
+    });
+
+    const prompt = formatWorkingMemoryPrompt(phone, {
+      pendingConfirmationReminders: [],
+    });
+
+    expect(prompt).not.toContain('AWAITING_ACKNOWLEDGEMENT');
+    expect(prompt).not.toContain('emite únicamente reminder.acknowledge');
+  });
+
+  it('does not present one Working Memory notice as authoritative when several follow-ups are active', () => {
+    saveWorkingMemory(phone, {
+      source: 'reminder',
+      lastAction: 'nudge',
+      notificationReminderId: 'reminder-1',
+      notificationContent: 'Llamar a Julieth',
+      items: [{ type: 'reminder', internalId: 'reminder-1', summary: 'Llamar a Julieth' }],
+    });
+
+    const prompt = formatWorkingMemoryPrompt(phone, {
+      pendingConfirmationReminders: [
+        { id: 'reminder-1', content: 'Llamar a Julieth' },
+        { id: 'reminder-2', content: 'Pagar el recibo' },
+      ],
+    });
+
+    expect(prompt).not.toContain('[Seguimiento activo esperando confirmación]');
+    expect(prompt).not.toContain('emite únicamente reminder.acknowledge');
+  });
 });

@@ -25,17 +25,27 @@ export {
  *
  * The LLM still decides whether the user's current message semantically means
  * "I completed it". Node receives only the structured reminder.acknowledge
- * action and resolves target "1" against the authoritative Working Memory
- * reference, so no natural-language acknowledgement rules live in backend code.
+ * action. Node then reconciles that structured action with the authoritative
+ * live follow-up identity, so no natural-language acknowledgement rules live
+ * in backend code.
  */
-export function formatWorkingMemoryPrompt(userOrPhone) {
+export function formatWorkingMemoryPrompt(userOrPhone, overview = null) {
   const base = formatWorkingMemoryPromptBase(userOrPhone);
   const memory = getWorkingMemory(userOrPhone);
+  const authoritativeFollowups = Array.isArray(overview?.pendingConfirmationReminders)
+    ? overview.pendingConfirmationReminders
+    : null;
+  const notificationIsStillActive = authoritativeFollowups === null
+    || (
+      authoritativeFollowups.length === 1
+      && authoritativeFollowups[0]?.id === memory?.notificationReminderId
+    );
   const awaitingAcknowledgement = Boolean(
     memory
     && memory.source === 'reminder'
     && memory.notificationReminderId
-    && ['nudge', 'reminder_dispatched'].includes(memory.lastAction),
+    && ['nudge', 'reminder_dispatched'].includes(memory.lastAction)
+    && notificationIsStillActive
   );
 
   if (!awaitingAcknowledgement) return base;

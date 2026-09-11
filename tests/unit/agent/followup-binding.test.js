@@ -19,8 +19,8 @@ describe('authoritative follow-up binding', () => {
       domain: 'reminder',
       action: 'acknowledge',
       target: 'cita',
+      authoritativeReminderId: 'internal-id-must-not-be-used',
     });
-    expect(JSON.stringify(result)).not.toContain('internal-id-must-not-be-used');
   });
 
   it('never overrides an explicit human target selected by Hermes', () => {
@@ -28,11 +28,12 @@ describe('authoritative follow-up binding', () => {
       actions: [{ domain: 'reminder', action: 'acknowledge', target: 'llamar a mamá' }],
     };
     const overview = {
-      pendingConfirmationReminders: [{ content: 'cita' }],
+      pendingConfirmationReminders: [{ id: 'active-reminder-id', content: 'cita' }],
     };
 
     const result = bindAuthoritativeFollowupTargets(intent, overview);
     expect(result.actions[0].target).toBe('llamar a mamá');
+    expect(result.actions[0]).not.toHaveProperty('authoritativeReminderId');
   });
 
   it('does not guess when more than one follow-up is active', () => {
@@ -41,8 +42,8 @@ describe('authoritative follow-up binding', () => {
     };
     const overview = {
       pendingConfirmationReminders: [
-        { content: 'cita' },
-        { content: 'tomar medicina' },
+        { id: 'reminder-1', content: 'cita' },
+        { id: 'reminder-2', content: 'tomar medicina' },
       ],
     };
 
@@ -55,7 +56,7 @@ describe('authoritative follow-up binding', () => {
       actions: [{ domain: 'reminder', action: 'cancel' }],
     };
     const overview = {
-      pendingConfirmationReminders: [{ content: 'cita' }],
+      pendingConfirmationReminders: [{ id: 'reminder-1', content: 'cita' }],
     };
 
     const result = bindAuthoritativeFollowupTargets(intent, overview);

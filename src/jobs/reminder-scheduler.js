@@ -23,7 +23,7 @@ function isRecurring(reminder) {
   return Boolean(String(reminder?.recurrence_rule || '').trim());
 }
 
-function isNudgeDue(reminder, now = Date.now()) {
+export function isNudgeDue(reminder, now = Date.now()) {
   if (!reminder?.requires_confirmation || reminder?.acknowledged_at) return false;
   const maxNudges = reminder.max_nudges ?? 5;
   const nudgeCount = reminder.nudge_count ?? 0;

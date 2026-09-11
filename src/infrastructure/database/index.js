@@ -539,6 +539,20 @@ export const cancelPendingRemindersByContent = cancelReminders;
 /**
  * Fetch rich daily overview formatted directly in the User's local timezone.
  */
+export function isReminderAwaitingAcknowledgement(reminder) {
+  const wasDispatched = Boolean(
+    reminder?.sent_at
+    || reminder?.last_nudged_at
+    || reminder?.delivery_id,
+  );
+  return Boolean(
+    reminder?.requires_confirmation
+    && !reminder?.acknowledged_at
+    && wasDispatched
+    && ['sent', 'pending', 'processing'].includes(reminder?.status),
+  );
+}
+
 export async function getDailyOverview({ userId, phoneNumber, timezone = 'America/Bogota' }) {
   if (!userId && !phoneNumber) {
     return {
@@ -646,11 +660,15 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   const upcoming = [];
 
   for (const r of reminders) {
-    // Active persistent reminders that require confirmation and are not yet acknowledged
-    if (r.requires_confirmation && !r.acknowledged_at && (r.status === 'sent' || r.status === 'pending' || r.status === 'processing')) {
-      const formatted = formatItem(r, false);
+    // A scheduled future reminder is not yet an active follow-up. Recurring
+    // reminders return to pending after dispatch, so persisted delivery truth
+    // (sent_at/last_nudged_at/delivery_id) is the lifecycle boundary here.
+    if (isReminderAwaitingAcknowledgement(r)) {
+      const lastNotificationAt = r.last_nudged_at || r.sent_at || null;
+      const formatted = formatItem({ ...r, send_at: lastNotificationAt }, false);
       formatted.nudgeCount = r.nudge_count || 0;
       formatted.maxNudges = r.max_nudges || 3;
+      formatted.lastNotificationAt = lastNotificationAt;
       pendingConfirmationReminders.push(formatted);
     }
 
@@ -709,6 +727,10 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
 
   const pendingToday = [...timedRemindersToday, ...tasksDueToday, ...openTasks];
   const tomorrow = [...tomorrowReminders, ...tomorrowTasks];
+  pendingConfirmationReminders.sort((left, right) => (
+    new Date(right.lastNotificationAt || 0).getTime()
+    - new Date(left.lastNotificationAt || 0).getTime()
+  ));
 
   return {
     todayDate: todayStr,

@@ -186,13 +186,25 @@ export function bindAuthoritativeFollowupTargets(intent, overview) {
 
   const reminder = active[0];
   const humanTarget = String(reminder?.content || reminder?.title || '').trim();
-  if (!humanTarget) return intent;
+  const reminderId = String(reminder?.id || '').trim();
+  if (!humanTarget || !reminderId) return intent;
 
   return {
     ...intent,
     actions: intent.actions.map((action) => {
-      if (action?.domain !== 'reminder' || action?.action !== 'acknowledge' || action?.target) return action;
-      return { ...action, target: humanTarget };
+      if (action?.domain !== 'reminder' || action?.action !== 'acknowledge') return action;
+      const declaredTarget = String(action.target || '').trim();
+      const targetsActiveFollowup = !declaredTarget
+        || declaredTarget === '1'
+        || declaredTarget.localeCompare(humanTarget, undefined, { sensitivity: 'base' }) === 0;
+      if (!targetsActiveFollowup) return action;
+      return {
+        ...action,
+        target: declaredTarget || humanTarget,
+        // Added after canonical validation and never rendered to Hermes. This
+        // pins the mutation to the sole backend-authoritative active follow-up.
+        authoritativeReminderId: reminderId,
+      };
     }),
   };
 }
@@ -306,7 +318,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     : '';
   const workingMemoryKey = phoneNumber || user.id;
   const workingMemory = getWorkingMemory(workingMemoryKey);
-  const workingMemoryText = formatWorkingMemoryPrompt(workingMemoryKey);
+  const workingMemoryText = formatWorkingMemoryPrompt(workingMemoryKey, dailyOverview);
   if (workingMemory) {
     console.log(
       `[router req=${requestId}] working-memory source=${workingMemory.source || 'unknown'} lastAction=${workingMemory.lastAction || 'unknown'} items=${workingMemory.items?.length || 0} pendingClarifications=${workingMemory.pendingClarifications?.length || 0} notification="${safeLogSnippet(workingMemory.notificationContent, 100)}"`,
