@@ -113,6 +113,28 @@ function expectStrictSchema(node, canonical, nullable = false) {
 }
 
 describe('canonical uniqueness after Groq schema adaptation', () => {
+  it('accepts a typed partial action only when it declares its missing field and asks one clarification', () => {
+    const partial = {
+      domain: 'reminder', action: 'create', content: 'Pagar factura',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    };
+
+    expect(validateTurnIntent({ actions: [partial] })).toMatchObject({ valid: false });
+    expect(validateTurnIntent({ actions: [
+      partial,
+      { domain: 'clarification', action: 'request', question: 'Falta un dato', missingFields: ['time'] },
+    ] })).toMatchObject({ valid: true });
+  });
+
+  it('rejects pending resolve or replace transitions without a domain continuation', () => {
+    for (const pendingIntentEffect of ['resolve', 'replace']) {
+      expect(validateTurnIntent({
+        pendingIntentEffect,
+        actions: [{ domain: 'clarification', action: 'request', question: 'Falta un dato' }],
+      })).toMatchObject({ valid: false, errorCode: 'INVALID_PENDING_CONTINUATION' });
+    }
+  });
+
   it.each([
     { missingFields: [] },
     { missingFields: ['main_time'] },
@@ -223,7 +245,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     action.required = ['operation'];
     // Provider composition changes only: canonical prerequisites remain checked
     // by validateTurnIntent before any domain action, including missing schedules.
-    expectedCanonical.properties.actions.items.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
+    expectedCanonical.properties.actions.items.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part of the schedule is missing, keep the known structured components on the partial reminder.create, declare missingFields on that action, and emit one clarification.request for the coherent pending intent. Each action must retain its own known date/time components.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
     for (const field of ['schedule', 'endSchedule']) {
@@ -250,6 +272,57 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(result.plan.type).toBe('turn_intent');
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('TEST #66 preserves one incomplete compound intent across turns and merges only the missing clocks', async () => {
+    const contents = ['Pendiente A', 'Pendiente B', 'Pendiente C'];
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+      ...contents.map((content) => ({
+        domain: 'reminder', action: 'create', content,
+        schedule: { kind: 'relative_day_time', dayOffset: 1 },
+        missingFields: ['time'],
+      })),
+      { domain: 'clarification', action: 'request', question: '¿A qué hora va cada pendiente?', missingFields: ['time'] },
+    ] }));
+
+    const first = await routeMessage('Recuérdame mañana mis pendientes', user, [], turnOptions);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(first.executionFacts).toHaveLength(1);
+    expect(first.entities._conversationState.pendingIntent.actions).toHaveLength(3);
+    expect(first.entities._conversationState.pendingClarifications).toEqual([]);
+    expect(first.entities._conversationState.pendingIntent.actions.every((action) => (
+      action.schedule.kind === 'relative_day_time' && action.schedule.dayOffset === 1
+    ))).toBe(true);
+
+    const history = [
+      { role: 'user', content: 'Recuérdame mañana mis pendientes' },
+      {
+        role: 'assistant', content: first.confirmation, entities: first.entities,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    clearWorkingMemory(user);
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [8, 10, 12].map((hour, index) => ({
+        domain: 'reminder', action: 'create', continuationIndex: index + 1,
+        schedule: { kind: 'local_time', hour, minute: 0, clockMode: 'explicit_24h' },
+      })),
+    }));
+
+    const second = await routeMessage('A las horas indicadas', user, history, turnOptions);
+    expect(executeTool).toHaveBeenCalledTimes(3);
+    expect(executeTool.mock.calls.map(([call]) => call.params.items[0])).toEqual([
+      { content: 'Pendiente A', targetTime: '2026-09-10T13:00:00.000Z' },
+      { content: 'Pendiente B', targetTime: '2026-09-10T15:00:00.000Z' },
+      { content: 'Pendiente C', targetTime: '2026-09-10T17:00:00.000Z' },
+    ]);
+    expect(second.executionFacts.every((fact) => fact.success && fact.errorCode !== 'TIME_IN_PAST')).toBe(true);
+    const secondPayload = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(secondPayload.messages[0].content).toContain('[Typed Pending Intent');
+    expect(secondPayload.messages[0].content).toContain('"dayOffset":1');
+    expect(second.entities._conversationState.pendingIntent).toBeNull();
   });
 
   it.each(['main_time', 'advance_minutes'])('rejects duplicate %s from structured content before executing any action in the turn', async (field) => {

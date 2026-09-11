@@ -5,6 +5,10 @@ const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
 ]);
 const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
+const PENDING_INTENT_EFFECTS = Object.freeze(['resolve', 'replace', 'preserve']);
+const MISSING_FIELDS = Object.freeze([
+  'content', 'target', 'selection', 'scope', 'schedule', 'date', 'time', 'main_time', 'advance_minutes',
+]);
 
 const DOMAIN_ACTIONS = Object.freeze({
   conversation: new Set(['reply']),
@@ -78,7 +82,8 @@ const actionSchema = {
     requiresConfirmation: { type: 'boolean' },
     nudgeIntervalMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, maxNudges: { type: 'integer', minimum: 1, maximum: 100 },
     durationMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, addGoogleMeet: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 50 },
-    missingFields: { type: 'array', uniqueItems: true, maxItems: 2, items: { type: 'string', enum: ['main_time', 'advance_minutes'] } },
+    missingFields: { type: 'array', uniqueItems: true, maxItems: 8, items: { type: 'string', enum: MISSING_FIELDS } },
+    continuationIndex: { type: 'integer', minimum: 1, maximum: 12, description: 'One-based position of the pending action completed by this action. Required when a continuation has multiple pending actions; several actions may complete the same pending action.' },
     question: { type: 'string' },
   },
   required: ['domain', 'action'],
@@ -88,23 +93,24 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
+    pendingIntentEffect: {
+      type: 'string',
+      enum: PENDING_INTENT_EFFECTS,
+      description: 'When a typed pending intent is present: resolve=these are its complete merged actions; replace=these partial actions supersede its prior draft and still need clarification; preserve=this is a separate topic and the pending intent remains untouched.',
+    },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as canonical actions. A TurnIntent is mandatory for every turn, including ordinary conversation.
-Current explicit meaning overrides history, Working Memory and persistent memory. Context may resolve human references but never change the requested operation. Never output internal IDs.
-conversation.reply: ordinary conversation or a personal answer already supported by supplied context; it must never claim an operational read/mutation.
-agenda.read: cross-domain live inventory such as pending/today/agenda. If the user explicitly asks only reminders, tasks or Calendar, use that domain instead. Never reconstruct live state from chat history.
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create introduces a new object and has no target. update/cancel/complete/delete refer to an existing object: target is its human identity and patch fields contain only requested deltas. Never use a patch value to identify the object.
-Reminder removal is reminder.cancel. For several referenced reminders emit one cancel per target.
-reminder.acknowledge: use when an active follow-up's real-world action is done. With exactly one authoritative active follow-up target may be omitted for Node to bind; with several, identify it or clarify. Completion is not an update. Use reminder.update only when changing stored reminder fields.
-Temporal meaning must remain typed: relative_offset only for durations from now; relative_day_time for a relative day plus clock; weekday_time for a named weekday plus clock; local_time for clock only. Node performs date/timezone arithmetic.
-Recurring reminders keep recurrence on the reminder action. Advance notice stays on the same reminder/event via advanceMinutes.
-A durable personal statement is conversation.reply plus passive learning; memory.save only when explicitly asked to remember/store it.
-For pending.execute/discard/revise, target selects only the pending proposal and is never reused as domain-object identity.
-For mixed messages emit all valid requested actions and put only non-executable clauses in excluded. Do not duplicate backend cards with conversation.reply.`;
+export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as canonical actions; TurnIntent is mandatory for every turn. Explicit current meaning overrides all context. Context resolves human references, never changes the operation. Never output internal IDs.
+conversation.reply is non-operational and cannot claim reads/mutations. agenda.read is cross-domain live inventory; use reminder/task/calendar for domain-specific reads. Never reconstruct live state from chat history.
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
+Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
+Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
+For missing data, keep partial canonical actions with missingFields plus one clarification.request per coherent intent. Given a typed pending intent, retain known fields, replace explicit corrections and map via continuationIndex. pendingIntentEffect is resolve only when complete, replace when still incomplete, preserve for another topic; pending.discard cancels.
+Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
+pending.execute/discard/revise target only a pending proposal. For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -151,6 +157,15 @@ export function normalizeIntentAction(domain, action) {
   return STRUCTURAL_ACTION_ALIASES[domain]?.[normalized] || normalized;
 }
 function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
+function hasCompleteReminderSchedule(schedule) {
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return false;
+  if (schedule.kind === 'relative_offset') return Number.isInteger(schedule.offsetMinutes);
+  if (schedule.kind === 'relative_day_time') return Number.isInteger(schedule.dayOffset) && Number.isInteger(schedule.hour);
+  if (schedule.kind === 'calendar_date_time') return Number.isInteger(schedule.month) && Number.isInteger(schedule.day) && Number.isInteger(schedule.hour);
+  if (schedule.kind === 'weekday_time') return typeof schedule.weekday === 'string' && Number.isInteger(schedule.hour);
+  if (schedule.kind === 'local_time') return Number.isInteger(schedule.hour);
+  return false;
+}
 function mutationRequiresTarget(domain, action, raw) {
   if (domain === 'reminder') { if (action === 'cancel' && ['all', 'elapsed'].includes(raw.scope)) return false; return ['update', 'cancel', 'add_advance'].includes(action); }
   if (domain === 'task') return ['update', 'complete', 'delete'].includes(action);
@@ -162,6 +177,22 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El intent del turno debe ser un objeto.' };
   if (!Array.isArray(intent.actions) || intent.actions.length === 0) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El turno requiere al menos una acción.' };
   if (intent.actions.length > 12) return { valid: false, errorCode: 'TURN_ACTION_LIMIT', error: 'El turno supera el límite de 12 acciones.' };
+  const pendingIntentEffect = intent.pendingIntentEffect == null
+    ? null
+    : String(intent.pendingIntentEffect).trim().toLowerCase();
+  if (pendingIntentEffect && !PENDING_INTENT_EFFECTS.includes(pendingIntentEffect)) {
+    return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La transición de intención pendiente no es válida.' };
+  }
+  const hasClarificationRequest = intent.actions.some((raw) => (
+    String(raw?.domain || '').trim().toLowerCase() === 'clarification'
+    && normalizeIntentAction('clarification', raw?.action) === 'request'
+  ));
+  if (['resolve', 'replace'].includes(pendingIntentEffect)) {
+    const hasContinuationAction = intent.actions.some((raw) => !['conversation', 'clarification', 'pending'].includes(String(raw?.domain || '').trim().toLowerCase()));
+    if (!hasContinuationAction) {
+      return { valid: false, errorCode: 'INVALID_PENDING_CONTINUATION', error: 'La continuación pendiente requiere al menos una acción de dominio.' };
+    }
+  }
   const normalizedActions = [];
   for (const raw of intent.actions) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'Cada acción debe ser un objeto.' };
@@ -170,7 +201,12 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const action = normalizeIntentAction(domain, raw.action);
     if (!DOMAIN_ACTIONS[domain]?.has(action)) return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Capacidad no soportada: ${domain}.${raw.action}.` };
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
-    if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw)) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
+    const mayInheritPending = ['resolve', 'replace'].includes(pendingIntentEffect)
+      && !['conversation', 'clarification', 'pending'].includes(domain);
+    const declaredPendingFields = Array.isArray(raw.missingFields) && raw.missingFields.length > 0;
+    const mayRemainPending = hasClarificationRequest && declaredPendingFields;
+    if (declaredPendingFields && !hasClarificationRequest) return { valid: false, errorCode: 'MISSING_REQUIRED_CONTEXT', error: 'Una acción parcial debe incluir una solicitud de aclaración.' };
+    if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.
     if (Array.isArray(raw.missingFields)
@@ -180,19 +216,33 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     }
     if (domain === 'reminder' && action === 'create') {
       if (!(typeof raw.content === 'string' && raw.content.trim())
-        && !(typeof raw.title === 'string' && raw.title.trim())) {
+        && !(typeof raw.title === 'string' && raw.title.trim())
+        && !mayInheritPending) {
         return { valid: false, errorCode: 'MISSING_CONTENT', error: 'La decisión de creación no incluyó contenido.' };
       }
-      if (!raw.schedule || typeof raw.schedule !== 'object' || Array.isArray(raw.schedule)
-        || !typedSchedule.properties.kind.enum.includes(raw.schedule.kind)
-        || raw.schedule.kind === 'inherit_context') {
+      const knownScheduleKind = raw.schedule
+        && typeof raw.schedule === 'object'
+        && !Array.isArray(raw.schedule)
+        && typedSchedule.properties.kind.enum.includes(raw.schedule.kind)
+        && raw.schedule.kind !== 'inherit_context';
+      if (raw.schedule && !knownScheduleKind) {
+        return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
+      }
+      if (!hasCompleteReminderSchedule(raw.schedule) && !mayRemainPending && !mayInheritPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
     }
     normalizedActions.push({ ...raw, domain, action });
   }
   const excluded = Array.isArray(intent.excluded) ? intent.excluded.filter((item) => item && typeof item.quote === 'string' && item.quote.trim()) : [];
-  return { valid: true, intent: { actions: normalizedActions, excluded } };
+  return {
+    valid: true,
+    intent: {
+      actions: normalizedActions,
+      ...(pendingIntentEffect ? { pendingIntentEffect } : {}),
+      excluded,
+    },
+  };
 }
 
 export function parseIntentArguments(rawArguments) {

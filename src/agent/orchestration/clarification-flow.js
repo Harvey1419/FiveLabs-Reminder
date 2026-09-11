@@ -18,11 +18,12 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
   const pendingClarifications = Array.isArray(latestState.pendingClarifications)
     ? latestState.pendingClarifications
     : [];
+  const pendingIntent = latestState.pendingIntent || null;
   const persistedWorkingMemory = latestState.workingMemory || null;
   const persistedItems = Array.isArray(persistedWorkingMemory?.items)
     ? persistedWorkingMemory.items
     : [];
-  if (pendingClarifications.length === 0 && persistedItems.length === 0) return;
+  if (pendingClarifications.length === 0 && !pendingIntent && persistedItems.length === 0) return;
   const hasEntityProposal = pendingClarifications.some((item) => item?.proposedOperation?.kind === 'entity_delete');
 
   saveWorkingMemory(userOrPhone, {
@@ -33,7 +34,9 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
     activeEntity: persistedWorkingMemory?.activeEntity || null,
     activeEntityId: persistedWorkingMemory?.activeEntityId || null,
     lastAction: persistedWorkingMemory?.lastAction || (pendingClarifications.length > 0 ? 'clarification_required' : 'restored'),
+    pendingIntent,
     pendingClarifications,
+    pendingExpiresAt: expiresAt || null,
     items: persistedItems,
   });
 }
@@ -43,6 +46,7 @@ export function getClarificationStateSnapshot(userOrPhone) {
   const pendingClarifications = Array.isArray(memory?.pendingClarifications)
     ? memory.pendingClarifications
     : [];
+  const pendingIntent = memory?.pendingIntent || null;
   const items = Array.isArray(memory?.items)
     ? memory.items.slice(0, 10).map((item) => ({
       id: item.internalId,
@@ -54,9 +58,10 @@ export function getClarificationStateSnapshot(userOrPhone) {
       entityName: item.entityName,
     }))
     : [];
-  const hasState = pendingClarifications.length > 0 || items.length > 0;
+  const hasState = pendingClarifications.length > 0 || Boolean(pendingIntent) || items.length > 0;
   return {
-    version: 2,
+    version: 3,
+    pendingIntent,
     pendingClarifications,
     workingMemory: hasState
       ? {
@@ -71,7 +76,7 @@ export function getClarificationStateSnapshot(userOrPhone) {
       }
       : null,
     expiresAt: hasState
-      ? Number(memory?.timestamp || Date.now()) + 15 * 60 * 1000
+      ? Number(memory?.pendingExpiresAt || (Number(memory?.timestamp || Date.now()) + 15 * 60 * 1000))
       : null,
   };
 }
