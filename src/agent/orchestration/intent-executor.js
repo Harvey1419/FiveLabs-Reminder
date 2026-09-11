@@ -527,7 +527,7 @@ function clearPendingIntentState(user) {
   });
 }
 
-function updateWorkingMemoryFromExecution({ user, action, toolName, params, result }) {
+function updateWorkingMemoryFromExecution({ user, action, toolName, params, result, pendingEffect = null }) {
   const existingMemory = getWorkingMemory(user);
   const pendingClarifications = result.pendingClarifications || result.data?.pendingClarifications || [];
 
@@ -571,6 +571,8 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
       seen.add(identity);
       combinedPending.push(item);
     }
+    const preserveExistingPendingExpiry = pendingEffect === 'preserve'
+      && Boolean(existingMemory?.pendingIntent);
     saveWorkingMemory(user, {
       source: toolName === TOOL_NAMES.MANAGE_REMINDER ? 'reminder' : (toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'unified'),
       scope: 'clarification',
@@ -578,8 +580,8 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
       lastAction: 'clarification_required',
       pendingIntent: existingMemory?.pendingIntent || null,
       pendingClarifications: combinedPending,
-      pendingExpiresAt: null,
-      refreshPendingExpiry: true,
+      pendingExpiresAt: preserveExistingPendingExpiry ? existingMemory.pendingExpiresAt : null,
+      refreshPendingExpiry: !preserveExistingPendingExpiry,
       items: existingMemory?.items || [],
     });
     return;
@@ -940,7 +942,7 @@ export async function executeTurnIntent(intent, context) {
     facts.push(fact);
 
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
-      updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result });
+      updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result, pendingEffect });
     }
   }
 

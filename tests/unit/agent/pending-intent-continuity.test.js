@@ -323,6 +323,48 @@ describe('TEST #66 — typed pending-intent continuity', () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
+  it('does not extend a preserved pending intent when an independent operation needs its own clarification', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00.000Z'));
+    await executeTurnIntent({ actions: [
+      partialReminder('Pagar factura', { kind: 'relative_day_time', dayOffset: 1 }, ['time']),
+      clarification('¿A qué hora?', ['time']),
+    ] }, context);
+    const original = structuredClone(getWorkingMemory(user).pendingIntent);
+    const originalExpiry = getWorkingMemory(user).pendingExpiresAt;
+
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    executeTool.mockResolvedValueOnce({
+      success: false,
+      complete: false,
+      requiresClarification: true,
+      pendingClarifications: [{
+        type: 'confirmation',
+        content: 'Confirma la operación independiente.',
+        proposedOperation: {
+          kind: 'entity_delete',
+          targetName: 'Proyecto Alfa',
+          scope: 'single',
+        },
+      }],
+      errorCode: 'CONFIRMATION_REQUIRED',
+      error: 'Confirmation required.',
+    });
+
+    await executeTurnIntent({
+      pendingIntentEffect: 'preserve',
+      actions: [{ domain: 'entity', action: 'delete', target: 'Proyecto Alfa', category: 'project' }],
+    }, context);
+
+    expect(getWorkingMemory(user).pendingIntent).toEqual(original);
+    expect(getWorkingMemory(user).pendingClarifications).toHaveLength(1);
+    expect(getWorkingMemory(user).pendingExpiresAt).toBe(originalExpiry);
+
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+    expect(getWorkingMemory(user)?.pendingClarifications || []).toEqual([]);
+  });
+
   it('does not execute or discard a compound intent when only part of it was resolved', async () => {
     await executeTurnIntent({ actions: [
       partialReminder('Pendiente A', { kind: 'relative_day_time', dayOffset: 1 }, ['time']),
