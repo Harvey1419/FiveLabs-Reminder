@@ -343,19 +343,24 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool.mock.calls[0][0].params.items[0].content.toLowerCase()).toContain('viernes');
   });
 
-  extendedIt('asks for a genuinely missing schedule and completes the same intent on the next turn', async () => {
-    const text = 'Recuérdame revisar Alfa.';
+  it('asks for a genuinely missing schedule and completes the same intent on the next turn', async () => {
+    const text = 'Recuérdame mañana pagar el recibo.';
     const first = await routeMessage(text, user, [], reference);
     expect(executeTool).not.toHaveBeenCalled();
     expect(first.executionFacts).toHaveLength(1);
     expect(first.executionFacts[0].requiresClarification).toBe(true);
     expect(first.entities._conversationState.pendingIntent.actions).toHaveLength(1);
+    expect(first.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
+      domain: 'reminder',
+      action: 'create',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 },
+    });
 
     const history = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
-    const second = await routeMessage('Mañana a las 3 de la tarde.', user, history, reference);
+    const second = await routeMessage('A las 9 de la mañana.', user, history, reference);
     assertCompleteDecision(2);
     expect(executeTool).toHaveBeenCalledTimes(1);
-    assertReminder(0, 'Alfa', tomorrow(15));
+    assertReminder(0, 'recibo', tomorrow(9));
     expect(second.entities._conversationState.pendingIntent).toBeNull();
   });
 

@@ -274,6 +274,25 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('accepts a provider partial reminder as pending instead of falling back or mutating', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar factura',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 },
+    }] }));
+
+    const result = await routeMessage('Solicitud temporal incompleta', user, [], turnOptions);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.executionFacts).toHaveLength(1);
+    expect(result.executionFacts[0]).toMatchObject({ requiresClarification: true });
+    expect(result.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
+      domain: 'reminder', action: 'create', content: 'Pagar factura',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 },
+      missingFields: ['time'],
+    });
+  });
+
   it('TEST #66 preserves one incomplete compound intent across turns and merges only the missing clocks', async () => {
     const contents = ['Pendiente A', 'Pendiente B', 'Pendiente C'];
     fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
