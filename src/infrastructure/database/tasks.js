@@ -127,6 +127,162 @@ export async function createTask({
 }
 
 /**
+ * Create a coherent task batch with one atomic INSERT statement.
+ * Existing pending tasks are reused using the same identity as createTask.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {Array<object>} params.items
+ * @returns {Promise<{data: Array<object>|null, error: object|null}>}
+ */
+export async function createTasksBatch({ userId, items = [] }) {
+  if (!userId) {
+    return { data: null, error: { code: 'INVALID_PARAMETERS', message: 'Missing userId', source: 'validation' } };
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return { data: null, error: { code: 'INVALID_PARAMETERS', message: 'Falta el título de la tarea.', source: 'validation' } };
+  }
+
+  try {
+    const prepared = [];
+    for (const item of items) {
+      const cleanTitle = String(item?.title || '').trim();
+      if (!cleanTitle) {
+        return { data: null, error: { code: 'INVALID_PARAMETERS', message: 'Falta el título de la tarea.', source: 'validation' } };
+      }
+
+      const normalizedPriority = normalizeTaskPriority(item?.priority || 'medium');
+      if (!normalizedPriority) {
+        return {
+          data: null,
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: `Prioridad inválida '${item?.priority}'. Valores permitidos: 'low', 'medium', 'high', 'urgent'.`,
+            source: 'validation',
+          },
+        };
+      }
+
+      const isoDueDate = item?.dueDate ? new Date(item.dueDate).toISOString() : null;
+      const entityId = item?.entityId || null;
+      const identity = taskPersistenceIdentity(cleanTitle, entityId, isoDueDate);
+      prepared.push({
+        identity,
+        payload: {
+          user_id: userId,
+          title: cleanTitle,
+          description: item?.description ? String(item.description).trim() : null,
+          priority: normalizedPriority,
+          status: 'pending',
+          entity_id: entityId,
+          due_date: isoDueDate,
+        },
+      });
+    }
+
+    const uniquePrepared = Array.from(
+      new Map(prepared.map((item) => [item.identity, item])).values(),
+    );
+    const persistedByIdentity = new Map();
+    const toInsert = [];
+
+    for (const item of uniquePrepared) {
+      const { payload } = item;
+      let dedupQ = supabase
+        .from('tasks')
+        .select('*, entities:entity_id(id, name, category)')
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .ilike('title', payload.title);
+
+      dedupQ = payload.entity_id
+        ? dedupQ.eq('entity_id', payload.entity_id)
+        : dedupQ.is('entity_id', null);
+      dedupQ = payload.due_date
+        ? dedupQ.eq('due_date', payload.due_date)
+        : dedupQ.is('due_date', null);
+
+      const { data: existing, error: lookupError } = await dedupQ.limit(1);
+      if (lookupError) {
+        return { data: null, error: mapTaskDatabaseError(lookupError, 'consultar las tareas existentes') };
+      }
+      if (existing?.length) {
+        persistedByIdentity.set(item.identity, existing[0]);
+      } else {
+        toInsert.push(payload);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const { data: inserted, error } = await supabase
+        .from('tasks')
+        .insert(toInsert)
+        .select('*, entities:entity_id(id, name, category)');
+
+      if (error) {
+        console.error('[tasks] createTasksBatch failed:', error);
+        return { data: null, error: mapTaskDatabaseError(error, 'crear las tareas') };
+      }
+      if (!Array.isArray(inserted) || inserted.length !== toInsert.length) {
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'La base de datos no confirmó el lote completo de tareas.',
+            source: 'database',
+          },
+        };
+      }
+
+      inserted.forEach((task) => {
+        const identity = taskPersistenceIdentity(task.title, task.entity_id, task.due_date);
+        persistedByIdentity.set(identity, task);
+      });
+    }
+
+    const data = prepared.map((item) => persistedByIdentity.get(item.identity));
+    if (data.some((task) => !task?.id)) {
+      return {
+        data: null,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'La base de datos no confirmó el lote completo de tareas.',
+          source: 'database',
+        },
+      };
+    }
+
+    return { data, error: null };
+  } catch (err) {
+    console.error('[tasks] createTasksBatch threw:', err);
+    return {
+      data: null,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: err.message || 'Excepción al conectar con la base de datos',
+        details: err,
+        source: 'database',
+      },
+    };
+  }
+}
+
+function taskPersistenceIdentity(title, entityId, dueDate) {
+  const isoDueDate = dueDate ? new Date(dueDate).toISOString() : null;
+  return JSON.stringify([String(title).trim().toLocaleLowerCase(), entityId || null, isoDueDate]);
+}
+
+function mapTaskDatabaseError(error, operation) {
+  const isConstraint = error?.code === '23514' || error?.message?.includes('check constraint');
+  return {
+    code: isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : (error?.code || 'DATABASE_ERROR'),
+    message: error?.message || `Error de base de datos al ${operation}`,
+    details: error?.details || error,
+    source: 'database',
+  };
+}
+
+/**
  * Fetch tasks for a user, optionally filtered by status or entity.
  *
  * @param {object} params

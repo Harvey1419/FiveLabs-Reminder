@@ -342,17 +342,23 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
 
   const sourceDesc = wm.source === 'unified'
     ? 'Agenda Unificada'
-    : (wm.source === 'calendar' ? 'Google Calendar' : (wm.source === 'reminder' ? 'Recordatorios' : 'Tareas'));
+    : (wm.source === 'calendar'
+      ? 'Google Calendar'
+      : (wm.source === 'reminder'
+        ? 'Recordatorios'
+        : (wm.source === 'entity' ? 'Proyectos/Entidades' : 'Tareas')));
 
   const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
   const containerInstruction = wm.activeEntity
-    ? ` Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá las tareas o entidad vigentes contra la fuente de verdad.`
+    ? (wm.source === 'task'
+      ? ` "${wm.activeEntity}" es el scope contextual del contenedor operativo. Estos elementos son referencias potencialmente obsoletas, NO su inventario vivo: si el usuario pide su contenido o estado actual, emite solo task.list con entityName="${wm.activeEntity}"; ExecutionFacts responderá, sin conversation.reply.`
+      : ` Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá la entidad vigente contra la fuente de verdad.`)
     : '';
 
   return [
     ...pendingSection,
     ...(pendingSection.length > 0 ? ['[Elementos ejecutados más recientes — foco para referencias nuevas]'] : []),
-    '[Memoria de Trabajo del Turno Anterior]',
+    '[Memoria de Trabajo del Turno Anterior — referencias, NO inventario vivo]',
     `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
     ...lines,
     `(Para operar sobre un elemento de la lista anterior, usa target: "1", target: "el primero", o el nombre.${containerInstruction} El backend resolverá el ID interno).`,

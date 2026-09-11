@@ -193,6 +193,55 @@ export function selectEntitiesForDeletion(entities, {
   return { status: 'RESOLVED', entities: [selected.entity] };
 }
 
+/**
+ * Resolve already-structured entity references against one tenant-owned
+ * snapshot. This is a read-only deterministic preflight: callers decide the
+ * semantic meaning before reaching this boundary.
+ */
+export function inspectEntityReferenceSnapshot(entities, references = []) {
+  const requested = (Array.isArray(references) ? references : [])
+    .map((reference) => ({
+      name: String(reference?.name || '').trim(),
+      category: reference?.category ? String(reference.category).trim() : null,
+      threshold: Number.isFinite(Number(reference?.threshold)) ? Number(reference.threshold) : 0.75,
+    }))
+    .filter((reference) => reference.name);
+  if (requested.length === 0) return [];
+
+  const candidates = Array.isArray(entities) ? entities : [];
+  return requested.map((reference) => ({
+    reference,
+    ...selectEntityCandidate(candidates, reference.name, {
+      category: reference.category,
+      threshold: reference.threshold,
+    }),
+  }));
+}
+
+export async function inspectOwnedEntityReferences({ userId, references = [] }) {
+  if (!userId) {
+    return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing userId.', resolutions: [] };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('entities')
+      .select('id, name, category')
+      .eq('user_id', userId);
+    if (error) {
+      return { success: false, errorCode: 'DATABASE_ERROR', error: error.message, resolutions: [] };
+    }
+
+    const entities = data || [];
+    return {
+      success: true,
+      resolutions: inspectEntityReferenceSnapshot(entities, references),
+    };
+  } catch (error) {
+    return { success: false, errorCode: 'DATABASE_ERROR', error: error.message, resolutions: [] };
+  }
+}
+
 export function partitionLinkedTasksForEntityDeletion(tasks) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   return {
