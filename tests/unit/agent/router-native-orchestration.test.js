@@ -27,7 +27,8 @@ vi.mock('../../../src/integrations/google/auth.js', () => ({
 import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { callChatCompletion, callPendingTransitionVerification, callResponseSynthesis } from '../../../src/agent/providers/client.js';
-import { clearWorkingMemory, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
+import { getDailyOverview } from '../../../src/infrastructure/database/index.js';
+import { clearWorkingMemory, getWorkingMemory, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
 
 const user = {
   id: 'user-1',
@@ -41,8 +42,21 @@ function modelToolCall(payload) {
   return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
 }
 
+function activeFollowup(id = 'reminder-1', content = 'Llamar a Julieth') {
+  return {
+    pendingConfirmationReminders: [{
+      id,
+      content,
+      status: 'sent',
+      localFormatted: 'Hoy a las 10:00 AM',
+      nudgeCount: 1,
+    }],
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  getDailyOverview.mockResolvedValue(null);
   clearWorkingMemory(user);
 });
 
@@ -150,6 +164,95 @@ describe('Hermes direct TurnIntent router', () => {
       params: expect.objectContaining({ action: 'acknowledge', target: 'Salir' }),
     }));
     expect(result.confirmation.toLowerCase()).toContain('confirmado');
+  });
+
+  it.each(['ok', 'listo', 'confirmalo'])('binds a semantic acknowledgement of an active notice to its exact backend identity: %s', async (message) => {
+    getDailyOverview.mockResolvedValue(activeFollowup());
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'reminder', action: 'acknowledge' }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'acknowledged_reminder',
+      data: { id: 'reminder-1', content: 'Llamar a Julieth', acknowledged_at: '2026-09-11T15:00:00.000Z' },
+    });
+
+    const result = await routeMessage(message, user, []);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_reminder',
+      params: {
+        action: 'acknowledge',
+        target: 'Llamar a Julieth',
+        reminderId: 'reminder-1',
+      },
+    }));
+    expect(result.confirmation).toContain('Llamar a Julieth');
+    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('status=AWAITING_ACKNOWLEDGEMENT');
+  });
+
+  it('does not acknowledge when Hermes determines the response is unrelated', async () => {
+    getDailyOverview.mockResolvedValue(activeFollowup());
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Claro, hablemos de eso.' }],
+    }));
+
+    const result = await routeMessage('Cambiemos de tema', user, []);
+
+    expect(result.intent).toBe('chat');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when several active notices remain ambiguous', async () => {
+    getDailyOverview.mockResolvedValue({
+      pendingConfirmationReminders: [
+        activeFollowup('reminder-1', 'Llamar a Julieth').pendingConfirmationReminders[0],
+        activeFollowup('reminder-2', 'Pagar el recibo').pendingConfirmationReminders[0],
+      ],
+    });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'reminder', action: 'acknowledge' }],
+    }));
+
+    const result = await routeMessage('hecho', user, []);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.executionFacts[0]).toMatchObject({
+      success: false,
+      errorCode: 'MISSING_REQUIRED_CONTEXT',
+      requiresClarification: true,
+    });
+  });
+
+  it('closes acknowledgement Working Memory and does not mutate again on a later conversational turn', async () => {
+    saveWorkingMemory(user, {
+      source: 'reminder',
+      lastAction: 'nudge',
+      notificationReminderId: 'reminder-1',
+      notificationContent: 'Llamar a Julieth',
+      items: [{ id: 'reminder-1', type: 'reminder', content: 'Llamar a Julieth' }],
+    });
+    getDailyOverview
+      .mockResolvedValueOnce(activeFollowup())
+      .mockResolvedValueOnce({ pendingConfirmationReminders: [] });
+    callChatCompletion
+      .mockResolvedValueOnce(modelToolCall({ actions: [{ domain: 'reminder', action: 'acknowledge' }] }))
+      .mockResolvedValueOnce(modelToolCall({ actions: [{ domain: 'conversation', action: 'reply', content: '¿En qué más te ayudo?' }] }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'acknowledged_reminder',
+      data: { id: 'reminder-1', content: 'Llamar a Julieth', acknowledged_at: '2026-09-11T15:00:00.000Z' },
+    });
+
+    await routeMessage('hecho', user, []);
+    expect(getWorkingMemory(user)).toBeNull();
+    const second = await routeMessage('ok', user, []);
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(second.intent).toBe('chat');
   });
 
   it('routes a generic pending question to Unified Agenda with all_pending', async () => {

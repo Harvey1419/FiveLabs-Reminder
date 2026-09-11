@@ -59,9 +59,9 @@ export function formatActiveFollowups(overview) {
   });
 
   return [
-    '[Seguimientos activos — estado operativo autorizado]',
+    '[Seguimientos activos | status=AWAITING_ACKNOWLEDGEMENT]',
     ...lines,
-    'Úsalos solo para resolver confirmaciones/acknowledge del aviso vigente. Si hay varios y la referencia no es inequívoca, pide aclaración. Nunca inventes IDs.',
+    'Si el turno confirma semánticamente uno, emite reminder.acknowledge: con uno omite target; con varios identifica followupRef o aclara. conversation.reply no confirma. Nunca inventes IDs.',
   ].join('\n');
 }
 
@@ -110,7 +110,7 @@ agenda.read solo mezcla dominios; para recordatorios usa reminder.list.
 
 ## ESTADO Y MEMORIA
 - Toda pregunta que pida inventario vivo requiere una lectura de agenda o del dominio explícitamente pedido; el Estado vivo resumido es orientación, no inventario autoritativo.
-- Seguimientos activos sí son estado autorizado para respuestas como “listo/ya lo hice”; con uno solo puede corresponder a ese seguimiento, con varios exige referencia inequívoca.
+- Seguimientos AWAITING_ACKNOWLEDGEMENT: Hermes decide semánticamente si el turno confirma uno; Node vincula identidad y exige referencia inequívoca si hay varios.
 - Working Memory sirve para referencias singulares/plurales; no autoriza mutaciones por sí sola.
 - Si un dato personal ya aparece en contexto/memoria, respóndelo sin buscar de nuevo. memory.save solo cuando el usuario pida explícitamente recordar algo; el aprendizaje pasivo se gestiona fuera de este turno.
 - Una propuesta pendiente no está ejecutada. Complétala, corrígela, descártala o presérvala; no la arrastres a otro tema. Sin Pending Intent, pendingIntentEffect=null.

@@ -192,8 +192,18 @@ function buildDomainCall(action, context) {
       }
       if (action.action === 'acknowledge') {
         const target = action.target;
-        if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que completaste.' };
-        return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'acknowledge', target } };
+        if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que completaste.', requiresClarification: true };
+        return {
+          valid: true,
+          toolName: TOOL_NAMES.MANAGE_REMINDER,
+          params: {
+            action: 'acknowledge',
+            target,
+            ...(action.authoritativeReminderId
+              ? { reminderId: action.authoritativeReminderId }
+              : {}),
+          },
+        };
       }
       return {
         valid: true,
@@ -520,6 +530,32 @@ function clearPendingIntentState(user) {
 function updateWorkingMemoryFromExecution({ user, action, toolName, params, result }) {
   const existingMemory = getWorkingMemory(user);
   const pendingClarifications = result.pendingClarifications || result.data?.pendingClarifications || [];
+
+  if (
+    toolName === TOOL_NAMES.MANAGE_REMINDER
+    && params.action === 'acknowledge'
+    && result.success
+  ) {
+    if (!existingMemory) return;
+    const acknowledgedId = String(result.data?.id || params.reminderId || '').trim();
+    const remainingItems = (existingMemory.items || []).filter((item) => (
+      !acknowledgedId || String(item?.internalId || '').trim() !== acknowledgedId
+    ));
+    const hasPendingState = Boolean(existingMemory.pendingIntent)
+      || (existingMemory.pendingClarifications || []).length > 0;
+    if (!hasPendingState && remainingItems.length === 0) {
+      clearWorkingMemory(user);
+      return;
+    }
+    saveWorkingMemory(user, {
+      ...existingMemory,
+      lastAction: 'reminder_acknowledged',
+      notificationReminderId: null,
+      notificationContent: null,
+      items: remainingItems,
+    });
+    return;
+  }
 
   if (pendingClarifications.length > 0) {
     const existingPending = existingMemory?.pendingClarifications || [];

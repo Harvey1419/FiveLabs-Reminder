@@ -20,20 +20,42 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber } = owner;
   const target = String(params.target || '').trim();
+  const authoritativeReminderId = String(params.reminderId || '').trim();
 
   if (!target) return { success: false, action: 'missing_target', errorCode: 'MISSING_TARGET', error: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?', requiresClarification: true };
   if (!owner.hasOwner) return { success: false, action: 'missing_owner', errorCode: 'ACCESS_DENIED', error: language === 'en' ? 'I could not verify reminder ownership.' : 'No pude verificar la propiedad del recordatorio.' };
 
-  const query = scopeReminderQueryToOwner(supabase.from('reminders').select('*').neq('status', 'cancelled'), owner);
-  const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(100);
-  if (error) {
-    console.error(`${reqId} candidate read failed:`, error.message || error);
-    return { success: false, action: 'database_error', errorCode: 'DATABASE_ERROR', error: language === 'en' ? 'I could not verify the reminder.' : 'No pude verificar el recordatorio.' };
-  }
+  let matched = null;
+  let owned = [];
+  let active = [];
 
-  const owned = (rows || []).filter((row) => isReminderOwned(row, owner));
-  const active = owned.filter((row) => !row.acknowledged_at);
-  let matched = findReminderByExactReference(target, owned);
+  if (authoritativeReminderId) {
+    let exactQuery = supabase
+      .from('reminders')
+      .select('*')
+      .eq('id', authoritativeReminderId)
+      .neq('status', 'cancelled');
+    exactQuery = scopeReminderQueryToOwner(exactQuery, owner);
+    const { data, error } = await exactQuery.maybeSingle();
+    if (error) {
+      console.error(`${reqId} authoritative reminder read failed:`, error.message || error);
+      return { success: false, action: 'database_error', errorCode: 'DATABASE_ERROR', error: language === 'en' ? 'I could not verify the reminder.' : 'No pude verificar el recordatorio.' };
+    }
+    if (!data || !isReminderOwned(data, owner)) {
+      return { success: false, action: 'reminder_not_found', errorCode: 'NOT_FOUND', error: language === 'en' ? 'Reminder not found.' : 'No encontré ese recordatorio.' };
+    }
+    matched = data;
+  } else {
+    const query = scopeReminderQueryToOwner(supabase.from('reminders').select('*').neq('status', 'cancelled'), owner);
+    const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(100);
+    if (error) {
+      console.error(`${reqId} candidate read failed:`, error.message || error);
+      return { success: false, action: 'database_error', errorCode: 'DATABASE_ERROR', error: language === 'en' ? 'I could not verify the reminder.' : 'No pude verificar el recordatorio.' };
+    }
+    owned = (rows || []).filter((row) => isReminderOwned(row, owner));
+    active = owned.filter((row) => !row.acknowledged_at);
+    matched = findReminderByExactReference(target, owned);
+  }
 
   if (!matched && active.length > 0) {
     const resolved = resolveContextReference({
