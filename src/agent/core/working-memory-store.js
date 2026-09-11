@@ -351,7 +351,7 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
   const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
   const containerInstruction = wm.activeEntity
     ? (wm.source === 'task'
-      ? ` "${wm.activeEntity}" es el scope contextual del contenedor operativo. Estos elementos son referencias potencialmente obsoletas, NO su inventario vivo: si el usuario pide su contenido o estado actual, emite task.list con entityName="${wm.activeEntity}" y responde desde ExecutionFacts.`
+      ? ` "${wm.activeEntity}" es el scope contextual del contenedor operativo. Estos elementos son referencias potencialmente obsoletas, NO su inventario vivo: si el usuario pide su contenido o estado actual, emite solo task.list con entityName="${wm.activeEntity}"; ExecutionFacts responderá, sin conversation.reply.`
       : ` Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá la entidad vigente contra la fuente de verdad.`)
     : '';
 
