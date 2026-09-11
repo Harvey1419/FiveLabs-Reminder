@@ -270,7 +270,26 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
       continue;
     }
 
-    saveWorkingMemory(userOrPhone, snapshot);
+    const hasPersistedPending = Boolean(snapshot.pendingIntent)
+      || (Array.isArray(snapshot.pendingClarifications) && snapshot.pendingClarifications.length > 0);
+    const persistedPendingExpiry = Number(snapshot.pendingExpiresAt);
+    const pendingIsUnavailable = hasPersistedPending
+      && (!Number.isFinite(persistedPendingExpiry) || persistedPendingExpiry <= referenceMs);
+    const restorableSnapshot = pendingIsUnavailable
+      ? {
+          ...snapshot,
+          pendingIntent: null,
+          pendingClarifications: [],
+          pendingExpiresAt: null,
+        }
+      : snapshot;
+
+    // A recent assistant turn may carry an older preserved pending intent.
+    // Its own deadline remains authoritative; the turn timestamp must never
+    // mint a fresh TTL or make Node reinterpret conversation continuity.
+    if (pendingIsUnavailable && !(Array.isArray(snapshot.items) && snapshot.items.length > 0)) return null;
+
+    saveWorkingMemory(userOrPhone, restorableSnapshot);
     return getWorkingMemory(userOrPhone);
   }
 

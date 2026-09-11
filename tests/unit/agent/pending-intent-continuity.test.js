@@ -7,6 +7,8 @@ const { executeTurnIntent } = await import('../../../src/agent/orchestration/int
 const {
   clearWorkingMemory,
   getWorkingMemory,
+  getWorkingMemorySnapshot,
+  hydrateWorkingMemoryFromHistory,
 } = await import('../../../src/agent/core/working-memory-store.js');
 const {
   getClarificationStateSnapshot,
@@ -273,25 +275,51 @@ describe('TEST #66 — typed pending-intent continuity', () => {
     expect(executeTool.mock.calls.every(([call]) => call.params.entityName === 'Compras')).toBe(true);
   });
 
-  it('preserves the pending intent across a separate topic and requires an explicit semantic effect for mutations', async () => {
+  it('preserves the pending intent and its original TTL across independent operations', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00.000Z'));
     await executeTurnIntent({ actions: [
       partialReminder('Pagar factura', { kind: 'relative_day_time', dayOffset: 1 }, ['time']),
       clarification('¿A qué hora?', ['time']),
     ] }, context);
-    const original = getWorkingMemory(user).pendingIntent;
+    const original = structuredClone(getWorkingMemory(user).pendingIntent);
+    const originalExpiry = getWorkingMemory(user).pendingExpiresAt;
 
+    vi.advanceTimersByTime(5 * 60 * 1000);
     await executeTurnIntent({
       pendingIntentEffect: 'preserve',
       actions: [{ domain: 'task', action: 'create', title: 'Comprar café', projectless: true }],
     }, context);
     expect(executeTool).toHaveBeenCalledTimes(1);
-    expect(getWorkingMemory(user).pendingIntent.actions).toEqual(original.actions);
+    expect(getWorkingMemory(user).pendingIntent).toEqual(original);
+    expect(getWorkingMemory(user).pendingExpiresAt).toBe(originalExpiry);
+
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    await executeTurnIntent({
+      pendingIntentEffect: 'preserve',
+      actions: [{ domain: 'task', action: 'create', title: 'Revisar contrato', projectless: true }],
+    }, context);
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    expect(getWorkingMemory(user).pendingIntent).toEqual(original);
+    expect(getWorkingMemory(user).pendingExpiresAt).toBe(originalExpiry);
 
     executeTool.mockClear();
     const unsafe = await executeTurnIntent({
       actions: [{ domain: 'task', action: 'create', title: 'Otra tarea', projectless: true }],
     }, context);
     expect(unsafe.facts[0].errorCode).toBe('PENDING_INTENT_EFFECT_REQUIRED');
+    expect(executeTool).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    expect(getWorkingMemory(user).pendingIntent).toBeNull();
+    const stale = await executeTurnIntent({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+    expect(stale.facts[0].errorCode).toBe('NO_PENDING_INTENT');
     expect(executeTool).not.toHaveBeenCalled();
   });
 
@@ -355,6 +383,43 @@ describe('TEST #66 — typed pending-intent continuity', () => {
       }],
     }, context);
 
+    expect(result.facts[0].errorCode).toBe('NO_PENDING_INTENT');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('does not resurrect an expired pending intent from a recent persisted working-memory turn', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00.000Z'));
+    await executeTurnIntent({ actions: [
+      partialReminder('Pagar factura', { kind: 'relative_day_time', dayOffset: 1 }, ['time']),
+      clarification('¿A qué hora?', ['time']),
+    ] }, context);
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    await executeTurnIntent({
+      pendingIntentEffect: 'preserve',
+      actions: [{ domain: 'task', action: 'create', title: 'Revisar contrato', projectless: true }],
+    }, context);
+    const snapshot = getWorkingMemorySnapshot(user);
+
+    vi.advanceTimersByTime(11 * 60 * 1000);
+    clearWorkingMemory(user);
+    hydrateWorkingMemoryFromHistory(user, [{
+      role: 'assistant',
+      createdAt: new Date().toISOString(),
+      entities: { _workingMemory: snapshot },
+    }], new Date());
+
+    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+    expect(getWorkingMemory(user)?.items).toHaveLength(1);
+    expect(getWorkingMemory(user)?.items[0].title).toBe('Revisar contrato');
+    executeTool.mockClear();
+    const result = await executeTurnIntent({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
     expect(result.facts[0].errorCode).toBe('NO_PENDING_INTENT');
     expect(executeTool).not.toHaveBeenCalled();
   });
