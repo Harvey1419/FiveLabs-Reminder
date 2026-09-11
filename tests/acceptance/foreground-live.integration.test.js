@@ -226,7 +226,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
   });
 
   it('creates several reminders without crossing domain/action boundaries', async () => {
-    const result = await routeMessage('Mañana a las 9 recuérdame revisar Alfa, a las 11 revisar Beta y a las 3 de la tarde revisar Gamma; son tres recordatorios separados.', user, [], reference);
+    const result = await routeMessage('Mañana a las 9 de la mañana recuérdame revisar Alfa, a las 11 de la mañana revisar Beta y a las 3 de la tarde revisar Gamma; son tres recordatorios separados.', user, [], reference);
     assertCompleteDecision();
     expect(result.plan.actions).toEqual([
       { domain: 'reminder', action: 'create' },
@@ -343,7 +343,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool.mock.calls[0][0].params.items[0].content.toLowerCase()).toContain('viernes');
   });
 
-  it('asks for a genuinely missing schedule and completes the same intent on the next turn', async () => {
+  it('preserves a partial reminder across an independent task and completes it exactly once', async () => {
     const text = 'Recuérdame mañana pagar el recibo.';
     const first = await routeMessage(text, user, [], reference);
     expect(executeTool).not.toHaveBeenCalled();
@@ -356,12 +356,28 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
       schedule: { kind: 'relative_day_time', dayOffset: 1 },
     });
 
-    const history = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
-    const second = await routeMessage('A las 9 de la mañana.', user, history, reference);
-    assertCompleteDecision(2);
+    const firstHistory = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
+    const secondText = 'Antes de eso, crea una tarea para comprar bombillos.';
+    const second = await routeMessage(secondText, user, firstHistory, reference);
+    expect(second.plan.actions).toEqual([{ domain: 'task', action: 'create' }]);
     expect(executeTool).toHaveBeenCalledTimes(1);
-    assertReminder(0, 'recibo', tomorrow(9));
-    expect(second.entities._conversationState.pendingIntent).toBeNull();
+    expect(executeTool.mock.calls[0][0]).toMatchObject({
+      toolName: 'manage_task',
+      params: { action: 'create', items: [{ title: expect.stringMatching(/bombillos/i) }] },
+    });
+    expect(second.entities._conversationState.pendingIntent).toEqual(first.entities._conversationState.pendingIntent);
+    expect(second.entities._conversationState.pendingExpiresAt).toBe(first.entities._conversationState.pendingExpiresAt);
+
+    const history = [
+      ...firstHistory,
+      { role: 'user', content: secondText },
+      { role: 'assistant', content: second.confirmation, entities: second.entities },
+    ];
+    const third = await routeMessage('A las 9 de la mañana.', user, history, reference);
+    assertCompleteDecision(3);
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    assertReminder(1, 'recibo', tomorrow(9));
+    expect(third.entities._conversationState.pendingIntent).toBeNull();
   });
 
   extendedIt('keeps one compound pending intent while three later clocks complete its three known contents', async () => {

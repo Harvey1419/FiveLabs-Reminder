@@ -144,6 +144,7 @@ function validateStructuredTurnContent(content, { isAdmin = false, pendingIntent
 
   const effect = validation.intent.pendingIntentEffect || null;
   const continuationActions = validation.intent.actions.filter((action) => !['conversation', 'clarification', 'pending'].includes(action.domain));
+  const hasPendingDiscard = validation.intent.actions.some((action) => action.domain === 'pending' && action.action === 'discard');
   if (effect && !pendingIntent) {
     // A stale transition marker is harmless only when the current actions form
     // a valid standalone TurnIntent after removing it. Complete operations can
@@ -154,8 +155,14 @@ function validateStructuredTurnContent(content, { isAdmin = false, pendingIntent
     if (standalone.valid) return standalone;
     return { valid: false, errorCode: 'NO_PENDING_INTENT', error: 'La respuesta intentó continuar un estado que ya no está disponible.' };
   }
-  if (pendingIntent && !effect && continuationActions.length > 0) {
+  if (pendingIntent && !effect) {
     return { valid: false, errorCode: 'PENDING_INTENT_EFFECT_REQUIRED', error: 'La respuesta no declaró cómo relacionar la operación actual con la intención pendiente.' };
+  }
+  if (pendingIntent && effect === 'discard' && !hasPendingDiscard) {
+    return { valid: false, errorCode: 'INVALID_PENDING_TRANSITION', error: 'La cancelación de la intención pendiente requiere pending.discard.' };
+  }
+  if (pendingIntent && effect !== 'discard' && hasPendingDiscard) {
+    return { valid: false, errorCode: 'INVALID_PENDING_TRANSITION', error: 'pending.discard requiere declarar la transición discard.' };
   }
   if (effect === 'resolve') {
     const merged = mergePendingIntentActions(pendingIntent, continuationActions);
@@ -352,7 +359,18 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ...pastTurns,
     { role: 'user', content: messageText },
   ];
-  const turnResponseFormat = { type: 'json_schema', json_schema: { name: 'hermes_turn_intent', strict: true, schema: getStructuredTurnSchema({ isAdmin, attachmentOnly: isAttachmentOnlyTurn }) } };
+  const turnResponseFormat = {
+    type: 'json_schema',
+    json_schema: {
+      name: 'hermes_turn_intent',
+      strict: true,
+      schema: getStructuredTurnSchema({
+        isAdmin,
+        attachmentOnly: isAttachmentOnlyTurn,
+        pendingIntentActive: Boolean(workingMemory?.pendingIntent),
+      }),
+    },
+  };
 
   console.log(`[router req=${requestId}] model context promptChars=${prompt.length} historyTurns=${pastTurns.length} historyChars=${historyChars} memories=${relevantMemories?.length || 0}`);
 

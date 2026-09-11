@@ -248,12 +248,34 @@ describe('TEST #66 — typed pending-intent continuity', () => {
     ] }, context);
 
     const result = await executeTurnIntent({
+      pendingIntentEffect: 'discard',
       actions: [{ domain: 'pending', action: 'discard' }],
     }, context);
 
     expect(result.facts[0]).toMatchObject({ success: true, action: 'discarded_pending' });
     expect(executeTool).not.toHaveBeenCalled();
     expect(getWorkingMemory(user)).toBeNull();
+  });
+
+  it('fails closed when a declared transition does not match pending.discard', async () => {
+    await executeTurnIntent({ actions: [
+      partialReminder('Pagar factura', { kind: 'relative_day_time', dayOffset: 1 }, ['time']),
+      clarification('¿A qué hora?', ['time']),
+    ] }, context);
+
+    const missingDiscard = await executeTurnIntent({
+      pendingIntentEffect: 'discard',
+      actions: [{ domain: 'task', action: 'create', title: 'Comprar café', projectless: true }],
+    }, context);
+    expect(missingDiscard.facts[0].errorCode).toBe('INVALID_PENDING_TRANSITION');
+
+    const contradictoryDiscard = await executeTurnIntent({
+      pendingIntentEffect: 'preserve',
+      actions: [{ domain: 'pending', action: 'discard' }],
+    }, context);
+    expect(contradictoryDiscard.facts[0].errorCode).toBe('INVALID_PENDING_TRANSITION');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(getWorkingMemory(user).pendingIntent).toBeTruthy();
   });
 
   it('completes a shared target for several task actions without rebuilding their contents', async () => {

@@ -29,7 +29,7 @@ vi.mock('../../../src/agent/contracts/intent-contracts.js', async (importOrigina
 
 import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
-import { clearWorkingMemory } from '../../../src/agent/core/working-memory.js';
+import { clearWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory.js';
 import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { isAdminUser } from '../../../src/shared/auth.js';
@@ -343,6 +343,76 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(secondPayload.messages[0].content).toContain('"dayOffset":1');
     expect(secondPayload.messages).toHaveLength(2);
     expect(second.entities._conversationState.pendingIntent).toBeNull();
+  });
+
+  it('keeps an incomplete reminder intact across an independent operation and resolves it exactly once', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }));
+
+    await routeMessage('Recuérdame mañana pagar el recibo.', user, [], turnOptions);
+    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
+    const originalExpiry = getWorkingMemory(user).pendingExpiresAt;
+    expect(executeTool).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'preserve',
+      actions: [{ domain: 'task', action: 'create', title: 'Comprar bombillos', projectless: true }],
+    }));
+    await routeMessage('Antes de eso, crea una tarea para comprar bombillos.', user, [], turnOptions);
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0].params).toMatchObject({
+      action: 'create', items: [{ title: 'Comprar bombillos' }],
+    });
+    expect(getWorkingMemory(user).pendingIntent).toEqual(originalPending);
+    expect(getWorkingMemory(user).pendingExpiresAt).toBe(originalExpiry);
+
+    const preservePayload = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(preservePayload.response_format.json_schema.schema.properties.pendingIntentEffect).toEqual(expect.objectContaining({
+      type: 'string', enum: ['resolve', 'replace', 'preserve', 'discard'],
+    }));
+
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }));
+    await routeMessage('A las 9.', user, [], turnOptions);
+
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    expect(executeTool.mock.calls[1][0].params.items).toEqual([{
+      content: 'Pagar el recibo', targetTime: '2026-09-10T14:00:00.000Z',
+    }]);
+    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+  });
+
+  it('uses the same active-pending transition contract across every compatible provider', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }));
+    await routeMessage('Solicitud incompleta', user, [], turnOptions);
+
+    fetchMock.mockImplementation(async () => structuredResponse({
+      actions: [{ domain: 'task', action: 'create', title: 'Comprar bombillos', projectless: true }],
+    }));
+    const result = await routeMessage('Operación independiente', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_structured_output');
+    expect(executeTool).not.toHaveBeenCalled();
+    const schemas = fetchMock.mock.calls.slice(1).map(([, request]) => (
+      JSON.parse(request.body).response_format.json_schema.schema
+    ));
+    expect(schemas).toHaveLength(3);
+    expect(schemas[1]).toEqual(schemas[0]);
+    expect(schemas[2]).toEqual(schemas[0]);
+    expect(schemas[0].properties.pendingIntentEffect).toEqual(expect.objectContaining({
+      type: 'string', enum: ['resolve', 'replace', 'preserve', 'discard'],
+    }));
   });
 
   it('normalizes replace into a new typed draft only when no prior pending intent exists', async () => {

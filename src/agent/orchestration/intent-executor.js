@@ -780,6 +780,7 @@ export async function executeTurnIntent(intent, context) {
   const existingPendingIntent = getWorkingMemory(context.user)?.pendingIntent || null;
   const clarificationActions = actions.filter((action) => action.domain === 'clarification');
   const regularActions = actions.filter((action) => !['clarification', 'pending'].includes(action.domain));
+  const hasPendingDiscard = actions.some((action) => action.domain === 'pending' && action.action === 'discard');
 
   if (pendingEffect && !existingPendingIntent) {
     const result = failedResult('NO_PENDING_INTENT', context.language === 'en' ? 'That pending request is no longer active.' : 'Esa solicitud pendiente ya no está activa.', context.language, { requiresClarification: true });
@@ -787,9 +788,18 @@ export async function executeTurnIntent(intent, context) {
     return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
   }
 
-  if (existingPendingIntent && !pendingEffect && regularActions.length > 0) {
+  if (existingPendingIntent && !pendingEffect) {
     const result = failedResult('PENDING_INTENT_EFFECT_REQUIRED', context.language === 'en' ? 'I need to know whether this continues the pending request or starts a separate one.' : 'Necesito distinguir si esto continúa la solicitud pendiente o inicia una diferente.', context.language, { requiresClarification: true });
     const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_effect', language: context.language });
+    return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+  }
+
+  if (existingPendingIntent && (
+    (pendingEffect === 'discard' && !hasPendingDiscard)
+    || (pendingEffect !== 'discard' && hasPendingDiscard)
+  )) {
+    const result = failedResult('INVALID_PENDING_TRANSITION', context.language === 'en' ? 'The pending-state transition is inconsistent with the requested actions.' : 'La transición del estado pendiente no coincide con las acciones solicitadas.', context.language, { requiresClarification: true });
+    const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_transition', language: context.language });
     return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
   }
 
