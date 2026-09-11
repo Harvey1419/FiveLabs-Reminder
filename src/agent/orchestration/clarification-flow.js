@@ -25,6 +25,7 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
     : [];
   if (pendingClarifications.length === 0 && !pendingIntent && persistedItems.length === 0) return;
   const hasEntityProposal = pendingClarifications.some((item) => item?.proposedOperation?.kind === 'entity_delete');
+  const persistedTimestamp = Number(persistedWorkingMemory?.timestamp);
 
   saveWorkingMemory(userOrPhone, {
     source: persistedWorkingMemory?.source || (hasEntityProposal ? 'entity' : 'reminder'),
@@ -38,6 +39,8 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
     pendingClarifications,
     pendingExpiresAt: expiresAt || null,
     items: persistedItems,
+  }, {
+    restoredTimestamp: Number.isFinite(persistedTimestamp) ? persistedTimestamp : null,
   });
 }
 
@@ -72,6 +75,7 @@ export function getClarificationStateSnapshot(userOrPhone) {
         activeEntity: memory?.activeEntity || null,
         activeEntityId: memory?.activeEntityId || null,
         lastAction: memory?.lastAction || 'list',
+        timestamp: memory?.timestamp || null,
         items,
       }
       : null,

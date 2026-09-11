@@ -36,6 +36,10 @@ const {
   getWorkingMemorySnapshot,
   hydrateWorkingMemoryFromHistory,
 } = await import('../../../src/agent/core/working-memory-store.js');
+const {
+  getClarificationStateSnapshot,
+  hydrateClarificationStateFromHistory,
+} = await import('../../../src/agent/orchestration/clarification-flow.js');
 
 const user = {
   id: 'user-audit',
@@ -54,6 +58,7 @@ const executionContext = {
 };
 
 beforeEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   clearWorkingMemory(user);
   getUserIntegration.mockResolvedValue({ access_token: 'token' });
@@ -230,6 +235,7 @@ describe('Hermes product-quality audit continuity regressions', () => {
     });
     const snapshot = getWorkingMemorySnapshot(user);
     expect(snapshot?.items).toHaveLength(2);
+    snapshot.timestamp = Date.now() - 60 * 60 * 1000;
 
     clearWorkingMemory(user);
     expect(getWorkingMemory(user)).toBeNull();
@@ -244,21 +250,47 @@ describe('Hermes product-quality audit continuity regressions', () => {
     const restored = getWorkingMemory(user);
     expect(restored?.items).toHaveLength(2);
     expect(restored?.items[1].internalId).toBe('reminder-2');
+    expect(restored?.timestamp).toBe(snapshot.timestamp);
   });
 
-  it('does not revive stale persisted Working Memory indefinitely', () => {
+  it('does not mint a fresh Working Memory lifetime through the conversation-state rehydration path', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
+    saveWorkingMemory(user, {
+      source: 'task',
+      scope: 'current',
+      activeEntity: 'Preparativos',
+      items: [{ type: 'task', internalId: 'task-1', title: 'Pasaporte', entityName: 'Preparativos' }],
+    });
+    const originalTimestamp = getWorkingMemory(user).timestamp;
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    const snapshot = getClarificationStateSnapshot(user);
+    clearWorkingMemory(user);
+
+    hydrateClarificationStateFromHistory(user, [{
+      role: 'assistant',
+      createdAt: new Date().toISOString(),
+      entities: { _conversationState: snapshot },
+    }]);
+
+    expect(getWorkingMemory(user)?.activeEntity).toBe('Preparativos');
+    expect(getWorkingMemory(user)?.timestamp).toBe(originalTimestamp);
+  });
+
+  it('does not revive persisted Working Memory after its runtime TTL', () => {
     saveWorkingMemory(user, {
       source: 'unified',
       scope: 'all_pending',
       items: [{ type: 'task', internalId: 'task-stale', title: 'Vieja' }],
     });
     const snapshot = getWorkingMemorySnapshot(user);
+    snapshot.timestamp = Date.now() - (2 * 60 * 60 * 1000) - 1;
     clearWorkingMemory(user);
 
     hydrateWorkingMemoryFromHistory(user, [{
       role: 'assistant',
       content: 'Estado viejo.',
-      createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
       entities: { _workingMemory: snapshot },
     }]);
 
