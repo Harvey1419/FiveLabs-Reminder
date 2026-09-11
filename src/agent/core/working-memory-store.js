@@ -262,8 +262,13 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
 
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index];
-    const snapshot = turn?.entities?._workingMemory;
-    if (!snapshot || typeof snapshot !== 'object') continue;
+    const entities = turn?.entities;
+    if (!entities || typeof entities !== 'object' || !Object.hasOwn(entities, '_workingMemory')) continue;
+    const snapshot = entities._workingMemory;
+    // An assistant turn that explicitly persisted no Working Memory is an
+    // authoritative tombstone. Scanning farther back would resurrect state
+    // that was deliberately discarded or cleared.
+    if (!snapshot || typeof snapshot !== 'object') return null;
 
     const timestampCandidate = snapshot.timestamp || turn?.createdAt || snapshot.persistedAt || null;
     const timestampMs = timestampCandidate ? new Date(timestampCandidate).getTime() : NaN;

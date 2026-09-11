@@ -189,6 +189,7 @@ describe('foreground strict Structured Outputs boundary', () => {
 
   afterEach(() => {
     expect(TURN_INTENT_SCHEMA).toEqual(canonicalSnapshot);
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
@@ -473,6 +474,82 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(schemas[0].properties.pendingIntentEffect).toEqual(expect.objectContaining({
       type: 'string', enum: ['resolve', 'replace', 'preserve', 'discard'],
     }));
+  });
+
+  it('never revives a discarded draft when a new pending reminder is corrected and resolved after restart', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(turnOptions.requestTimeMs));
+    const history = [];
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }));
+    const first = await routeMessage('Primera solicitud parcial', user, history, turnOptions);
+    history.push(
+      { role: 'user', content: 'Primera solicitud parcial' },
+      { role: 'assistant', content: first.confirmation, entities: first.entities, createdAt: new Date().toISOString() },
+    );
+
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'discard',
+      actions: [{ domain: 'pending', action: 'discard' }],
+    }));
+    const discarded = await routeMessage('Cancelar la solicitud pendiente', user, history, turnOptions);
+    history.push(
+      { role: 'user', content: 'Cancelar la solicitud pendiente' },
+      { role: 'assistant', content: discarded.confirmation, entities: discarded.entities, createdAt: new Date().toISOString() },
+    );
+    expect(discarded.entities._conversationState.pendingIntent).toBeNull();
+    expect(discarded.entities._workingMemory).toBeNull();
+
+    clearWorkingMemory(user);
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar la administración',
+      schedule: { kind: 'weekday_time', weekday: 'friday' }, missingFields: ['time'],
+    }] }));
+    const second = await routeMessage('Nueva solicitud parcial independiente', user, history, turnOptions);
+    expect(second.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
+      content: 'Pagar la administración',
+      schedule: { kind: 'weekday_time', weekday: 'friday' },
+    });
+    history.push(
+      { role: 'user', content: 'Nueva solicitud parcial independiente' },
+      { role: 'assistant', content: second.confirmation, entities: second.entities, createdAt: new Date().toISOString() },
+    );
+
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'replace',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'weekday_time', weekday: 'saturday' }, missingFields: ['time'],
+      }, { domain: 'clarification', action: 'request', question: 'Falta la hora', missingFields: ['time'] }],
+    }));
+    const corrected = await routeMessage('Corrección parcial de la nueva solicitud', user, history, turnOptions);
+    expect(corrected.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
+      content: 'Pagar la administración',
+      schedule: { kind: 'weekday_time', weekday: 'saturday' },
+      missingFields: ['time'],
+    });
+    history.push(
+      { role: 'user', content: 'Corrección parcial de la nueva solicitud' },
+      { role: 'assistant', content: corrected.confirmation, entities: corrected.entities, createdAt: new Date().toISOString() },
+    );
+
+    clearWorkingMemory(user);
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }));
+    const resolved = await routeMessage('Completar únicamente la solicitud activa', user, history, turnOptions);
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0].params.items).toEqual([{
+      content: 'Pagar la administración', targetTime: '2026-09-12T14:00:00.000Z',
+    }]);
+    expect(resolved.entities._conversationState.pendingIntent).toBeNull();
   });
 
   it('normalizes replace into a new typed draft only when no prior pending intent exists', async () => {
