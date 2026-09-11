@@ -13,7 +13,7 @@ import {
 
 const workingMemoryStore = new Map();
 const WORKING_MEMORY_TTL_MS = 2 * 60 * 60 * 1000;
-const PERSISTED_WORKING_MEMORY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PERSISTED_WORKING_MEMORY_MAX_AGE_MS = WORKING_MEMORY_TTL_MS;
 
 function sanitizePendingIntent(intent) {
   if (!intent || typeof intent !== 'object') return null;
@@ -84,7 +84,7 @@ function getLookupKeys(userOrPhone) {
   return Array.from(keys);
 }
 
-export function saveWorkingMemory(userOrPhone, memoryData = {}) {
+export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimestamp = null } = {}) {
   const keys = getLookupKeys(userOrPhone);
   if (keys.length === 0) return;
   const existingEntry = keys.map((key) => workingMemoryStore.get(key)).find(Boolean) || null;
@@ -181,6 +181,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
           : Date.now() + PENDING_INTENT_TTL_MS)))
     : null;
 
+  const validRestoredTimestamp = restoredTimestamp === null ? NaN : Number(restoredTimestamp);
   const payload = {
     source: memoryData.source || 'unified',
     scope: memoryData.scope || 'tomorrow',
@@ -194,7 +195,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}) {
     pendingIntent,
     pendingClarifications,
     pendingExpiresAt,
-    timestamp: Date.now(),
+    timestamp: Number.isFinite(validRestoredTimestamp) ? validRestoredTimestamp : Date.now(),
     items: normalizedItems,
   };
 
@@ -264,7 +265,7 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
     const snapshot = turn?.entities?._workingMemory;
     if (!snapshot || typeof snapshot !== 'object') continue;
 
-    const timestampCandidate = turn?.createdAt || snapshot.persistedAt || null;
+    const timestampCandidate = snapshot.timestamp || turn?.createdAt || snapshot.persistedAt || null;
     const timestampMs = timestampCandidate ? new Date(timestampCandidate).getTime() : NaN;
     if (!Number.isFinite(timestampMs) || referenceMs - timestampMs > PERSISTED_WORKING_MEMORY_MAX_AGE_MS || timestampMs > referenceMs + 60_000) {
       continue;
@@ -289,7 +290,7 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
     // mint a fresh TTL or make Node reinterpret conversation continuity.
     if (pendingIsUnavailable && !(Array.isArray(snapshot.items) && snapshot.items.length > 0)) return null;
 
-    saveWorkingMemory(userOrPhone, restorableSnapshot);
+    saveWorkingMemory(userOrPhone, restorableSnapshot, { restoredTimestamp: timestampMs });
     return getWorkingMemory(userOrPhone);
   }
 
