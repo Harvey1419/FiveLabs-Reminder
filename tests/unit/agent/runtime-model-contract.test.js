@@ -390,6 +390,66 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
   });
 
+  it('rejects an incomplete resolve at the provider boundary and accepts a complete clock continuation exactly once', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }));
+    await routeMessage('Solicitud temporal parcial', user, [], turnOptions);
+    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
+
+    fetchMock
+      .mockResolvedValueOnce(structuredResponse({
+        pendingIntentEffect: 'resolve',
+        actions: [{
+          domain: 'reminder', action: 'create', continuationIndex: 1,
+          schedule: { kind: 'local_time' },
+        }],
+      }))
+      .mockResolvedValueOnce(structuredResponse({
+        pendingIntentEffect: 'resolve',
+        actions: [{
+          domain: 'reminder', action: 'create', continuationIndex: 1,
+          schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+        }],
+      }));
+
+    const result = await routeMessage('Continuación con una hora inequívoca', user, [], turnOptions);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0].params.items).toEqual([{
+      content: 'Pagar el recibo', targetTime: '2026-09-10T14:00:00.000Z',
+    }]);
+    expect(result.executionFacts).toHaveLength(1);
+    expect(result.executionFacts[0].success).toBe(true);
+    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+    expect(originalPending.actions[0].missingFields).toEqual(['time']);
+  });
+
+  it('keeps the pending draft untouched when every provider returns a still-incomplete resolve', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }));
+    await routeMessage('Solicitud temporal parcial', user, [], turnOptions);
+    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
+
+    fetchMock.mockImplementation(async () => structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time' },
+      }],
+    }));
+    const result = await routeMessage('Continuación todavía incompleta', user, [], turnOptions);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.plan.type).toBe('invalid_structured_output');
+    expect(getWorkingMemory(user).pendingIntent).toEqual(originalPending);
+  });
+
   it('uses the same active-pending transition contract across every compatible provider', async () => {
     fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
       domain: 'reminder', action: 'create', content: 'Pagar el recibo',

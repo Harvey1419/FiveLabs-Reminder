@@ -168,7 +168,12 @@ function validateStructuredTurnContent(content, { isAdmin = false, pendingIntent
     const merged = mergePendingIntentActions(pendingIntent, continuationActions);
     if (!merged.valid) return merged;
     const complete = validateTurnIntent({ actions: merged.actions }, { isAdmin });
-    if (!complete.valid) return { valid: false, errorCode: 'INCOMPLETE_PENDING_CONTINUATION', error: 'La continuación aún no produce una operación completa.' };
+    const stillMissingFields = complete.valid && complete.intent.actions.some((action) => (
+      Array.isArray(action.missingFields) && action.missingFields.length > 0
+    ));
+    if (!complete.valid || stillMissingFields) {
+      return { valid: false, errorCode: 'INCOMPLETE_PENDING_CONTINUATION', error: 'La continuación aún no produce una operación completa.' };
+    }
   }
   return validation;
 }
