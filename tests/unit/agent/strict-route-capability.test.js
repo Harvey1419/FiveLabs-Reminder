@@ -26,8 +26,11 @@ describe('strict foreground endpoint eligibility', () => {
     expect(result.unavailable).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(payloads.map((payload) => payload.model)).toEqual([
+      'openai/gpt-oss-120b', 'openai/gpt-oss-120b', 'z-ai/glm-5.3-flash',
+    ]);
     expect(payloads.map((payload) => payload.provider.only)).toEqual([
-      ['groq'], ['baseten/fp8'], ['openai'],
+      ['groq'], ['cerebras/fp16'], ['baseten/fp8'],
     ]);
     for (const payload of payloads) {
       expect(payload.response_format).toEqual(options.responseFormat);
@@ -46,8 +49,8 @@ describe('strict foreground endpoint eligibility', () => {
     expect(result.unavailable).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(payload.model).toBe('openai/gpt-4.1');
-    expect(payload.provider.only).toEqual(['openai']);
+    expect(payload.model).toBe('z-ai/glm-5.3-flash');
+    expect(payload.provider.only).toEqual(['baseten/fp8']);
     expect(payload.response_format).toEqual(options.responseFormat);
   });
 

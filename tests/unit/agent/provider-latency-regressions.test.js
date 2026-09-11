@@ -103,7 +103,7 @@ describe('foreground provider latency policy', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expectStructuredPayload(payloads[0], ['groq']);
-    expectStructuredPayload(payloads[1], ['baseten/fp8']);
+    expectStructuredPayload(payloads[1], ['cerebras/fp16']);
   });
 
   it('keeps strict structured output on the independent fallback after a primary HTTP failure', async () => {
@@ -119,7 +119,7 @@ describe('foreground provider latency policy', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expectStructuredPayload(payloads[0], ['groq']);
-    expectStructuredPayload(payloads[1], ['baseten/fp8']);
+    expectStructuredPayload(payloads[1], ['cerebras/fp16']);
   });
 
   it('preserves literal string values inside strict JSON instead of applying prose cleanup', async () => {

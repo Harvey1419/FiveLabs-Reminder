@@ -45,8 +45,8 @@ const domainActionFocus = process.env.FOREGROUND_ACCEPTANCE_FOCUS === 'domain-ac
 const extendedIt = domainActionFocus ? it.skip : it;
 const routes = {
   primary: ['openai/gpt-oss-120b', 'groq'],
-  secondary: ['z-ai/glm-5.3-flash', 'baseten/fp8'],
-  last_resort: ['openai/gpt-4.1', 'openai'],
+  secondary: ['openai/gpt-oss-120b', 'cerebras/fp16'],
+  last_resort: ['z-ai/glm-5.3-flash', 'baseten/fp8'],
 };
 const [model, provider] = routes[stage] || [];
 const routeOrder = ['primary', 'secondary', 'last_resort'];

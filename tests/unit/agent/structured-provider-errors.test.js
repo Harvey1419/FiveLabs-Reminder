@@ -60,7 +60,7 @@ async function foregroundFailure(body) {
   expect(payloads[0].provider).toEqual({
     order: ['groq'], only: ['groq'], allow_fallbacks: false, require_parameters: true,
   });
-  expect(payloads[1].provider.only).toEqual(['baseten/fp8']);
+  expect(payloads[1].provider.only).toEqual(['cerebras/fp16']);
   for (const payload of payloads) {
     expect(payload.response_format).toEqual(responseFormat);
     expect(payload.response_format.json_schema.strict).toBe(true);
@@ -127,7 +127,7 @@ describe('strict foreground provider error diagnostics', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
     expect(payloads.map((payload) => payload.provider.only)).toEqual([
-      ['groq'], ['baseten/fp8'], ['openai'],
+      ['groq'], ['cerebras/fp16'], ['baseten/fp8'],
     ]);
     expect(payloads.every((payload) => payload.response_format.json_schema.strict === true)).toBe(true);
     const logs = [...console.warn.mock.calls, ...console.log.mock.calls].flat().join('\n');

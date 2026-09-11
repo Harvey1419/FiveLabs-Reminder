@@ -3,8 +3,8 @@
  *
  * Foreground routing is explicit and latency-bounded:
  *   1. GPT-OSS 120B on Groq
- *   2. GLM 5.3 Flash on Baseten FP8
- *   3. GPT-4.1 on an independent strict-schema route
+ *   2. GPT-OSS 120B on Cerebras FP16
+ *   3. GLM 5.3 Flash on Baseten FP8
  *
  * OpenRouter implicit provider fallbacks are disabled. Hermes owns the route,
  * validates the canonical execute_turn boundary, and never returns to a provider
@@ -33,15 +33,20 @@ export const MODEL_CONFIG = Object.freeze({
     primaryProviders: Object.freeze(parseProviderList(process.env.OPENROUTER_PRIMARY_PROVIDERS, ['groq'])),
     secondary: process.env.OPENROUTER_SECONDARY_MODEL || 'z-ai/glm-5.3-flash',
     secondaryProviders: Object.freeze(parseProviderList(process.env.OPENROUTER_SECONDARY_PROVIDERS, ['baseten/fp8'])),
+    strictSecondary: process.env.OPENROUTER_STRICT_SECONDARY_MODEL || 'openai/gpt-oss-120b',
+    strictSecondaryProviders: Object.freeze(parseProviderList(
+      process.env.OPENROUTER_STRICT_SECONDARY_PROVIDERS,
+      ['cerebras/fp16'],
+    )),
     lastResort: process.env.OPENROUTER_LAST_RESORT_MODEL || fallbackModelAlias || 'qwen/qwen3.7-flash',
     lastResortProviders: Object.freeze(parseProviderList(
       process.env.OPENROUTER_LAST_RESORT_PROVIDERS || fallbackProvidersAlias,
       ['alibaba'],
     )),
-    strictLastResort: process.env.OPENROUTER_STRICT_FALLBACK_MODEL || 'openai/gpt-4.1',
+    strictLastResort: process.env.OPENROUTER_STRICT_FALLBACK_MODEL || 'z-ai/glm-5.3-flash',
     strictLastResortProviders: Object.freeze(parseProviderList(
       process.env.OPENROUTER_STRICT_FALLBACK_PROVIDERS,
-      ['openai'],
+      ['baseten/fp8'],
     )),
     memoryPrimary: process.env.OPENROUTER_MEMORY_PRIMARY_MODEL || 'openai/gpt-oss-120b',
     memoryPrimaryProviders: Object.freeze(parseProviderList(process.env.OPENROUTER_MEMORY_PRIMARY_PROVIDERS, ['groq'])),
@@ -257,15 +262,17 @@ function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
     },
     {
       stage: 'secondary',
-      model: config.secondary,
-      providers: config.secondaryProviders,
+      model: strictStructuredOutput ? config.strictSecondary : config.secondary,
+      providers: strictStructuredOutput ? config.strictSecondaryProviders : config.secondaryProviders,
       timeoutMs: positiveNumber(process.env.OPENROUTER_SECONDARY_TIMEOUT_MS, 15000),
       reasoning: {
-        effort: process.env.OPENROUTER_SECONDARY_REASONING_EFFORT || 'low',
+        effort: strictStructuredOutput
+          ? process.env.OPENROUTER_STRICT_SECONDARY_REASONING_EFFORT || 'medium'
+          : process.env.OPENROUTER_SECONDARY_REASONING_EFFORT || 'low',
         exclude: true,
       },
       parallelToolCalls: undefined,
-      // Baseten currently rejects tool_choice=required for this endpoint. We
+      // Fallback endpoints are not assumed to support tool_choice=required. We
       // send auto but still reject any prose-only response at the Hermes boundary.
       requiredToolChoiceSupported: false,
       supportsStrictStructuredOutputs: true,
@@ -278,7 +285,10 @@ function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
         strictStructuredOutput ? process.env.OPENROUTER_STRICT_FALLBACK_TIMEOUT_MS : process.env.OPENROUTER_LAST_RESORT_TIMEOUT_MS,
         20000,
       ),
-      reasoning: null,
+      reasoning: strictStructuredOutput ? {
+        effort: process.env.OPENROUTER_STRICT_FALLBACK_REASONING_EFFORT || 'low',
+        exclude: true,
+      } : null,
       parallelToolCalls: undefined,
       requiredToolChoiceSupported: false,
       minCompletionTokens: 2800,

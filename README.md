@@ -106,6 +106,10 @@ npx ngrok http 3000
 | OPENROUTER_SECONDARY_PROVIDERS | Exact secondary endpoint (default: `baseten/fp8`) |
 | OPENROUTER_SECONDARY_REASONING_EFFORT | Secondary reasoning effort (default: `low`) |
 | OPENROUTER_SECONDARY_TIMEOUT_MS | Maximum wait before last-resort fallback (default: 15 seconds) |
+| OPENROUTER_STRICT_SECONDARY_MODEL / OPENROUTER_STRICT_SECONDARY_PROVIDERS | Strict foreground fallback (default: GPT-OSS 120B on `cerebras/fp16`) |
+| OPENROUTER_STRICT_SECONDARY_REASONING_EFFORT | Strict secondary reasoning effort (default: `medium`) |
+| OPENROUTER_STRICT_FALLBACK_MODEL / OPENROUTER_STRICT_FALLBACK_PROVIDERS | Final strict foreground fallback (default: GLM 5.3 Flash on `baseten/fp8`) |
+| OPENROUTER_STRICT_FALLBACK_REASONING_EFFORT / OPENROUTER_STRICT_FALLBACK_TIMEOUT_MS | Final strict fallback reasoning and timeout |
 | OPENROUTER_LAST_RESORT_MODEL | Last-resort text model (default: `qwen/qwen3.7-flash`) |
 | OPENROUTER_LAST_RESORT_PROVIDERS | Exact last-resort provider list (default: `alibaba`) |
 | OPENROUTER_LAST_RESORT_TIMEOUT_MS | Last-resort timeout |
