@@ -143,7 +143,7 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
       .mockResolvedValueOnce(new Response('secondary unavailable', { status: 503 }))
       .mockResolvedValueOnce(new Response('last resort unavailable', { status: 503 }));
     const result = await callChatCompletion([{ role: 'user', content: 'continúa' }]);
-    expect(result).toContain('intermitencia');
+    expect(result).toContain('No pude completar esa acción');
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expect(payloads.map((payload) => payload.model)).toEqual([

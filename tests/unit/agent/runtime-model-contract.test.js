@@ -113,13 +113,13 @@ function expectStrictSchema(node, canonical, nullable = false) {
 }
 
 describe('canonical uniqueness after Groq schema adaptation', () => {
-  it('accepts a typed partial action only when it declares its missing field and asks one clarification', () => {
+  it('accepts a typed partial action from its missing fields without requiring a second schema action', () => {
     const partial = {
       domain: 'reminder', action: 'create', content: 'Pagar factura',
       schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
     };
 
-    expect(validateTurnIntent({ actions: [partial] })).toMatchObject({ valid: false });
+    expect(validateTurnIntent({ actions: [partial] })).toMatchObject({ valid: true });
     expect(validateTurnIntent({ actions: [
       partial,
       { domain: 'clarification', action: 'request', question: 'Falta un dato', missingFields: ['time'] },
@@ -245,7 +245,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     action.required = ['operation'];
     // Provider composition changes only: canonical prerequisites remain checked
     // by validateTurnIntent before any domain action, including missing schedules.
-    expectedCanonical.properties.actions.items.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part of the schedule is missing, keep the known structured components on the partial reminder.create, declare missingFields on that action, and emit one clarification.request for the coherent pending intent. Each action must retain its own known date/time components.';
+    expectedCanonical.properties.actions.items.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part is missing, keep known components on the partial action, declare missingFields and put the clarification question on that action; at most one clarification.request may accompany the coherent pending intent. Each action retains its own known date/time components.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
     for (const field of ['schedule', 'endSchedule']) {
@@ -322,34 +322,81 @@ describe('foreground strict Structured Outputs boundary', () => {
     const secondPayload = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(secondPayload.messages[0].content).toContain('[Typed Pending Intent');
     expect(secondPayload.messages[0].content).toContain('"dayOffset":1');
+    expect(secondPayload.messages).toHaveLength(2);
     expect(second.entities._conversationState.pendingIntent).toBeNull();
   });
 
+  it('normalizes replace into a new typed draft only when no prior pending intent exists', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'replace',
+      actions: [{
+        domain: 'reminder', action: 'create', content: 'Revisar Alfa',
+        schedule: { kind: 'relative_day_time', dayOffset: 1 },
+        missingFields: ['time'], question: '¿A qué hora?',
+      }],
+    }));
+
+    const result = await routeMessage('Recuérdame mañana revisar Alfa', user, [], turnOptions);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.executionFacts).toHaveLength(1);
+    expect(result.executionFacts[0].requiresClarification).toBe(true);
+    expect(result.entities._conversationState.pendingIntent.actions).toHaveLength(1);
+  });
+
+  it('executes independently complete actions despite a stale transition marker', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [reminderAction],
+    }));
+
+    const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
+
+    expect(result.executionFacts).toHaveLength(1);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a stale continuation fragment that is not a valid standalone action', async () => {
+    fetchMock.mockImplementation(async () => structuredResponse({
+      pendingIntentEffect: 'resolve',
+      actions: [{
+        domain: 'reminder', action: 'create', continuationIndex: 1,
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }));
+
+    const result = await routeMessage('A las 9', user, [], turnOptions);
+
+    expect(result.plan.type).toBe('invalid_structured_output');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it.each(['main_time', 'advance_minutes'])('rejects duplicate %s from structured content before executing any action in the turn', async (field) => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+    fetchMock.mockImplementation(async () => structuredResponse({ actions: [
       reminderAction,
       { domain: 'clarification', action: 'request', missingFields: [field, field] },
     ] }));
 
     const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
 
-    expect(result.plan.type).toBe('invalid_intent');
-    expect(validateTurnIntent).toHaveBeenCalledTimes(1);
+    expect(result.plan.type).toBe('invalid_structured_output');
+    expect(validateTurnIntent).toHaveBeenCalledTimes(3);
     expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('INVALID_PARAMETERS');
     expect(result.executionFacts).toEqual([]);
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('rejects an admin action deterministically for a non-admin even if the provider violates its schema', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{ domain: 'admin', action: 'metrics' }] }));
+    fetchMock.mockImplementation(async () => structuredResponse({ actions: [{ domain: 'admin', action: 'metrics' }] }));
 
     const result = await routeMessage('Muestra las métricas', user, [], turnOptions);
 
-    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.plan.type).toBe('invalid_structured_output');
     expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('UNSUPPORTED_DOMAIN');
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it.each([false, true])('keeps attachment-only output conversation-only regardless of admin privileges (admin=%s)', async (isAdmin) => {
@@ -378,7 +425,9 @@ describe('foreground strict Structured Outputs boundary', () => {
   });
 
   it.each([12, 13])('preserves the deterministic action limit for %s actions', async (count) => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: Array.from({ length: count }, () => ({ ...replyAction })) }));
+    const response = () => structuredResponse({ actions: Array.from({ length: count }, () => ({ ...replyAction })) });
+    if (count === 12) fetchMock.mockResolvedValueOnce(response());
+    else fetchMock.mockImplementation(async () => response());
 
     const result = await routeMessage('Responde', user, [], turnOptions);
 
@@ -386,11 +435,11 @@ describe('foreground strict Structured Outputs boundary', () => {
       expect(result.plan.type).toBe('turn_intent');
       expect(result.plan.actions).toHaveLength(12);
     } else {
-      expect(result.plan.type).toBe('invalid_intent');
+      expect(result.plan.type).toBe('invalid_structured_output');
       expect(validateTurnIntent.mock.results[0].value.errorCode).toBe('TURN_ACTION_LIMIT');
     }
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(count === 12 ? 1 : 3);
   });
 
   it.each([
@@ -401,29 +450,29 @@ describe('foreground strict Structured Outputs boundary', () => {
     '[]',
     'null',
   ])('rejects non-protocol content without prose bypass or a second semantic call: %s', async (content) => {
-    fetchMock.mockResolvedValueOnce(providerResponse({ content }));
+    fetchMock.mockImplementation(async () => providerResponse({ content }));
 
     const result = await routeMessage('Hola hola', user, [], turnOptions);
 
-    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.plan.type).toBe('invalid_structured_output');
     expect(result.executionFacts).toEqual([]);
     expect(result.confirmation).not.toContain('bypass');
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it.each(['execute_turn', 'reply_to_user'])('does not accept a legacy %s tool call instead of message.content JSON', async (name) => {
-    fetchMock.mockResolvedValueOnce(providerResponse({
+    fetchMock.mockImplementation(async () => providerResponse({
       content: null,
       tool_calls: [{ id: 'legacy-call', type: 'function', function: { name, arguments: JSON.stringify({ actions: [replyAction], content: 'legacy bypass' }) } }],
     }));
 
     const result = await routeMessage('Hola hola', user, [], turnOptions);
 
-    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.plan.type).toBe('invalid_structured_output');
     expect(result.confirmation).not.toContain('legacy bypass');
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it.each([
@@ -433,15 +482,15 @@ describe('foreground strict Structured Outputs boundary', () => {
     [{ domain: null, action: 'reply', content: 'No autorizado' }, 'UNSUPPORTED_DOMAIN'],
     [null, 'INVALID_PARAMETERS'],
   ])('preserves canonical rejection of invalid actions after structural null removal: %j', async (action, errorCode) => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [action] }));
+    fetchMock.mockImplementation(async () => structuredResponse({ actions: [action] }));
 
     const result = await routeMessage('Hazlo', user, [], turnOptions);
 
-    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.plan.type).toBe('invalid_structured_output');
     expect(validateTurnIntent.mock.results[0].value.errorCode).toBe(errorCode);
     expect(result.executionFacts).toEqual([]);
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
   it.each([1, 3, 6, 12])('transports %s reminder schedules independently through nullable JSON to exact UTC tool arguments', async (count) => {
     const actions = Array.from({ length: count }, (_, index) => ({
@@ -465,12 +514,12 @@ describe('foreground strict Structured Outputs boundary', () => {
   });
 
   it.each([null, {}, { kind: 'inherit_context' }])('rejects a malformed create schedule before executing the rest of the batch: %j', async (schedule) => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [reminderAction, { ...reminderAction, schedule }] }));
+    fetchMock.mockImplementation(async () => structuredResponse({ actions: [reminderAction, { ...reminderAction, schedule }] }));
     const result = await routeMessage('Dos recordatorios', user, [], turnOptions);
-    expect(result.plan.type).toBe('invalid_intent');
+    expect(result.plan.type).toBe('invalid_structured_output');
     expect(result.executionFacts).toEqual([]);
     expect(executeTool).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('preserves two explicit hours and clarifies only the ambiguous request, then creates only the clarified item', async () => {

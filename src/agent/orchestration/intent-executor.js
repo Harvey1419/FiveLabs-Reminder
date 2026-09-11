@@ -69,6 +69,16 @@ function baseDateFromItem(item, preferredType) {
 
 function resolveSchedule(action, context, preferredType = null) {
   if (!action.schedule) return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'Falta indicar la fecha u hora.' };
+  if (action.schedule.clockMode === 'ambiguous_12h') {
+    return {
+      valid: false,
+      errorCode: 'AMBIGUOUS_CLOCK_TIME',
+      error: context.language === 'en'
+        ? 'Please specify whether the time is AM or PM.'
+        : 'Indica si la hora es de la mañana o de la tarde.',
+      requiresClarification: true,
+    };
+  }
   const item = action.target ? resolveWorkingItem(context.user, action.target, preferredType) : null;
   const baseDate = baseDateFromItem(item, preferredType);
   return resolveTypedSchedule(action.schedule, {
@@ -430,6 +440,7 @@ const MISSING_FIELD_BY_ERROR = Object.freeze({
   MISSING_CONTENT: 'content',
   MISSING_SCHEDULE: 'schedule',
   MISSING_CLOCK_TIME: 'time',
+  AMBIGUOUS_CLOCK_TIME: 'time',
   MISSING_CALENDAR_DATE: 'date',
   MISSING_UPDATES: 'content',
 });
@@ -441,6 +452,25 @@ function pendingMissingFields(actions, clarification = null, fallbackErrorCode =
     ...(MISSING_FIELD_BY_ERROR[fallbackErrorCode] ? [MISSING_FIELD_BY_ERROR[fallbackErrorCode]] : []),
   ];
   return [...new Set(fields)];
+}
+
+function defaultPendingQuestion(actions, language = 'es') {
+  const action = actions.find((candidate) => candidate?.question || candidate?.content || candidate?.title) || actions[0];
+  if (action?.question) return action.question;
+  if (action?.schedule?.clockMode === 'ambiguous_12h') {
+    return language === 'en'
+      ? 'Should I use that time in the morning or afternoon?'
+      : '¿Esa hora es de la mañana o de la tarde?';
+  }
+  if (action?.domain === 'reminder' && action?.action === 'create') {
+    const content = action.content || action.title;
+    if (content) return language === 'en'
+      ? `When should I remind you about “${content}”?`
+      : `¿Cuándo quieres que te recuerde “${content}”?`;
+  }
+  return language === 'en'
+    ? 'What information should I use to continue?'
+    : '¿Qué dato debo usar para continuar?';
 }
 
 function savePendingIntentState(user, actions, {
@@ -693,14 +723,15 @@ export async function executeTurnIntent(intent, context) {
 
     if (pendingEffect === 'replace') {
       const clarification = clarificationActions[0] || null;
+      const question = clarification?.question || existingPendingIntent.question || defaultPendingQuestion(merged.actions, context.language);
       savePendingIntentState(context.user, merged.actions, {
-        question: clarification?.question || existingPendingIntent.question || '',
+        question,
         missingFields: pendingMissingFields(merged.actions, clarification),
         replace: true,
       });
       actions = clarificationActions.length > 0
         ? [clarificationActions[0]]
-        : [{ domain: 'clarification', action: 'request', question: existingPendingIntent.question || '' }];
+        : [{ domain: 'clarification', action: 'request', question }];
     } else {
       const invalid = merged.actions.map((action) => ({ action, prepared: buildDomainCall(action, context) }))
         .find(({ prepared }) => !prepared.valid);
@@ -712,18 +743,27 @@ export async function executeTurnIntent(intent, context) {
       actions = merged.actions;
     }
   } else if (!existingPendingIntent) {
-    const clarification = clarificationActions[0] || null;
     const staged = regularActions.filter((action) => {
       if (Array.isArray(action.missingFields) && action.missingFields.length > 0) return true;
       return !buildDomainCall(action, context).valid;
     });
-    if (clarification && staged.length > 0) {
-      savePendingIntentState(context.user, staged, {
+    if (staged.length > 0) {
+      const stagedDrafts = staged.map((action) => action.schedule?.clockMode === 'ambiguous_12h'
+        ? { ...action, missingFields: [...new Set([...(action.missingFields || []), 'time'])] }
+        : action);
+      const clarification = clarificationActions[0] || {
+        domain: 'clarification',
+        action: 'request',
+        question: defaultPendingQuestion(stagedDrafts, context.language),
+        missingFields: pendingMissingFields(stagedDrafts),
+      };
+      savePendingIntentState(context.user, stagedDrafts, {
         question: clarification.question || '',
-        missingFields: pendingMissingFields(staged, clarification),
+        missingFields: pendingMissingFields(stagedDrafts, clarification),
       });
       const stagedSet = new Set(staged);
       actions = actions.filter((action) => !stagedSet.has(action));
+      if (clarificationActions.length === 0) actions.push(clarification);
     }
   }
 

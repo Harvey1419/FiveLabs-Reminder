@@ -4,7 +4,7 @@
  * Foreground routing is explicit and latency-bounded:
  *   1. GPT-OSS 120B on Groq
  *   2. GLM 5.3 Flash on Baseten FP8
- *   3. Qwen 3.7 Flash on Alibaba
+ *   3. GPT-4.1 on an independent strict-schema route
  *
  * OpenRouter implicit provider fallbacks are disabled. Hermes owns the route,
  * validates the canonical execute_turn boundary, and never returns to a provider
@@ -38,6 +38,11 @@ export const MODEL_CONFIG = Object.freeze({
       process.env.OPENROUTER_LAST_RESORT_PROVIDERS || fallbackProvidersAlias,
       ['alibaba'],
     )),
+    strictLastResort: process.env.OPENROUTER_STRICT_FALLBACK_MODEL || 'openai/gpt-4.1',
+    strictLastResortProviders: Object.freeze(parseProviderList(
+      process.env.OPENROUTER_STRICT_FALLBACK_PROVIDERS,
+      ['openai'],
+    )),
     memoryPrimary: process.env.OPENROUTER_MEMORY_PRIMARY_MODEL || 'openai/gpt-oss-120b',
     memoryPrimaryProviders: Object.freeze(parseProviderList(process.env.OPENROUTER_MEMORY_PRIMARY_PROVIDERS, ['groq'])),
     memorySecondary: process.env.OPENROUTER_MEMORY_SECONDARY_MODEL || 'z-ai/glm-5.3-flash',
@@ -66,11 +71,49 @@ function cleanModelText(value) {
     .trim();
 }
 
-function classifyHttpFailure(status) {
+function parseErrorEnvelope(rawBody) {
+  if (!rawBody) return null;
+  try { return JSON.parse(rawBody); } catch { return null; }
+}
+
+function providerFailureFields(data) {
+  const error = data?.error || data?.choices?.[0]?.error || data;
+  const nested = providerErrorObject(error);
+  return {
+    code: String(nested?.code ?? error?.code ?? '').toLowerCase(),
+    type: String(nested?.type ?? error?.type ?? error?.metadata?.error_type ?? '').toLowerCase(),
+    param: String(nested?.param ?? error?.param ?? '').toLowerCase(),
+    message: String(nested?.message ?? error?.message ?? '').toLowerCase(),
+  };
+}
+
+function classifyProtocolFailure(data) {
+  const fields = providerFailureFields(data);
+  const joined = `${fields.code} ${fields.type} ${fields.param} ${fields.message}`;
+  if (fields.message.includes('generated json does not match')
+    || fields.message.includes('output became abnormal while generating a json response')
+    || fields.code.includes('json_validate')
+    || fields.type.includes('json_validation')) return 'structured_generation_rejection';
+  if (fields.param === 'response_format'
+    || fields.message.includes('invalid schema')
+    || fields.message.includes('schema produces a constraint')
+    || fields.code.includes('invalid_json_schema')
+    || fields.type.includes('invalid_json_schema')) return 'schema_rejection';
+  if (fields.message.includes('no endpoints found that can handle the requested parameters')) return 'provider_incompatible';
+  if (joined.includes('structured_outputs') || joined.includes('structured output')
+    || joined.includes('response_format') || joined.includes('require_parameters')) return 'provider_incompatible';
+  return 'provider_error';
+}
+
+function classifyHttpFailure(status, data = null) {
   if (status === 429) return 'rate_limit';
   if (status === 408 || status === 504) return 'upstream_timeout';
   if (status === 401 || status === 403) return 'authentication_or_permission';
   if (status >= 500) return 'upstream_unavailable';
+  if ([400, 404, 409, 415, 422].includes(status) && data) {
+    const protocolFailure = classifyProtocolFailure(data);
+    if (protocolFailure !== 'provider_error') return protocolFailure;
+  }
   return `http_${status}`;
 }
 
@@ -175,20 +218,26 @@ function structuredResponseDiagnostic(data, choice, apiKey) {
   });
 }
 
-function buildUnavailableResponse(returnMessage) {
+function unavailableText(language = 'es') {
+  return language === 'en'
+    ? 'I could not complete that action right now. Please try again in a moment.'
+    : 'No pude completar esa acción en este momento. Inténtalo nuevamente en un momento.';
+}
+
+function buildUnavailableResponse(returnMessage, reason = 'compatible_routes_exhausted', language = 'es') {
   const unavailable = {
     type: 'chat',
     tool: null,
     params: {},
     intent: 'chat',
-    reply: 'Tuve una pequeña intermitencia de conexión con el proveedor de IA. Por favor, envíame tu mensaje de nuevo.',
+    reply: unavailableText(language),
   };
   return returnMessage
-    ? { role: 'assistant', content: unavailable.reply, tool_calls: [], unavailable: true }
+    ? { role: 'assistant', content: unavailable.reply, tool_calls: [], unavailable: true, unavailableReason: reason }
     : JSON.stringify(unavailable);
 }
 
-function createForegroundProfiles() {
+function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
   const config = MODEL_CONFIG.openrouter;
   return [
     {
@@ -204,6 +253,7 @@ function createForegroundProfiles() {
       // Keep one retry only for a malformed/empty structured response. Provider
       // finish errors skip immediately to the independent fallback below.
       emptyContentRetries: 1,
+      supportsStrictStructuredOutputs: true,
     },
     {
       stage: 'secondary',
@@ -218,16 +268,22 @@ function createForegroundProfiles() {
       // Baseten currently rejects tool_choice=required for this endpoint. We
       // send auto but still reject any prose-only response at the Hermes boundary.
       requiredToolChoiceSupported: false,
+      supportsStrictStructuredOutputs: true,
     },
     {
       stage: 'last_resort',
-      model: config.lastResort,
-      providers: config.lastResortProviders,
-      timeoutMs: positiveNumber(process.env.OPENROUTER_LAST_RESORT_TIMEOUT_MS, 20000),
+      model: strictStructuredOutput ? config.strictLastResort : config.lastResort,
+      providers: strictStructuredOutput ? config.strictLastResortProviders : config.lastResortProviders,
+      timeoutMs: positiveNumber(
+        strictStructuredOutput ? process.env.OPENROUTER_STRICT_FALLBACK_TIMEOUT_MS : process.env.OPENROUTER_LAST_RESORT_TIMEOUT_MS,
+        20000,
+      ),
       reasoning: null,
       parallelToolCalls: undefined,
       requiredToolChoiceSupported: false,
       minCompletionTokens: 2800,
+      supportsStrictStructuredOutputs: strictStructuredOutput,
+      supportsTemperature: true,
     },
   ];
 }
@@ -280,16 +336,17 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
   logPrefix = '[ai-client]',
   purpose = 'unspecified',
   stage = 'direct',
+  validateStructuredContent = null,
 } = {}) {
   const startMs = Date.now();
   const requestedProviders = providers?.length ? providers : [];
   const strictForeground = purpose === 'initial' && responseFormat?.type === 'json_schema';
-  const failStructured = (reason, data, choice, { terminal = false } = {}) => {
+  const failStructured = (reason, data, choice, { terminal = false, validationCode = null } = {}) => {
     if (logPrefix) {
       const diagnostic = structuredResponseDiagnostic(data, choice, apiKey);
       const error = data?.error || choice?.error;
       const detail = error ? compactErrorBody(JSON.stringify({ error }), { includeProviderDetails: true, apiKey }) : '';
-      console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} latencyMs=${Date.now() - startMs} diagnostic=${diagnostic}${detail ? ` detail=${JSON.stringify(detail)}` : ''}`);
+      console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason}${validationCode ? ` validationCode=${validationCode}` : ''} latencyMs=${Date.now() - startMs} diagnostic=${diagnostic}${detail ? ` detail=${JSON.stringify(detail)}` : ''}`);
     }
     return { ok: false, reason, terminal, finishReason: choice?.finish_reason || null };
   };
@@ -328,17 +385,14 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
 
     if (!res.ok) {
       const rawBody = await res.text().catch(() => '');
-      const reason = classifyHttpFailure(res.status);
+      const errorData = parseErrorEnvelope(rawBody);
+      const reason = classifyHttpFailure(res.status, errorData);
       if (logPrefix) {
         const detail = compactErrorBody(rawBody, {
           includeProviderDetails: purpose === 'initial' && responseFormat?.type === 'json_schema',
           apiKey,
         });
         console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${detail}"`);
-      }
-      let errorData;
-      if (strictForeground) {
-        try { errorData = JSON.parse(rawBody); } catch { /* already logged the bounded HTTP diagnostic */ }
       }
       return { ok: false, reason, status: res.status, terminal: strictForeground && isProviderRefusal(errorData) };
     }
@@ -354,7 +408,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       // OpenRouter can return an error-only JSON body with HTTP 200 and no choices.
       // Inspect it BEFORE treating a missing message as an empty completion.
       if (isProviderRefusal(data, choice)) return failStructured('provider_refusal', data, choice, { terminal: true });
-      if (data?.error || choice?.error) return failStructured('provider_error', data, choice);
+      if (data?.error || choice?.error) return failStructured(classifyProtocolFailure(data), data, choice);
       if (!data || typeof data !== 'object' || Array.isArray(data)
         || !Array.isArray(data.choices) || data.choices.length === 0
         || !choice || typeof choice !== 'object' || Array.isArray(choice)) {
@@ -415,6 +469,15 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       return { ok: false, reason, finishReason };
     }
 
+    let validatedStructuredIntent = null;
+    if (strictForeground && typeof validateStructuredContent === 'function') {
+      let validation;
+      try { validation = validateStructuredContent(raw); }
+      catch { validation = { valid: false }; }
+      if (!validation?.valid) return failStructured('invalid_structured_output', data, choice, { validationCode: validation?.errorCode || 'UNKNOWN' });
+      validatedStructuredIntent = validation.intent || null;
+    }
+
     if (logPrefix) {
       console.log(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=success finishReason=${finishReason || 'unknown'} toolCalls=${toolCalls.length} promptTokens=${usage.prompt_tokens ?? 'unknown'} completionTokens=${usage.completion_tokens ?? 'unknown'} latencyMs=${Date.now() - startMs}`);
     }
@@ -430,6 +493,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
           model,
           provider: actualProvider,
           routeStage: stage,
+          ...(validatedStructuredIntent ? { structuredIntent: validatedStructuredIntent } : {}),
           ...(strictForeground ? {
             generationId: typeof data.id === 'string' ? data.id : null,
             usage: { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, reasoningTokens: usage.completion_tokens_details?.reasoning_tokens },
@@ -462,19 +526,16 @@ async function runOpenRouterChain(messages, profiles, {
   toolChoice,
   returnMessage,
   logPrefix,
+  validateStructuredContent,
 }) {
   let previousFailure = 'initial_request';
 
   for (const profile of profiles) {
-    // Verified OpenRouter endpoint capability: this exact Alibaba route offers
-    // response_format but not structured_outputs. Keep it for non-strict flows;
-    // never downgrade the foreground contract or send a known-incompatible request.
     const unsupportedStrictRoute = purpose === 'initial'
       && responseFormat?.type === 'json_schema' && responseFormat.json_schema?.strict === true
-      && profile.model === 'qwen/qwen3.7-flash'
-      && profile.providers.length === 1 && profile.providers[0] === 'alibaba';
+      && profile.supportsStrictStructuredOutputs !== true;
     if (unsupportedStrictRoute) {
-      if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=alibaba outcome=skipped reason=unsupported_structured_outputs`);
+      if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} stage=${profile.stage} model=${profile.model} provider=${profile.providers.join(',')} outcome=skipped reason=unsupported_structured_outputs`);
       if (previousFailure === 'initial_request') previousFailure = 'unsupported_structured_outputs';
       continue;
     }
@@ -495,7 +556,7 @@ async function runOpenRouterChain(messages, profiles, {
 
     for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
       attempt = await callOpenRouterAttempt(messages, profile.model, apiKey, {
-        temperature,
+        temperature: profile.supportsTemperature === false ? undefined : temperature,
         max_tokens: tools?.length ? Math.max(maxTokens, profile.minCompletionTokens || 0) : maxTokens,
         timeoutMs: profile.timeoutMs,
         providers: profile.providers,
@@ -509,6 +570,7 @@ async function runOpenRouterChain(messages, profiles, {
         logPrefix,
         purpose,
         stage: profile.stage,
+        validateStructuredContent,
       });
 
       // Providers that only accept auto still have to return execute_turn. Prose
@@ -543,7 +605,7 @@ async function runOpenRouterChain(messages, profiles, {
   }
 
   if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} exhausted reason=${previousFailure}`);
-  return null;
+  return returnMessage ? { chainExhausted: true, unavailableReason: previousFailure } : null;
 }
 
 export async function callChatCompletion(messages, {
@@ -556,6 +618,8 @@ export async function callChatCompletion(messages, {
   purpose = 'initial',
   startStage = null,
   responseFormat: requestedResponseFormat = null,
+  validateStructuredContent = null,
+  language = 'es',
 } = {}) {
   const openrouterKey = getOpenRouterApiKey();
   const nativeToolMode = Array.isArray(tools);
@@ -563,16 +627,13 @@ export async function callChatCompletion(messages, {
 
   if (!openrouterKey) {
     console.error(`${logPrefix} OPENROUTER_API_KEY is not configured.`);
-    const unavailable = {
-      type: 'chat', tool: null, params: {}, intent: 'chat',
-      reply: 'Error de configuración: no se encontró la clave de OpenRouter.',
-    };
-    return returnMessage
-      ? { role: 'assistant', content: unavailable.reply, tool_calls: [], unavailable: true }
-      : JSON.stringify(unavailable);
+    return buildUnavailableResponse(returnMessage, 'missing_credentials', language);
   }
 
-  const foregroundProfiles = createForegroundProfiles();
+  const strictStructuredOutput = purpose === 'initial'
+    && requestedResponseFormat?.type === 'json_schema'
+    && requestedResponseFormat.json_schema?.strict === true;
+  const foregroundProfiles = createForegroundProfiles({ strictStructuredOutput });
   const requestedStartIndex = startStage
     ? foregroundProfiles.findIndex((profile) => profile.stage === startStage)
     : 0;
@@ -590,9 +651,13 @@ export async function callChatCompletion(messages, {
     toolChoice: requestedResponseFormat ? 'none' : toolChoice,
     returnMessage,
     logPrefix,
+    validateStructuredContent,
   });
 
-  return result || buildUnavailableResponse(returnMessage);
+  if (result?.chainExhausted) {
+    return buildUnavailableResponse(returnMessage, result.unavailableReason, language);
+  }
+  return result || buildUnavailableResponse(returnMessage, 'compatible_routes_exhausted', language);
 }
 
 export async function callResponseSynthesis({
@@ -635,7 +700,7 @@ export async function callResponseSynthesis({
     },
   ];
   const logPrefix = correlationId ? `[ai-response req=${correlationId}]` : '[ai-response]';
-  const profiles = createForegroundProfiles().map((profile) => ({
+  const profiles = createForegroundProfiles({ strictStructuredOutput: false }).map((profile) => ({
     ...profile,
     reasoning: profile.reasoning ? { ...profile.reasoning, effort: 'low' } : null,
     emptyContentRetries: Math.min(profile.emptyContentRetries || 0, 1),

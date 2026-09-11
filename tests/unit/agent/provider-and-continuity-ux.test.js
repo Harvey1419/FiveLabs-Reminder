@@ -56,8 +56,9 @@ describe('provider failure and continuity UX', () => {
 
     expect(result.intent).toBe('clarification');
     expect(result.plan.type).toBe('provider_unavailable');
-    expect(result.confirmation).toContain('proveedor de IA');
+    expect(result.confirmation).toContain('No pude completar esa acción');
     expect(result.confirmation).toContain('No ejecuté ninguna acción');
+    expect(result.confirmation).not.toMatch(/proveedor|modelo|groq|openrouter|baseten/i);
     expect(result.confirmation).not.toContain('interpreta');
     expect(executeTool).not.toHaveBeenCalled();
   });

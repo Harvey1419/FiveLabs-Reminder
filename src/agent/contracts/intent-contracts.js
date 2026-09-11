@@ -44,7 +44,7 @@ const typedSchedule = {
     kind: {
       type: 'string',
       enum: ['relative_offset', 'relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time', 'inherit_context'],
-      description: 'relative_offset=duration from now; relative_day_time=relative day plus clock; weekday_time=named weekday plus clock; local_time=clock only.',
+      description: 'relative_offset=duration from now; relative_day_time=relative day plus clock; weekday_time=named weekday plus clock; local_time=clock-only delta with no date scope, mainly for merging into a typed pending intent. Never use local_time for a coordinated create action covered by a shared date; repeat that date with its date-bearing kind.',
     },
     offsetMinutes: { type: 'integer', minimum: 1, maximum: 525600 },
     dayOffset: { type: 'integer', minimum: 0, maximum: 365 },
@@ -108,7 +108,7 @@ conversation.reply is non-operational and cannot claim reads/mutations. agenda.r
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
-For missing data, keep partial canonical actions with missingFields plus one clarification.request per coherent intent. Given a typed pending intent, retain known fields, replace explicit corrections and map via continuationIndex. pendingIntentEffect is resolve only when complete, replace when still incomplete, preserve for another topic; pending.discard cancels.
+For missing data, keep partial canonical actions with missingFields and a question; add one clarification.request when possible, never one per field/item. Given a typed pending intent, retain known fields, replace explicit corrections and map via continuationIndex. pendingIntentEffect is resolve only when complete, replace when still incomplete, preserve for another topic; pending.discard cancels.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
 pending.execute/discard/revise target only a pending proposal. For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
 
@@ -183,10 +183,6 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (pendingIntentEffect && !PENDING_INTENT_EFFECTS.includes(pendingIntentEffect)) {
     return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La transición de intención pendiente no es válida.' };
   }
-  const hasClarificationRequest = intent.actions.some((raw) => (
-    String(raw?.domain || '').trim().toLowerCase() === 'clarification'
-    && normalizeIntentAction('clarification', raw?.action) === 'request'
-  ));
   if (['resolve', 'replace'].includes(pendingIntentEffect)) {
     const hasContinuationAction = intent.actions.some((raw) => !['conversation', 'clarification', 'pending'].includes(String(raw?.domain || '').trim().toLowerCase()));
     if (!hasContinuationAction) {
@@ -204,8 +200,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const mayInheritPending = ['resolve', 'replace'].includes(pendingIntentEffect)
       && !['conversation', 'clarification', 'pending'].includes(domain);
     const declaredPendingFields = Array.isArray(raw.missingFields) && raw.missingFields.length > 0;
-    const mayRemainPending = hasClarificationRequest && declaredPendingFields;
-    if (declaredPendingFields && !hasClarificationRequest) return { valid: false, errorCode: 'MISSING_REQUIRED_CONTEXT', error: 'Una acción parcial debe incluir una solicitud de aclaración.' };
+    const mayRemainPending = declaredPendingFields;
     if (mutationRequiresTarget(domain, action, raw) && !hasTarget(raw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     if (raw.recurrence !== undefined && !RECURRENCES.includes(raw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${raw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.

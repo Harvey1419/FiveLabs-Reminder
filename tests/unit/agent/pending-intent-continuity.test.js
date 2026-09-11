@@ -49,6 +49,22 @@ beforeEach(() => {
 });
 
 describe('TEST #66 — typed pending-intent continuity', () => {
+  it('materializes one clarification when strict output supplies only a typed partial action', async () => {
+    const result = await executeTurnIntent({ actions: [{
+      ...partialReminder('Revisar Alfa', null, ['schedule']),
+      question: '¿Cuándo quieres que te lo recuerde?',
+    }] }, context);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.facts).toHaveLength(1);
+    expect(result.facts[0]).toMatchObject({ requiresClarification: true });
+    expect(getWorkingMemory(user).pendingIntent).toMatchObject({
+      actions: [{ domain: 'reminder', action: 'create', content: 'Revisar Alfa', missingFields: ['schedule'] }],
+      question: '¿Cuándo quieres que te lo recuerde?',
+    });
+    expect(getWorkingMemory(user).pendingClarifications).toEqual([]);
+  });
+
   it('preserves one coherent multi-action intent and merges later clocks into its known date', async () => {
     const contents = ['Pendiente A', 'Pendiente B', 'Pendiente C'];
     const first = await executeTurnIntent({
@@ -87,6 +103,18 @@ describe('TEST #66 — typed pending-intent continuity', () => {
       { content: 'Pendiente C', targetTime: '2026-09-11T17:00:00.000Z' },
     ]);
     expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+  });
+
+  it('never executes a clock that Hermes explicitly marks as ambiguous', async () => {
+    const result = await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Revisar Alfa',
+      schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 8, minute: 0, clockMode: 'ambiguous_12h' },
+    }] }, context);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.facts).toHaveLength(1);
+    expect(result.facts[0]).toMatchObject({ requiresClarification: true });
+    expect(getWorkingMemory(user).pendingIntent.actions).toHaveLength(1);
   });
 
   it('expands several supplied times from one coherent pending action without creating separate clarification states', async () => {

@@ -99,6 +99,72 @@ describe('strict foreground provider error diagnostics', () => {
     expect(JSON.parse(failureDetail()).message).toBe('Provider parameter rejected.');
   });
 
+  it('classifies provider schema compilation failures separately from availability', async () => {
+    await foregroundFailure(wrapper({ error: {
+      message: 'The specified schema produces a constraint that has too many states for serving.',
+      type: 'invalid_request_error', code: '400',
+    } }));
+    expect(console.warn.mock.calls.flat().join('\n')).toContain('reason=schema_rejection');
+  });
+
+  it('classifies generated-schema rejection, survives a rate-limited secondary, and succeeds on a compatible strict fallback', async () => {
+    const generatedMismatch = wrapper({ error: {
+      message: "Generated JSON does not match the expected schema: missing properties: 'limit'",
+      type: 'invalid_request_error', code: 'json_validate_failed', param: 'response_format',
+    } });
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response(generatedMismatch, 400))
+      .mockResolvedValueOnce(response({ error: { message: 'rate limited' } }, 429))
+      .mockResolvedValueOnce(success());
+
+    const result = await callChatCompletion([{ role: 'user', content: 'Hola' }], {
+      responseFormat, purpose: 'initial', returnMessage: true,
+      validateStructuredContent: (content) => ({ valid: JSON.parse(content).actions?.length > 0 }),
+    });
+
+    expect(result.routeStage).toBe('last_resort');
+    expect(JSON.parse(result.content)).toEqual(reply);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const payloads = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(payloads.map((payload) => payload.provider.only)).toEqual([
+      ['groq'], ['baseten/fp8'], ['openai'],
+    ]);
+    expect(payloads.every((payload) => payload.response_format.json_schema.strict === true)).toBe(true);
+    const logs = [...console.warn.mock.calls, ...console.log.mock.calls].flat().join('\n');
+    expect(logs).toContain('reason=structured_generation_rejection');
+    expect(logs).toContain('trigger=rate_limit');
+  });
+
+  it('treats HTTP-200 invalid structured content as a failed attempt and accepts a valid compatible fallback', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(success('{"actions":[]}'))
+      .mockResolvedValueOnce(success());
+
+    const result = await callChatCompletion([{ role: 'user', content: 'Hola' }], {
+      responseFormat, purpose: 'initial', returnMessage: true,
+      validateStructuredContent: (content) => ({ valid: JSON.parse(content).actions?.length > 0 }),
+    });
+
+    expect(result.routeStage).toBe('secondary');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(console.warn.mock.calls.flat().join('\n')).toContain('reason=invalid_structured_output');
+  });
+
+  it('returns infrastructure-neutral degradation after all compatible strict routes fail', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response({ error: { message: 'offline' } }, 503))
+      .mockResolvedValueOnce(response({ error: { message: 'busy' } }, 429))
+      .mockResolvedValueOnce(response({ error: { message: 'busy' } }, 429));
+
+    const result = await callChatCompletion([], {
+      responseFormat, purpose: 'initial', returnMessage: true,
+    });
+
+    expect(result).toMatchObject({ unavailable: true, unavailableReason: 'rate_limit' });
+    expect(result.content).toContain('No pude completar esa acción');
+    expect(result.content.toLowerCase()).not.toMatch(/groq|openrouter|baseten|proveedor|modelo/);
+  });
+
   it('keeps typed metadata when no raw provider error is supplied', async () => {
     await foregroundFailure({ error: {
       message: 'Provider returned error', code: 400,
