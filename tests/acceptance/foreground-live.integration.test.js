@@ -226,7 +226,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
   });
 
   it('creates several reminders without crossing domain/action boundaries', async () => {
-    const result = await routeMessage('Mañana a las 9 recuérdame revisar Alfa, a las 11 revisar Beta y a las 3 de la tarde revisar Gamma; son tres recordatorios separados.', user, [], reference);
+    const result = await routeMessage('Mañana a las 9 de la mañana recuérdame revisar Alfa, a las 11 de la mañana revisar Beta y a las 3 de la tarde revisar Gamma; son tres recordatorios separados.', user, [], reference);
     assertCompleteDecision();
     expect(result.plan.actions).toEqual([
       { domain: 'reminder', action: 'create' },
