@@ -5,7 +5,7 @@ const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
 ]);
 const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
-const PENDING_INTENT_EFFECTS = Object.freeze(['resolve', 'replace', 'preserve']);
+const PENDING_INTENT_EFFECTS = Object.freeze(['resolve', 'replace', 'preserve', 'discard']);
 const MISSING_FIELDS = Object.freeze([
   'content', 'target', 'selection', 'scope', 'schedule', 'date', 'time', 'main_time', 'advance_minutes',
 ]);
@@ -96,7 +96,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
     pendingIntentEffect: {
       type: 'string',
       enum: PENDING_INTENT_EFFECTS,
-      description: 'When a typed pending intent is present: resolve=these are its complete merged actions; replace=these partial actions supersede its prior draft and still need clarification; preserve=this is a separate topic and the pending intent remains untouched.',
+      description: 'When a typed pending intent is present: resolve=these are its complete merged actions; replace=these partial actions supersede its prior draft and still need clarification; preserve=this is a separate topic and the pending intent remains untouched; discard=cancellation through pending.discard.',
     },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
@@ -109,7 +109,7 @@ CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cance
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
 OPERATIONAL COLLECTIONS: infer from members, not labels. Actionable members => entity.upsert category=project first + one task.create each sharing entityName/category=project; reuse it. Item add/read/complete/remove stays in task scoped by entityName. entity.list/delete concerns the container; people/company/place/knowledge collections stay entities. Never collapse members.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
-For missing data, keep partial canonical actions with missingFields and a question; add one clarification.request when possible, never one per field/item. Given a typed pending intent, retain known fields, replace explicit corrections and map via continuationIndex. pendingIntentEffect is resolve only when complete, replace when still incomplete, preserve for another topic; pending.discard cancels.
+For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. With a typed pending intent, every turn declares pendingIntentEffect: resolve=complete, replace=corrected but incomplete, preserve=separate topic, discard=pending.discard. Retain known fields; explicit corrections replace them; map via continuationIndex.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
 pending.execute/discard/revise target only a pending proposal. For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
 

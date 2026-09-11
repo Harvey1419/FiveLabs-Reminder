@@ -27,8 +27,11 @@ function strictProviderSchema(schema) {
   return node;
 }
 
-export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
+export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false, pendingIntentActive = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
+  if (pendingIntentActive) {
+    schema.required = [...new Set([...(schema.required || []), 'pendingIntentEffect'])];
+  }
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']

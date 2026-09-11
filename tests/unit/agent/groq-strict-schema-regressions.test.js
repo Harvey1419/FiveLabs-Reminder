@@ -55,6 +55,21 @@ describe('Groq strict provider projection regressions', () => {
     expect(validateTurnIntent(projectStructuredTurnIntent(providerIntent))).toMatchObject({ valid: true });
   });
 
+  it('requires a non-null semantic transition only while a typed pending intent is active', () => {
+    const inactive = getStructuredTurnSchema();
+    expect(inactive.properties.pendingIntentEffect).toEqual(expect.objectContaining({
+      type: ['string', 'null'],
+      enum: ['resolve', 'replace', 'preserve', 'discard', null],
+    }));
+
+    const active = getStructuredTurnSchema({ pendingIntentActive: true });
+    expect(active.required).toContain('pendingIntentEffect');
+    expect(active.properties.pendingIntentEffect).toEqual(expect.objectContaining({
+      type: 'string',
+      enum: ['resolve', 'replace', 'preserve', 'discard'],
+    }));
+  });
+
   it('does not reinterpret unknown qualified operations', () => {
     const projected = projectStructuredTurnIntent({ actions: [{ operation: 'reminder.search', scope: 'today' }] });
     expect(validateTurnIntent(projected)).toMatchObject({ valid: false, errorCode: 'UNSUPPORTED_ACTION' });
