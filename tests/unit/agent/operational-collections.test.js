@@ -281,6 +281,18 @@ describe('operational collection invariants', () => {
     ] })).toMatchObject({ valid: true });
   });
 
+  it('keeps task due dates optional but rejects a present incomplete schedule before execution', () => {
+    expect(validateTurnIntent({ actions: [
+      { domain: 'task', action: 'create', title: 'Revisar seguro', entityName: 'Viaje' },
+    ] })).toMatchObject({ valid: true });
+    expect(validateTurnIntent({ actions: [
+      {
+        domain: 'task', action: 'create', title: 'Revisar seguro', entityName: 'Viaje',
+        schedule: { kind: 'relative_day_time' },
+      },
+    ] })).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
+  });
+
   it('does not write a failed task batch into Working Memory', async () => {
     executeTool.mockResolvedValue({
       success: false,
