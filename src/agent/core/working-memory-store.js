@@ -357,8 +357,8 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
   const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
   const containerInstruction = wm.activeEntity
     ? (wm.source === 'task'
-      ? ` "${wm.activeEntity}" es el scope contextual del contenedor operativo. Estos elementos son referencias potencialmente obsoletas, NO su inventario vivo: si el usuario pide su contenido o estado actual, emite solo task.list con entityName="${wm.activeEntity}"; ExecutionFacts responderá, sin conversation.reply.`
-      : ` Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá la entidad vigente contra la fuente de verdad.`)
+      ? `[CONTENEDOR OPERATIVO ACTIVO — SOLO SCOPE]\nentityName="${wm.activeEntity}". Working Memory NO contiene su inventario vigente. Toda pregunta semántica sobre contenido o estado actual exige task.list con ese entityName; conversation.reply es inválido aunque los elementos visibles parezcan suficientes.`
+      : `Si el usuario se refiere al contenedor completo, usa "${wm.activeEntity}" como referencia humana estructurada; Node resolverá la entidad vigente contra la fuente de verdad.`)
     : '';
 
   return [
@@ -366,8 +366,9 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     ...(pendingSection.length > 0 ? ['[Elementos ejecutados más recientes — foco para referencias nuevas]'] : []),
     '[Memoria de Trabajo del Turno Anterior — referencias, NO inventario vivo]',
     `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
+    ...(containerInstruction ? [containerInstruction] : []),
     ...lines,
-    `(Para operar sobre un elemento de la lista anterior, usa target: "1", target: "el primero", o el nombre.${containerInstruction} El backend resolverá el ID interno).`,
+    '(Para operar sobre un elemento anterior, usa target: "1", target: "el primero", o el nombre. El backend resolverá el ID interno).',
   ].join('\n');
 }
 

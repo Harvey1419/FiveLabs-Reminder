@@ -239,7 +239,7 @@ describe('foreground strict Structured Outputs boundary', () => {
       operation: {
         type: 'string',
         enum: getCanonicalOperations({ domains }),
-        description: 'Exact qualified canonical operation. Its domain and action are inseparable; choose one listed value, for example reminder.list or reminder.create.',
+        description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply.',
       },
       ...action.properties,
     };
@@ -389,6 +389,85 @@ describe('foreground strict Structured Outputs boundary', () => {
       content: 'Pagar el recibo', targetTime: '2026-09-10T14:00:00.000Z',
     }]);
     expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+  });
+
+  it('keeps operational focus distinct from Pending Intent across create, restart, add, and live read', async () => {
+    const history = [];
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+      { domain: 'entity', action: 'upsert', category: 'project' },
+      ...['Sacar el pasaporte', 'Comprar bloqueador', 'Cargar la batería externa'].map((title) => ({
+        domain: 'task', action: 'create', title, entityName: 'Viaje', category: 'project',
+      })),
+    ] }));
+    executeTool
+      .mockResolvedValueOnce({
+        success: true, complete: true, action: 'upserted_entity', confirmation: 'Proyecto listo.',
+        data: { id: 'project-viaje', name: 'Viaje', category: 'project' },
+      })
+      .mockResolvedValueOnce({
+        success: true, complete: true, action: 'created_tasks_batch', confirmation: 'Tareas creadas.',
+        data: ['Sacar el pasaporte', 'Comprar bloqueador', 'Cargar la batería externa'].map((title, index) => ({
+          id: `task-${index + 1}`, title, entityId: 'project-viaje', entityName: 'Viaje',
+        })),
+      });
+
+    const first = await routeMessage(
+      'Crea pendientes del viaje con sacar el pasaporte, comprar bloqueador y cargar la batería externa.',
+      user,
+      history,
+      turnOptions,
+    );
+
+    expect(first.executionFacts).toHaveLength(2);
+    expect(first.executionFacts.every((fact) => fact.success)).toBe(true);
+    expect(first.entities._conversationState.pendingIntent).toBeNull();
+    expect(first.entities._conversationState.pendingClarifications).toEqual([]);
+    expect(first.entities._workingMemory).toMatchObject({ activeEntity: 'Viaje', pendingIntent: null });
+    expect(first.plan.actions.map(({ domain, action }) => `${domain}.${action}`)).toEqual([
+      'entity.upsert', 'task.create', 'task.create', 'task.create',
+    ]);
+    history.push(
+      { role: 'user', content: 'Crear colección operativa' },
+      { role: 'assistant', content: first.confirmation, entities: first.entities, createdAt: new Date().toISOString() },
+    );
+
+    clearWorkingMemory(user);
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+      { domain: 'task', action: 'create', title: 'Revisar el seguro de viaje', entityName: 'Viaje', category: 'project' },
+    ] }));
+    executeTool.mockResolvedValueOnce({
+      success: true, complete: true, action: 'created_task', confirmation: 'Tarea creada.',
+      data: [{ id: 'task-4', title: 'Revisar el seguro de viaje', entityId: 'project-viaje', entityName: 'Viaje' }],
+    });
+
+    const second = await routeMessage('Agrega también revisar el seguro de viaje.', user, history, turnOptions);
+
+    expect(second.executionFacts).toHaveLength(1);
+    expect(second.executionFacts[0].success).toBe(true);
+    expect(second.entities._conversationState.pendingIntent).toBeNull();
+    expect(executeTool.mock.calls[2][0].params).toEqual({
+      action: 'create',
+      items: [{ title: 'Revisar el seguro de viaje', entityName: 'Viaje', entityCategory: 'project' }],
+    });
+    const secondSchema = JSON.parse(fetchMock.mock.calls[1][1].body).response_format.json_schema.schema;
+    expect(secondSchema.properties.pendingIntentEffect.type).toEqual(['string', 'null']);
+
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
+      { domain: 'task', action: 'list', entityName: 'Viaje', status: 'pending' },
+    ] }));
+    executeTool.mockResolvedValueOnce({
+      success: true, complete: true, action: 'listed_tasks', confirmation: 'Estas son tus tareas.',
+      data: ['Sacar el pasaporte', 'Comprar bloqueador', 'Cargar la batería externa', 'Revisar el seguro de viaje']
+        .map((title, index) => ({ id: `task-${index + 1}`, title, entityId: 'project-viaje', entityName: 'Viaje' })),
+    });
+
+    const third = await routeMessage('¿Qué me falta del viaje?', user, [], turnOptions);
+
+    expect(third.plan.actions).toEqual([{ domain: 'task', action: 'list' }]);
+    expect(executeTool.mock.calls[3][0]).toMatchObject({
+      toolName: 'manage_task', params: { action: 'list', entityName: 'Viaje', status: 'pending' },
+    });
+    expect(third.entities._workingMemory.items).toHaveLength(4);
   });
 
   it('rejects an incomplete resolve at the provider boundary and accepts a complete clock continuation exactly once', async () => {

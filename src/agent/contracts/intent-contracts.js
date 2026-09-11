@@ -68,13 +68,13 @@ const actionSchema = {
     target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For pending actions it selects only the pending proposal.' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
     title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
-    entityName: { type: 'string', description: 'Human name of the related entity. On task actions this is the project container that owns the task; repeat it on every item in a compound operational collection.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
+    entityName: { type: 'string', description: 'Entity name. For entity.create/upsert, its own name. For task actions, the explicit or implicit shared purpose/container repeated on every compound member.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
     category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
     scope: { type: 'string', description: `Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today'] },
-    query: { type: 'string' }, projectless: { type: 'boolean' },
+    query: { type: 'string' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
     schedule: typedSchedule, endSchedule: typedSchedule,
     advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080 },
@@ -107,7 +107,7 @@ export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as ca
 conversation.reply is non-operational and cannot claim reads/mutations. agenda.read is cross-domain live inventory; use reminder/task/calendar for domain-specific reads. Never reconstruct live state from chat history.
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
-OPERATIONAL COLLECTIONS: infer from members, not labels. Actionable members => entity.upsert category=project first + one task.create each sharing entityName/category=project; reuse it. Item add/read/complete/remove stays in task scoped by entityName. entity.list/delete concerns the container; people/company/place/knowledge collections stay entities. Never collapse members.
+OPERATIONAL COLLECTIONS: infer from members, not labels. A NEW actionable collection MUST use entity.upsert(project, entityName) + one task.create per member with that entityName; never projectless/collapsed. For an existing or active container, do NOT upsert again: add/read/complete/remove stay task-scoped by entityName. entity.list/delete concerns the container; knowledge collections stay entities.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
 For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. With a typed pending intent, every turn declares pendingIntentEffect: resolve=complete, replace=corrected but incomplete, preserve=separate topic, discard=pending.discard. Retain known fields; explicit corrections replace them; map via continuationIndex.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
@@ -158,6 +158,48 @@ export function normalizeIntentAction(domain, action) {
   return STRUCTURAL_ACTION_ALIASES[domain]?.[normalized] || normalized;
 }
 function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
+function hasEntityIdentity(raw) {
+  return [raw?.target, raw?.entityName, raw?.title, raw?.content]
+    .some((value) => typeof value === 'string' && value.trim().length > 0);
+}
+
+/**
+ * Complete a single project-container action from the one exact structured
+ * entityName already repeated by all of its task.create members. This links
+ * fields that Hermes already interpreted; it never inspects user prose.
+ */
+function linkOperationalCollectionContainer(actions) {
+  const copies = actions.map((action) => (
+    action && typeof action === 'object' && !Array.isArray(action) ? { ...action } : action
+  ));
+  const unnamedProjectContainers = copies
+    .map((action, index) => ({ action, index }))
+    .filter(({ action }) => (
+      action
+      && String(action.domain || '').trim().toLowerCase() === 'entity'
+      && ['create', 'upsert'].includes(normalizeIntentAction('entity', action.action))
+      && action.category === 'project'
+      && !hasEntityIdentity(action)
+    ));
+  if (unnamedProjectContainers.length !== 1) return copies;
+
+  const memberNames = [...new Set(copies
+    .filter((action) => (
+      action
+      && String(action.domain || '').trim().toLowerCase() === 'task'
+      && normalizeIntentAction('task', action.action) === 'create'
+      && action.projectless !== true
+      && (!action.category || action.category === 'project')
+      && typeof action.entityName === 'string'
+      && action.entityName.trim()
+    ))
+    .map((action) => action.entityName.trim()))];
+  if (memberNames.length !== 1) return copies;
+
+  const [{ index }] = unnamedProjectContainers;
+  copies[index] = { ...copies[index], entityName: memberNames[0] };
+  return copies;
+}
 function hasCompleteReminderSchedule(schedule) {
   if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return false;
   if (schedule.kind === 'relative_offset') return Number.isInteger(schedule.offsetMinutes);
@@ -208,7 +250,8 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     }
   }
   const normalizedActions = [];
-  for (const raw of intent.actions) {
+  const structurallyLinkedActions = linkOperationalCollectionContainer(intent.actions);
+  for (const raw of structurallyLinkedActions) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'Cada acción debe ser un objeto.' };
     const domain = String(raw.domain || '').trim().toLowerCase();
     if (!DOMAINS.includes(domain) || (!isAdmin && domain === 'admin')) return { valid: false, errorCode: 'UNSUPPORTED_DOMAIN', error: `Dominio no disponible: ${raw.domain || '(vacío)'}.` };
@@ -234,6 +277,27 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const declaredPendingFields = Array.isArray(normalizedRaw.missingFields) && normalizedRaw.missingFields.length > 0;
     const mayRemainPending = declaredPendingFields;
     if (mutationRequiresTarget(domain, action, normalizedRaw) && !hasTarget(normalizedRaw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
+    if (domain === 'entity'
+      && ['create', 'upsert'].includes(action)
+      && !hasEntityIdentity(normalizedRaw)
+      && !mayRemainPending
+      && !mayInheritPending) {
+      return { valid: false, errorCode: 'MISSING_TARGET', error: `entity.${action} requiere el nombre de la entidad.` };
+    }
+    if (domain === 'task' && action === 'create') {
+      const hasTitle = [normalizedRaw.title, normalizedRaw.content]
+        .some((value) => typeof value === 'string' && value.trim().length > 0);
+      if (!hasTitle && !mayRemainPending && !mayInheritPending) {
+        return { valid: false, errorCode: 'MISSING_TITLE', error: 'task.create requiere el título de la tarea.' };
+      }
+      const hasProject = typeof normalizedRaw.entityName === 'string' && normalizedRaw.entityName.trim().length > 0;
+      if (hasProject && normalizedRaw.projectless === true) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'task.create no puede ser projectless y pertenecer a una entidad al mismo tiempo.' };
+      }
+      if (!hasProject && normalizedRaw.projectless !== true && !mayRemainPending && !mayInheritPending) {
+        return { valid: false, errorCode: 'MISSING_TARGET', error: 'task.create debe declarar entityName o projectless=true.' };
+      }
+    }
     if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.
     if (Array.isArray(normalizedRaw.missingFields)

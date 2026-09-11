@@ -837,7 +837,7 @@ export async function executeTurnIntent(intent, context) {
   } else if (!existingPendingIntent) {
     const staged = regularActions.filter((action) => {
       if (Array.isArray(action.missingFields) && action.missingFields.length > 0) return true;
-      return !buildDomainCall(action, context).valid;
+      return buildDomainCall(action, context).requiresClarification === true;
     });
     if (staged.length > 0) {
       const stagedDrafts = staged.map((action) => action.schedule?.clockMode === 'ambiguous_12h'

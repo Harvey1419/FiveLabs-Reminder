@@ -115,7 +115,7 @@ describe('Hermes product-quality core', () => {
     expect(text).not.toContain('internal-uuid-1');
     expect(text).not.toContain('internal-uuid-2');
     expect(text).toContain('NO inventario vivo');
-    expect(text).toContain('solo task.list con entityName="Compras de la semana"');
-    expect(text).toContain('sin conversation.reply');
+    expect(text).toContain('task.list con ese entityName');
+    expect(text).toContain('conversation.reply es inválido');
   });
 });

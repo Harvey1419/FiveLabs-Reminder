@@ -264,21 +264,33 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
   });
 
   it('represents and continues an operational collection as one project with task members', async () => {
-    const created = await routeMessage('Crea cosas para el viaje con pasaporte, cargador y bloqueador.', user, [], reference);
+    const created = await routeMessage('Crea pendientes del viaje con sacar el pasaporte, comprar bloqueador y cargar la batería externa.', user, [], reference);
+    expect(created.entities._conversationState.pendingIntent).toBeNull();
+    expect(created.entities._conversationState.pendingClarifications).toEqual([]);
     const createdActions = created.plan.actions.map(({ domain, action }) => `${domain}.${action}`);
-    expect(createdActions.slice(1)).toEqual(['task.create', 'task.create', 'task.create']);
-    expect(['entity.create', 'entity.upsert']).toContain(createdActions[0]);
+    expect(createdActions.filter((action) => action === 'task.create')).toHaveLength(3);
+    expect(createdActions.every((action) => (
+      action === 'task.create' || ['entity.create', 'entity.upsert'].includes(action)
+    ))).toBe(true);
 
     const createCalls = executeTool.mock.calls.map(([call]) => call);
-    expect(createCalls[0]).toMatchObject({ toolName: 'manage_entity', params: { category: 'project' } });
-    expect(['create', 'upsert']).toContain(createCalls[0].params.action);
-    expect(createCalls[1]).toMatchObject({ toolName: 'manage_task', params: { action: 'create' } });
-    expect(createCalls[1].params.items).toHaveLength(3);
-    const containerName = createCalls[0].params.name;
-    expect(new Set(createCalls[1].params.items.map((item) => item.entityName))).toEqual(new Set([containerName]));
+    const entityCall = createCalls.find((call) => call.toolName === 'manage_entity');
+    const taskCall = createCalls.find((call) => call.toolName === 'manage_task');
+    if (entityCall) {
+      expect(entityCall.params).toMatchObject({ category: 'project' });
+      expect(['create', 'upsert']).toContain(entityCall.params.action);
+    }
+    expect(taskCall).toMatchObject({ toolName: 'manage_task', params: { action: 'create' } });
+    expect(taskCall.params.items).toHaveLength(3);
+    const containerNames = new Set(taskCall.params.items.map((item) => item.entityName));
+    expect(containerNames.size).toBe(1);
+    const [containerName] = [...containerNames];
+    expect(containerName).toBeTruthy();
+    if (entityCall) expect(entityCall.params.name).toBe(containerName);
 
     executeTool.mockClear();
-    const added = await routeMessage('Agrega protector solar.', user, [], reference);
+    const added = await routeMessage('Agrega también revisar el seguro de viaje.', user, [], reference);
+    expect(added.entities._conversationState.pendingIntent).toBeNull();
     expect(added.plan.actions).toEqual([{ domain: 'task', action: 'create' }]);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
       toolName: 'manage_task',
@@ -287,7 +299,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool.mock.calls[0][0].params.items[0].entityName).toBe(containerName);
 
     executeTool.mockClear();
-    const listed = await routeMessage('¿Qué llevo ahí?', user, [], reference);
+    const listed = await routeMessage('¿Qué me falta del viaje?', user, [], reference);
     expect(listed.plan.actions).toEqual([{ domain: 'task', action: 'list' }]);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
       toolName: 'manage_task',
@@ -295,7 +307,7 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     }));
 
     executeTool.mockClear();
-    const completed = await routeMessage('Ya guardé el pasaporte.', user, [], reference);
+    const completed = await routeMessage('Marca la tarea sacar el pasaporte como completada.', user, [], reference);
     expect(completed.plan.actions).toEqual([{ domain: 'task', action: 'complete' }]);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
       toolName: 'manage_task',

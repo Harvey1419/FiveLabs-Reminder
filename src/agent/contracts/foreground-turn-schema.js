@@ -45,7 +45,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     operation: {
       type: 'string',
       enum: getCanonicalOperations({ domains }),
-      description: 'Exact qualified canonical operation. Its domain and action are inseparable; choose one listed value, for example reminder.list or reminder.create.',
+      description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply.',
     },
     ...sharedProperties,
   };
