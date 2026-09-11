@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
-  createTask: vi.fn(),
+  createTasksBatch: vi.fn(),
   findOrCreateEntityFuzzy: vi.fn(),
   inspectOwnedEntityReferences: vi.fn(),
   saveReminder: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock('../../../src/agent/tools/index.js', () => ({
 }));
 
 import {
-  createTask,
+  createTasksBatch,
   findOrCreateEntityFuzzy,
   inspectOwnedEntityReferences,
 } from '../../../src/infrastructure/database/index.js';
@@ -58,11 +58,14 @@ describe('operational collection invariants', () => {
   it('preflights one project and creates every actionable member under the same owned entity', async () => {
     const project = { id: 'project-1', name: 'Cosas para el viaje', category: 'project' };
     findOrCreateEntityFuzzy.mockResolvedValue(project);
-    createTask.mockImplementation(async ({ title, entityId, userId }) => ({
-      id: `task-${title}`,
-      title,
-      entity_id: entityId,
-      user_id: userId,
+    createTasksBatch.mockImplementation(async ({ items }) => ({
+      data: items.map(({ title, entityId }) => ({
+        id: `task-${title}`,
+        title,
+        entity_id: entityId,
+        user_id: user.id,
+      })),
+      error: null,
     }));
 
     const result = await executeTaskCreate({
@@ -83,10 +86,15 @@ describe('operational collection invariants', () => {
       references: [{ name: project.name, category: 'project' }],
     });
     expect(findOrCreateEntityFuzzy).toHaveBeenCalledTimes(1);
-    expect(createTask).toHaveBeenCalledTimes(3);
-    for (const [call] of createTask.mock.calls) {
-      expect(call).toMatchObject({ userId: user.id, entityId: project.id });
-    }
+    expect(createTasksBatch).toHaveBeenCalledTimes(1);
+    expect(createTasksBatch).toHaveBeenCalledWith({
+      userId: user.id,
+      items: expect.arrayContaining([
+        expect.objectContaining({ title: 'Pasaporte', entityId: project.id }),
+        expect.objectContaining({ title: 'Cargador', entityId: project.id }),
+        expect.objectContaining({ title: 'Bloqueador', entityId: project.id }),
+      ]),
+    });
   });
 
   it('fails closed before any mutation when the structured project reference is ambiguous', async () => {
@@ -108,7 +116,7 @@ describe('operational collection invariants', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'AMBIGUOUS_TARGET', requiresClarification: true });
     expect(findOrCreateEntityFuzzy).not.toHaveBeenCalled();
-    expect(createTask).not.toHaveBeenCalled();
+    expect(createTasksBatch).not.toHaveBeenCalled();
   });
 
   it('never creates ungrouped tasks when the declared project cannot be resolved', async () => {
@@ -120,7 +128,31 @@ describe('operational collection invariants', () => {
     });
 
     expect(result).toMatchObject({ success: false, errorCode: 'DATABASE_ERROR' });
-    expect(createTask).not.toHaveBeenCalled();
+    expect(createTasksBatch).not.toHaveBeenCalled();
+  });
+
+  it('fails the coherent task batch without reporting a persisted subset', async () => {
+    const project = { id: 'project-1', name: 'Preparativos', category: 'project' };
+    findOrCreateEntityFuzzy.mockResolvedValue(project);
+    createTasksBatch.mockResolvedValue({
+      data: null,
+      error: { code: 'DATABASE_ERROR', message: 'atomic batch insert failed', source: 'database' },
+    });
+
+    const result = await executeTaskCreate({
+      user,
+      params: {
+        items: ['A', 'B', 'C'].map((title) => ({
+          title,
+          entityName: project.name,
+          entityCategory: 'project',
+        })),
+      },
+    });
+
+    expect(result).toMatchObject({ success: false, errorCode: 'DATABASE_ERROR' });
+    expect(result.action).not.toBe('created_tasks_batch');
+    expect(createTasksBatch).toHaveBeenCalledTimes(1);
   });
 
   it('does not upsert an ambiguous container before clarification', async () => {
@@ -179,6 +211,25 @@ describe('operational collection invariants', () => {
       activeEntityId: 'project-1',
     });
     expect(getWorkingMemory(user).items.map((item) => item.title)).toEqual(['Pasaporte', 'Cargador', 'Bloqueador']);
+  });
+
+  it('does not write a failed task batch into Working Memory', async () => {
+    executeTool.mockResolvedValue({
+      success: false,
+      complete: false,
+      action: 'database_error',
+      errorCode: 'DATABASE_ERROR',
+      error: 'atomic batch insert failed',
+    });
+
+    await executeTurnIntent({ actions: [
+      { domain: 'task', action: 'create', title: 'A', entityName: 'Preparativos', category: 'project' },
+      { domain: 'task', action: 'create', title: 'B', entityName: 'Preparativos', category: 'project' },
+      { domain: 'task', action: 'create', title: 'C', entityName: 'Preparativos', category: 'project' },
+    ] }, context);
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(getWorkingMemory(user)).toBeNull();
   });
 
   it('keeps item operations in task tools and reserves entity deletion for the explicit container action', async () => {

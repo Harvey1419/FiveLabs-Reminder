@@ -1,5 +1,5 @@
 import {
-  createTask,
+  createTasksBatch,
   findOrCreateEntityFuzzy,
   inspectOwnedEntityReferences,
   saveReminder,
@@ -21,12 +21,10 @@ export async function executeTaskCreate({
 
   const rawItems = Array.isArray(params.items) && params.items.length > 0 ? params.items : [];
 
-  const createdTasks = [];
-  let lastFailure = null;
+  const hasInvalidTitle = rawItems.length === 0
+    || rawItems.some((item) => !String(item?.title || '').trim());
 
-  const hasAnyTitle = rawItems.some((item) => Boolean(String(item.title || '').trim()));
-
-  if (!hasAnyTitle) {
+  if (hasInvalidTitle) {
     return {
       success: false,
       action: 'invalid_parameters',
@@ -38,6 +36,7 @@ export async function executeTaskCreate({
 
   const containerRequests = [];
   const seenContainers = new Set();
+  const preparedItems = [];
   for (const item of rawItems) {
     const name = String(item?.entityName || '').trim();
     if (!name) continue;
@@ -115,8 +114,6 @@ export async function executeTaskCreate({
     const scheduleReminder = item.scheduleReminder ?? true;
 
     const cleanTitle = String(title).trim();
-    if (!cleanTitle) continue;
-
     const normalizedPriority = normalizeTaskPriority(priority);
     if (!normalizedPriority) {
       return {
@@ -140,72 +137,72 @@ export async function executeTaskCreate({
     let parsedDueDate = null;
     if (dueDate) parsedDueDate = parseTargetTime(dueDate, timezone, referenceTime);
 
-    const taskResult = await createTask({
-      userId,
+    preparedItems.push({
       title: cleanTitle,
       description,
       priority: normalizedPriority,
       dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
       entityId,
-    });
-
-    if (taskResult?.error) {
-      lastFailure = taskResult.error;
-      continue;
-    }
-
-    const task = taskResult?.data || taskResult;
-    if (!task?.id) continue;
-
-    createdTasks.push({
-      id: task.id,
-      title: cleanTitle,
-      entityId,
       entityName: resolvedEntityName || entityName,
-      dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
-      priority: normalizedPriority,
+      scheduleReminder,
     });
+  }
 
-    // Preserve current product behavior: an explicitly dated task may schedule
-    // a confirmation reminder for the same due time.
-    if (scheduleReminder && parsedDueDate && parsedDueDate.getTime() > Date.now()) {
+  const taskResult = await createTasksBatch({
+    userId,
+    items: preparedItems,
+  });
+
+  if (taskResult?.error || !Array.isArray(taskResult?.data) || taskResult.data.length !== preparedItems.length) {
+    const failure = taskResult?.error || {
+      code: 'DATABASE_ERROR',
+      message: 'La base de datos no confirmó el lote completo de tareas.',
+    };
+    const isConstraint = failure.code === 'DATABASE_CONSTRAINT_ERROR' || failure.code === '23514';
+    const isValidation = failure.code === 'INVALID_PARAMETERS';
+    return {
+      success: false,
+      action: isValidation ? 'invalid_parameters' : (isConstraint ? 'database_constraint_error' : 'database_error'),
+      errorCode: isValidation ? 'INVALID_PARAMETERS' : (isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : 'DATABASE_ERROR'),
+      error: failure.message || 'Error de base de datos al registrar las tareas.',
+      rawSummary: failure.message || 'Error de base de datos.',
+    };
+  }
+
+  const createdTasks = taskResult.data.map((task, index) => {
+    const item = preparedItems[index];
+    return {
+      id: task.id,
+      title: item.title,
+      entityId: item.entityId,
+      entityName: item.entityName,
+      dueDate: item.dueDate,
+      priority: item.priority,
+    };
+  });
+
+  // Preserve current product behavior: reminders remain post-persistence and
+  // do not participate in the atomic task INSERT.
+  for (let index = 0; index < preparedItems.length; index += 1) {
+    const item = preparedItems[index];
+    const task = taskResult.data[index];
+    if (item.scheduleReminder && item.dueDate && new Date(item.dueDate).getTime() > Date.now()) {
       try {
-        const reminderContent = resolvedEntityName
-          ? `[${resolvedEntityName}] ${cleanTitle}`
-          : cleanTitle;
+        const reminderContent = item.entityName
+          ? `[${item.entityName}] ${item.title}`
+          : item.title;
         await saveReminder({
           userId,
           phoneNumber,
           taskId: task.id,
           content: reminderContent,
-          sendAt: parsedDueDate.toISOString(),
+          sendAt: item.dueDate,
           requiresConfirmation: true,
         });
       } catch (error) {
         console.warn('[task-create] auto-reminder error:', error.message);
       }
     }
-  }
-
-  if (createdTasks.length === 0) {
-    if (lastFailure) {
-      const isConstraint = lastFailure.code === 'DATABASE_CONSTRAINT_ERROR' || lastFailure.code === '23514';
-      return {
-        success: false,
-        action: isConstraint ? 'database_constraint_error' : 'database_error',
-        errorCode: isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : 'DATABASE_ERROR',
-        error: lastFailure.message || 'Error de base de datos al registrar la tarea.',
-        rawSummary: lastFailure.message || 'Error de base de datos.',
-      };
-    }
-
-    return {
-      success: false,
-      action: 'invalid_parameters',
-      errorCode: 'INVALID_PARAMETERS',
-      error: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
-      rawSummary: language === 'en' ? 'Missing task title.' : 'Falta el título de la tarea.',
-    };
   }
 
   return {
