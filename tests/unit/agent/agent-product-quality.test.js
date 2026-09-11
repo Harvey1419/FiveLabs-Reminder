@@ -99,9 +99,10 @@ describe('Hermes product-quality core', () => {
 
   it('keeps Working Memory as conversational references rather than model-owned IDs', () => {
     saveWorkingMemory('573001112233', {
-      source: 'unified',
+      source: 'task',
       scope: 'all_pending',
       entityType: 'all',
+      activeEntity: 'Compras de la semana',
       items: [
         { position: 1, type: 'task', internalId: 'internal-uuid-1', summary: 'Comprar comida' },
         { position: 2, type: 'reminder', internalId: 'internal-uuid-2', summary: 'Llamar a Pedro' },
@@ -113,5 +114,8 @@ describe('Hermes product-quality core', () => {
     expect(text).toContain('Llamar a Pedro');
     expect(text).not.toContain('internal-uuid-1');
     expect(text).not.toContain('internal-uuid-2');
+    expect(text).toContain('NO inventario vivo');
+    expect(text).toContain('task.list con entityName="Compras de la semana"');
+    expect(text).toContain('responde desde ExecutionFacts');
   });
 });
