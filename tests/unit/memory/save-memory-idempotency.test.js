@@ -94,6 +94,7 @@ describe('saveMemory structured identity persistence', () => {
     });
 
     expect(saved).toBe(inserted);
+    expect(generateEmbedding).toHaveBeenCalledWith('profile/work_location\nEl usuario ahora trabaja en Barranquilla.');
     expect(insert.insert).toHaveBeenCalledWith(expect.objectContaining({
       user_id: 'user-1', topic_key: 'profile/work_location', content: inserted.content, is_active: true,
     }));

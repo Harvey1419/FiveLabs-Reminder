@@ -15,6 +15,76 @@ import { generateEmbedding } from '../../integrations/ai/embeddings.js';
  * @returns {Promise<object|null>}
  */
 const VALID_MEM_CATEGORIES = new Set(['fact', 'preference', 'decision', 'episode', 'observation', 'project']);
+const MEMORY_VECTOR_MATCH_THRESHOLD = 0.20;
+const MEMORY_VECTOR_CANDIDATE_MULTIPLIER = 4;
+const MEMORY_VECTOR_MIN_CANDIDATES = 12;
+const MEMORY_VECTOR_MAX_CANDIDATES = 50;
+const MEMORY_VECTOR_RELATIVE_WINDOW = 0.05;
+
+/**
+ * The topic is part of the retrieval document, not user-visible memory content.
+ * Stable structured identity improves broad-query recall without interpreting
+ * natural language in Node.
+ */
+export function buildMemoryEmbeddingDocument(topicKey, content) {
+  const cleanContent = String(content || '').trim();
+  const cleanTopic = topicKey ? String(topicKey).trim().toLowerCase() : '';
+  return cleanTopic ? `${cleanTopic}\n${cleanContent}` : cleanContent;
+}
+
+/**
+ * Deterministically preserve semantic rank while removing structural repeats.
+ * Node only understands IDs, exact content, topic identities, and numeric
+ * provider scores; it never reinterprets the user's language.
+ */
+export function selectMemorySearchResults({
+  vectorResults = [],
+  ftsResults = [],
+  topicResults = [],
+  limit = 5,
+  category = null,
+}) {
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
+  const rankedVectors = vectorResults.filter((item) => (
+    item?.is_active !== false && (!category || item?.category === category)
+  )).sort(
+    (a, b) => (Number(b?.similarity) || 0) - (Number(a?.similarity) || 0),
+  );
+  const topSimilarity = Number(rankedVectors[0]?.similarity);
+  const relevantVectors = Number.isFinite(topSimilarity)
+    ? rankedVectors.filter((item) => (
+      Number.isFinite(Number(item?.similarity))
+      && Number(item.similarity) >= topSimilarity - MEMORY_VECTOR_RELATIVE_WINDOW
+    ))
+    : rankedVectors;
+  const seenIds = new Set();
+  const seenTopics = new Set();
+  const seenContents = new Set();
+  const selected = [];
+
+  const rankedSources = relevantVectors.length > 0
+    ? [...relevantVectors, ...ftsResults, ...topicResults]
+    : [...ftsResults, ...topicResults];
+
+  for (const item of rankedSources) {
+    if (!item?.id || item.is_active === false) continue;
+    if (category && item.category !== category) continue;
+
+    const topicIdentity = item.topic_key ? String(item.topic_key).trim().toLowerCase() : null;
+    const contentIdentity = item.content ? String(item.content).trim().toLowerCase() : null;
+    if (seenIds.has(item.id)) continue;
+    if (topicIdentity && seenTopics.has(topicIdentity)) continue;
+    if (contentIdentity && seenContents.has(contentIdentity)) continue;
+
+    seenIds.add(item.id);
+    if (topicIdentity) seenTopics.add(topicIdentity);
+    if (contentIdentity) seenContents.add(contentIdentity);
+    selected.push(item);
+    if (selected.length >= safeLimit) break;
+  }
+
+  return selected;
+}
 
 export async function saveMemory({
   userId,
@@ -74,7 +144,7 @@ export async function saveMemory({
     }
 
     // 2. Generate 768-dim semantic embedding in parallel
-    const embedding = await generateEmbedding(cleanContent);
+    const embedding = await generateEmbedding(buildMemoryEmbeddingDocument(cleanTopic, cleanContent));
 
     // 3. Insert new memory with embedding
     const insertPayload = {
@@ -191,6 +261,10 @@ export async function searchMemories({
 }) {
   if (!userId) return [];
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
+  const vectorCandidateLimit = Math.min(
+    Math.max(safeLimit * MEMORY_VECTOR_CANDIDATE_MULTIPLIER, MEMORY_VECTOR_MIN_CANDIDATES),
+    MEMORY_VECTOR_MAX_CANDIDATES,
+  );
 
   // If no specific query and no topicKey provided, return all active memories
   if (!query && !topicKey) {
@@ -215,8 +289,8 @@ export async function searchMemories({
               const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {
                 p_user_id: userId,
                 p_query_embedding: queryEmbedding,
-                p_match_threshold: 0.60,
-                p_match_count: safeLimit,
+                p_match_threshold: MEMORY_VECTOR_MATCH_THRESHOLD,
+                p_match_count: vectorCandidateLimit,
               });
               if (!rpcErr && matched) return { type: 'vector', data: matched };
             }
@@ -297,46 +371,15 @@ export async function searchMemories({
       else if (res.type === 'topic') topicResults = res.data;
     }
 
-    // 4. Merge results with rank fusion / deduplication:
-    // Priority: Vector matches (semantic) -> FTS matches (stemmed keyword) -> Topic matches
-    const combinedMap = new Map();
-    for (const item of vectorResults) {
-      combinedMap.set(item.id, item);
-    }
-    for (const item of ftsResults) {
-      if (!combinedMap.has(item.id)) {
-        combinedMap.set(item.id, item);
-      }
-    }
-    for (const item of topicResults) {
-      if (!combinedMap.has(item.id)) {
-        combinedMap.set(item.id, item);
-      }
-    }
-
-    // Fallback: If no query and no topicKey, return recent active memories
-    if (!query && !topicKey && combinedMap.size === 0) {
-      let recentQ = supabase
-        .from('memories')
-        .select('id, topic_key, category, content, confidence, created_at')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('last_accessed_at', { ascending: false })
-        .limit(safeLimit);
-
-      if (category) {
-        recentQ = recentQ.eq('category', category);
-      }
-
-      const { data: recent } = await recentQ;
-      for (const item of (recent || [])) {
-        if (!combinedMap.has(item.id)) {
-          combinedMap.set(item.id, item);
-        }
-      }
-    }
-
-    const finalResults = Array.from(combinedMap.values()).slice(0, safeLimit);
+    // 4. Semantic similarity remains authoritative for rank. Sparse and topic
+    // matches are fallbacks, while exact structural identities are diversified.
+    const finalResults = selectMemorySearchResults({
+      vectorResults,
+      ftsResults,
+      topicResults,
+      category,
+      limit: safeLimit,
+    });
 
     // Update last_accessed_at asynchronously
     if (finalResults.length > 0) {

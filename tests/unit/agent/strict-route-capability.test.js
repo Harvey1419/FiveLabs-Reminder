@@ -17,13 +17,21 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe('strict foreground endpoint eligibility', () => {
-  it.each([[400, 429, 'rate_limit'], [429, 503, 'upstream_unavailable']])('does not send strict JSON Schema to an incompatible route after %i/%i', async (first, second, reason) => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(failure(first)).mockResolvedValueOnce(failure(second));
+  it.each([[400, 429, 503, 'upstream_unavailable'], [429, 503, 429, 'rate_limit']])('tries every compatible strict route after %i/%i/%i', async (first, second, third, reason) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(failure(first))
+      .mockResolvedValueOnce(failure(second))
+      .mockResolvedValueOnce(failure(third));
     const result = await callChatCompletion([], options);
     expect(result.unavailable).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
-    expect(payloads.map((payload) => payload.provider.only)).toEqual([['groq'], ['baseten/fp8']]);
+    expect(payloads.map((payload) => payload.model)).toEqual([
+      'openai/gpt-oss-120b', 'openai/gpt-oss-120b', 'z-ai/glm-5.3-flash',
+    ]);
+    expect(payloads.map((payload) => payload.provider.only)).toEqual([
+      ['groq'], ['cerebras/fp16'], ['baseten/fp8'],
+    ]);
     for (const payload of payloads) {
       expect(payload.response_format).toEqual(options.responseFormat);
       expect(payload.provider.require_parameters).toBe(true);
@@ -31,15 +39,19 @@ describe('strict foreground endpoint eligibility', () => {
       expect(payload).not.toHaveProperty('tool_choice');
     }
     const warnings = console.warn.mock.calls.flat().join('\n');
-    expect(warnings).toContain('outcome=skipped reason=unsupported_structured_outputs');
+    expect(warnings).not.toContain('unsupported_structured_outputs');
     expect(warnings).toContain(`exhausted reason=${reason}`);
   });
 
-  it('fails closed without a network call when explicitly starting at the incompatible strict route', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
+  it('starts directly at the independent compatible strict fallback when requested', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(failure(503));
     const result = await callChatCompletion([], { ...options, startStage: 'last_resort' });
     expect(result.unavailable).toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.model).toBe('z-ai/glm-5.3-flash');
+    expect(payload.provider.only).toEqual(['baseten/fp8']);
+    expect(payload.response_format).toEqual(options.responseFormat);
   });
 
   it('preserves the configured Alibaba route for non-schema JSON responses', async () => {

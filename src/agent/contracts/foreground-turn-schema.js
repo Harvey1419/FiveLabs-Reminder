@@ -47,7 +47,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     ...sharedProperties,
   };
   action.required = ['operation'];
-  action.properties.schedule.description += ' For reminder.create this MUST be a non-null schedule containing the requested time. Use clarification.request instead of an incomplete creation. Each action must retain its own time.';
+  action.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part is missing, keep known components on the partial action, declare missingFields and put the clarification question on that action; at most one clarification.request may accompany the coherent pending intent. Each action retains its own known date/time components.';
   action.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
   action.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
   for (const field of ['schedule', 'endSchedule']) {

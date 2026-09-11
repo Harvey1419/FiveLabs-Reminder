@@ -14,6 +14,10 @@ import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
 import { pinReminderCancellationTargets } from './context-target-pinner.js';
+import {
+  createPendingIntent,
+  mergePendingIntentActions,
+} from '../core/pending-intent.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -65,6 +69,16 @@ function baseDateFromItem(item, preferredType) {
 
 function resolveSchedule(action, context, preferredType = null) {
   if (!action.schedule) return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'Falta indicar la fecha u hora.' };
+  if (action.schedule.clockMode === 'ambiguous_12h') {
+    return {
+      valid: false,
+      errorCode: 'AMBIGUOUS_CLOCK_TIME',
+      error: context.language === 'en'
+        ? 'Please specify whether the time is AM or PM.'
+        : 'Indica si la hora es de la mañana o de la tarde.',
+      requiresClarification: true,
+    };
+  }
   const item = action.target ? resolveWorkingItem(context.user, action.target, preferredType) : null;
   const baseDate = baseDateFromItem(item, preferredType);
   return resolveTypedSchedule(action.schedule, {
@@ -419,7 +433,84 @@ function inferItemType(toolName) {
   return 'all';
 }
 
-function updateWorkingMemoryFromExecution({ user, toolName, params, result }) {
+const MISSING_FIELD_BY_ERROR = Object.freeze({
+  AMBIGUOUS_TARGET: 'selection',
+  MISSING_TARGET: 'target',
+  MISSING_TARGET_ID: 'target',
+  MISSING_CONTENT: 'content',
+  MISSING_SCHEDULE: 'schedule',
+  MISSING_CLOCK_TIME: 'time',
+  AMBIGUOUS_CLOCK_TIME: 'time',
+  MISSING_CALENDAR_DATE: 'date',
+  MISSING_UPDATES: 'content',
+});
+
+function pendingMissingFields(actions, clarification = null, fallbackErrorCode = null) {
+  const fields = [
+    ...actions.flatMap((action) => Array.isArray(action?.missingFields) ? action.missingFields : []),
+    ...(Array.isArray(clarification?.missingFields) ? clarification.missingFields : []),
+    ...(MISSING_FIELD_BY_ERROR[fallbackErrorCode] ? [MISSING_FIELD_BY_ERROR[fallbackErrorCode]] : []),
+  ];
+  return [...new Set(fields)];
+}
+
+function defaultPendingQuestion(actions, language = 'es') {
+  const action = actions.find((candidate) => candidate?.question || candidate?.content || candidate?.title) || actions[0];
+  if (action?.question) return action.question;
+  if (action?.schedule?.clockMode === 'ambiguous_12h') {
+    return language === 'en'
+      ? 'Should I use that time in the morning or afternoon?'
+      : '¿Esa hora es de la mañana o de la tarde?';
+  }
+  if (action?.domain === 'reminder' && action?.action === 'create') {
+    const content = action.content || action.title;
+    if (content) return language === 'en'
+      ? `When should I remind you about “${content}”?`
+      : `¿Cuándo quieres que te recuerde “${content}”?`;
+  }
+  return language === 'en'
+    ? 'What information should I use to continue?'
+    : '¿Qué dato debo usar para continuar?';
+}
+
+function savePendingIntentState(user, actions, {
+  question = '', missingFields = [], replace = false,
+} = {}) {
+  const memory = getWorkingMemory(user);
+  const pendingIntent = createPendingIntent({ actions, missingFields, question });
+  if (!pendingIntent) return false;
+  saveWorkingMemory(user, {
+    ...(memory || {}),
+    source: memory?.source || actions[0]?.domain || 'unified',
+    scope: 'clarification',
+    entityType: memory?.entityType || actions[0]?.domain || 'all',
+    lastAction: replace ? 'pending_intent_revised' : 'pending_intent_created',
+    pendingIntent,
+    pendingClarifications: memory?.pendingClarifications || [],
+    pendingExpiresAt: null,
+    refreshPendingExpiry: true,
+    items: memory?.items || [],
+  });
+  return true;
+}
+
+function clearPendingIntentState(user) {
+  const memory = getWorkingMemory(user);
+  if (!memory) return;
+  const hasLegacyPending = (memory.pendingClarifications || []).length > 0;
+  if (!hasLegacyPending && (memory.items || []).length === 0) {
+    clearWorkingMemory(user);
+    return;
+  }
+  saveWorkingMemory(user, {
+    ...memory,
+    pendingIntent: null,
+    pendingExpiresAt: hasLegacyPending ? memory.pendingExpiresAt : null,
+    lastAction: 'pending_intent_resolved',
+  });
+}
+
+function updateWorkingMemoryFromExecution({ user, action, toolName, params, result }) {
   const existingMemory = getWorkingMemory(user);
   const pendingClarifications = result.pendingClarifications || result.data?.pendingClarifications || [];
 
@@ -442,8 +533,20 @@ function updateWorkingMemoryFromExecution({ user, toolName, params, result }) {
       scope: 'clarification',
       entityType: toolName === TOOL_NAMES.MANAGE_REMINDER ? 'reminder' : (toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'all'),
       lastAction: 'clarification_required',
+      pendingIntent: existingMemory?.pendingIntent || null,
       pendingClarifications: combinedPending,
+      pendingExpiresAt: null,
+      refreshPendingExpiry: true,
       items: existingMemory?.items || [],
+    });
+    return;
+  }
+
+  if (result.requiresClarification && action?.domain && action?.action) {
+    savePendingIntentState(user, [action], {
+      question: result.error || result.rawSummary || '',
+      missingFields: pendingMissingFields([action], null, result.errorCode),
+      replace: Boolean(existingMemory?.pendingIntent),
     });
     return;
   }
@@ -468,6 +571,8 @@ function updateWorkingMemoryFromExecution({ user, toolName, params, result }) {
     activeEntity: result.data?.entityName || params.entityName || items[0]?.entityName || null,
     activeEntityId: result.data?.entityId || items[0]?.entityId || items[0]?.raw?.entity_id || null,
     lastAction: toolName,
+    pendingIntent: existingMemory?.pendingIntent || null,
+    pendingExpiresAt: existingMemory?.pendingExpiresAt || null,
     pendingClarifications: existingMemory?.pendingClarifications || [],
     items,
   });
@@ -475,11 +580,16 @@ function updateWorkingMemoryFromExecution({ user, toolName, params, result }) {
 
 function saveRemainingPendingState(user, memory, pendingClarifications) {
   if (pendingClarifications.length === 0) {
-    if ((memory?.items || []).length === 0) {
+    if (!memory?.pendingIntent && (memory?.items || []).length === 0) {
       clearWorkingMemory(user);
       return;
     }
-    saveWorkingMemory(user, { ...memory, pendingClarifications: [], lastAction: memory.lastAction || 'pending_resolved' });
+    saveWorkingMemory(user, {
+      ...memory,
+      pendingClarifications: [],
+      pendingExpiresAt: memory?.pendingIntent ? memory.pendingExpiresAt : null,
+      lastAction: memory.lastAction || 'pending_resolved',
+    });
     return;
   }
   saveWorkingMemory(user, { ...memory, pendingClarifications });
@@ -497,6 +607,11 @@ async function executePendingAction(action, context) {
   const memory = getWorkingMemory(context.user);
   const pending = memory?.pendingClarifications || [];
   if (pending.length === 0) {
+    if (memory?.pendingIntent && action.action === 'discard') {
+      clearPendingIntentState(context.user);
+      const confirmation = context.language === 'en' ? 'Understood — I discarded the pending request.' : 'Entendido — descarté la solicitud pendiente.';
+      return { toolName: 'orchestrator', params: { action: 'discard_pending_intent' }, result: { success: true, complete: true, action: 'discarded_pending', rawSummary: confirmation, confirmation } };
+    }
     return { toolName: 'orchestrator', params: {}, result: failedResult('NO_PENDING_STATE', context.language === 'en' ? 'There is no pending proposal.' : 'No hay ninguna propuesta pendiente.', context.language) };
   }
 
@@ -571,12 +686,85 @@ async function executePendingAction(action, context) {
 
 /** Execute semantic TurnIntent directly against deterministic domain tools. */
 export async function executeTurnIntent(intent, context) {
-  const actions = Array.isArray(intent?.actions) ? intent.actions : [];
+  let actions = Array.isArray(intent?.actions) ? intent.actions : [];
   if (actions.length === 0) return { records: [], facts: [], excluded: intent?.excluded || [] };
   if (actions.length > MAX_ACTIONS_PER_TURN) {
     const result = failedResult('TURN_ACTION_LIMIT', `El turno supera el límite de ${MAX_ACTIONS_PER_TURN} acciones.`, context.language);
     const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'intent_limit', language: context.language });
     return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+  }
+
+  const pendingEffect = intent?.pendingIntentEffect || null;
+  const existingPendingIntent = getWorkingMemory(context.user)?.pendingIntent || null;
+  const clarificationActions = actions.filter((action) => action.domain === 'clarification');
+  const regularActions = actions.filter((action) => !['clarification', 'pending'].includes(action.domain));
+
+  if (pendingEffect && !existingPendingIntent) {
+    const result = failedResult('NO_PENDING_INTENT', context.language === 'en' ? 'That pending request is no longer active.' : 'Esa solicitud pendiente ya no está activa.', context.language, { requiresClarification: true });
+    const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_missing', language: context.language });
+    return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+  }
+
+  if (existingPendingIntent && !pendingEffect && regularActions.length > 0) {
+    const result = failedResult('PENDING_INTENT_EFFECT_REQUIRED', context.language === 'en' ? 'I need to know whether this continues the pending request or starts a separate one.' : 'Necesito distinguir si esto continúa la solicitud pendiente o inicia una diferente.', context.language, { requiresClarification: true });
+    const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_effect', language: context.language });
+    return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+  }
+
+  if (pendingEffect === 'resolve' || pendingEffect === 'replace') {
+    const merged = mergePendingIntentActions(existingPendingIntent, regularActions, {
+      keepMissingFields: pendingEffect === 'replace',
+    });
+    if (!merged.valid) {
+      const result = failedResult(merged.errorCode, merged.error, context.language, { requiresClarification: true });
+      const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_merge', language: context.language });
+      return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+    }
+
+    if (pendingEffect === 'replace') {
+      const clarification = clarificationActions[0] || null;
+      const question = clarification?.question || existingPendingIntent.question || defaultPendingQuestion(merged.actions, context.language);
+      savePendingIntentState(context.user, merged.actions, {
+        question,
+        missingFields: pendingMissingFields(merged.actions, clarification),
+        replace: true,
+      });
+      actions = clarificationActions.length > 0
+        ? [clarificationActions[0]]
+        : [{ domain: 'clarification', action: 'request', question }];
+    } else {
+      const invalid = merged.actions.map((action) => ({ action, prepared: buildDomainCall(action, context) }))
+        .find(({ prepared }) => !prepared.valid);
+      if (invalid) {
+        const result = failedResult(invalid.prepared.errorCode, invalid.prepared.error, context.language, { requiresClarification: true });
+        const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'pending_intent_invalid', language: context.language });
+        return { records: [{ toolName: 'orchestrator', params: {}, result, fact }], facts: [fact], excluded: intent?.excluded || [] };
+      }
+      actions = merged.actions;
+    }
+  } else if (!existingPendingIntent) {
+    const staged = regularActions.filter((action) => {
+      if (Array.isArray(action.missingFields) && action.missingFields.length > 0) return true;
+      return !buildDomainCall(action, context).valid;
+    });
+    if (staged.length > 0) {
+      const stagedDrafts = staged.map((action) => action.schedule?.clockMode === 'ambiguous_12h'
+        ? { ...action, missingFields: [...new Set([...(action.missingFields || []), 'time'])] }
+        : action);
+      const clarification = clarificationActions[0] || {
+        domain: 'clarification',
+        action: 'request',
+        question: defaultPendingQuestion(stagedDrafts, context.language),
+        missingFields: pendingMissingFields(stagedDrafts),
+      };
+      savePendingIntentState(context.user, stagedDrafts, {
+        question: clarification.question || '',
+        missingFields: pendingMissingFields(stagedDrafts, clarification),
+      });
+      const stagedSet = new Set(staged);
+      actions = actions.filter((action) => !stagedSet.has(action));
+      if (clarificationActions.length === 0) actions.push(clarification);
+    }
   }
 
   // Resolve contextual identities once against the pre-mutation snapshot. This
@@ -636,8 +824,12 @@ export async function executeTurnIntent(intent, context) {
     facts.push(fact);
 
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
-      updateWorkingMemoryFromExecution({ user: context.user, toolName, params, result });
+      updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result });
     }
+  }
+
+  if (pendingEffect === 'resolve' && records.length > 0 && records.every(({ result }) => result.success && !result.requiresClarification)) {
+    clearPendingIntentState(context.user);
   }
 
   return { records, facts, excluded: intent?.excluded || [] };

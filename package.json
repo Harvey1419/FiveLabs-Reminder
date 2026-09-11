@@ -9,6 +9,7 @@
     "start": "node src/app/server.js",
     "dev": "node --watch src/app/server.js",
     "chat": "node scripts/dev/interactive-chat.js",
+    "memory:reindex": "node scripts/maintenance/reindex-memory-embeddings.js",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --config tests/config/vitest.unit.js",
     "test:integration": "node scripts/checks/integration-environment.js && vitest run --config tests/config/vitest.integration.js",

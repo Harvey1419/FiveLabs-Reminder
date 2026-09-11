@@ -6,7 +6,7 @@ import {
   callOpenRouterChat,
 } from '../../../src/agent/providers/client.js';
 import { processDocumentOrImage } from '../../../src/integrations/media/document-processor.js';
-import { generateEmbedding } from '../../../src/integrations/ai/embeddings.js';
+import { generateEmbedding, generateEmbeddings } from '../../../src/integrations/ai/embeddings.js';
 import { transcribeAudio } from '../../../src/integrations/media/transcription.js';
 
 function openRouterResponse(content, provider = 'test-provider') {
@@ -143,7 +143,7 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
       .mockResolvedValueOnce(new Response('secondary unavailable', { status: 503 }))
       .mockResolvedValueOnce(new Response('last resort unavailable', { status: 503 }));
     const result = await callChatCompletion([{ role: 'user', content: 'continúa' }]);
-    expect(result).toContain('intermitencia');
+    expect(result).toContain('No pude completar esa acción');
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const payloads = fetchMock.mock.calls.map(([, options]) => JSON.parse(options.body));
     expect(payloads.map((payload) => payload.model)).toEqual([
@@ -285,6 +285,27 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
       model: 'openai/text-embedding-3-small', input: 'Vivo en Barranquilla',
       dimensions: 768, encoding_format: 'float',
     });
+  });
+
+  it('batches embeddings for controlled memory reindexing without changing order', async () => {
+    const first = Array.from({ length: 768 }, () => 0.1);
+    const second = Array.from({ length: 768 }, () => 0.2);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: [
+        { embedding: second, index: 1, object: 'embedding' },
+        { embedding: first, index: 0, object: 'embedding' },
+      ],
+      model: 'openai/text-embedding-3-small', object: 'list',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const result = await generateEmbeddings(['profile/occupation\nTrabaja en logística.', 'profile/residence\nVive en Cali.']);
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+
+    expect(result).toEqual([first, second]);
+    expect(payload.input).toEqual([
+      'profile/occupation\nTrabaja en logística.',
+      'profile/residence\nVive en Cali.',
+    ]);
   });
 
   it('uses OpenRouter instead of a direct Gemini API for audio fallback', async () => {

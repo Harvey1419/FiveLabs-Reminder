@@ -30,6 +30,7 @@ import {
 } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
+import { mergePendingIntentActions } from '../core/pending-intent.js';
 
 const MAX_HISTORY_TURNS = 30;
 const MAX_HISTORY_CHARS = 12000;
@@ -82,7 +83,9 @@ function normalizeModelResponse(modelResponse) {
     content: typeof modelResponse.content === 'string' ? modelResponse.content.trim() : '',
     toolCalls,
     unavailable: modelResponse.unavailable === true,
+    unavailableReason: modelResponse.unavailableReason || null,
     refused: modelResponse.refused === true,
+    structuredIntent: modelResponse.structuredIntent || null,
   };
 }
 
@@ -128,10 +131,39 @@ function conversationReplyFromActions(actions = []) {
 function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
   if (modelResponse?.unavailable) return { unavailable: true, validation: null };
   if (modelResponse?.toolCalls?.length) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión foreground no admite llamadas a herramientas.' } };
-  const parsed = parseIntentArguments(modelResponse?.content);
-  if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };
+  if (modelResponse?.structuredIntent) return { unavailable: false, validation: { valid: true, intent: modelResponse.structuredIntent } };
+  return { unavailable: false, validation: validateStructuredTurnContent(modelResponse?.content, { isAdmin }) };
+}
+
+function validateStructuredTurnContent(content, { isAdmin = false, pendingIntent = null } = {}) {
+  const parsed = parseIntentArguments(content);
+  if (!parsed) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' };
   const canonical = projectStructuredTurnIntent(stripStructuredNulls(parsed));
-  return { unavailable: false, validation: validateTurnIntent(canonical, { isAdmin }) };
+  const validation = validateTurnIntent(canonical, { isAdmin });
+  if (!validation.valid) return validation;
+
+  const effect = validation.intent.pendingIntentEffect || null;
+  const continuationActions = validation.intent.actions.filter((action) => !['conversation', 'clarification', 'pending'].includes(action.domain));
+  if (effect && !pendingIntent) {
+    // A stale transition marker is harmless only when the current actions form
+    // a valid standalone TurnIntent after removing it. Complete operations can
+    // execute and typed partial operations can start a fresh draft; fragments
+    // that depended on missing prior state still fail closed.
+    const { pendingIntentEffect: _effect, ...intent } = validation.intent;
+    const standalone = validateTurnIntent(intent, { isAdmin });
+    if (standalone.valid) return standalone;
+    return { valid: false, errorCode: 'NO_PENDING_INTENT', error: 'La respuesta intentó continuar un estado que ya no está disponible.' };
+  }
+  if (pendingIntent && !effect && continuationActions.length > 0) {
+    return { valid: false, errorCode: 'PENDING_INTENT_EFFECT_REQUIRED', error: 'La respuesta no declaró cómo relacionar la operación actual con la intención pendiente.' };
+  }
+  if (effect === 'resolve') {
+    const merged = mergePendingIntentActions(pendingIntent, continuationActions);
+    if (!merged.valid) return merged;
+    const complete = validateTurnIntent({ actions: merged.actions }, { isAdmin });
+    if (!complete.valid) return { valid: false, errorCode: 'INCOMPLETE_PENDING_CONTINUATION', error: 'La continuación aún no produce una operación completa.' };
+  }
+  return validation;
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
@@ -216,8 +248,8 @@ function structuredDecisionError(language) {
 
 function providerUnavailableError(language) {
   return language === 'en'
-    ? 'I could not access the AI provider right now. I did not execute any action. Please try again shortly.'
-    : 'Ahora mismo no pude acceder al proveedor de IA. No ejecuté ninguna acción. Inténtalo de nuevo en un momento.';
+    ? 'I could not complete that action right now. I did not execute anything. Please try again in a moment.'
+    : 'No pude completar esa acción en este momento. No ejecuté ninguna acción. Inténtalo nuevamente en un momento.';
 }
 
 /**
@@ -292,6 +324,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let rawPastTurns = Array.isArray(history) ? history.slice() : [];
   const lastTurn = rawPastTurns.at(-1);
   if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) rawPastTurns.pop();
+  const pendingOrigin = rawPastTurns.at(-1)?.entities?._conversationState?.pendingIntent;
+  if (workingMemory?.pendingIntent && pendingOrigin?.actions?.length) {
+    // The typed pending draft is the compact operational source of truth. Do
+    // not also replay the user/assistant pair that created it, which can make
+    // a model re-emit already executed siblings from that original batch.
+    rawPastTurns = rawPastTurns.slice(0, rawPastTurns.at(-2)?.role === 'user' ? -2 : -1);
+  }
   const pastTurns = compactHistoryForModel(rawPastTurns);
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
   const historyChars = pastTurns.reduce((sum, turn) => sum + turn.content.length, 0);
@@ -317,6 +356,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       responseFormat: turnResponseFormat,
       returnMessage: true,
       purpose: 'initial',
+      language,
+      validateStructuredContent: (content) => validateStructuredTurnContent(content, { isAdmin, pendingIntent: workingMemory?.pendingIntent || null }),
     });
   } catch (error) {
     console.warn(`[router req=${requestId}] model failed:`, error.message);
@@ -356,7 +397,15 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       ctaUrl: null,
       ctaHeader: null,
       ctaButtonText: null,
-      plan: { type: decision.refused ? 'provider_refusal' : decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision' },
+      plan: {
+        type: decision.refused
+          ? 'provider_refusal'
+          : decision.unavailableReason === 'schema_rejection'
+            ? 'schema_rejection'
+            : ['invalid_structured_output', 'structured_generation_rejection'].includes(decision.unavailableReason)
+              ? 'invalid_structured_output'
+              : decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision',
+      },
       executionFacts: [],
       memoryDisposition: 'skip_operational',
     };
