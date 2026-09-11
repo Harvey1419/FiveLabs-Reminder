@@ -5,6 +5,7 @@ import {
   deduplicateEntities,
   getEntitiesByUser,
   deleteEntities,
+  inspectOwnedEntityReferences,
 } from '../../infrastructure/database/index.js';
 
 /**
@@ -29,6 +30,35 @@ export async function executeEntityTool({ action, params = {}, user, language = 
           errorCode: 'INVALID_PARAMETERS',
           error: 'Falta el nombre de la entidad.',
           rawSummary: 'Falta el nombre de la entidad.',
+        };
+      }
+
+      const preflight = await inspectOwnedEntityReferences({
+        userId,
+        references: [{ name, category }],
+      });
+      if (!preflight.success) {
+        return {
+          success: false,
+          action: 'database_error',
+          errorCode: preflight.errorCode || 'DATABASE_ERROR',
+          error: preflight.error || 'No se pudo validar la entidad.',
+          rawSummary: preflight.error || 'No se pudo validar la entidad.',
+        };
+      }
+      const resolution = preflight.resolutions[0];
+      if (resolution?.status === 'AMBIGUOUS') {
+        const names = (resolution.candidates || []).slice(0, 5).map((entity) => entity.name).join(', ');
+        const question = language === 'en'
+          ? `Which entity did you mean: ${names}?`
+          : `¿A cuál entidad te refieres: ${names}?`;
+        return {
+          success: false,
+          action: 'ambiguous_entity',
+          errorCode: 'AMBIGUOUS_TARGET',
+          error: question,
+          rawSummary: question,
+          requiresClarification: true,
         };
       }
 

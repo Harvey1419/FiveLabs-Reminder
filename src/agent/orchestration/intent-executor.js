@@ -563,18 +563,55 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
         ? 'reminder'
         : toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'task';
 
+  const uniformEntityName = items.length > 0
+    && items.every((item) => item?.entityName && item.entityName === items[0]?.entityName)
+    ? items[0].entityName
+    : null;
+  const uniformEntityId = items.length > 0
+    ? items
+      .map((item) => item?.entityId || item?.raw?.entity_id || item?.raw?.entityId || item?.raw?.entities?.id || null)
+      .filter(Boolean)
+      .find((id, _index, ids) => ids.every((candidate) => candidate === id)) || null
+    : null;
+  const activeEntity = result.data?.entityName
+    || params.entityName
+    || (toolName === TOOL_NAMES.MANAGE_ENTITY ? result.data?.name : null)
+    || uniformEntityName;
+  const activeEntityId = result.data?.entityId
+    || (toolName === TOOL_NAMES.MANAGE_ENTITY ? result.data?.id : null)
+    || uniformEntityId;
+
+  let workingItems = items;
+  const sameContainer = Boolean(
+    existingMemory
+    && toolName === TOOL_NAMES.MANAGE_TASK
+    && params.action === 'create'
+    && (
+      (activeEntityId && existingMemory.activeEntityId === activeEntityId)
+      || (activeEntity && existingMemory.activeEntity === activeEntity)
+    )
+  );
+  if (sameContainer) {
+    const byId = new Map();
+    for (const item of [...(existingMemory.items || []), ...items]) {
+      const id = String(item?.internalId || item?.id || '').trim();
+      if (id) byId.set(id, item);
+    }
+    workingItems = [...byId.values()].slice(-10);
+  }
+
   saveWorkingMemory(user, {
     source,
     scope: params.scope || 'current',
     semanticQuery: params.query || null,
     entityType: uniform ? firstType : 'all',
-    activeEntity: result.data?.entityName || params.entityName || items[0]?.entityName || null,
-    activeEntityId: result.data?.entityId || items[0]?.entityId || items[0]?.raw?.entity_id || null,
+    activeEntity,
+    activeEntityId,
     lastAction: toolName,
     pendingIntent: existingMemory?.pendingIntent || null,
     pendingExpiresAt: existingMemory?.pendingExpiresAt || null,
     pendingClarifications: existingMemory?.pendingClarifications || [],
-    items,
+    items: workingItems,
   });
 }
 
@@ -779,6 +816,7 @@ export async function executeTurnIntent(intent, context) {
   const facts = [];
 
   for (let index = 0; index < actions.length; index += 1) {
+    const actionIndex = index;
     const action = actions[index];
     let toolName = 'orchestrator';
     let params = {};
@@ -790,22 +828,29 @@ export async function executeTurnIntent(intent, context) {
       params = pendingOutcome.params;
       result = pendingOutcome.result;
     } else {
-      const prepared = buildDomainCall(action, context);
-      if (!prepared.valid) {
-        result = failedResult(prepared.errorCode, prepared.error, context.language, { requiresClarification: prepared.requiresClarification });
-      } else if (prepared.orchestrationOnly) {
-        result = prepared.result;
-      } else {
-        toolName = prepared.toolName;
-        params = prepared.params;
-        if (
-          pinnedReminderTargets.has(index)
-          && toolName === TOOL_NAMES.MANAGE_REMINDER
-          && params.action === 'cancel'
-          && !params.scope
+      const taskCreateBatch = [];
+      let batchEnd = index;
+      if (action.domain === 'task' && action.action === 'create') {
+        while (
+          batchEnd < actions.length
+          && actions[batchEnd]?.domain === 'task'
+          && actions[batchEnd]?.action === 'create'
         ) {
-          params = { ...params, target: pinnedReminderTargets.get(index) };
+          taskCreateBatch.push(buildDomainCall(actions[batchEnd], context));
+          batchEnd += 1;
         }
+      }
+
+      const invalidBatchItem = taskCreateBatch.find((prepared) => !prepared.valid);
+      if (invalidBatchItem) {
+        result = failedResult(invalidBatchItem.errorCode, invalidBatchItem.error, context.language, { requiresClarification: invalidBatchItem.requiresClarification });
+        index = batchEnd - 1;
+      } else if (taskCreateBatch.length > 0) {
+        toolName = TOOL_NAMES.MANAGE_TASK;
+        params = {
+          action: 'create',
+          items: taskCreateBatch.flatMap((prepared) => prepared.params.items || []),
+        };
         result = await executeTool({
           toolName,
           params,
@@ -815,10 +860,38 @@ export async function executeTurnIntent(intent, context) {
           correlationId: context.correlationId,
           referenceTime: context.referenceTime,
         });
+        index = batchEnd - 1;
+      } else {
+        const prepared = buildDomainCall(action, context);
+        if (!prepared.valid) {
+          result = failedResult(prepared.errorCode, prepared.error, context.language, { requiresClarification: prepared.requiresClarification });
+        } else if (prepared.orchestrationOnly) {
+          result = prepared.result;
+        } else {
+          toolName = prepared.toolName;
+          params = prepared.params;
+          if (
+            pinnedReminderTargets.has(index)
+            && toolName === TOOL_NAMES.MANAGE_REMINDER
+            && params.action === 'cancel'
+            && !params.scope
+          ) {
+            params = { ...params, target: pinnedReminderTargets.get(index) };
+          }
+          result = await executeTool({
+            toolName,
+            params,
+            user: context.user,
+            isPro: context.isPro,
+            language: context.language,
+            correlationId: context.correlationId,
+            referenceTime: context.referenceTime,
+          });
+        }
       }
     }
 
-    const callId = `intent_${index + 1}`;
+    const callId = `intent_${actionIndex + 1}`;
     const fact = createExecutionFact({ toolName, params, result, callId, language: context.language });
     records.push({ action, toolName, params, result, fact });
     facts.push(fact);

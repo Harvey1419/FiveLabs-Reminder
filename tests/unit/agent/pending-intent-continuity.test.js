@@ -270,9 +270,9 @@ describe('TEST #66 — typed pending-intent continuity', () => {
       })),
     }, context);
 
-    expect(executeTool).toHaveBeenCalledTimes(2);
-    expect(executeTool.mock.calls.map(([call]) => call.params.items[0].title)).toEqual(['Comprar leche', 'Comprar pan']);
-    expect(executeTool.mock.calls.every(([call]) => call.params.entityName === 'Compras')).toBe(true);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0].params.items.map((item) => item.title)).toEqual(['Comprar leche', 'Comprar pan']);
+    expect(executeTool.mock.calls[0][0].params.items.every((item) => item.entityName === 'Compras')).toBe(true);
   });
 
   it('preserves the pending intent and its original TTL across independent operations', async () => {

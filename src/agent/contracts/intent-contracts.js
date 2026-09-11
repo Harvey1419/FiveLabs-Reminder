@@ -67,9 +67,9 @@ const actionSchema = {
     action: { type: 'string' },
     target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For pending actions it selects only the pending proposal.' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
-    title: { type: 'string' }, description: { type: 'string' },
-    entityName: { type: 'string' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
-    category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'] },
+    title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
+    entityName: { type: 'string', description: 'Human name of the related entity. On task actions this is the project container that owns the task; repeat it on every item in a compound operational collection.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
+    category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
     scope: { type: 'string', description: `Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
@@ -107,6 +107,7 @@ export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as ca
 conversation.reply is non-operational and cannot claim reads/mutations. agenda.read is cross-domain live inventory; use reminder/task/calendar for domain-specific reads. Never reconstruct live state from chat history.
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
+OPERATIONAL COLLECTIONS: infer from members, not labels. Actionable members => entity.upsert category=project first + one task.create each sharing entityName/category=project; reuse it. Item add/read/complete/remove stays in task scoped by entityName. entity.list/delete concerns the container; people/company/place/knowledge collections stay entities. Never collapse members.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
 For missing data, keep partial canonical actions with missingFields and a question; add one clarification.request when possible, never one per field/item. Given a typed pending intent, retain known fields, replace explicit corrections and map via continuationIndex. pendingIntentEffect is resolve only when complete, replace when still incomplete, preserve for another topic; pending.discard cancels.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.

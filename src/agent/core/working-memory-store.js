@@ -342,7 +342,11 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
 
   const sourceDesc = wm.source === 'unified'
     ? 'Agenda Unificada'
-    : (wm.source === 'calendar' ? 'Google Calendar' : (wm.source === 'reminder' ? 'Recordatorios' : 'Tareas'));
+    : (wm.source === 'calendar'
+      ? 'Google Calendar'
+      : (wm.source === 'reminder'
+        ? 'Recordatorios'
+        : (wm.source === 'entity' ? 'Proyectos/Entidades' : 'Tareas')));
 
   const containerInfo = wm.activeEntity ? ` | Contenedor: "${wm.activeEntity}"` : '';
   const containerInstruction = wm.activeEntity

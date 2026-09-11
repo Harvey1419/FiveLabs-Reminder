@@ -1,6 +1,7 @@
 import {
   createTask,
   findOrCreateEntityFuzzy,
+  inspectOwnedEntityReferences,
   saveReminder,
 } from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
@@ -35,6 +36,75 @@ export async function executeTaskCreate({
     };
   }
 
+  const containerRequests = [];
+  const seenContainers = new Set();
+  for (const item of rawItems) {
+    const name = String(item?.entityName || '').trim();
+    if (!name) continue;
+    const category = item?.entityCategory || 'project';
+    const identity = `${category}\u0000${name.toLocaleLowerCase()}`;
+    if (seenContainers.has(identity)) continue;
+    seenContainers.add(identity);
+    containerRequests.push({ name, category });
+  }
+
+  const preflight = await inspectOwnedEntityReferences({ userId, references: containerRequests });
+  if (!preflight.success) {
+    return {
+      success: false,
+      action: 'database_error',
+      errorCode: preflight.errorCode || 'DATABASE_ERROR',
+      error: preflight.error || 'No se pudieron validar los proyectos de las tareas.',
+      rawSummary: preflight.error || 'No se pudieron validar los proyectos de las tareas.',
+    };
+  }
+  const ambiguous = preflight.resolutions.find((resolution) => resolution.status === 'AMBIGUOUS');
+  if (ambiguous) {
+    const names = (ambiguous.candidates || []).slice(0, 5).map((entity) => entity.name).join(', ');
+    const question = language === 'en'
+      ? `Which project did you mean: ${names}?`
+      : `¿A cuál proyecto te refieres: ${names}?`;
+    return {
+      success: false,
+      action: 'ambiguous_entity',
+      errorCode: 'AMBIGUOUS_TARGET',
+      error: question,
+      rawSummary: question,
+      requiresClarification: true,
+    };
+  }
+
+  const resolvedContainers = new Map();
+  for (const request of containerRequests) {
+    const identity = `${request.category}\u0000${request.name.toLocaleLowerCase()}`;
+    try {
+      const entity = await findOrCreateEntityFuzzy({
+        userId,
+        name: request.name,
+        category: request.category,
+      });
+      if (!entity?.id) {
+        return {
+          success: false,
+          action: 'database_error',
+          errorCode: 'DATABASE_ERROR',
+          error: 'No se pudo resolver el proyecto de las tareas.',
+          rawSummary: 'No se pudo resolver el proyecto de las tareas.',
+        };
+      }
+      resolvedContainers.set(identity, entity);
+    } catch (error) {
+      console.warn('[task-create] entity resolution error:', error.message);
+      return {
+        success: false,
+        action: 'database_error',
+        errorCode: 'DATABASE_ERROR',
+        error: 'No se pudo resolver el proyecto de las tareas.',
+        rawSummary: 'No se pudo resolver el proyecto de las tareas.',
+      };
+    }
+  }
+
   for (const item of rawItems) {
     const title = item.title || '';
     const entityName = item.entityName || null;
@@ -61,19 +131,10 @@ export async function executeTaskCreate({
     let entityId = null;
     let resolvedEntityName = null;
     if (entityName) {
-      try {
-        const entity = await findOrCreateEntityFuzzy({
-          userId,
-          name: entityName,
-          category: entityCategory,
-        });
-        if (entity) {
-          entityId = entity.id;
-          resolvedEntityName = entity.name;
-        }
-      } catch (error) {
-        console.warn('[task-create] entity resolution error:', error.message);
-      }
+      const identity = `${entityCategory}\u0000${String(entityName).trim().toLocaleLowerCase()}`;
+      const entity = resolvedContainers.get(identity);
+      entityId = entity.id;
+      resolvedEntityName = entity.name;
     }
 
     let parsedDueDate = null;

@@ -75,6 +75,32 @@ beforeEach((context) => {
   responses = [];
   caseName = context.task.name;
   executeTool.mockImplementation(async ({ toolName, params }) => {
+    if (toolName === 'manage_entity' && ['create', 'upsert'].includes(params.action)) {
+      return { success: true, complete: true, action: 'created_entity', data: { id: 'synthetic-project', name: params.name, category: params.category } };
+    }
+    if (toolName === 'manage_task' && params.action === 'create') {
+      return {
+        success: true,
+        complete: true,
+        action: 'created_tasks_batch',
+        data: params.items.map((item, index) => ({
+          id: `synthetic-task-${index + 1}`,
+          title: item.title,
+          entityId: 'synthetic-project',
+          entityName: item.entityName,
+        })),
+      };
+    }
+    if (toolName === 'manage_task' && params.action === 'list') {
+      const entityName = params.entityName || 'Cosas para el viaje';
+      const tasks = ['Pasaporte', 'Cargador', 'Bloqueador'].map((title, index) => ({
+        id: `synthetic-task-${index + 1}`, title, status: 'pending', entityName,
+      }));
+      return { success: true, complete: true, action: 'listed_tasks', data: { tasks, items: tasks, entityName } };
+    }
+    if (toolName === 'manage_task' && ['complete', 'delete'].includes(params.action)) {
+      return { success: true, complete: true, action: `${params.action}d_task`, data: { id: 'synthetic-task-1', title: params.target, entityName: params.entityName || 'Cosas para el viaje' } };
+    }
     if (toolName !== 'manage_reminder') throw new Error('Acceptance sandbox blocks unrelated tools.');
     if (params.action === 'create') {
       return { success: true, complete: true, action: 'created_reminder', data: { timezone: user.timezone, items: params.items.map((item) => ({ id: `synthetic-${item.content}`, content: item.content, sendAt: item.targetTime })) } };
@@ -235,6 +261,53 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     const mutations = executeTool.mock.calls.map(([call]) => call).filter((call) => call.params.action === 'cancel');
     expect(mutations).toHaveLength(2);
     expect(mutations.map((call) => call.params.target)).toEqual(['synthetic-alpha', 'synthetic-gamma']);
+  });
+
+  it('represents and continues an operational collection as one project with task members', async () => {
+    const created = await routeMessage('Crea cosas para el viaje con pasaporte, cargador y bloqueador.', user, [], reference);
+    const createdActions = created.plan.actions.map(({ domain, action }) => `${domain}.${action}`);
+    expect(createdActions.slice(1)).toEqual(['task.create', 'task.create', 'task.create']);
+    expect(['entity.create', 'entity.upsert']).toContain(createdActions[0]);
+
+    const createCalls = executeTool.mock.calls.map(([call]) => call);
+    expect(createCalls[0]).toMatchObject({ toolName: 'manage_entity', params: { category: 'project' } });
+    expect(['create', 'upsert']).toContain(createCalls[0].params.action);
+    expect(createCalls[1]).toMatchObject({ toolName: 'manage_task', params: { action: 'create' } });
+    expect(createCalls[1].params.items).toHaveLength(3);
+    const containerName = createCalls[0].params.name;
+    expect(new Set(createCalls[1].params.items.map((item) => item.entityName))).toEqual(new Set([containerName]));
+
+    executeTool.mockClear();
+    const added = await routeMessage('Agrega protector solar.', user, [], reference);
+    expect(added.plan.actions).toEqual([{ domain: 'task', action: 'create' }]);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({ action: 'create' }),
+    }));
+    expect(executeTool.mock.calls[0][0].params.items[0].entityName).toBe(containerName);
+
+    executeTool.mockClear();
+    const listed = await routeMessage('¿Qué llevo ahí?', user, [], reference);
+    expect(listed.plan.actions).toEqual([{ domain: 'task', action: 'list' }]);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({ action: 'list', entityName: containerName }),
+    }));
+
+    executeTool.mockClear();
+    const completed = await routeMessage('Ya guardé el pasaporte.', user, [], reference);
+    expect(completed.plan.actions).toEqual([{ domain: 'task', action: 'complete' }]);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({ action: 'complete', target: expect.stringMatching(/pasaporte/i) }),
+    }));
+  });
+
+  it('keeps a non-actionable collection of people in the entity domain', async () => {
+    const result = await routeMessage('Registra a Ana y Luis como dos personas de mi equipo.', user, [], reference);
+    expect(result.plan.actions).toHaveLength(2);
+    expect(result.plan.actions.every(({ domain, action }) => domain === 'entity' && ['create', 'upsert'].includes(action))).toBe(true);
+    expect(executeTool.mock.calls.every(([call]) => call.toolName === 'manage_entity')).toBe(true);
   });
 
   extendedIt.each([1, 2, 3])('keeps three different reminder hours associated with their subjects, repetition %i', async () => {
