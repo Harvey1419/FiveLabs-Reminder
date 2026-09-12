@@ -130,6 +130,30 @@ function normalizeRecurringReminder(action, context) {
 }
 
 /**
+ * Natural bulk entity deletion phrases (e.g. "all projects", "todos los proyectos")
+ * normalize to scope="all" and category="project".
+ */
+function normalizeEntityDelete(action) {
+  if (action.domain !== 'entity' || action.action !== 'delete') return action;
+
+  const targetStr = String(action.target || action.entityName || '').trim();
+  const isBulkTarget = /^(all\s+(projects|entities|lists)|(todos\s+los|todas\s+las)\s+(proyectos|entidades|listas))/i.test(targetStr);
+
+  if (isBulkTarget || action.scope === 'all' || Array.isArray(action.preserveNames)) {
+    return {
+      ...action,
+      scope: 'all',
+      category: action.category || 'project',
+      target: isBulkTarget ? null : action.target,
+      entityName: isBulkTarget ? null : action.entityName,
+      preserveNames: Array.isArray(action.preserveNames) ? action.preserveNames : [],
+    };
+  }
+
+  return action;
+}
+
+/**
  * Add deterministic runtime context only. This layer never changes semantic
  * domain/action and never turns identity/context into patch content.
  */
@@ -141,6 +165,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);
     action = normalizeRecurringReminder(action, context);
+    action = normalizeEntityDelete(action);
     return action;
   });
   return { ...intent, actions };

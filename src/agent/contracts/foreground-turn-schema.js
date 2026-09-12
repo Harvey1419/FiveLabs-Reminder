@@ -7,7 +7,7 @@ import {
 // Provider-only projection: the canonical schema and deterministic action
 // prerequisites remain authoritative. Avoid polymorphic object unions, whose
 // compilation/generation was rejected by the actual Groq endpoint.
-function strictProviderSchema(schema) {
+export function strictProviderSchema(schema) {
   const node = structuredClone(schema);
   delete node.uniqueItems;
   if (node.items) node.items = strictProviderSchema(node.items);

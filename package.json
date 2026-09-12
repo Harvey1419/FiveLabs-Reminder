@@ -13,7 +13,8 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run --config tests/config/vitest.unit.js",
     "test:integration": "node scripts/checks/integration-environment.js && vitest run --config tests/config/vitest.integration.js",
-    "test:agent-live": "node scripts/evals/agent-production.js"
+    "test:agent-live": "node scripts/evals/agent-production.js",
+    "test:bench": "node scripts/dev/live-convergence-bench.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

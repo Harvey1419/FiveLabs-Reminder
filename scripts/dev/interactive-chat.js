@@ -73,8 +73,10 @@ async function startInteractiveSession() {
         await supabase.from('memories').delete().eq('user_id', user.id);
         await supabase.from('tasks').delete().eq('user_id', user.id);
         await supabase.from('reminders').delete().eq('user_id', user.id);
+        await supabase.from('entities').delete().eq('user_id', user.id);
+        await supabase.from('agent_runs').delete().eq('user_id', user.id);
         await supabase.from('messages').delete().eq('user_id', user.id);
-        console.log('🧹 Todos los datos de prueba fueron eliminados de Supabase.');
+        console.log('🧹 Todos los datos de prueba fueron eliminados de Supabase (incluyendo entities y agent_runs).');
         promptUser();
         return;
       }
