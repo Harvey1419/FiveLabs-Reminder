@@ -677,6 +677,22 @@ export async function executeTurnIntent(intent, context) {
       } else {
         toolName = prepared.toolName;
         params = prepared.params;
+        if (
+          pinnedReminderTargets instanceof Map
+          && pinnedReminderTargets.has(index)
+          && toolName === TOOL_NAMES.MANAGE_REMINDER
+          && ['cancel', 'update'].includes(params.action)
+          && !params.scope
+        ) {
+          const pinnedId = pinnedReminderTargets.get(index);
+          if (pinnedId) {
+            params = {
+              ...params,
+              target: pinnedId,
+              reminderId: pinnedId,
+            };
+          }
+        }
         result = await executeTool({
           toolName,
           params,
@@ -687,11 +703,6 @@ export async function executeTurnIntent(intent, context) {
           referenceTime: context.referenceTime,
         });
       }
-    }
-
-    if (action.domain === 'reminder' && ['update', 'cancel'].includes(action.action)) {
-      const pinned = pinnedReminderTargets.find((candidate) => candidate.index === actionIndex);
-      if (pinned?.targetId) params = { ...params, reminderId: pinned.targetId };
     }
 
     const fact = createExecutionFact({

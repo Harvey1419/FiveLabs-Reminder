@@ -1,8 +1,8 @@
 import { resolveContextReference } from '../core/context-reference.js';
 
-function isSingleReminderCancellation(action) {
+function isSingleReminderTargetAction(action) {
   return action?.domain === 'reminder'
-    && action?.action === 'cancel'
+    && ['cancel', 'update'].includes(action?.action)
     && !['all', 'elapsed'].includes(action?.scope)
     && typeof action?.target === 'string'
     && action.target.trim().length > 0;
@@ -33,7 +33,7 @@ export function pinReminderCancellationTargets(actions = [], workingMemory = nul
   const ambiguousGroups = new Map();
 
   actions.forEach((action, index) => {
-    if (!isSingleReminderCancellation(action)) return;
+    if (!isSingleReminderTargetAction(action)) return;
 
     const reference = action.target.trim();
     const resolved = resolveContextReference({
@@ -76,3 +76,5 @@ export function pinReminderCancellationTargets(actions = [], workingMemory = nul
 
   return pinned;
 }
+
+export const pinReminderTargets = pinReminderCancellationTargets;
