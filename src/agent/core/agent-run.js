@@ -7,8 +7,7 @@ import {
   updatePreparedActionInDb,
   recordExecutionEventInDb,
 } from '../../infrastructure/database/agent-runs.js';
-import { mergePendingSchedule } from './pending-intent.js';
-import { resolveTypedSchedule } from '../orchestration/typed-schedule.js';
+import { resolveTypedSchedule, mergePendingSchedule } from '../orchestration/typed-schedule.js';
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { createExecutionFact } from './execution-facts.js';

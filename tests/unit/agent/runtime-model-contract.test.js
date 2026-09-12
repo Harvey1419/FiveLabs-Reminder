@@ -32,6 +32,7 @@ import { executeTool } from '../../../src/agent/tools/index.js';
 import { clearWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory.js';
 import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import { getActiveAgentRun } from '../../../src/agent/core/agent-run.js';
 import { isAdminUser } from '../../../src/shared/auth.js';
 
 describe('mandatory runtime model contract', () => {
@@ -64,9 +65,15 @@ function withNullPlaceholders(value, schema = TURN_INTENT_SCHEMA) {
   if (value === null) return null;
   if (Array.isArray(value)) return value.map((item) => withNullPlaceholders(item, schema.items));
   if (schema.properties && value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(schema.properties).map(([key, child]) => [
+    const result = Object.fromEntries(Object.entries(schema.properties).map(([key, child]) => [
       key, Object.hasOwn(value, key) ? withNullPlaceholders(value[key], child) : null,
     ]));
+    for (const key of Object.keys(value)) {
+      if (!Object.hasOwn(result, key)) {
+        result[key] = value[key];
+      }
+    }
+    return result;
   }
   return value;
 }
@@ -126,14 +133,6 @@ describe('canonical uniqueness after Groq schema adaptation', () => {
     ] })).toMatchObject({ valid: true });
   });
 
-  it('rejects pending resolve or replace transitions without a domain continuation', () => {
-    for (const pendingIntentEffect of ['resolve', 'replace']) {
-      expect(validateTurnIntent({
-        pendingIntentEffect,
-        actions: [{ domain: 'clarification', action: 'request', question: 'Falta un dato' }],
-      })).toMatchObject({ valid: false, errorCode: 'INVALID_PENDING_CONTINUATION' });
-    }
-  });
 
   it.each([
     { missingFields: [] },
@@ -246,7 +245,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     action.required = ['operation'];
     // Provider composition changes only: canonical prerequisites remain checked
     // by validateTurnIntent before any domain action, including missing schedules.
-    expectedCanonical.properties.actions.items.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part is missing, keep known components on the partial action, declare missingFields and put the clarification question on that action; at most one clarification.request may accompany the coherent pending intent. Each action retains its own known date/time components.';
+    expectedCanonical.properties.actions.items.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part is missing, keep known components on the partial action, declare missingFields and put the clarification question on that action; at most one clarification.request may accompany the incomplete draft. Each action retains its own known date/time components.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
     expectedCanonical.properties.actions.items.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
     for (const field of ['schedule', 'endSchedule']) {
@@ -275,7 +274,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('accepts a provider partial reminder as pending instead of falling back or mutating', async () => {
+  it('accepts a provider partial reminder and stages an agent run for continuation', async () => {
     fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
       domain: 'reminder', action: 'create', content: 'Pagar factura',
       schedule: { kind: 'relative_day_time', dayOffset: 1 },
@@ -287,108 +286,11 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(result.executionFacts).toHaveLength(1);
     expect(result.executionFacts[0]).toMatchObject({ requiresClarification: true });
-    expect(result.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
-      domain: 'reminder', action: 'create', content: 'Pagar factura',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 },
-      missingFields: ['time'],
+    const run = await getActiveAgentRun(user, new Date(turnOptions.requestTimeMs));
+    expect(run).toMatchObject({
+      kind: 'reminder_creation',
+      status: 'waiting_for_input',
     });
-  });
-
-  it('TEST #66 preserves one incomplete compound intent across turns and merges only the missing clocks', async () => {
-    const contents = ['Pendiente A', 'Pendiente B', 'Pendiente C'];
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
-      ...contents.map((content) => ({
-        domain: 'reminder', action: 'create', content,
-        schedule: { kind: 'relative_day_time', dayOffset: 1 },
-        missingFields: ['time'],
-      })),
-      { domain: 'clarification', action: 'request', question: '¿A qué hora va cada pendiente?', missingFields: ['time'] },
-    ] }));
-
-    const first = await routeMessage('Recuérdame mañana mis pendientes', user, [], turnOptions);
-
-    expect(executeTool).not.toHaveBeenCalled();
-    expect(first.executionFacts).toHaveLength(1);
-    expect(first.entities._conversationState.pendingIntent.actions).toHaveLength(3);
-    expect(first.entities._conversationState.pendingClarifications).toEqual([]);
-    expect(first.entities._conversationState.pendingIntent.actions.every((action) => (
-      action.schedule.kind === 'relative_day_time' && action.schedule.dayOffset === 1
-    ))).toBe(true);
-
-    const history = [
-      { role: 'user', content: 'Recuérdame mañana mis pendientes' },
-      {
-        role: 'assistant', content: first.confirmation, entities: first.entities,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    clearWorkingMemory(user);
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'resolve',
-      actions: [8, 10, 12].map((hour, index) => ({
-        domain: 'reminder', action: 'create', continuationIndex: index + 1,
-        schedule: { kind: 'local_time', hour, minute: 0, clockMode: 'explicit_24h' },
-      })),
-    }));
-
-    const second = await routeMessage('A las horas indicadas', user, history, turnOptions);
-    expect(executeTool).toHaveBeenCalledTimes(3);
-    expect(executeTool.mock.calls.map(([call]) => call.params.items[0])).toEqual([
-      { content: 'Pendiente A', targetTime: '2026-09-10T13:00:00.000Z' },
-      { content: 'Pendiente B', targetTime: '2026-09-10T15:00:00.000Z' },
-      { content: 'Pendiente C', targetTime: '2026-09-10T17:00:00.000Z' },
-    ]);
-    expect(second.executionFacts.every((fact) => fact.success && fact.errorCode !== 'TIME_IN_PAST')).toBe(true);
-    const secondPayload = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(secondPayload.messages[0].content).toContain('[Typed Pending Intent');
-    expect(secondPayload.messages[0].content).toContain('"dayOffset":1');
-    expect(secondPayload.messages).toHaveLength(2);
-    expect(second.entities._conversationState.pendingIntent).toBeNull();
-  });
-
-  it('keeps an incomplete reminder intact across an independent operation and resolves it exactly once', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
-    }] }));
-
-    await routeMessage('Recuérdame mañana pagar el recibo.', user, [], turnOptions);
-    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
-    const originalExpiry = getWorkingMemory(user).pendingExpiresAt;
-    expect(executeTool).not.toHaveBeenCalled();
-
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'preserve',
-      actions: [{ domain: 'task', action: 'create', title: 'Comprar bombillos', projectless: true }],
-    }));
-    await routeMessage('Antes de eso, crea una tarea para comprar bombillos.', user, [], turnOptions);
-
-    expect(executeTool).toHaveBeenCalledTimes(1);
-    expect(executeTool.mock.calls[0][0].params).toMatchObject({
-      action: 'create', items: [{ title: 'Comprar bombillos' }],
-    });
-    expect(getWorkingMemory(user).pendingIntent).toEqual(originalPending);
-    expect(getWorkingMemory(user).pendingExpiresAt).toBe(originalExpiry);
-
-    const preservePayload = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(preservePayload.response_format.json_schema.schema.properties.pendingIntentEffect).toEqual(expect.objectContaining({
-      type: 'string', enum: ['resolve', 'replace', 'preserve', 'discard'],
-    }));
-
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'resolve',
-      actions: [{
-        domain: 'reminder', action: 'create', continuationIndex: 1,
-        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
-      }],
-    }));
-    await routeMessage('A las 9.', user, [], turnOptions);
-
-    expect(executeTool).toHaveBeenCalledTimes(2);
-    expect(executeTool.mock.calls[1][0].params.items).toEqual([{
-      content: 'Pagar el recibo', targetTime: '2026-09-10T14:00:00.000Z',
-    }]);
-    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
   });
 
   it('keeps operational focus distinct from Pending Intent across create, restart, add, and live read', async () => {
@@ -422,7 +324,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(first.executionFacts.every((fact) => fact.success)).toBe(true);
     expect(first.entities._conversationState.pendingIntent).toBeNull();
     expect(first.entities._conversationState.pendingClarifications).toEqual([]);
-    expect(first.entities._workingMemory).toMatchObject({ activeEntity: 'Viaje', pendingIntent: null });
+    expect(first.entities._workingMemory).toMatchObject({ activeEntity: 'Viaje' });
     expect(first.plan.actions.map(({ domain, action }) => `${domain}.${action}`)).toEqual([
       'entity.upsert', 'task.create', 'task.create', 'task.create',
     ]);
@@ -450,7 +352,7 @@ describe('foreground strict Structured Outputs boundary', () => {
       items: [{ title: 'Revisar el seguro de viaje', entityName: 'Viaje', entityCategory: 'project' }],
     });
     const secondSchema = JSON.parse(fetchMock.mock.calls[1][1].body).response_format.json_schema.schema;
-    expect(secondSchema.properties.pendingIntentEffect.type).toEqual(['string', 'null']);
+    expect(secondSchema.properties).not.toHaveProperty('pendingIntentEffect');
 
     fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [
       { domain: 'task', action: 'list', entityName: 'Viaje', status: 'pending' },
@@ -470,212 +372,19 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(third.entities._workingMemory.items).toHaveLength(4);
   });
 
-  it('rejects an incomplete resolve at the provider boundary and accepts a complete clock continuation exactly once', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
-    }] }));
-    await routeMessage('Solicitud temporal parcial', user, [], turnOptions);
-    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
-
-    fetchMock
-      .mockResolvedValueOnce(structuredResponse({
-        pendingIntentEffect: 'resolve',
-        actions: [{
-          domain: 'reminder', action: 'create', continuationIndex: 1,
-          schedule: { kind: 'local_time' },
-        }],
-      }))
-      .mockResolvedValueOnce(structuredResponse({
-        pendingIntentEffect: 'resolve',
-        actions: [{
-          domain: 'reminder', action: 'create', continuationIndex: 1,
-          schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
-        }],
-      }));
-
-    const result = await routeMessage('Continuación con una hora inequívoca', user, [], turnOptions);
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(executeTool).toHaveBeenCalledTimes(1);
-    expect(executeTool.mock.calls[0][0].params.items).toEqual([{
-      content: 'Pagar el recibo', targetTime: '2026-09-10T14:00:00.000Z',
-    }]);
-    expect(result.executionFacts).toHaveLength(1);
-    expect(result.executionFacts[0].success).toBe(true);
-    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
-    expect(originalPending.actions[0].missingFields).toEqual(['time']);
-  });
-
-  it('keeps the pending draft untouched when every provider returns a still-incomplete resolve', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
-    }] }));
-    await routeMessage('Solicitud temporal parcial', user, [], turnOptions);
-    const originalPending = structuredClone(getWorkingMemory(user).pendingIntent);
-
+  it('rejects legacy pendingIntentEffect and unknown properties at the provider boundary', async () => {
     fetchMock.mockImplementation(async () => structuredResponse({
-      pendingIntentEffect: 'resolve',
-      actions: [{
-        domain: 'reminder', action: 'create', continuationIndex: 1,
-        schedule: { kind: 'local_time' },
-      }],
-    }));
-    const result = await routeMessage('Continuación todavía incompleta', user, [], turnOptions);
-
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(executeTool).not.toHaveBeenCalled();
-    expect(result.plan.type).toBe('invalid_structured_output');
-    expect(getWorkingMemory(user).pendingIntent).toEqual(originalPending);
-  });
-
-  it('uses the same active-pending transition contract across every compatible provider', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
-    }] }));
-    await routeMessage('Solicitud incompleta', user, [], turnOptions);
-
-    fetchMock.mockImplementation(async () => structuredResponse({
-      actions: [{ domain: 'task', action: 'create', title: 'Comprar bombillos', projectless: true }],
-    }));
-    const result = await routeMessage('Operación independiente', user, [], turnOptions);
-
-    expect(result.plan.type).toBe('invalid_structured_output');
-    expect(executeTool).not.toHaveBeenCalled();
-    const schemas = fetchMock.mock.calls.slice(1).map(([, request]) => (
-      JSON.parse(request.body).response_format.json_schema.schema
-    ));
-    expect(schemas).toHaveLength(3);
-    expect(schemas[1]).toEqual(schemas[0]);
-    expect(schemas[2]).toEqual(schemas[0]);
-    expect(schemas[0].properties.pendingIntentEffect).toEqual(expect.objectContaining({
-      type: 'string', enum: ['resolve', 'replace', 'preserve', 'discard'],
-    }));
-  });
-
-  it('never revives a discarded draft when a new pending reminder is corrected and resolved after restart', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(turnOptions.requestTimeMs));
-    const history = [];
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar el recibo',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
-    }] }));
-    const first = await routeMessage('Primera solicitud parcial', user, history, turnOptions);
-    history.push(
-      { role: 'user', content: 'Primera solicitud parcial' },
-      { role: 'assistant', content: first.confirmation, entities: first.entities, createdAt: new Date().toISOString() },
-    );
-
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'discard',
-      actions: [{ domain: 'pending', action: 'discard' }],
-    }));
-    const discarded = await routeMessage('Cancelar la solicitud pendiente', user, history, turnOptions);
-    history.push(
-      { role: 'user', content: 'Cancelar la solicitud pendiente' },
-      { role: 'assistant', content: discarded.confirmation, entities: discarded.entities, createdAt: new Date().toISOString() },
-    );
-    expect(discarded.entities._conversationState.pendingIntent).toBeNull();
-    expect(discarded.entities._workingMemory).toBeNull();
-
-    clearWorkingMemory(user);
-    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [{
-      domain: 'reminder', action: 'create', content: 'Pagar la administración',
-      schedule: { kind: 'weekday_time', weekday: 'friday' }, missingFields: ['time'],
-    }] }));
-    const second = await routeMessage('Nueva solicitud parcial independiente', user, history, turnOptions);
-    expect(second.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
-      content: 'Pagar la administración',
-      schedule: { kind: 'weekday_time', weekday: 'friday' },
-    });
-    history.push(
-      { role: 'user', content: 'Nueva solicitud parcial independiente' },
-      { role: 'assistant', content: second.confirmation, entities: second.entities, createdAt: new Date().toISOString() },
-    );
-
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'replace',
-      actions: [{
-        domain: 'reminder', action: 'create', continuationIndex: 1,
-        schedule: { kind: 'weekday_time', weekday: 'saturday' }, missingFields: ['time'],
-      }, { domain: 'clarification', action: 'request', question: 'Falta la hora', missingFields: ['time'] }],
-    }));
-    const corrected = await routeMessage('Corrección parcial de la nueva solicitud', user, history, turnOptions);
-    expect(corrected.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
-      content: 'Pagar la administración',
-      schedule: { kind: 'weekday_time', weekday: 'saturday' },
-      missingFields: ['time'],
-    });
-    history.push(
-      { role: 'user', content: 'Corrección parcial de la nueva solicitud' },
-      { role: 'assistant', content: corrected.confirmation, entities: corrected.entities, createdAt: new Date().toISOString() },
-    );
-
-    clearWorkingMemory(user);
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'resolve',
-      actions: [{
-        domain: 'reminder', action: 'create', continuationIndex: 1,
-        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
-      }],
-    }));
-    const resolved = await routeMessage('Completar únicamente la solicitud activa', user, history, turnOptions);
-
-    expect(executeTool).toHaveBeenCalledTimes(1);
-    expect(executeTool.mock.calls[0][0].params.items).toEqual([{
-      content: 'Pagar la administración', targetTime: '2026-09-12T14:00:00.000Z',
-    }]);
-    expect(resolved.entities._conversationState.pendingIntent).toBeNull();
-  });
-
-  it('normalizes replace into a new typed draft only when no prior pending intent exists', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({
-      pendingIntentEffect: 'replace',
-      actions: [{
-        domain: 'reminder', action: 'create', content: 'Revisar Alfa',
-        schedule: { kind: 'relative_day_time', dayOffset: 1 },
-        missingFields: ['time'], question: '¿A qué hora?',
-      }],
-    }));
-
-    const result = await routeMessage('Recuérdame mañana revisar Alfa', user, [], turnOptions);
-
-    expect(executeTool).not.toHaveBeenCalled();
-    expect(result.executionFacts).toHaveLength(1);
-    expect(result.executionFacts[0].requiresClarification).toBe(true);
-    expect(result.entities._conversationState.pendingIntent.actions).toHaveLength(1);
-  });
-
-  it('executes independently complete actions despite a stale transition marker', async () => {
-    fetchMock.mockResolvedValueOnce(structuredResponse({
       pendingIntentEffect: 'resolve',
       actions: [reminderAction],
     }));
 
     const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
 
-    expect(result.executionFacts).toHaveLength(1);
-    expect(executeTool).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a stale continuation fragment that is not a valid standalone action', async () => {
-    fetchMock.mockImplementation(async () => structuredResponse({
-      pendingIntentEffect: 'resolve',
-      actions: [{
-        domain: 'reminder', action: 'create', continuationIndex: 1,
-        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_24h' },
-      }],
-    }));
-
-    const result = await routeMessage('A las 9', user, [], turnOptions);
-
     expect(result.plan.type).toBe('invalid_structured_output');
     expect(executeTool).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
 
   it.each(['main_time', 'advance_minutes'])('rejects duplicate %s from structured content before executing any action in the turn', async (field) => {
     fetchMock.mockImplementation(async () => structuredResponse({ actions: [

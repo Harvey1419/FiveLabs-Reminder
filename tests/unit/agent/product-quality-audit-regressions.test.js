@@ -183,41 +183,18 @@ describe('Hermes product-quality audit P0 regressions', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('pending.revise uses target only to select a proposal and never as destructive entity identity', async () => {
-    saveWorkingMemory(user, {
-      source: 'entity',
-      scope: 'clarification',
-      entityType: 'entity',
-      lastAction: 'clarification_required',
-      pendingClarifications: [
-        {
-          type: 'clarification',
-          content: 'Eliminar Proyecto A',
-          proposedOperation: { kind: 'entity_delete', targetName: 'Proyecto A', category: 'project', scope: 'single' },
-        },
-        {
-          type: 'clarification',
-          content: 'Eliminar Proyecto B',
-          proposedOperation: { kind: 'entity_delete', targetName: 'Proyecto B', category: 'project', scope: 'single' },
-        },
-      ],
-      items: [],
-    });
-
-    await executeTurnIntent({
+  it('rejects legacy synthetic pending.revise domain', () => {
+    const result = validateTurnIntent({
       actions: [{
         domain: 'pending',
         action: 'revise',
         target: '2',
-        preserveNames: ['Proyecto X'],
       }],
-    }, executionContext);
-
-    expect(executeTool).toHaveBeenCalledTimes(1);
-    const call = executeTool.mock.calls[0][0];
-    expect(call.params.targetName).toBe('Proyecto B');
-    expect(call.params.targetName).not.toBe('2');
-    expect(call.params.preserveNames).toEqual(['Proyecto X']);
+    });
+    expect(result).toMatchObject({
+      valid: false,
+      errorCode: 'UNSUPPORTED_DOMAIN',
+    });
   });
 });
 

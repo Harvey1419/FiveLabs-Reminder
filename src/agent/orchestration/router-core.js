@@ -29,9 +29,8 @@ import {
   projectStructuredTurnIntent,
   stripStructuredNulls,
 } from '../contracts/foreground-turn-schema.js';
-import { executeTurnIntent, inferIntentFromTool, clearPendingIntentState } from './intent-executor.js';
+import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
-import { mergePendingIntentActions } from '../core/pending-intent.js';
 import {
   getActiveAgentRun,
   executeApprovalDecision,
@@ -159,47 +158,11 @@ function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
   return { unavailable: false, validation: validateStructuredTurnContent(modelResponse?.content, { isAdmin }) };
 }
 
-function validateStructuredTurnContent(content, { isAdmin = false, pendingIntent = null } = {}) {
+function validateStructuredTurnContent(content, { isAdmin = false } = {}) {
   const parsed = parseIntentArguments(content);
   if (!parsed) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' };
   const canonical = projectStructuredTurnIntent(stripStructuredNulls(parsed));
-  const validation = validateTurnIntent(canonical, { isAdmin });
-  if (!validation.valid) return validation;
-
-  const effect = validation.intent.pendingIntentEffect || null;
-  const continuationActions = validation.intent.actions.filter((action) => !['conversation', 'clarification', 'pending'].includes(action.domain));
-  const hasPendingDiscard = validation.intent.actions.some((action) => action.domain === 'pending' && action.action === 'discard');
-  if (effect && !pendingIntent) {
-    // A stale transition marker is harmless only when the current actions form
-    // a valid standalone TurnIntent after removing it. Complete operations can
-    // execute and typed partial operations can start a fresh draft; fragments
-    // that depended on missing prior state still fail closed.
-    const { pendingIntentEffect: _effect, ...intent } = validation.intent;
-    const standalone = validateTurnIntent(intent, { isAdmin });
-    if (standalone.valid) return standalone;
-    return { valid: false, errorCode: 'NO_PENDING_INTENT', error: 'La respuesta intentó continuar un estado que ya no está disponible.' };
-  }
-  if (pendingIntent && !effect) {
-    return { valid: false, errorCode: 'PENDING_INTENT_EFFECT_REQUIRED', error: 'La respuesta no declaró cómo relacionar la operación actual con la intención pendiente.' };
-  }
-  if (pendingIntent && effect === 'discard' && !hasPendingDiscard) {
-    return { valid: false, errorCode: 'INVALID_PENDING_TRANSITION', error: 'La cancelación de la intención pendiente requiere pending.discard.' };
-  }
-  if (pendingIntent && effect !== 'discard' && hasPendingDiscard) {
-    return { valid: false, errorCode: 'INVALID_PENDING_TRANSITION', error: 'pending.discard requiere declarar la transición discard.' };
-  }
-  if (effect === 'resolve') {
-    const merged = mergePendingIntentActions(pendingIntent, continuationActions);
-    if (!merged.valid) return merged;
-    const complete = validateTurnIntent({ actions: merged.actions }, { isAdmin });
-    const stillMissingFields = complete.valid && complete.intent.actions.some((action) => (
-      Array.isArray(action.missingFields) && action.missingFields.length > 0
-    ));
-    if (!complete.valid || stillMissingFields) {
-      return { valid: false, errorCode: 'INCOMPLETE_PENDING_CONTINUATION', error: 'La continuación aún no produce una operación completa.' };
-    }
-  }
-  return validation;
+  return validateTurnIntent(canonical, { isAdmin });
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
@@ -359,7 +322,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const workingMemoryText = formatWorkingMemoryPrompt(workingMemoryKey, dailyOverview);
   if (workingMemory) {
     console.log(
-      `[router req=${requestId}] working-memory source=${workingMemory.source || 'unknown'} lastAction=${workingMemory.lastAction || 'unknown'} items=${workingMemory.items?.length || 0} pendingClarifications=${workingMemory.pendingClarifications?.length || 0} notification="${safeLogSnippet(workingMemory.notificationContent, 100)}"`,
+      `[router req=${requestId}] working-memory source=${workingMemory.source || 'unknown'} lastAction=${workingMemory.lastAction || 'unknown'} items=${workingMemory.items?.length || 0} notification="${safeLogSnippet(workingMemory.notificationContent, 100)}"`,
     );
   } else {
     console.log(`[router req=${requestId}] working-memory empty`);
@@ -374,13 +337,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let rawPastTurns = Array.isArray(history) ? history.slice() : [];
   const lastTurn = rawPastTurns.at(-1);
   if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) rawPastTurns.pop();
-  const pendingOrigin = rawPastTurns.at(-1)?.entities?._conversationState?.pendingIntent;
-  if (workingMemory?.pendingIntent && pendingOrigin?.actions?.length) {
-    // The typed pending draft is the compact operational source of truth. Do
-    // not also replay the user/assistant pair that created it, which can make
-    // a model re-emit already executed siblings from that original batch.
-    rawPastTurns = rawPastTurns.slice(0, rawPastTurns.at(-2)?.role === 'user' ? -2 : -1);
-  }
   const pastTurns = compactHistoryForModel(rawPastTurns);
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
   const historyChars = pastTurns.reduce((sum, turn) => sum + turn.content.length, 0);
@@ -445,11 +401,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
 
-            const wm = getWorkingMemory(user);
-            if (wm?.pendingClarifications?.length > 0) {
-              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
-            }
-
             let reply = validation.decision.reply;
             if (!reply && execResult.facts?.length > 0) {
               reply = composeExecutionReply(execResult.facts, language);
@@ -479,11 +430,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user },
             });
 
-            const wm = getWorkingMemory(user);
-            if (wm?.pendingClarifications?.length > 0) {
-              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
-            }
-
             const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
             return {
               intent: 'chat',
@@ -506,12 +452,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
             if (execResult.success) {
-              clearPendingIntentState(user);
-              const wm = getWorkingMemory(user);
-              if (wm?.pendingClarifications?.length > 0) {
-                saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
-              }
-
               let reply = validation.decision.reply;
               if (!reply && (execResult.facts?.length > 0 || execResult.fact)) {
                 reply = composeExecutionReply(execResult.facts || [execResult.fact], language);
@@ -544,11 +484,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
             }
           } else if (relation === 'cancel') {
             await updateAgentRunInDb(activeAgentRun.id, { status: 'cancelled' });
-            clearPendingIntentState(user);
-            const wm = getWorkingMemory(user);
-            if (wm?.pendingClarifications?.length > 0) {
-              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
-            }
 
             const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
             return {
@@ -576,7 +511,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       schema: getStructuredTurnSchema({
         isAdmin,
         attachmentOnly: isAttachmentOnlyTurn,
-        pendingIntentActive: Boolean(workingMemory?.pendingIntent),
       }),
     },
   };
@@ -596,7 +530,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       returnMessage: true,
       purpose: 'initial',
       language,
-      validateStructuredContent: (content) => validateStructuredTurnContent(content, { isAdmin, pendingIntent: workingMemory?.pendingIntent || null }),
+      validateStructuredContent: (content) => validateStructuredTurnContent(content, { isAdmin }),
     });
   } catch (error) {
     console.warn(`[router req=${requestId}] model failed:`, error.message);

@@ -2,10 +2,9 @@ import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 
 const DOMAINS = Object.freeze([
-  'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'pending', 'clarification', 'admin',
+  'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
 ]);
 const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
-const PENDING_INTENT_EFFECTS = Object.freeze(['resolve', 'replace', 'preserve', 'discard']);
 const MISSING_FIELDS = Object.freeze([
   'content', 'target', 'selection', 'scope', 'schedule', 'date', 'time', 'main_time', 'advance_minutes',
 ]);
@@ -19,7 +18,6 @@ const DOMAIN_ACTIONS = Object.freeze({
   calendar: new Set(['create', 'update', 'delete', 'list', 'search', 'next', 'connect', 'disconnect']),
   memory: new Set(['save', 'search', 'list', 'forget']),
   subscription: new Set(['link', 'status', 'cancel']),
-  pending: new Set(['execute', 'discard', 'revise']),
   clarification: new Set(['request']),
   admin: new Set(['metrics']),
 });
@@ -83,7 +81,6 @@ const actionSchema = {
     nudgeIntervalMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, maxNudges: { type: 'integer', minimum: 1, maximum: 100 },
     durationMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, addGoogleMeet: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 50 },
     missingFields: { type: 'array', uniqueItems: true, maxItems: 8, items: { type: 'string', enum: MISSING_FIELDS } },
-    continuationIndex: { type: 'integer', minimum: 1, maximum: 12, description: 'One-based position of the pending action completed by this action. Required when a continuation has multiple pending actions; several actions may complete the same pending action.' },
     question: { type: 'string' },
   },
   required: ['domain', 'action'],
@@ -93,11 +90,6 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
-    pendingIntentEffect: {
-      type: 'string',
-      enum: PENDING_INTENT_EFFECTS,
-      description: 'When a typed pending intent is present: resolve=these are its complete merged actions; replace=these partial actions supersede its prior draft and still need clarification; preserve=this is a separate topic and the pending intent remains untouched; discard=cancellation through pending.discard.',
-    },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
   required: ['actions'],
@@ -109,9 +101,9 @@ CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cance
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
 OPERATIONAL COLLECTIONS: infer from members, not labels. A NEW actionable collection MUST use entity.upsert(project, entityName) + one task.create per member with that entityName; never projectless/collapsed. For an existing or active container, do NOT upsert again: add/read/complete/remove stay task-scoped by entityName. entity.list/delete concerns the container; knowledge collections stay entities.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
-For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. With a typed pending intent, every turn declares pendingIntentEffect: resolve=complete, replace=corrected but incomplete, preserve=separate topic, discard=pending.discard. Retain known fields; explicit corrections replace them; map via continuationIndex.
+For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. Retain known fields.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
-pending.execute/discard/revise target only a pending proposal. For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
+For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -244,20 +236,11 @@ function scheduleBearingMutation(domain, action, field = 'schedule') {
 
 export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El intent del turno debe ser un objeto.' };
+  if (intent.pendingIntentEffect !== undefined) {
+    return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'pendingIntentEffect ha sido deprecado y no es soportado.' };
+  }
   if (!Array.isArray(intent.actions) || intent.actions.length === 0) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El turno requiere al menos una acción.' };
   if (intent.actions.length > 12) return { valid: false, errorCode: 'TURN_ACTION_LIMIT', error: 'El turno supera el límite de 12 acciones.' };
-  const pendingIntentEffect = intent.pendingIntentEffect == null
-    ? null
-    : String(intent.pendingIntentEffect).trim().toLowerCase();
-  if (pendingIntentEffect && !PENDING_INTENT_EFFECTS.includes(pendingIntentEffect)) {
-    return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La transición de intención pendiente no es válida.' };
-  }
-  if (['resolve', 'replace'].includes(pendingIntentEffect)) {
-    const hasContinuationAction = intent.actions.some((raw) => !['conversation', 'clarification', 'pending'].includes(String(raw?.domain || '').trim().toLowerCase()));
-    if (!hasContinuationAction) {
-      return { valid: false, errorCode: 'INVALID_PENDING_CONTINUATION', error: 'La continuación pendiente requiere al menos una acción de dominio.' };
-    }
-  }
   const normalizedActions = [];
   const structurallyLinkedActions = linkOperationalCollectionContainer(intent.actions);
   for (const raw of structurallyLinkedActions) {
@@ -267,11 +250,8 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const action = normalizeIntentAction(domain, raw.action);
     if (!DOMAIN_ACTIONS[domain]?.has(action)) return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Capacidad no soportada: ${domain}.${raw.action}.` };
     if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
-    const mayInheritPending = ['resolve', 'replace'].includes(pendingIntentEffect)
-      && !['conversation', 'clarification', 'pending'].includes(domain);
     const structurallyMissingScheduleFields = domain === 'reminder'
       && action === 'create'
-      && !mayInheritPending
       ? inferPartialReminderScheduleFields(raw.schedule)
       : [];
     const declaredMissingFields = Array.isArray(raw.missingFields) ? raw.missingFields : [];
@@ -298,35 +278,33 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
         && typedSchedule.properties.kind.enum.includes(schedule.kind)
         && schedule.kind !== 'inherit_context';
       if (!knownKind) return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal no es utilizable.' };
-      if (!hasCompleteReminderSchedule(schedule) && !mayRemainPending && !mayInheritPending) {
+      if (!hasCompleteReminderSchedule(schedule) && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal está incompleta.' };
       }
     }
-    if (mutationRequiresTarget(domain, action, normalizedRaw) && !hasTarget(normalizedRaw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
+    if (mutationRequiresTarget(domain, action, normalizedRaw) && !hasTarget(normalizedRaw) && !mayRemainPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     if (domain === 'entity'
       && ['create', 'upsert'].includes(action)
       && !hasEntityIdentity(normalizedRaw)
-      && !mayRemainPending
-      && !mayInheritPending) {
+      && !mayRemainPending) {
       return { valid: false, errorCode: 'MISSING_TARGET', error: `entity.${action} requiere el nombre de la entidad.` };
     }
     if (domain === 'task' && action === 'create') {
       const hasTitle = [normalizedRaw.title, normalizedRaw.content]
         .some((value) => typeof value === 'string' && value.trim().length > 0);
-      if (!hasTitle && !mayRemainPending && !mayInheritPending) {
+      if (!hasTitle && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_TITLE', error: 'task.create requiere el título de la tarea.' };
       }
       const hasProject = typeof normalizedRaw.entityName === 'string' && normalizedRaw.entityName.trim().length > 0;
       if (hasProject && normalizedRaw.projectless === true) {
         return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'task.create no puede ser projectless y pertenecer a una entidad al mismo tiempo.' };
       }
-      if (!hasProject && normalizedRaw.projectless !== true && !mayRemainPending && !mayInheritPending) {
+      if (!hasProject && normalizedRaw.projectless !== true && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_TARGET', error: 'task.create debe declarar entityName o projectless=true.' };
       }
       if (normalizedRaw.schedule
         && !hasCompleteReminderSchedule(normalizedRaw.schedule)
-        && !mayRemainPending
-        && !mayInheritPending) {
+        && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'task.create incluyó una estructura temporal incompleta.' };
       }
     }
@@ -340,7 +318,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     if (domain === 'reminder' && action === 'create') {
       if (!(typeof normalizedRaw.content === 'string' && normalizedRaw.content.trim())
         && !(typeof normalizedRaw.title === 'string' && normalizedRaw.title.trim())
-        && !mayInheritPending) {
+        && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_CONTENT', error: 'La decisión de creación no incluyó contenido.' };
       }
       const knownScheduleKind = normalizedRaw.schedule
@@ -351,7 +329,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       if (normalizedRaw.schedule && !knownScheduleKind) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
-      if (!hasCompleteReminderSchedule(normalizedRaw.schedule) && !mayRemainPending && !mayInheritPending) {
+      if (!hasCompleteReminderSchedule(normalizedRaw.schedule) && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
     }
@@ -362,7 +340,6 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     valid: true,
     intent: {
       actions: normalizedActions,
-      ...(pendingIntentEffect ? { pendingIntentEffect } : {}),
       excluded,
     },
   };
