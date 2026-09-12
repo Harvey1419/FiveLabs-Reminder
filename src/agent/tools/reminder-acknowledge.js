@@ -22,7 +22,7 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
   const target = String(params.target || '').trim();
   const authoritativeReminderId = String(params.reminderId || '').trim();
 
-  if (!target) return { success: false, action: 'missing_target', errorCode: 'MISSING_TARGET', error: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?', requiresClarification: true };
+  if (!target && !authoritativeReminderId) return { success: false, action: 'missing_target', errorCode: 'MISSING_TARGET', error: language === 'en' ? 'Which reminder did you complete?' : '¿Cuál recordatorio completaste?', requiresClarification: true };
   if (!owner.hasOwner) return { success: false, action: 'missing_owner', errorCode: 'ACCESS_DENIED', error: language === 'en' ? 'I could not verify reminder ownership.' : 'No pude verificar la propiedad del recordatorio.' };
 
   let matched = null;

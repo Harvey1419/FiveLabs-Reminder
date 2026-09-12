@@ -188,7 +188,7 @@ function buildDomainCall(action, context) {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'cancel', target } };
       }
       if (action.action === 'acknowledge') {
-        const target = action.target;
+        const target = action.target || (action.authoritativeReminderId ? '1' : null);
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que completaste.', requiresClarification: true };
         return {
           valid: true,
