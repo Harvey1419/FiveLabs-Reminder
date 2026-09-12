@@ -10,6 +10,7 @@ import {
 import { mergePendingSchedule } from './pending-intent.js';
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
+import { createExecutionFact } from './execution-facts.js';
 
 export const AGENT_RUN_TTL_MS = 15 * 60 * 1000;
 
@@ -57,6 +58,12 @@ export async function createApprovalRun({
   const userId = resolveUserId(user);
   const expiresAt = new Date(Date.now() + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
 
+  // Invariant 1: Ensure any previous active run on this thread is cancelled before creating a new one
+  const existingRun = await getActiveAgentRun(user);
+  if (existingRun) {
+    await updateAgentRunInDb(existingRun.id, { status: 'cancelled' });
+  }
+
   const run = await createAgentRunInDb({
     userId,
     threadId,
@@ -99,6 +106,12 @@ export async function createInputRun({
   const threadId = resolveThreadId(user);
   const userId = resolveUserId(user);
   const expiresAt = new Date(Date.now() + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
+
+  // Invariant 1: Ensure any previous active run on this thread is cancelled before creating a new one
+  const existingRun = await getActiveAgentRun(user);
+  if (existingRun) {
+    await updateAgentRunInDb(existingRun.id, { status: 'cancelled' });
+  }
 
   const run = await createAgentRunInDb({
     userId,
@@ -167,6 +180,7 @@ export async function executeApprovalDecision({
       success: true,
       executed: false,
       status: 'cancelled',
+      facts: [],
       message: 'Operación cancelada por el usuario.',
     };
   }
@@ -175,6 +189,18 @@ export async function executeApprovalDecision({
     ? preparedActions
     : preparedActions.filter((a) => selectedCallIds.includes(a.call_id));
 
+  if (actionsToExecute.length === 0) {
+    return {
+      success: false,
+      executed: false,
+      status: run.status,
+      executedCount: 0,
+      results: [],
+      facts: [],
+      message: 'No matching prepared actions found for selection.',
+    };
+  }
+
   const actionsToSkip = preparedActions.filter((a) => !actionsToExecute.includes(a));
 
   for (const action of actionsToSkip) {
@@ -182,6 +208,10 @@ export async function executeApprovalDecision({
   }
 
   const executedResults = [];
+  const executedFacts = [];
+  const executionUser = (executionContext.user && typeof executionContext.user === 'object' && executionContext.user.id)
+    ? executionContext.user
+    : { ...(typeof executionContext.user === 'object' ? executionContext.user : {}), id: userId || threadId };
 
   // Group by domain for efficient execution if entity batch delete
   if (run.kind === 'entity_destructive_batch') {
@@ -192,6 +222,7 @@ export async function executeApprovalDecision({
     if (entityIds.length > 0) {
       const deleteResult = await executeTool({
         ...executionContext,
+        user: executionUser,
         toolName: TOOL_NAMES.MANAGE_ENTITY,
         params: {
           action: 'delete',
@@ -199,6 +230,15 @@ export async function executeApprovalDecision({
         },
         clarificationResolution: true,
       });
+
+      const fact = createExecutionFact({
+        toolName: TOOL_NAMES.MANAGE_ENTITY,
+        params: { action: 'delete', entityIds },
+        result: deleteResult,
+        callId: 'approval_exec',
+        language: executionContext.language || 'es',
+      });
+      executedFacts.push(fact);
 
       for (const action of actionsToExecute) {
         await updatePreparedActionInDb(run.id, action.call_id, {
@@ -211,13 +251,24 @@ export async function executeApprovalDecision({
   } else {
     // Generic action-by-action dispatch
     for (const action of actionsToExecute) {
+      const toolName = action.domain === 'entity' ? TOOL_NAMES.MANAGE_ENTITY
+        : (action.domain === 'reminder' ? TOOL_NAMES.MANAGE_REMINDER : TOOL_NAMES.MANAGE_TASK);
       const toolResult = await executeTool({
         ...executionContext,
-        toolName: action.domain === 'entity' ? TOOL_NAMES.MANAGE_ENTITY
-          : (action.domain === 'reminder' ? TOOL_NAMES.MANAGE_REMINDER : TOOL_NAMES.MANAGE_TASK),
+        user: executionUser,
+        toolName,
         params: action.payload,
         clarificationResolution: true,
       });
+
+      const fact = createExecutionFact({
+        toolName,
+        params: action.payload,
+        result: toolResult,
+        callId: action.call_id,
+        language: executionContext.language || 'es',
+      });
+      executedFacts.push(fact);
 
       await updatePreparedActionInDb(run.id, action.call_id, {
         status: toolResult.success ? 'executed' : 'failed',
@@ -227,7 +278,7 @@ export async function executeApprovalDecision({
     }
   }
 
-  const allSucceeded = executedResults.every((r) => r.result?.success !== false);
+  const allSucceeded = executedResults.length > 0 && executedResults.every((r) => r.result?.success !== false);
   const finalStatus = allSucceeded ? 'completed' : 'failed';
 
   await updateAgentRunInDb(run.id, { status: finalStatus });
@@ -245,6 +296,7 @@ export async function executeApprovalDecision({
     status: finalStatus,
     executedCount: actionsToExecute.length,
     results: executedResults,
+    facts: executedFacts,
   };
 }
 
