@@ -297,6 +297,12 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       if (!hasProject && normalizedRaw.projectless !== true && !mayRemainPending && !mayInheritPending) {
         return { valid: false, errorCode: 'MISSING_TARGET', error: 'task.create debe declarar entityName o projectless=true.' };
       }
+      if (normalizedRaw.schedule
+        && !hasCompleteReminderSchedule(normalizedRaw.schedule)
+        && !mayRemainPending
+        && !mayInheritPending) {
+        return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'task.create incluyó una estructura temporal incompleta.' };
+      }
     }
     if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.
