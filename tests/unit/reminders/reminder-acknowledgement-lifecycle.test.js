@@ -39,4 +39,29 @@ describe('reminder acknowledgement lifecycle', () => {
     expect(isReminderAwaitingAcknowledgement(reminder)).toBe(false);
     expect(isNudgeDue(reminder, new Date('2026-09-11T14:10:00.000Z').getTime())).toBe(false);
   });
+
+  it('excludes reminders whose nudges have been exhausted (nudge_count >= max_nudges)', () => {
+    expect(isReminderAwaitingAcknowledgement({
+      status: 'sent',
+      requires_confirmation: true,
+      acknowledged_at: null,
+      sent_at: '2026-09-11T14:00:00.000Z',
+      delivery_id: 'wamid.delivery',
+      nudge_count: 3,
+      max_nudges: 3,
+    })).toBe(false);
+  });
+
+  it('excludes reminders whose last notification activity was more than 48 hours ago', () => {
+    const referenceTime = new Date('2026-09-14T15:00:00.000Z');
+    expect(isReminderAwaitingAcknowledgement({
+      status: 'sent',
+      requires_confirmation: true,
+      acknowledged_at: null,
+      sent_at: '2026-09-11T14:00:00.000Z',
+      delivery_id: 'wamid.delivery',
+      nudge_count: 1,
+      max_nudges: 3,
+    }, referenceTime)).toBe(false);
+  });
 });

@@ -1,5 +1,5 @@
 import { callChatCompletion, callResponseSynthesis } from '../providers/client.js';
-import { retrieveRelevantMemories } from '../../features/memory/service.js';
+import { retrieveRelevantMemories, retrieveStandingPreferences } from '../../features/memory/service.js';
 import {
   getDailyOverview,
   getUserSubscription,
@@ -69,17 +69,10 @@ function compactHistoryForModel(history = []) {
   const valid = history
     .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
     .slice(-MAX_HISTORY_TURNS)
-    .map((turn) => {
-      const operational = turn.role === 'assistant'
-        && (turn.entities?._turnMetadata?.kind === 'operational_result'
-          || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent)));
-      return {
-        role: turn.role,
-        content: operational
-          ? '[Resultado operativo previo: no es estado actual. Para información vigente, ejecuta una lectura del dominio.]'
-          : turn.content.slice(-MAX_HISTORY_TURN_CHARS),
-      };
-    });
+    .map((turn) => ({
+      role: turn.role,
+      content: turn.content.slice(-MAX_HISTORY_TURN_CHARS),
+    }));
 
   const selected = [];
   let usedChars = 0;
@@ -176,34 +169,56 @@ function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
   };
 }
 
-export function bindAuthoritativeFollowupTargets(intent, overview) {
+export function bindAuthoritativeFollowupTargets(intent, overview, workingMemory = null) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
+
+  const wmReminderId = String(workingMemory?.notificationReminderId || '').trim();
+  const wmHumanTarget = String(workingMemory?.notificationContent || '').trim();
+
   const active = Array.isArray(overview?.pendingConfirmationReminders)
     ? overview.pendingConfirmationReminders
     : [];
-  if (active.length !== 1) return intent;
+  const singleActive = active.length === 1 ? active[0] : null;
+  const singleHumanTarget = String(singleActive?.content || singleActive?.title || '').trim();
+  const singleReminderId = String(singleActive?.id || '').trim();
 
-  const reminder = active[0];
-  const humanTarget = String(reminder?.content || reminder?.title || '').trim();
-  const reminderId = String(reminder?.id || '').trim();
-  if (!humanTarget || !reminderId) return intent;
+  if (!wmReminderId && (!singleReminderId || !singleHumanTarget)) return intent;
 
   return {
     ...intent,
     actions: intent.actions.map((action) => {
       if (action?.domain !== 'reminder' || action?.action !== 'acknowledge') return action;
       const declaredTarget = String(action.target || '').trim();
-      const targetsActiveFollowup = !declaredTarget
-        || declaredTarget === '1'
-        || declaredTarget.localeCompare(humanTarget, undefined, { sensitivity: 'base' }) === 0;
-      if (!targetsActiveFollowup) return action;
-      return {
-        ...action,
-        target: declaredTarget || humanTarget,
-        // Added after canonical validation and never rendered to Hermes. This
-        // pins the mutation to the sole backend-authoritative active follow-up.
-        authoritativeReminderId: reminderId,
-      };
+
+      // Prioritize working memory from a recent nudge/notification
+      if (wmReminderId && wmHumanTarget) {
+        const targetsWm = !declaredTarget
+          || declaredTarget === '1'
+          || declaredTarget.localeCompare(wmHumanTarget, undefined, { sensitivity: 'base' }) === 0;
+        if (targetsWm) {
+          return {
+            ...action,
+            target: declaredTarget || wmHumanTarget,
+            authoritativeReminderId: wmReminderId,
+          };
+        }
+      }
+
+      // Fallback to sole active notice from overview
+      if (singleReminderId && singleHumanTarget) {
+        const targetsActive = !declaredTarget
+          || declaredTarget === '1'
+          || declaredTarget.localeCompare(singleHumanTarget, undefined, { sensitivity: 'base' }) === 0;
+        if (targetsActive) {
+          return {
+            ...action,
+            target: declaredTarget || singleHumanTarget,
+            authoritativeReminderId: singleReminderId,
+          };
+        }
+      }
+
+      return action;
     }),
   };
 }
@@ -300,8 +315,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   hydrateWorkingMemoryFromHistory(user, history, requestReferenceTime);
 
   const contextStart = Date.now();
-  const [relevantMemories, dailyOverview, subscription, googleIntegration] = await Promise.all([
+  const [relevantMemories, standingPreferences, dailyOverview, subscription, googleIntegration] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 3 }),
+    user.id ? retrieveStandingPreferences({ userId: user.id, limit: 5 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
     user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
@@ -313,9 +329,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   user.subscription = effectiveSub;
   user.isPro = isPro;
   user.memories = relevantMemories || [];
+  user.preferences = standingPreferences || [];
 
   const memoryHints = (relevantMemories || []).length > 0
     ? relevantMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
+    : '';
+  const preferenceHints = (standingPreferences || []).length > 0
+    ? standingPreferences.map((pref) => `- [${pref.category || 'preferencia'}] ${pref.content}`).join('\n')
     : '';
   const workingMemoryKey = phoneNumber || user.id;
   const workingMemory = getWorkingMemory(workingMemoryKey);
@@ -327,10 +347,10 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   } else {
     console.log(`[router req=${requestId}] working-memory empty`);
   }
-  console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
+  console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} preferences=${standingPreferences?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
 
   const prompt = buildAgentCorePrompt({
-    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, overview: dailyOverview,
+    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name,
   });
 
@@ -585,7 +605,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
-  const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview);
+  const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview, workingMemory);
   console.log(`[router req=${requestId}] semantic intent actions=${semanticIntent.actions.map(summarizeAction).join(' | ')}`);
   const runtimeIntent = normalizeTurnIntentForRuntime(semanticIntent, {
     user,

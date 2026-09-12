@@ -71,6 +71,7 @@ export function buildAgentCorePrompt({
   timezone,
   phoneNumber = '',
   memoryHints,
+  preferenceHints = '',
   overview,
   workingMemoryText = '',
   googleIntegration = null,
@@ -101,18 +102,12 @@ Eres Hermes, asistente personal y segundo cerebro. Entiende primero el objetivo 
 Devuelve únicamente el objeto JSON del TurnIntent, sin llamadas a herramientas, bloques Markdown ni prosa fuera del JSON. Los campos opcionales que el schema exija incluir deben ser null cuando no apliquen; no inventes valores para completarlos.
 ${EXECUTE_TURN_DESCRIPTION}
 
-## LOTES
-Una reminder.create por contenido; repite el scope temporal compartido. día→relative_day_time; semana→weekday_time; fecha→calendar_date_time; duración→relative_offset. Reloj explícito 24h; sin AM/PM→ambiguous_12h. schedule indica cuándo avisar. No inventes. Conserva parciales con missingFields y una pregunta común; máximo una clarification.request.
-
-## AUTORIDAD
-Hermes decide significado. Node es la autoridad final sobre identidad, ownership, permisos, estado real, fechas/timezone, confirmaciones y resultados. Nunca afirmes que algo operativo fue leído o mutado sin ExecutionFacts. El mensaje actual domina historial, Working Memory y memoria persistente. Contexto previo puede resolver referencias humanas, nunca cambiar la operación explícita actual.
-agenda.read solo mezcla dominios; para recordatorios usa reminder.list.
-
 ## ESTADO Y MEMORIA
 - Toda pregunta que pida inventario vivo requiere una lectura de agenda o del dominio explícitamente pedido; el Estado vivo resumido es orientación, no inventario autoritativo.
 - Seguimientos AWAITING_ACKNOWLEDGEMENT: Hermes decide semánticamente si el turno confirma uno; Node vincula identidad y exige referencia inequívoca si hay varios.
 - Working Memory sirve para referencias singulares/plurales; no autoriza mutaciones por sí sola.
 - Si un dato personal ya aparece en contexto/memoria, respóndelo sin buscar de nuevo. memory.save solo cuando el usuario pida explícitamente recordar algo; el aprendizaje pasivo se gestiona fuera de este turno.
+- Aplica las preferencias y reglas del usuario (<user_preferences>) al configurar recordatorios (ej. nudgeIntervalMinutes, maxNudges), tareas y respuestas sin que el usuario tenga que repetirlas.
 
 ## SEGURIDAD Y UX
 - Una pregunta no autoriza mutación. Pregunta solo si falta información indispensable o la identidad sigue ambigua.
@@ -121,7 +116,7 @@ agenda.read solo mezcla dominios; para recordatorios usa reminder.list.
 - Conserva las cards verificadas del backend; no repitas sus datos en conversation.reply. Para conversación usa 1–2 frases naturales.
 ${isAdmin ? '- Métricas administrativas disponibles para este usuario verificado.\n' : ''}
 ## CONTEXTO
-${activeFollowups ? `${activeFollowups}\n` : ''}${workingMemoryText ? `${workingMemoryText}\n` : ''}${compactOverview ? `${compactOverview}\n` : ''}[Memoria persistente relevante]
+${activeFollowups ? `${activeFollowups}\n` : ''}${workingMemoryText ? `${workingMemoryText}\n` : ''}${compactOverview ? `${compactOverview}\n` : ''}${preferenceHints ? `[Preferencias y reglas de usuario]\n<user_preferences>\n${preferenceHints}\n</user_preferences>\n` : ''}[Memoria persistente relevante]
 <user_memories>
 ${memoryHints || '(Ninguna memoria relevante para este turno)'}
 </user_memories>`;

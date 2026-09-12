@@ -80,6 +80,22 @@ describe('Hermes product-quality core', () => {
     expect(prompt).not.toContain('manifest');
   });
 
+  it('renders user preferences and directives into the prompt for standing rules', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-09-07T10:00:00-05:00',
+      nowHumanStr: 'lunes, 7 de septiembre, 10:00 a. m.',
+      timezone: 'America/Bogota',
+      preferenceHints: '- [core_profile:preference] No enviar avisos después de 10 minutos',
+      overview: null,
+      workingMemoryText: '',
+      googleIntegration: null,
+    });
+
+    expect(prompt).toContain('<user_preferences>');
+    expect(prompt).toContain('No enviar avisos después de 10 minutos');
+    expect(prompt).toContain('Aplica las preferencias y reglas del usuario (<user_preferences>)');
+  });
+
   it('keeps backend cards intact without a repetitive ticket-style closing', () => {
     const result = {
       success: true,

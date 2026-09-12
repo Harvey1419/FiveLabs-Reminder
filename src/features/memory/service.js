@@ -1,4 +1,4 @@
-import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
+import { saveMemory, searchMemories, getActiveMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_MAX_CANDIDATES = 16;
@@ -26,6 +26,7 @@ EXISTING MEMORY IDENTITY:
 STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
 - Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
 - Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
+- Completed operational tasks, checklist execution, or transient user actions (e.g. "Ya guardé el pasaporte", "Ya pagué la cuenta", "Ya llamé a Juan", "Ya envié el reporte"). A completed real-world action is transient operational state, NEVER a durable profile fact or long-lived preference.
 - Appointments, meetings, plans tied to a date/time, or incomplete scheduling details. These belong to agenda/reminder/calendar flow even when the assistant still needs to ask for the missing clock or lead time. Do not extract a company, person, or place fact merely from where an appointment will occur.
 - Assistant agenda echoes or query responses: When the user asks what they have pending or scheduled, NEVER extract new memories from the assistant listing or reading back existing tasks.
 - Explicit alarms, reminders, scheduled notifications, or delivery times (these belong exclusively in the reminders table).
@@ -245,6 +246,22 @@ export function selectCoreProfileMemories(memories, limit = 10) {
 }
 
 /**
+ * Retrieve standing profile and preference memories (Engram-inspired core layer).
+ * These represent durable user preferences, notifications rules, and identity facts
+ * that should govern the assistant's behavior across all domains.
+ */
+export async function retrieveStandingPreferences({ userId, limit = 5 }) {
+  if (!userId) return [];
+  try {
+    const active = await getActiveMemories({ userId, limit: 30 });
+    return selectCoreProfileMemories(active, limit);
+  } catch (error) {
+    console.warn('[memoryService] retrieveStandingPreferences failed:', error.message);
+    return [];
+  }
+}
+
+/**
  * Retrieve only query-relevant durable memory for the foreground turn.
  * `limit` is the total prompt budget, not a semantic result count plus an
  * additional always-on profile. Relevance is delegated to the hybrid semantic
@@ -321,7 +338,16 @@ const OPERATIONAL_MEMORY_TOOLS = new Set([
 const MEMORY_STOPWORDS = new Set([
   'a', 'al', 'and', 'at', 'con', 'de', 'del', 'el', 'en', 'for', 'la', 'las', 'le', 'lo', 'los',
   'me', 'mi', 'of', 'para', 'por', 'que', 'the', 'to', 'un', 'una', 'y', 'yo',
+  // Spanish auxiliaries, pronouns, and adverbs common in operational commands
+  'ya', 'he', 'ha', 'has', 'han', 'hemos', 'se', 'su', 'sus', 'es', 'son', 'fue', 'fui',
+  'si', 'no', 'te', 'nos', 'les',
 ]);
+
+function stemToken(token) {
+  if (!token || token.length < 4) return token;
+  return token
+    .replace(/(?:aron|ieron|aste|iste|ando|iendo|ado|ido|aba|ia|ar|er|ir|as|es|an|en|os|as|o|a|e)$/i, '');
+}
 
 function meaningfulTokens(value) {
   return String(value || '')
@@ -337,13 +363,27 @@ function tokenOverlap(left, right) {
   const leftTokens = [...new Set(meaningfulTokens(left))];
   const rightTokens = new Set(meaningfulTokens(right));
   if (leftTokens.length === 0 || rightTokens.size === 0) return 0;
-  return leftTokens.filter((token) => rightTokens.has(token)).length / leftTokens.length;
+  const rightStems = new Set([...rightTokens].map(stemToken));
+  const matches = leftTokens.filter((token) => (
+    rightTokens.has(token) || rightStems.has(stemToken(token))
+  ));
+  return matches.length / leftTokens.length;
 }
 
 function operationalCorpus(executionFacts) {
   return (executionFacts || [])
     .filter((fact) => OPERATIONAL_MEMORY_TOOLS.has(fact?.tool))
-    .map((fact) => `${fact.card || ''} ${fact.summary || ''}`)
+    .map((fact) => {
+      const parts = [
+        fact.card || '',
+        fact.summary || '',
+        fact.presentationParams?.target || '',
+        fact.presentationParams?.title || '',
+        fact.presentationData?.title || '',
+        fact.presentationData?.content || '',
+      ];
+      return parts.filter(Boolean).join(' ');
+    })
     .join(' ');
 }
 
@@ -355,7 +395,7 @@ export function getMemoryEligibleText(userText, executionFacts = []) {
     .split(/(?<=[.!?])\s+|[\n;]+/)
     .map((clause) => clause.trim())
     .filter(Boolean);
-  const residual = clauses.filter((clause) => tokenOverlap(clause, corpus) < 0.5);
+  const residual = clauses.filter((clause) => tokenOverlap(clause, corpus) <= 0.5);
   return residual.join(' ').trim();
 }
 
@@ -369,7 +409,7 @@ function getMemoryCandidateRejection(item, sourceText, executionFacts) {
   if (!normalizedEvidence || !normalizedSource.includes(normalizedEvidence)) return 'evidence_not_in_user_text';
 
   const corpus = operationalCorpus(executionFacts);
-  if (corpus && (tokenOverlap(evidence, corpus) >= 0.5 || tokenOverlap(item.content, corpus) >= 0.5)) {
+  if (corpus && (tokenOverlap(evidence, corpus) > 0.5 || tokenOverlap(item.content, corpus) > 0.5)) {
     return 'overlaps_operational_execution';
   }
   return null;

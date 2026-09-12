@@ -62,4 +62,57 @@ describe('authoritative follow-up binding', () => {
     const result = bindAuthoritativeFollowupTargets(intent, overview);
     expect(result.actions[0].target).toBeUndefined();
   });
+
+  it('binds to the nudged reminder in working memory even when multiple follow-ups are active in overview', () => {
+    const intent = {
+      actions: [{ domain: 'reminder', action: 'acknowledge', target: '1' }],
+    };
+    const overview = {
+      pendingConfirmationReminders: [
+        { id: 'reminder-1', content: 'cita' },
+        { id: 'reminder-2', content: 'Me amo mucho' },
+        { id: 'reminder-3', content: 'llamar al banco' },
+      ],
+    };
+    const workingMemory = {
+      source: 'reminder',
+      lastAction: 'nudge',
+      notificationReminderId: 'reminder-2',
+      notificationContent: 'Me amo mucho',
+    };
+
+    const result = bindAuthoritativeFollowupTargets(intent, overview, workingMemory);
+    expect(result.actions[0]).toEqual({
+      domain: 'reminder',
+      action: 'acknowledge',
+      target: '1',
+      authoritativeReminderId: 'reminder-2',
+    });
+  });
+
+  it('binds to working memory nudge when target is omitted', () => {
+    const intent = {
+      actions: [{ domain: 'reminder', action: 'acknowledge' }],
+    };
+    const overview = {
+      pendingConfirmationReminders: [
+        { id: 'reminder-1', content: 'cita' },
+        { id: 'reminder-2', content: 'Me amo mucho' },
+      ],
+    };
+    const workingMemory = {
+      source: 'reminder',
+      lastAction: 'nudge',
+      notificationReminderId: 'reminder-2',
+      notificationContent: 'Me amo mucho',
+    };
+
+    const result = bindAuthoritativeFollowupTargets(intent, overview, workingMemory);
+    expect(result.actions[0]).toEqual({
+      domain: 'reminder',
+      action: 'acknowledge',
+      target: 'Me amo mucho',
+      authoritativeReminderId: 'reminder-2',
+    });
+  });
 });

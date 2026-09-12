@@ -62,7 +62,7 @@ export function formatWorkingMemoryPrompt(userOrPhone, overview = null) {
     '[Seguimiento activo esperando confirmación]',
     `status=AWAITING_ACKNOWLEDGEMENT | reminder="${humanReference}"`,
     'Este recordatorio fue notificado y sigue esperando confirmación del usuario.',
-    'Si el mensaje ACTUAL significa semánticamente que el usuario ya completó este recordatorio, emite únicamente reminder.acknowledge con target="1". No respondas solo con conversation.reply ni afirmes que quedó confirmado sin ejecutar esa acción.',
+    'Si el mensaje ACTUAL significa semánticamente que el usuario ya completó este recordatorio, emite únicamente reminder.acknowledge (puedes omitir target o usar target="1"). No respondas solo con conversation.reply ni afirmes que quedó confirmado sin ejecutar esa acción.',
     'Un asentimiento sobre otro tema NO confirma el recordatorio. Si el mensaje actual no significa que lo completó, interprétalo normalmente.',
   ].join('\n');
 

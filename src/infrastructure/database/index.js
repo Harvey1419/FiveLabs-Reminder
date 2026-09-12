@@ -539,18 +539,34 @@ export const cancelPendingRemindersByContent = cancelReminders;
 /**
  * Fetch rich daily overview formatted directly in the User's local timezone.
  */
-export function isReminderAwaitingAcknowledgement(reminder) {
+export function isReminderAwaitingAcknowledgement(reminder, referenceTime = null) {
   const wasDispatched = Boolean(
     reminder?.sent_at
     || reminder?.last_nudged_at
     || reminder?.delivery_id,
   );
-  return Boolean(
-    reminder?.requires_confirmation
-    && !reminder?.acknowledged_at
-    && wasDispatched
-    && ['sent', 'pending', 'processing'].includes(reminder?.status),
-  );
+  if (!wasDispatched) return false;
+  if (!reminder?.requires_confirmation) return false;
+  if (reminder?.acknowledged_at) return false;
+  if (!['sent', 'pending', 'processing'].includes(reminder?.status)) return false;
+
+  const maxNudges = Number(reminder?.max_nudges) || 3;
+  const nudgeCount = Number(reminder?.nudge_count) || 0;
+  if (nudgeCount >= maxNudges) return false;
+
+  if (referenceTime) {
+    const lastNotificationAt = reminder?.last_nudged_at || reminder?.sent_at;
+    if (lastNotificationAt) {
+      const activityMs = new Date(lastNotificationAt).getTime();
+      const currentMs = (referenceTime instanceof Date ? referenceTime : new Date(referenceTime)).getTime();
+      if (Number.isFinite(activityMs) && Number.isFinite(currentMs)) {
+        const elapsedHours = (currentMs - activityMs) / (1000 * 60 * 60);
+        if (elapsedHours > 48) return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 export async function getDailyOverview({ userId, phoneNumber, timezone = 'America/Bogota' }) {
@@ -663,7 +679,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     // A scheduled future reminder is not yet an active follow-up. Recurring
     // reminders return to pending after dispatch, so persisted delivery truth
     // (sent_at/last_nudged_at/delivery_id) is the lifecycle boundary here.
-    if (isReminderAwaitingAcknowledgement(r)) {
+    if (isReminderAwaitingAcknowledgement(r, now)) {
       const lastNotificationAt = r.last_nudged_at || r.sent_at || null;
       const formatted = formatItem({ ...r, send_at: lastNotificationAt }, false);
       formatted.nudgeCount = r.nudge_count || 0;
