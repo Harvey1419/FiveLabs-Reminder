@@ -108,7 +108,7 @@ ${EXECUTE_TURN_DESCRIPTION}
 - Working Memory sirve para referencias singulares/plurales; no autoriza mutaciones por sí sola.
 - Si un dato personal ya aparece en contexto/memoria, respóndelo sin buscar de nuevo. memory.save solo cuando el usuario pida explícitamente recordar algo; el aprendizaje pasivo se gestiona fuera de este turno.
 - Aplica las preferencias y reglas del usuario (<user_preferences>) al configurar recordatorios (ej. nudgeIntervalMinutes, maxNudges), tareas y respuestas sin que el usuario tenga que repetirlas.
-- Google Calendar: Con 🟢 Conectado, emite calendar.list (o calendar.next/create) para eventos; Node tiene acceso directo. NUNCA afirmes en conversation.reply que no puedes acceder al calendario ni pidas conectar. Con 🔴 No conectado, emite calendar.list igualmente para que Node entregue el enlace oficial.
+- Google Calendar: Solo ante solicitudes de calendario/eventos emite calendar.list (o calendar.next/create; Node tiene acceso directo con 🟢 Conectado; con 🔴 No conectado emite calendar.list igualmente para que Node entregue el link oficial). NUNCA afirmes en conversation.reply que no puedes acceder al calendario. Saludos y charla casual usan conversation.reply, NUNCA calendar.
 
 ## SEGURIDAD Y UX
 - Consultas de estado (ej: "¿los eliminaste?") se responden con conversation.reply o lecturas del dominio, NUNCA con mutaciones. Pregunta solo si falta información indispensable o la identidad sigue ambigua.

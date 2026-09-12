@@ -64,7 +64,7 @@ describe('Google Calendar Deterministic Grounding & Temporal Range Test Suite', 
     expect(res.entities?.action).toBe('list_events');
 
     listSpy.mockRestore();
-  });
+  }, 15000);
 
   // TEST 1b: Exact production queries "Me puedes dar mi calendario de google calendar ?" and "Dame mi calendarios de google calendar"
   it('TEST 1b: Exact production queries route to calendar.list without falling back to chat disclaimer', async () => {
@@ -97,6 +97,20 @@ describe('Google Calendar Deterministic Grounding & Temporal Range Test Suite', 
 
     listSpy.mockRestore();
   }, 20000);
+
+  // TEST 1c: When disconnected, casual greetings route to conversation.reply, never calendar.list
+  it('TEST 1c: When disconnected, casual greetings route to conversation.reply, never calendar.list', async () => {
+    await deleteUserIntegration(userA.id, 'google');
+
+    const disconnectHistory = [
+      { role: 'user', content: 'Dame mi calendarios de google calendar' },
+      { role: 'assistant', content: 'Para consultar tu Google Calendar, primero debes vincular tu cuenta: https://hermes.templelabs.co/auth/google?phone=573009991122' },
+    ];
+
+    const res = await routeMessage('Hola buenos dias!', userA, disconnectHistory);
+    expect(res.intent).toBe('chat');
+    expect(res.confirmation).not.toContain('https://hermes.templelabs.co/auth/google');
+  }, 15000);
 
   // TEST 2: Google no conectado
   it('TEST 2: Disconnected Google integration -> prompt grounds status as disconnected and provides connect link', async () => {
