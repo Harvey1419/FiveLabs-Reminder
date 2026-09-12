@@ -19,6 +19,7 @@ import { executeTaskCreate } from '../../../src/agent/tools/task-create.js';
 import { executeEntityTool } from '../../../src/agent/tools/entities.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
+import { validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import {
   clearWorkingMemory,
   getWorkingMemory,
@@ -39,6 +40,7 @@ const context = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  executeTool.mockReset();
   clearWorkingMemory(user);
   inspectOwnedEntityReferences.mockResolvedValue({ success: true, resolutions: [] });
 });
@@ -211,6 +213,72 @@ describe('operational collection invariants', () => {
       activeEntityId: 'project-1',
     });
     expect(getWorkingMemory(user).items.map((item) => item.title)).toEqual(['Pasaporte', 'Cargador', 'Bloqueador']);
+  });
+
+  it('uses the unique structured task container to complete its project upsert without fabricating pending state', async () => {
+    executeTool
+      .mockResolvedValueOnce({
+        success: true, complete: true, action: 'upserted_entity',
+        data: { id: 'project-1', name: 'Viaje', category: 'project' },
+      })
+      .mockResolvedValueOnce({
+        success: true, complete: true, action: 'created_tasks_batch',
+        data: ['Sacar el pasaporte', 'Comprar bloqueador', 'Cargar la batería externa'].map((title, index) => ({
+          id: `task-${index + 1}`, title, entityId: 'project-1', entityName: 'Viaje',
+        })),
+      });
+    const intent = {
+      actions: [
+        { domain: 'entity', action: 'upsert', category: 'project' },
+        ...['Sacar el pasaporte', 'Comprar bloqueador', 'Cargar la batería externa'].map((title) => ({
+          domain: 'task', action: 'create', title, entityName: 'Viaje', category: 'project',
+        })),
+      ],
+    };
+
+    const validation = validateTurnIntent(intent);
+    expect(validation).toMatchObject({ valid: true });
+    expect(validation.intent.actions[0]).toMatchObject({
+      domain: 'entity', action: 'upsert', category: 'project', entityName: 'Viaje',
+    });
+
+    const result = await executeTurnIntent(validation.intent, context);
+
+    expect(result.facts.every((fact) => fact.success)).toBe(true);
+    expect(executeTool).toHaveBeenCalledTimes(2);
+    expect(executeTool.mock.calls[0][0]).toMatchObject({
+      toolName: 'manage_entity', params: { action: 'upsert', name: 'Viaje', category: 'project' },
+    });
+    expect(getWorkingMemory(user)).toMatchObject({
+      activeEntity: 'Viaje', pendingIntent: null, pendingClarifications: [],
+    });
+  });
+
+  it('never turns an undeclared invalid action into a typed Pending Intent', async () => {
+    executeTool.mockResolvedValue({
+      success: true, complete: true, action: 'created_task',
+      data: [{ id: 'task-1', title: 'Comprar bloqueador', entityId: 'project-1', entityName: 'Viaje' }],
+    });
+
+    const result = await executeTurnIntent({ actions: [
+      { domain: 'entity', action: 'upsert', category: 'project' },
+      { domain: 'task', action: 'create', title: 'Comprar bloqueador', entityName: 'Viaje', category: 'project' },
+    ] }, context);
+
+    expect(result.facts.some((fact) => fact.requiresClarification)).toBe(false);
+    expect(getWorkingMemory(user)?.pendingIntent || null).toBeNull();
+  });
+
+  it('requires every executable task.create to declare project scope or explicit projectless scope', () => {
+    expect(validateTurnIntent({ actions: [
+      { domain: 'task', action: 'create', title: 'Revisar seguro' },
+    ] })).toMatchObject({ valid: false, errorCode: 'MISSING_TARGET' });
+    expect(validateTurnIntent({ actions: [
+      { domain: 'task', action: 'create', title: 'Revisar seguro', projectless: true },
+    ] })).toMatchObject({ valid: true });
+    expect(validateTurnIntent({ actions: [
+      { domain: 'task', action: 'create', title: 'Revisar seguro', entityName: 'Viaje' },
+    ] })).toMatchObject({ valid: true });
   });
 
   it('does not write a failed task batch into Working Memory', async () => {

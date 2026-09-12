@@ -41,6 +41,8 @@ async function resolveUserContainer(query, normalizedQuery, userId) {
  */
 export async function resolveTaskTarget({
   target,
+  entityName = null,
+  entityId = null,
   userId,
   userOrPhone,
   operation = 'complete',
@@ -52,13 +54,24 @@ export async function resolveTaskTarget({
 
   const statuses = allowedStatuses || (operation === 'complete' ? ['pending'] : ['pending', 'completed']);
 
+  // Scope is already interpreted by Hermes. Resolve it structurally before
+  // matching the task so duplicate titles in other containers cannot compete.
+  let scopedEntityId = entityId || null;
+  if (!scopedEntityId && entityName) {
+    const container = await resolveUserContainer(String(entityName).trim(), normalizeTextForMatching(entityName), userId);
+    if (!container) return { status: 'NOT_FOUND' };
+    if (container.status === 'AMBIGUOUS') return container;
+    scopedEntityId = container.entityId;
+  }
+
   if (isStrictUUID(rawStr)) {
-    if (operation === 'complete') {
-      const { data: directTask } = await supabase
+    const directTaskQuery = supabase
         .from('tasks')
         .select('id, user_id, status')
-        .eq('id', rawStr)
-        .maybeSingle();
+        .eq('id', rawStr);
+    if (scopedEntityId) directTaskQuery.eq('entity_id', scopedEntityId);
+    const { data: directTask } = await directTaskQuery.maybeSingle();
+    if (operation === 'complete') {
       if (!directTask || (userId && directTask.user_id !== userId)) return { status: 'NOT_FOUND' };
       if (directTask.status !== 'pending') return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
       return { status: 'RESOLVED', taskId: directTask.id, task: directTask };
@@ -72,7 +85,12 @@ export async function resolveTaskTarget({
     workingMemory: getWorkingMemory(userOrPhone),
   });
 
-  if (refRes.status === 'RESOLVED' && refRes.item?.internalId) {
+  const referenceEntityId = refRes.item?.raw?.entity_id || refRes.item?.raw?.entityId || refRes.item?.entityId || null;
+  const referenceEntityName = refRes.item?.entityName || refRes.item?.raw?.entities?.name || null;
+  const referenceMatchesScope = !scopedEntityId
+    || referenceEntityId === scopedEntityId
+    || (entityName && String(referenceEntityName || '').trim().toLowerCase() === String(entityName).trim().toLowerCase());
+  if (refRes.status === 'RESOLVED' && refRes.item?.internalId && referenceMatchesScope) {
     if (operation === 'complete') {
       const { data: directTask } = await supabase
         .from('tasks')
@@ -101,6 +119,8 @@ export async function resolveTaskTarget({
     .from('tasks')
     .select('*, entities:entity_id(id, name, category)')
     .eq('user_id', userId);
+
+  if (scopedEntityId) tasksQuery = tasksQuery.eq('entity_id', scopedEntityId);
 
   if (statuses.length === 1) tasksQuery = tasksQuery.eq('status', statuses[0]);
   else tasksQuery = tasksQuery.in('status', statuses);
