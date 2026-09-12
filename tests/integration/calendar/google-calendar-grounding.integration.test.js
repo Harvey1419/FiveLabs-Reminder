@@ -66,6 +66,38 @@ describe('Google Calendar Deterministic Grounding & Temporal Range Test Suite', 
     listSpy.mockRestore();
   });
 
+  // TEST 1b: Exact production queries "Me puedes dar mi calendario de google calendar ?" and "Dame mi calendarios de google calendar"
+  it('TEST 1b: Exact production queries route to calendar.list without falling back to chat disclaimer', async () => {
+    await saveUserIntegration(userA.id, {
+      provider: 'google',
+      accessToken: 'valid-mock-access-token',
+      refreshToken: 'valid-mock-refresh-token',
+      tokenExpiry: new Date(Date.now() + 3600 * 1000),
+      accountEmail: 'user.a@gmail.com',
+    });
+
+    const connectHistory = [
+      { role: 'user', content: 'Me gustaria tener mi calendario de google sincronizado' },
+      { role: 'assistant', content: '👉 Para conectar tu Google Calendar con Reminder, entra a este enlace seguro: https://hermes.templelabs.co/auth/google?phone=573009991122' },
+      { role: 'assistant', content: '🎉 *¡Google Calendar conectado con éxito!*\n\nTu cuenta de Google (*user.a@gmail.com*) ha sido vinculada con Hermes TempleLabs.' },
+    ];
+
+    const listSpy = vi.spyOn(googleCalendarService, 'listCalendarEvents').mockResolvedValue([
+      { summary: 'Reunión con Inversionistas', start: '2026-09-02T16:00:00-05:00', end: '2026-09-02T17:00:00-05:00' }
+    ]);
+
+    const res1 = await routeMessage('Me puedes dar mi calendario de google calendar ?', userA, connectHistory);
+    expect(res1.intent).toBe('calendar');
+    expect(res1.confirmation).not.toContain('no puedo acceder directamente a tu calendario');
+    expect(res1.confirmation).not.toContain('¿Te envío de nuevo el enlace');
+
+    const res2 = await routeMessage('Dame mi calendarios de google calendar', userA, connectHistory);
+    expect(res2.intent).toBe('calendar');
+    expect(res2.confirmation).not.toContain('no puedo acceder directamente a tu calendario');
+
+    listSpy.mockRestore();
+  }, 20000);
+
   // TEST 2: Google no conectado
   it('TEST 2: Disconnected Google integration -> prompt grounds status as disconnected and provides connect link', async () => {
     await deleteUserIntegration(userB.id, 'google');

@@ -44,6 +44,8 @@ describe('direct TurnIntent contract', () => {
     expect(description).toContain('Never reconstruct live state from chat history');
     expect(description).toContain('relative_day_time');
     expect(scheduleKind).toContain('relative_offset=duration from now');
+    expect(description).toContain('CALENDARIO:');
+    expect(description).toContain('calendar.list');
     expect(description.length).toBeLessThan(2600);
   });
 

@@ -5,7 +5,8 @@ import { resolveCalendarTemporalScope } from '../../../src/shared/time.js';
 import { generateDeterministicCalendarEventId } from '../../../src/integrations/google/calendar.js';
 import { normalizeCalendarEvent, formatCalendarEventLine, executeCalendarTool } from '../../../src/agent/tools/calendar.js';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
-import { getIntentToolDefinitions } from '../../../src/agent/contracts/intent-contracts.js';
+import { getIntentToolDefinitions, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
+import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
 import { getGoogleRedirectUri, hasUsableGoogleCredentials, isGoogleAuthError } from '../../../src/integrations/google/auth.js';
 import { formatCanonicalAgenda } from '../../../src/shared/agenda-presentation.js';
 import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
@@ -140,6 +141,81 @@ describe('Google Calendar current architecture', () => {
         timezone: 'America/Bogota',
       });
       expect(briefing).toContain('Necesita conexión');
+    });
+
+    it('grounds connected and disconnected Google Calendar states explicitly in prompt', () => {
+      const connectedPrompt = buildAgentCorePrompt({
+        nowStr: '2026-09-12T14:00:00-05:00',
+        nowHumanStr: 'Sábado, 12 de Septiembre de 2026, 02:00 PM',
+        timezone: 'America/Bogota', phoneNumber: '+19164158325',
+        googleIntegration: { access_token: 'valid_token', account_email: 'iab.billionaire@gmail.com' },
+      });
+      expect(connectedPrompt).toContain('Google Calendar: 🟢 Conectado (iab.billionaire@gmail.com)');
+      expect(connectedPrompt).toContain('calendar.list');
+      expect(connectedPrompt).toContain('NUNCA afirmes en conversation.reply que no puedes acceder al calendario');
+
+      const disconnectedPrompt = buildAgentCorePrompt({
+        nowStr: '2026-09-12T14:00:00-05:00',
+        nowHumanStr: 'Sábado, 12 de Septiembre de 2026, 02:00 PM',
+        timezone: 'America/Bogota', phoneNumber: '+19164158325',
+        googleIntegration: null,
+      });
+      expect(disconnectedPrompt).toContain('Google Calendar: 🔴 No conectado');
+      expect(disconnectedPrompt).toContain('emite calendar.list igualmente');
+    });
+
+    it('normalizes calendar.list temporal schedules into canonical scopes', () => {
+      const context = {
+        user: { id: 'test-user-123' },
+        referenceTime: new Date('2026-09-12T19:00:00.000Z'),
+        timezone: 'America/Bogota',
+      };
+
+      const todayIntent = {
+        actions: [{ domain: 'calendar', action: 'list', schedule: { kind: 'relative_day_time', dayOffset: 0 } }],
+      };
+      const normalizedToday = normalizeTurnIntentForRuntime(todayIntent, context);
+      expect(normalizedToday.actions[0].scope).toBe('today');
+
+      const tomorrowIntent = {
+        actions: [{ domain: 'calendar', action: 'list', schedule: { kind: 'relative_day_time', dayOffset: 1 } }],
+      };
+      const normalizedTomorrow = normalizeTurnIntentForRuntime(tomorrowIntent, context);
+      expect(normalizedTomorrow.actions[0].scope).toBe('tomorrow');
+
+      const weekdayIntent = {
+        actions: [{ domain: 'calendar', action: 'list', schedule: { kind: 'weekday_time', weekday: 'friday' } }],
+      };
+      const normalizedWeekday = normalizeTurnIntentForRuntime(weekdayIntent, context);
+      expect(normalizedWeekday.actions[0].scope).toBe('friday');
+
+      const rawScopeIntent = {
+        actions: [{ domain: 'calendar', action: 'list', scope: 'hoy' }],
+      };
+      const normalizedRaw = normalizeTurnIntentForRuntime(rawScopeIntent, context);
+      expect(normalizedRaw.actions[0].scope).toBe('today');
+    });
+
+    it('validates canonical calendar operations in TurnIntent schema', () => {
+      const listResult = validateTurnIntent({
+        actions: [{ domain: 'calendar', action: 'list' }],
+      });
+      expect(listResult.valid).toBe(true);
+
+      const connectResult = validateTurnIntent({
+        actions: [{ domain: 'calendar', action: 'connect' }],
+      });
+      expect(connectResult.valid).toBe(true);
+
+      const createResult = validateTurnIntent({
+        actions: [{
+          domain: 'calendar',
+          action: 'create',
+          title: 'Reunión con Inversionistas',
+          schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 10, minute: 0 },
+        }],
+      });
+      expect(createResult.valid).toBe(true);
     });
   });
 });

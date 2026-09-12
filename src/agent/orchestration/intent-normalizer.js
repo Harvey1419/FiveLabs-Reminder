@@ -41,6 +41,21 @@ function normalizeReadScope(action, context) {
     return { ...action, scope: normalizeAgendaScope(action.scope, 'all_pending') };
   }
 
+  if (action.domain === 'calendar' && action.action === 'list') {
+    if (action.scope) return { ...action, scope: normalizeAgendaScope(action.scope, 'upcoming') };
+    const schedule = action.schedule;
+    if (schedule?.kind === 'relative_day_time') {
+      if (schedule.dayOffset === 0) return { ...action, scope: 'today' };
+      if (schedule.dayOffset === 1) return { ...action, scope: 'tomorrow' };
+      if (schedule.dayOffset === 2) return { ...action, scope: 'day_after_tomorrow' };
+    }
+    if (schedule?.kind === 'weekday_time' && schedule.weekday) {
+      return { ...action, scope: schedule.weekday };
+    }
+    if (schedule?.kind === 'local_time') return { ...action, scope: 'today' };
+    return action;
+  }
+
   if (action.domain !== 'task' || action.action !== 'list') return action;
   if (action.scope) return { ...action, scope: normalizeTaskScope(action.scope, 'all_pending') };
 

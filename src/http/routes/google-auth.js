@@ -1,6 +1,7 @@
 import express from 'express';
 import { generateGoogleAuthUrl, exchangeGoogleCode } from '../../integrations/google/auth.js';
 import { saveUserIntegration } from '../../infrastructure/database/index.js';
+import { saveMessage } from '../../infrastructure/database/messages.js';
 import { sendReminderConfirmation } from '../../integrations/whatsapp/kapso-client.js';
 import { getOrCreateUserByPhone } from '../../infrastructure/database/users.js';
 import { renderGoogleSuccessPage } from '../views/landing.js';
@@ -117,6 +118,17 @@ googleAuthRouter.get('/callback', async (req, res) => {
 
       await sendReminderConfirmation(phoneNumber, whatsappMsg).catch(wErr => {
         console.warn('[googleAuthRouter] could not dispatch WhatsApp confirmation:', wErr.message);
+      });
+
+      await saveMessage({
+        userId,
+        phoneNumber,
+        role: 'assistant',
+        content: whatsappMsg,
+        intent: 'calendar',
+        entities: { action: 'connect_success', _turnMetadata: { kind: 'operational_result' } },
+      }).catch(mErr => {
+        console.warn('[googleAuthRouter] could not persist WhatsApp confirmation message:', mErr.message);
       });
     }
 

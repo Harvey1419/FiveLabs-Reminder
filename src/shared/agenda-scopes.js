@@ -53,6 +53,7 @@ const SCOPE_ALIASES = Object.freeze({
   pendientes: ALL_PENDING_SCOPE,
   todos: ALL_PENDING_SCOPE,
   todos_los_pendientes: ALL_PENDING_SCOPE,
+  hoy: 'today',
   rest_of_today: 'remaining_today',
   lo_que_queda_de_hoy: 'remaining_today',
   manana: 'tomorrow',
