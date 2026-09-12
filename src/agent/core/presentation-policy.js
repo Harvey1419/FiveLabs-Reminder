@@ -63,6 +63,13 @@ export const PRESENTATION_KINDS = Object.freeze({
   FAILURE_BATCH: 'failure_batch',
 });
 
+const READ_OPERATIONS = new Set(['list', 'read', 'search', 'next']);
+
+function isReadFact(fact) {
+  return READ_OPERATIONS.has(getFactOperation(fact))
+    || getFactDomain(fact) === 'agenda';
+}
+
 function languageKey(language) {
   return language === 'en' ? 'en' : 'es';
 }
@@ -193,10 +200,22 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
 
 function formatSuccesses(facts, language) {
   if (!facts.length) return '';
-  const homogeneous = facts.every((fact) => groupKey(fact) === groupKey(facts[0]));
-  return homogeneous
-    ? formatHomogeneousGroup(facts, language)
-    : formatMixedSuccess(facts, language);
+  const reads = facts.filter(isReadFact);
+  const mutations = facts.filter((fact) => !isReadFact(fact));
+  const sections = [];
+
+  // Read results are already canonical, verified cards. They are information
+  // retrieved in this turn, not actions performed by the user or assistant.
+  if (reads.length > 0) {
+    sections.push(reads.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
+  }
+  if (mutations.length > 0) {
+    const homogeneous = mutations.every((fact) => groupKey(fact) === groupKey(mutations[0]));
+    sections.push(homogeneous
+      ? formatHomogeneousGroup(mutations, language)
+      : formatMixedSuccess(mutations, language));
+  }
+  return sections.filter(Boolean).join('\n\n');
 }
 
 function formatMixedSuccess(facts, language) {

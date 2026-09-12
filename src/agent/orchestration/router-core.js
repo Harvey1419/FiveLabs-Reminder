@@ -56,7 +56,17 @@ function compactHistoryForModel(history = []) {
   const valid = history
     .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
     .slice(-MAX_HISTORY_TURNS)
-    .map(({ role, content }) => ({ role, content: content.slice(-MAX_HISTORY_TURN_CHARS) }));
+    .map((turn) => {
+      const operational = turn.role === 'assistant'
+        && (turn.entities?._turnMetadata?.kind === 'operational_result'
+          || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent)));
+      return {
+        role: turn.role,
+        content: operational
+          ? '[Resultado operativo previo: no es estado actual. Para información vigente, ejecuta una lectura del dominio.]'
+          : turn.content.slice(-MAX_HISTORY_TURN_CHARS),
+      };
+    });
 
   const selected = [];
   let usedChars = 0;
@@ -409,7 +419,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
     return {
       intent: 'clarification',
-      entities: conversationStateEntities(user),
+      entities: conversationStateEntities(user, { _turnMetadata: { kind: 'provider_failure' } }),
       language,
       confirmation: safeIntentError(language),
       ctaUrl: null, ctaHeader: null, ctaButtonText: null,
@@ -426,7 +436,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.warn(`[router req=${requestId}] required structured tool missing; refusing prose bypass`);
     return {
       intent: 'clarification',
-      entities: conversationStateEntities(user),
+      entities: conversationStateEntities(user, { _turnMetadata: { kind: 'provider_failure' } }),
       language,
       confirmation,
       ctaUrl: null,
@@ -463,7 +473,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
     return {
       intent: 'chat',
-      entities: conversationStateEntities(user),
+      entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
       language,
       confirmation,
       ctaUrl: null,
@@ -536,6 +546,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   return {
     intent: inferIntentFromTool(primary?.toolName),
     entities: conversationStateEntities(user, {
+      _turnMetadata: { kind: 'operational_result' },
       ...(primary?.params && typeof primary.params === 'object' && !Array.isArray(primary.params) ? primary.params : {}),
     }),
     language,

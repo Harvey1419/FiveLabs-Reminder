@@ -96,7 +96,7 @@ export async function getRecentMessages(phone, limit = 20) {
   try {
     const { data, error } = await supabase
       .from('messages')
-      .select('role, content, entities, created_at')
+      .select('role, content, intent, entities, created_at')
       .eq('phone_number', phone)
       .order('created_at', { ascending: false })
       .limit(safeLimit);
@@ -110,7 +110,7 @@ export async function getRecentMessages(phone, limit = 20) {
     return (data || [])
       .slice()
       .reverse()
-      .map(({ role, content, entities, created_at: createdAt }) => ({ role, content, entities, createdAt }));
+      .map(({ role, content, intent, entities, created_at: createdAt }) => ({ role, content, intent, entities, createdAt }));
   } catch (err) {
     console.error('getRecentMessages threw:', err);
     return [];

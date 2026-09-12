@@ -108,6 +108,25 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
+  it('does not replay a prior operational inventory as conversational source of truth', async () => {
+    executeTool.mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'task', action: 'list' }],
+    }));
+    const history = [{
+      role: 'assistant',
+      content: '☑️ Tareas · 1\n\n• Inventario antiguo',
+      intent: 'task',
+    }];
+
+    const result = await routeMessage('Consulta el estado actual.', user, history);
+    const messages = callChatCompletion.mock.calls[0][0];
+    expect(result.intent).toBe('task');
+    expect(messages.some((message) => message.content.includes('Inventario antiguo'))).toBe(false);
+    expect(messages.some((message) => message.content.includes('Resultado operativo previo'))).toBe(true);
+    expect(executeTool).toHaveBeenCalled();
+  });
+
   it('routes a normal typed standalone greeting through Hermes conversation.reply in one call', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: '¡Hola! 👋 ¿En qué te ayudo?' }],
