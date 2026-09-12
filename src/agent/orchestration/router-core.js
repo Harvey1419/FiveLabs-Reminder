@@ -69,21 +69,10 @@ function compactHistoryForModel(history = []) {
   const valid = history
     .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
     .slice(-MAX_HISTORY_TURNS)
-    .map((turn) => {
-      const isInteractiveOrQuestion = turn.content.includes('?')
-        || turn.entities?._workingMemory?.lastAction === 'nudge'
-        || turn.entities?._turnMetadata?.kind === 'clarification'
-        || turn.entities?._turnMetadata?.kind === 'conversation';
-      const isCard = turn.entities?._turnMetadata?.kind === 'operational_result'
-        || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent));
-      const operational = !isInteractiveOrQuestion && turn.role === 'assistant' && isCard;
-      return {
-        role: turn.role,
-        content: operational
-          ? '[Resultado operativo previo: no es estado actual. Para información vigente, ejecuta una lectura del dominio.]'
-          : turn.content.slice(-MAX_HISTORY_TURN_CHARS),
-      };
-    });
+    .map((turn) => ({
+      role: turn.role,
+      content: turn.content.slice(-MAX_HISTORY_TURN_CHARS),
+    }));
 
   const selected = [];
   let usedChars = 0;

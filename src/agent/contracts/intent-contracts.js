@@ -95,15 +95,15 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as canonical actions; TurnIntent is mandatory for every turn. Explicit current meaning overrides all context. Context resolves human references, never changes the operation. Never output internal IDs.
-conversation.reply is non-operational and cannot claim reads/mutations. agenda.read is cross-domain live inventory; use reminder/task/calendar for domain-specific reads. Never reconstruct live state from chat history.
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
-Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
-OPERATIONAL COLLECTIONS: infer from members, not labels. A NEW actionable collection MUST use entity.upsert(project, entityName) + one task.create per member with that entityName; never projectless/collapsed. For an existing or active container, do NOT upsert again: add/read/complete/remove stay task-scoped by entityName. entity.list/delete concerns the container; knowledge collections stay entities. Para eliminar colecciones en lote (ej. "elimina todos los proyectos excepto X"), emite una sola entity.delete con scope="all", category="project" y preserveNames=["X"] (o [] si no hay excepciones); nunca pongas "all projects" en target.
-Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
-For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. Retain known fields.
-Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
-For mixed messages emit valid actions, put non-executable clauses in excluded, and never duplicate backend cards with conversation.reply.`;
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, ownership, permisos, estado real, fechas/timezone, confirmaciones y resultados. Toda salida es un TurnIntent JSON conforme al schema estricto (TurnIntent is mandatory for every turn). El significado explícito actual domina todo contexto. Contexto previo resuelve referencias humanas, nunca cambia la operación. No expongas IDs internos.
+conversation.reply es no operativo y no afirma lecturas ni mutaciones. agenda.read es inventario vivo multi-dominio; para recordatorios usa reminder.list. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
+LÍMITE ESTRICTO ENTRE CREACIÓN Y EDICIÓN (CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY): crear no lleva target; actualizar/cancelar/completar/eliminar requieren target humano existente y solo los deltas pedidos. Un valor a cambiar nunca es identidad.
+Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
+COLECCIONES OPERATIVAS: un nuevo contenedor accionable requiere entity.upsert(project, entityName) + un task.create por elemento con ese entityName; nunca sin proyecto/colapsado. Para un contenedor activo o existente, no vuelvas a hacer upsert: tareas se acotan por entityName. Para eliminar colecciones en lote, emite una sola entity.delete con scope="all", category="project" y preserveNames.
+Significado temporal tipado (Temporal meaning must remain typed): relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona aritmética de fechas/zonas horarias.
+Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
+Mantén recurrencia y advanceMinutes en su recordatorio/evento. Afirmaciones personales duraderas usan conversation.reply más aprendizaje pasivo; memory.save solo ante petición explícita.
+Para mensajes mixtos emite acciones válidas, cláusulas no ejecutables en excluded, y no dupliques cards verificadas en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);

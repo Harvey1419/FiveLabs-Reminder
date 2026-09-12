@@ -38,6 +38,18 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   // A single qualified enum preserves that relationship without a union or a
   // Cartesian product. Node projects it back to canonical domain/action below.
   const { domain: _domain, action: _action, ...sharedProperties } = action.properties;
+  if (attachmentOnly) {
+    action.properties = {
+      operation: {
+        type: 'string',
+        enum: getCanonicalOperations({ domains }),
+        description: 'Exact qualified canonical operation. Domain/action are inseparable. For attachment-only evidence, use conversation.reply.',
+      },
+      content: sharedProperties.content,
+    };
+    action.required = ['operation'];
+    return strictProviderSchema(schema);
+  }
   action.properties = {
     operation: {
       type: 'string',

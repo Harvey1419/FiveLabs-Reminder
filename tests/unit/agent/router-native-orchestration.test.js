@@ -109,7 +109,7 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
   });
 
-  it('does not replay a prior operational inventory as conversational source of truth', async () => {
+  it('preserves the authentic conversational transcript in history while executing live reads for inventory', async () => {
     executeTool.mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'task', action: 'list' }],
@@ -123,12 +123,11 @@ describe('Hermes direct TurnIntent router', () => {
     const result = await routeMessage('Consulta el estado actual.', user, history);
     const messages = callChatCompletion.mock.calls[0][0];
     expect(result.intent).toBe('task');
-    expect(messages.some((message) => message.content.includes('Inventario antiguo'))).toBe(false);
-    expect(messages.some((message) => message.content.includes('Resultado operativo previo'))).toBe(true);
+    expect(messages.some((message) => message.content.includes('Inventario antiguo'))).toBe(true);
     expect(executeTool).toHaveBeenCalled();
   });
 
-  it('preserves interactive assistant questions and nudges in history while censoring operational cards', async () => {
+  it('preserves interactive assistant questions and operational cards in history for conversational continuity', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Anotado para las 5:00 PM.' }],
     }));
@@ -141,7 +140,6 @@ describe('Hermes direct TurnIntent router', () => {
     await routeMessage('A las 5pm', user, history);
     const messages = callChatCompletion.mock.calls[0][0];
     expect(messages.some((message) => message.content.includes('¿A qué hora prefieres que te programe el recordatorio?'))).toBe(true);
-    expect(messages.some((message) => message.content.includes('Resultado operativo previo'))).toBe(false);
   });
 
   it('routes a normal typed standalone greeting through Hermes conversation.reply in one call', async () => {
