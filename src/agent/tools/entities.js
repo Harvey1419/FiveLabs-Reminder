@@ -180,18 +180,19 @@ export async function executeEntityTool({ action, params = {}, user, language = 
 
     case 'delete': {
       const entityIds = Array.isArray(params.entityIds) && params.entityIds.length > 0 ? params.entityIds : null;
-      const targetName = params.targetName || null;
+      const targetNames = Array.isArray(params.targetNames) && params.targetNames.length > 0 ? params.targetNames : null;
+      const targetName = params.targetName || params.target || null;
       const category = params.category || null;
       const scope = params.scope || 'single';
       const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
       const preview = await deleteEntities({
-        userId, targetName, category, scope, preserveNames, dryRun: !clarificationResolution && !entityIds, entityIds,
+        userId, targetName, targetNames, category, scope, preserveNames, dryRun: !clarificationResolution && !entityIds, entityIds,
       });
 
       if (!preview.success) {
         const message = preview.errorCode === 'AMBIGUOUS_TARGET'
-          ? (language === 'en' ? 'Several projects match that name. Which one should I delete?' : 'Hay varios proyectos que coinciden con ese nombre. ¿Cuál deseas eliminar?')
-          : (language === 'en' ? 'I could not find projects matching that request.' : 'No encontré proyectos que coincidan con esa solicitud.');
+          ? (language === 'en' ? 'Several items match that name. Which one should I delete?' : 'Hay varios elementos que coinciden con ese nombre. ¿Cuál deseas eliminar?')
+          : (language === 'en' ? 'I could not find items matching that request.' : 'No encontré elementos que coincidan con esa solicitud.');
         return {
           success: false,
           action: preview.errorCode === 'AMBIGUOUS_TARGET' ? 'ambiguous_entity' : 'entity_not_found',
@@ -231,7 +232,7 @@ export async function executeEntityTool({ action, params = {}, user, language = 
         };
         const pendingClarifications = [{
           type: 'entity_deletion',
-          content: scope === 'all' ? 'Eliminación de proyectos' : `Eliminar ${targetName}`,
+          content: scope === 'all' ? 'Eliminación de proyectos' : `Eliminar ${targetName || names.join(', ')}`,
           question,
           proposedOperation,
         }];

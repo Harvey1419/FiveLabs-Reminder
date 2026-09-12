@@ -257,12 +257,22 @@ function formatFailures(failed, language) {
 
 function formatClarifications(clarifications, language) {
   if (!clarifications.length) return '';
-  const header = language === 'en'
-    ? `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'item needs clarification' : 'items need clarification'}*`
-    : `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'necesita aclaración' : 'necesitan aclaración'}*`;
   const bodies = clarifications
     .map((fact) => sanitizeResponseText(fact?.card || fact?.summary || ''))
     .filter(Boolean);
+
+  const allAreConfirmations = clarifications.every((fact) => (
+    fact.errorCode === 'CONFIRMATION_REQUIRED'
+    || (typeof fact.card === 'string' && (fact.card.includes('Confirmación necesaria') || fact.card.includes('Confirmation needed')))
+  ));
+
+  if (allAreConfirmations) {
+    return bodies.join('\n\n');
+  }
+
+  const header = language === 'en'
+    ? `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'item needs clarification' : 'items need clarification'}*`
+    : `⚠️ *${clarifications.length} ${clarifications.length === 1 ? 'necesita aclaración' : 'necesitan aclaración'}*`;
   return `${header}${bodies.length ? `\n\n${bodies.join('\n\n')}` : ''}`;
 }
 

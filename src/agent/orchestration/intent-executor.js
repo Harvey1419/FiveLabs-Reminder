@@ -666,7 +666,10 @@ export async function executeTurnIntent(intent, context) {
     let result;
 
     const taskCreateBatch = [];
+    const projectDeleteBatch = [];
+    const entityDeleteBatch = [];
     let batchEnd = index;
+
     if (action.domain === 'task' && action.action === 'create') {
       while (
         batchEnd < actions.length
@@ -674,6 +677,28 @@ export async function executeTurnIntent(intent, context) {
         && actions[batchEnd]?.action === 'create'
       ) {
         taskCreateBatch.push(buildDomainCall(actions[batchEnd], context));
+        batchEnd += 1;
+      }
+    } else if (action.domain === 'project' && action.action === 'delete' && action.scope !== 'all' && intentTarget(action)) {
+      while (
+        batchEnd < actions.length
+        && actions[batchEnd]?.domain === 'project'
+        && actions[batchEnd]?.action === 'delete'
+        && actions[batchEnd]?.scope !== 'all'
+        && intentTarget(actions[batchEnd])
+      ) {
+        projectDeleteBatch.push(actions[batchEnd]);
+        batchEnd += 1;
+      }
+    } else if (action.domain === 'entity' && action.action === 'delete' && action.scope !== 'all' && intentTarget(action)) {
+      while (
+        batchEnd < actions.length
+        && actions[batchEnd]?.domain === 'entity'
+        && actions[batchEnd]?.action === 'delete'
+        && actions[batchEnd]?.scope !== 'all'
+        && intentTarget(actions[batchEnd])
+      ) {
+        entityDeleteBatch.push(actions[batchEnd]);
         batchEnd += 1;
       }
     }
@@ -687,6 +712,40 @@ export async function executeTurnIntent(intent, context) {
       params = {
         action: 'create',
         items: taskCreateBatch.flatMap((prepared) => prepared.params.items || []),
+      };
+      const runTool = context.executeTool || executeTool;
+      result = await runTool({
+        toolName,
+        params,
+        user: context.user,
+        isPro: context.isPro,
+        language: context.language,
+        correlationId: context.correlationId,
+        referenceTime: context.referenceTime,
+      });
+      index = batchEnd - 1;
+    } else if (projectDeleteBatch.length > 1) {
+      toolName = TOOL_NAMES.MANAGE_PROJECT;
+      params = {
+        action: 'delete',
+        targetNames: projectDeleteBatch.map((a) => intentTarget(a)).filter(Boolean),
+      };
+      const runTool = context.executeTool || executeTool;
+      result = await runTool({
+        toolName,
+        params,
+        user: context.user,
+        isPro: context.isPro,
+        language: context.language,
+        correlationId: context.correlationId,
+        referenceTime: context.referenceTime,
+      });
+      index = batchEnd - 1;
+    } else if (entityDeleteBatch.length > 1) {
+      toolName = TOOL_NAMES.MANAGE_ENTITY;
+      params = {
+        action: 'delete',
+        targetNames: entityDeleteBatch.map((a) => intentTarget(a)).filter(Boolean),
       };
       const runTool = context.executeTool || executeTool;
       result = await runTool({

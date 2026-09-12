@@ -170,6 +170,7 @@ export function selectEntityCandidate(entities, name, {
 
 export function selectEntitiesForDeletion(entities, {
   targetName = null,
+  targetNames = null,
   category = null,
   scope = 'single',
   preserveNames = [],
@@ -185,12 +186,39 @@ export function selectEntitiesForDeletion(entities, {
     };
   }
 
-  const selected = selectEntityCandidate(candidates, targetName, { category });
-  if (selected.status !== 'RESOLVED') return { ...selected, entities: [] };
-  if (preserved.has(normalizeEntityName(selected.entity.name))) {
-    return { status: 'PRESERVED', entities: [] };
+  const namesToMatch = Array.isArray(targetNames) && targetNames.length > 0
+    ? targetNames
+    : (targetName ? [targetName] : []);
+
+  if (namesToMatch.length === 0) {
+    return { status: 'NOT_FOUND', entities: [], candidates: [] };
   }
-  return { status: 'RESOLVED', entities: [selected.entity] };
+
+  const resolvedEntities = [];
+  const ambiguousCandidates = [];
+
+  for (const name of namesToMatch) {
+    const selected = selectEntityCandidate(candidates, name, { category });
+    if (selected.status === 'AMBIGUOUS') {
+      ambiguousCandidates.push(...(selected.candidates || []));
+    } else if (selected.status === 'RESOLVED') {
+      if (!preserved.has(normalizeEntityName(selected.entity.name))) {
+        if (!resolvedEntities.some((e) => e.id === selected.entity.id)) {
+          resolvedEntities.push(selected.entity);
+        }
+      }
+    }
+  }
+
+  if (ambiguousCandidates.length > 0 && resolvedEntities.length === 0) {
+    return { status: 'AMBIGUOUS', candidates: ambiguousCandidates, entities: [] };
+  }
+
+  if (resolvedEntities.length === 0) {
+    return { status: 'NOT_FOUND', entities: [], candidates: [] };
+  }
+
+  return { status: 'RESOLVED', entities: resolvedEntities };
 }
 
 /**
@@ -373,6 +401,7 @@ export async function getOrCreateEntity(params) {
 export async function deleteEntities({
   userId,
   targetName = null,
+  targetNames = null,
   category = null,
   scope = 'single',
   preserveNames = [],
@@ -380,7 +409,8 @@ export async function deleteEntities({
   entityIds = null,
 }) {
   const hasExactIds = Array.isArray(entityIds) && entityIds.length > 0;
-  if (!userId || (!hasExactIds && scope !== 'all' && !targetName)) {
+  const hasNames = (Array.isArray(targetNames) && targetNames.length > 0) || Boolean(targetName);
+  if (!userId || (!hasExactIds && scope !== 'all' && !hasNames)) {
     return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing deletion target.', deletedCount: 0 };
   }
 
@@ -396,7 +426,7 @@ export async function deleteEntities({
 
     const selection = hasExactIds
       ? { status: 'RESOLVED', entities: entities || [], candidates: [] }
-      : selectEntitiesForDeletion(entities, { targetName, category, scope, preserveNames });
+      : selectEntitiesForDeletion(entities, { targetName, targetNames, category, scope, preserveNames });
     if (selection.status === 'AMBIGUOUS') {
       return { success: false, errorCode: 'AMBIGUOUS_TARGET', error: 'Multiple entities match.', candidates: selection.candidates, deletedCount: 0 };
     }

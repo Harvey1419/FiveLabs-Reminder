@@ -50,4 +50,13 @@ describe('entity candidate selection', () => {
       preservedCompletedTaskCount: 1,
     });
   });
+
+  it('resolves multiple targetNames for deletion as a single batch', () => {
+    const result = selectEntitiesForDeletion(entities, {
+      targetNames: ['trabajo', 'Reminder Pro'],
+    });
+
+    expect(result.status).toBe('RESOLVED');
+    expect(result.entities.map((entity) => entity.id)).toEqual(['work', 'reminder']);
+  });
 });

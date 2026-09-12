@@ -46,6 +46,7 @@ export function selectProjectCandidate(projects, name, {
  */
 export function selectProjectsForDeletion(projects, {
   targetName = null,
+  targetNames = null,
   scope = 'single',
   preserveNames = [],
 } = {}) {
@@ -59,12 +60,39 @@ export function selectProjectsForDeletion(projects, {
     };
   }
 
-  const selected = selectProjectCandidate(candidates, targetName);
-  if (selected.status !== 'RESOLVED') return { ...selected, projects: [] };
-  if (preserved.has(normalizeProjectName(selected.project.name))) {
-    return { status: 'PRESERVED', projects: [] };
+  const namesToMatch = Array.isArray(targetNames) && targetNames.length > 0
+    ? targetNames
+    : (targetName ? [targetName] : []);
+
+  if (namesToMatch.length === 0) {
+    return { status: 'NOT_FOUND', projects: [], candidates: [] };
   }
-  return { status: 'RESOLVED', projects: [selected.project] };
+
+  const resolvedProjects = [];
+  const ambiguousCandidates = [];
+
+  for (const name of namesToMatch) {
+    const selected = selectProjectCandidate(candidates, name);
+    if (selected.status === 'AMBIGUOUS') {
+      ambiguousCandidates.push(...(selected.candidates || []));
+    } else if (selected.status === 'RESOLVED') {
+      if (!preserved.has(normalizeProjectName(selected.project.name))) {
+        if (!resolvedProjects.some((p) => p.id === selected.project.id)) {
+          resolvedProjects.push(selected.project);
+        }
+      }
+    }
+  }
+
+  if (ambiguousCandidates.length > 0 && resolvedProjects.length === 0) {
+    return { status: 'AMBIGUOUS', candidates: ambiguousCandidates, projects: [] };
+  }
+
+  if (resolvedProjects.length === 0) {
+    return { status: 'NOT_FOUND', projects: [], candidates: [] };
+  }
+
+  return { status: 'RESOLVED', projects: resolvedProjects };
 }
 
 /**
@@ -265,13 +293,15 @@ export async function renameProject({ userId, oldName, newName }) {
 export async function deleteProjects({
   userId,
   targetName = null,
+  targetNames = null,
   scope = 'single',
   preserveNames = [],
   dryRun = false,
   projectIds = null,
 }) {
   const hasExactIds = Array.isArray(projectIds) && projectIds.length > 0;
-  if (!userId || (!hasExactIds && scope !== 'all' && !targetName)) {
+  const hasNames = (Array.isArray(targetNames) && targetNames.length > 0) || Boolean(targetName);
+  if (!userId || (!hasExactIds && scope !== 'all' && !hasNames)) {
     return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing deletion target.', deletedCount: 0 };
   }
 
@@ -285,7 +315,7 @@ export async function deleteProjects({
 
     const selection = hasExactIds
       ? { status: 'RESOLVED', projects: projects || [], candidates: [] }
-      : selectProjectsForDeletion(projects, { targetName, scope, preserveNames });
+      : selectProjectsForDeletion(projects, { targetName, targetNames, scope, preserveNames });
 
     if (selection.status === 'AMBIGUOUS') {
       return { success: false, errorCode: 'AMBIGUOUS_TARGET', error: 'Multiple projects match.', candidates: selection.candidates, deletedCount: 0 };

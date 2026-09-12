@@ -99,6 +99,7 @@ export async function executeProjectTool({
 
     case 'delete': {
       const projectIds = Array.isArray(params.projectIds) && params.projectIds.length > 0 ? params.projectIds : null;
+      const targetNames = Array.isArray(params.targetNames) && params.targetNames.length > 0 ? params.targetNames : null;
       const targetName = params.targetName || params.target || null;
       const scope = params.scope || 'single';
       const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
@@ -106,6 +107,7 @@ export async function executeProjectTool({
       const preview = await deleteProjects({
         userId,
         targetName,
+        targetNames,
         scope,
         preserveNames,
         dryRun: !clarificationResolution && !projectIds,
@@ -129,37 +131,45 @@ export async function executeProjectTool({
 
       if (!clarificationResolution) {
         const names = preview.projects.map((p) => p.name);
+        const count = names.length;
+        const projectList = count > 1
+          ? `\n\n${names.map((n) => `• *${n}*`).join('\n')}`
+          : `: *${names[0]}*`;
+
         const preservedText = preserveNames.length > 0
-          ? (language === 'en' ? ` I will keep ${preserveNames.join(', ')}.` : ` Conservaré ${preserveNames.join(', ')}.`)
+          ? (language === 'en' ? `\n\n📌 I will keep ${preserveNames.join(', ')}.` : `\n\n📌 Conservaré ${preserveNames.join(', ')}.`)
           : '';
         const taskText = preview.pendingTaskCount > 0
           ? (language === 'en'
-            ? ` ${preview.pendingTaskCount} unfinished task${preview.pendingTaskCount === 1 ? ' will' : 's will'} also be deleted.`
-            : ` También se ${preview.pendingTaskCount === 1 ? 'eliminará' : 'eliminarán'} ${preview.pendingTaskCount} ${preview.pendingTaskCount === 1 ? 'tarea pendiente asociada' : 'tareas pendientes asociadas'}.`)
+            ? `\n\n🗑️ ${preview.pendingTaskCount} unfinished task${preview.pendingTaskCount === 1 ? ' will' : 's will'} also be deleted.`
+            : `\n\n🗑️ También se ${preview.pendingTaskCount === 1 ? 'eliminará' : 'eliminarán'} ${preview.pendingTaskCount} ${preview.pendingTaskCount === 1 ? 'tarea pendiente asociada' : 'tareas pendientes asociadas'}.`)
           : '';
         const historyText = preview.preservedCompletedTaskCount > 0
           ? (language === 'en'
-            ? ` ${preview.preservedCompletedTaskCount} completed task${preview.preservedCompletedTaskCount === 1 ? ' will remain' : 's will remain'} in history.`
-            : ` ${preview.preservedCompletedTaskCount} ${preview.preservedCompletedTaskCount === 1 ? 'tarea completada permanecerá' : 'tareas completadas permanecerán'} en el historial.`)
+            ? `\n📚 ${preview.preservedCompletedTaskCount} completed task${preview.preservedCompletedTaskCount === 1 ? ' will remain' : 's will remain'} in history.`
+            : `\n📚 ${preview.preservedCompletedTaskCount} ${preview.preservedCompletedTaskCount === 1 ? 'tarea completada permanecerá' : 'tareas completadas permanecerán'} en el historial.`)
           : '';
         const reminderText = preview.activeReminderCount > 0
           ? (language === 'en'
-            ? ` ${preview.activeReminderCount} active reminder${preview.activeReminderCount === 1 ? ' will' : 's will'} also be cancelled.`
-            : ` También se ${preview.activeReminderCount === 1 ? 'cancelará' : 'cancelarán'} ${preview.activeReminderCount} ${preview.activeReminderCount === 1 ? 'recordatorio activo relacionado' : 'recordatorios activos relacionados'}.`)
+            ? `\n🔕 ${preview.activeReminderCount} active reminder${preview.activeReminderCount === 1 ? ' will' : 's will'} also be cancelled.`
+            : `\n🔕 También se ${preview.activeReminderCount === 1 ? 'cancelará' : 'cancelarán'} ${preview.activeReminderCount} ${preview.activeReminderCount === 1 ? 'recordatorio activo relacionado' : 'recordatorios activos relacionados'}.`)
           : '';
+
         const question = language === 'en'
-          ? `Should I delete ${names.length} ${names.length === 1 ? 'project' : 'projects'}: ${names.join(', ')}?${preservedText}${taskText}${reminderText}${historyText}`
-          : `¿Quieres que elimine ${names.length} ${names.length === 1 ? 'proyecto' : 'proyectos'}: ${names.join(', ')}?${preservedText}${taskText}${reminderText}${historyText}`;
+          ? `Should I delete ${count === 1 ? '1 project' : `${count} projects`}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`
+          : `¿Quieres que elimine ${count === 1 ? '1 proyecto' : `${count} proyectos`}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`;
 
         const proposedOperation = {
           kind: 'project_delete',
-          targetName,
+          targetName: count === 1 ? names[0] : null,
+          targetNames: count > 1 ? names : null,
+          projectIds: preview.projects.map((p) => p.id),
           scope,
           preserveNames,
         };
         const pendingClarifications = [{
           type: 'project_deletion',
-          content: scope === 'all' ? 'Eliminación de proyectos' : `Eliminar ${targetName}`,
+          content: scope === 'all' ? 'Eliminación de proyectos' : (count === 1 ? `Eliminar ${names[0]}` : `Eliminar ${count} proyectos`),
           question,
           proposedOperation,
         }];

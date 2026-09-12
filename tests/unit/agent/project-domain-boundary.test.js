@@ -8,7 +8,8 @@ import { executeTool } from '../../../src/agent/tools/index.js';
 import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
 import { validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
-import { formatCanonicalEntityList } from '../../../src/shared/entity-presentation.js';
+import { formatCanonicalEntityList, formatCanonicalEntityDelete } from '../../../src/shared/entity-presentation.js';
+import { selectProjectsForDeletion } from '../../../src/infrastructure/database/projects.js';
 
 describe('Project domain boundary and presentation', () => {
   beforeEach(() => {
@@ -66,5 +67,86 @@ describe('Project domain boundary and presentation', () => {
     expect(fact.card).toContain('📁 *Tus proyectos*');
     expect(fact.card).toContain('• *Reforma baño*');
     expect(fact.card).toContain('• *Yax*');
+  });
+
+  it('batches multiple contiguous project.delete actions into a single manage_project call with targetNames', async () => {
+    executeTool.mockResolvedValue({
+      success: false,
+      action: 'project_deletion_confirmation_required',
+      errorCode: 'CONFIRMATION_REQUIRED',
+      requiresClarification: true,
+      error: '¿Quieres que elimine 2 proyectos?\n\n• *BAM*\n• *Chicamocha*',
+      rawSummary: '⚠️ *Confirmación necesaria*\n\n¿Quieres que elimine 2 proyectos?\n\n• *BAM*\n• *Chicamocha*',
+      formattedCard: '⚠️ *Confirmación necesaria*\n\n¿Quieres que elimine 2 proyectos?\n\n• *BAM*\n• *Chicamocha*',
+      data: {
+        previewProjects: [
+          { id: 'p1', name: 'BAM' },
+          { id: 'p2', name: 'Chicamocha' },
+        ],
+      },
+    });
+
+    const context = {
+      user: { id: 'user-1' },
+      language: 'es',
+    };
+
+    const intent = {
+      actions: [
+        { domain: 'project', action: 'delete', target: 'BAM' },
+        { domain: 'project', action: 'delete', target: 'Chicamocha' },
+      ],
+    };
+
+    const validation = validateTurnIntent(intent);
+    expect(validation.valid).toBe(true);
+
+    const result = await executeTurnIntent(validation.intent, context);
+
+    // Exactly 1 tool call with all targetNames
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: TOOL_NAMES.MANAGE_PROJECT,
+      params: {
+        action: 'delete',
+        targetNames: ['BAM', 'Chicamocha'],
+      },
+    }));
+
+    // Exactly 1 unified fact produced
+    expect(result.facts.length).toBe(1);
+    expect(result.facts[0].card).toContain('⚠️ *Confirmación necesaria*');
+    expect(result.facts[0].card).toContain('• *BAM*');
+    expect(result.facts[0].card).toContain('• *Chicamocha*');
+  });
+
+  it('selects multiple projects by targetNames for batch deletion', () => {
+    const projects = [
+      { id: 'p1', name: 'BAM' },
+      { id: 'p2', name: 'Chicamocha' },
+      { id: 'p3', name: 'Reforma baño' },
+    ];
+
+    const selection = selectProjectsForDeletion(projects, {
+      targetNames: ['BAM', 'Chicamocha'],
+    });
+
+    expect(selection.status).toBe('RESOLVED');
+    expect(selection.projects.map((p) => p.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('formats batch project deletion result with unified 4-block card', () => {
+    const card = formatCanonicalEntityDelete({
+      deletedCount: 2,
+      projects: [{ id: 'p1', name: 'BAM' }, { id: 'p2', name: 'Chicamocha' }],
+      deletedTaskCount: 3,
+      preservedCompletedTaskCount: 5,
+    }, { language: 'es' });
+
+    expect(card).toContain('🗑️ *2 proyectos eliminados*');
+    expect(card).toContain('• BAM');
+    expect(card).toContain('• Chicamocha');
+    expect(card).toContain('🗑️ También se eliminaron 3 tareas pendientes asociadas.');
+    expect(card).toContain('📚 5 tareas completadas permanecen en el historial.');
   });
 });

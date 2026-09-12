@@ -69,7 +69,7 @@ export function formatCanonicalEntityList(entities = [], {
 }
 
 export function formatCanonicalEntityDelete(data = {}, { language = 'es' } = {}) {
-  const entities = Array.isArray(data?.entities) ? data.entities : [];
+  const entities = Array.isArray(data?.entities) ? data.entities : (Array.isArray(data?.projects) ? data.projects : []);
   const deletedCount = Number(data?.deletedCount ?? entities.length ?? 0);
   const deletedTaskCount = Number(data?.deletedTaskCount || 0);
   const cancelledReminderCount = Number(data?.cancelledReminderCount || 0);
@@ -77,8 +77,8 @@ export function formatCanonicalEntityDelete(data = {}, { language = 'es' } = {})
   const names = entities.map((entity) => entity?.name).filter(Boolean);
 
   const header = language === 'en'
-    ? `🗑️ *${deletedCount === 1 ? 'Project deleted' : 'Projects deleted'}*`
-    : `🗑️ *${deletedCount === 1 ? 'Proyecto eliminado' : 'Proyectos eliminados'}*`;
+    ? `🗑️ *${deletedCount === 1 ? 'Project deleted' : `${deletedCount} projects deleted`}*`
+    : `🗑️ *${deletedCount === 1 ? 'Proyecto eliminado' : `${deletedCount} proyectos eliminados`}*`;
   const lines = names.map((name) => `• ${name}`);
   const notes = [];
 
