@@ -282,4 +282,75 @@ describe('durable memory extraction policy', () => {
     expect(saved).toHaveLength(16);
     expect(saveMemory).toHaveBeenCalledTimes(16);
   });
+
+  it('skips extraction when a completed operational task matches user completion statement (Issue #68 invariant)', async () => {
+    const userText = 'Ya guardé el pasaporte.';
+    const completionFact = {
+      tool: 'manage_task',
+      success: true,
+      card: '✅ Tarea completada: Guardar el pasaporte.',
+      summary: '',
+      presentationParams: {
+        action: 'complete',
+        target: 'Guardar el pasaporte',
+      },
+    };
+
+    expect(getMemoryEligibleText(userText, [completionFact])).toBe('');
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1',
+      userText,
+      assistantReply: 'Listo, marqué la tarea como completada.',
+      executionFacts: [completionFact],
+    });
+
+    expect(saved).toEqual([]);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('rejects an ephemeral completion candidate even if extractor produces a candidate (Issue #68 candidate rejection)', async () => {
+    const userText = 'Ya guardé el pasaporte. Mi color favorito es el azul.';
+    const completionFact = {
+      tool: 'manage_task',
+      success: true,
+      card: '✅ Tarea completada: Guardar el pasaporte.',
+      presentationParams: { target: 'Guardar el pasaporte' },
+    };
+
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([
+      {
+        topicKey: 'profile/passport',
+        category: 'fact',
+        content: 'El usuario ha guardado su pasaporte.',
+        evidence: 'Ya guardé el pasaporte',
+        entityName: null,
+        entityCategory: null,
+      },
+      {
+        topicKey: 'preference/color',
+        category: 'preference',
+        content: 'El color favorito del usuario es el azul.',
+        evidence: 'Mi color favorito es el azul',
+        entityName: null,
+        entityCategory: null,
+      },
+    ]));
+
+    const saved = await extractAndSaveMemories({
+      userId: 'user-1',
+      userText,
+      assistantReply: 'Entendido.',
+      executionFacts: [completionFact],
+    });
+
+    // profile/passport must be rejected due to overlap with operational completion; preference/color preserved
+    expect(saved).toHaveLength(1);
+    expect(saveMemory).toHaveBeenCalledTimes(1);
+    expect(saveMemory).toHaveBeenCalledWith(expect.objectContaining({
+      topicKey: 'preference/color',
+      content: 'El color favorito del usuario es el azul.',
+    }));
+  });
 });
+
