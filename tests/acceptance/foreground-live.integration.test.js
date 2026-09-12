@@ -38,6 +38,8 @@ vi.mock('../../src/agent/contracts/intent-contracts.js', async (importOriginal) 
 import { routeMessage } from '../../src/agent/orchestration/router.js';
 import { executeTool } from '../../src/agent/tools/index.js';
 import { clearWorkingMemory } from '../../src/agent/core/working-memory.js';
+import { getActiveAgentRun } from '../../src/agent/core/agent-run.js';
+import { clearAgentRunsForUser } from '../../src/infrastructure/database/agent-runs.js';
 import { isAdminUser } from '../../src/shared/auth.js';
 
 const stage = process.env.FOREGROUND_ACCEPTANCE_STAGE || 'primary';
@@ -74,6 +76,7 @@ beforeEach((context) => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   clearWorkingMemory(user);
+  clearAgentRunsForUser(user);
   isAdminUser.mockReturnValue(false);
   attempts = [];
   responses = [];
@@ -167,7 +170,6 @@ afterEach(async (context) => {
       try {
         const parsed = JSON.parse(response?.choices?.[0]?.message?.content);
         return {
-          pendingIntentEffect: parsed.pendingIntentEffect,
           actions: parsed.actions?.map(({ operation, schedule }) => ({ operation, schedule })),
         };
       } catch { return null; }
@@ -270,8 +272,6 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
 
   it('represents and continues an operational collection as one project with task members', async () => {
     const created = await routeMessage('Crea pendientes del viaje con sacar el pasaporte, comprar bloqueador y cargar la batería externa.', user, [], reference);
-    expect(created.entities._conversationState.pendingIntent).toBeNull();
-    expect(created.entities._conversationState.pendingClarifications).toEqual([]);
     const createdActions = created.plan.actions.map(({ domain, action }) => `${domain}.${action}`);
     expect(createdActions.filter((action) => action === 'task.create')).toHaveLength(3);
     expect(createdActions.every((action) => (
@@ -295,7 +295,6 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
 
     executeTool.mockClear();
     const added = await routeMessage('Agrega también revisar el seguro de viaje.', user, [], reference);
-    expect(added.entities._conversationState.pendingIntent).toBeNull();
     expect(added.plan.actions).toEqual([{ domain: 'task', action: 'create' }]);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
       toolName: 'manage_task',
@@ -366,12 +365,10 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(first.executionFacts).toHaveLength(1);
     expect(first.executionFacts[0].requiresClarification).toBe(true);
-    expect(first.entities._conversationState.pendingIntent.actions).toHaveLength(1);
-    expect(first.entities._conversationState.pendingIntent.actions[0]).toMatchObject({
-      domain: 'reminder',
-      action: 'create',
-      schedule: { kind: 'relative_day_time', dayOffset: 1 },
-    });
+    const firstRun = await getActiveAgentRun(user, new Date(reference.requestTimeMs));
+    expect(firstRun).not.toBeNull();
+    expect(firstRun.status).toBe('waiting_for_input');
+    expect(firstRun.kind).toBe('reminder_creation');
 
     const firstHistory = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
     const secondText = 'Antes de eso, crea una tarea para comprar bombillos.';
@@ -382,8 +379,9 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
       toolName: 'manage_task',
       params: { action: 'create', items: [{ title: expect.stringMatching(/bombillos/i) }] },
     });
-    expect(second.entities._conversationState.pendingIntent).toEqual(first.entities._conversationState.pendingIntent);
-    expect(second.entities._conversationState.pendingExpiresAt).toBe(first.entities._conversationState.pendingExpiresAt);
+    const secondRun = await getActiveAgentRun(user, new Date(reference.requestTimeMs));
+    expect(secondRun).not.toBeNull();
+    expect(secondRun.status).toBe('waiting_for_input');
 
     const history = [
       ...firstHistory,
@@ -394,15 +392,17 @@ describe(`live strict foreground acceptance: ${stage}`, () => {
     assertCompleteDecision(3);
     expect(executeTool).toHaveBeenCalledTimes(2);
     assertReminder(1, 'recibo', tomorrow(9));
-    expect(third.entities._conversationState.pendingIntent).toBeNull();
+    const thirdRun = await getActiveAgentRun(user, new Date(reference.requestTimeMs));
+    expect(thirdRun).toBeNull();
   });
 
   extendedIt('keeps one compound pending intent while three later clocks complete its three known contents', async () => {
     const text = 'Recuérdame mañana revisar Alfa, revisar Beta y revisar Gamma. Son tres recordatorios, pero todavía no te he dado las horas.';
     const first = await routeMessage(text, user, [], reference);
     expect(executeTool).not.toHaveBeenCalled();
-    expect(first.entities._conversationState.pendingIntent.actions).toHaveLength(3);
-    expect(first.entities._conversationState.pendingClarifications).toEqual([]);
+    const run = await getActiveAgentRun(user, new Date(reference.requestTimeMs));
+    expect(run).not.toBeNull();
+    expect(run.status).toBe('waiting_for_input');
 
     const history = [{ role: 'user', content: text }, { role: 'assistant', content: first.confirmation, entities: first.entities }];
     const second = await routeMessage('En el mismo orden: a las 8 de la mañana, a las 10 de la mañana y a las 12 del mediodía.', user, history, reference);
