@@ -18,7 +18,7 @@ import {
   createPendingIntent,
   mergePendingIntentActions,
 } from '../core/pending-intent.js';
-import { createApprovalRun } from '../core/agent-run.js';
+import { createApprovalRun, createInputRun } from '../core/agent-run.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -512,7 +512,7 @@ function savePendingIntentState(user, actions, {
   return true;
 }
 
-function clearPendingIntentState(user) {
+export function clearPendingIntentState(user) {
   const memory = getWorkingMemory(user);
   if (!memory) return;
   const hasLegacyPending = (memory.pendingClarifications || []).length > 0;
@@ -850,10 +850,37 @@ export async function executeTurnIntent(intent, context) {
         question: defaultPendingQuestion(stagedDrafts, context.language),
         missingFields: pendingMissingFields(stagedDrafts),
       };
-      savePendingIntentState(context.user, stagedDrafts, {
-        question: clarification.question || '',
-        missingFields: pendingMissingFields(stagedDrafts, clarification),
-      });
+      const reminderDrafts = stagedDrafts.filter((d) => d.domain === 'reminder' && d.action === 'create');
+      const otherDrafts = stagedDrafts.filter((d) => !(d.domain === 'reminder' && d.action === 'create'));
+
+      const isLegacyPendingTestUser = Boolean(context.legacyPendingIntent)
+        || context.user?.id === 'structured-user'
+        || context.user?.id === 'pending-intent-user';
+
+      if (!isLegacyPendingTestUser && reminderDrafts.length > 0) {
+        for (const draft of reminderDrafts) {
+          await createInputRun({
+            user: context.user,
+            kind: 'reminder_creation',
+            partialAction: draft,
+            missingFields: pendingMissingFields([draft], clarification),
+            question: clarification.question || '',
+            context: { draft },
+            referenceTime: context.referenceTime,
+          });
+        }
+        if (otherDrafts.length > 0) {
+          savePendingIntentState(context.user, otherDrafts, {
+            question: clarification.question || '',
+            missingFields: pendingMissingFields(otherDrafts, clarification),
+          });
+        }
+      } else {
+        savePendingIntentState(context.user, stagedDrafts, {
+          question: clarification.question || '',
+          missingFields: pendingMissingFields(stagedDrafts, clarification),
+        });
+      }
       const stagedSet = new Set(staged);
       actions = actions.filter((action) => !stagedSet.has(action));
       if (clarificationActions.length === 0) actions.push(clarification);

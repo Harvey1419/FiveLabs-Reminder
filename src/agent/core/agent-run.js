@@ -8,6 +8,7 @@ import {
   recordExecutionEventInDb,
 } from '../../infrastructure/database/agent-runs.js';
 import { mergePendingSchedule } from './pending-intent.js';
+import { resolveTypedSchedule } from '../orchestration/typed-schedule.js';
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { createExecutionFact } from './execution-facts.js';
@@ -53,10 +54,14 @@ export async function createApprovalRun({
   question = '',
   expiresAtMs = null,
   context = {},
+  referenceTime = null,
 }) {
   const threadId = resolveThreadId(user);
   const userId = resolveUserId(user);
-  const expiresAt = new Date(Date.now() + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
+  const baseNow = referenceTime
+    ? (referenceTime instanceof Date ? referenceTime.getTime() : new Date(referenceTime).getTime())
+    : Date.now();
+  const expiresAt = new Date(baseNow + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
 
   // Invariant 1: Ensure any previous active run on this thread is cancelled before creating a new one
   const existingRun = await getActiveAgentRun(user);
@@ -102,10 +107,14 @@ export async function createInputRun({
   question = '',
   expiresAtMs = null,
   context = {},
+  referenceTime = null,
 }) {
   const threadId = resolveThreadId(user);
   const userId = resolveUserId(user);
-  const expiresAt = new Date(Date.now() + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
+  const baseNow = referenceTime
+    ? (referenceTime instanceof Date ? referenceTime.getTime() : new Date(referenceTime).getTime())
+    : Date.now();
+  const expiresAt = new Date(baseNow + (expiresAtMs || AGENT_RUN_TTL_MS)).toISOString();
 
   // Invariant 1: Ensure any previous active run on this thread is cancelled before creating a new one
   const existingRun = await getActiveAgentRun(user);
@@ -327,14 +336,62 @@ export async function executeContinuationDecision({
   }
 
   let toolName = TOOL_NAMES.MANAGE_REMINDER;
-  if (targetAction.domain === 'task') toolName = TOOL_NAMES.MANAGE_TASK;
-  if (targetAction.domain === 'entity') toolName = TOOL_NAMES.MANAGE_ENTITY;
+  let params = mergedPayload;
+
+  if (targetAction.domain === 'task') {
+    toolName = TOOL_NAMES.MANAGE_TASK;
+  } else if (targetAction.domain === 'entity') {
+    toolName = TOOL_NAMES.MANAGE_ENTITY;
+  } else if (targetAction.domain === 'reminder' && targetAction.action === 'create') {
+    const temporal = resolveTypedSchedule(mergedPayload.schedule, {
+      referenceTime: executionContext.referenceTime,
+      timezone: executionContext.timezone || 'UTC',
+    });
+    if (!temporal.valid) {
+      return {
+        success: false,
+        executed: false,
+        status: run.status,
+        error: temporal.error,
+        errorCode: temporal.errorCode,
+      };
+    }
+    const content = mergedPayload.content || mergedPayload.title || '';
+    params = {
+      ...mergedPayload,
+      action: 'create',
+      items: [{
+        content,
+        targetTime: temporal.canonical,
+        ...(mergedPayload.advanceMinutes ? { advanceMinutes: mergedPayload.advanceMinutes } : {}),
+        ...(mergedPayload.recurrence ? { recurrence: mergedPayload.recurrence } : {}),
+        ...(mergedPayload.requiresConfirmation ? { requiresConfirmation: true } : {}),
+        ...(mergedPayload.nudgeIntervalMinutes ? { nudgeIntervalMinutes: mergedPayload.nudgeIntervalMinutes } : {}),
+        ...(mergedPayload.maxNudges ? { maxNudges: mergedPayload.maxNudges } : {}),
+      }],
+    };
+  }
+
+  const userId = run.user_id;
+  const threadId = run.thread_id;
+  const executionUser = (executionContext.user && typeof executionContext.user === 'object' && executionContext.user.id)
+    ? executionContext.user
+    : { ...(typeof executionContext.user === 'object' ? executionContext.user : {}), id: userId || threadId };
 
   const result = await executeTool({
     ...executionContext,
+    user: executionUser,
     toolName,
-    params: mergedPayload,
+    params,
     clarificationResolution: true,
+  });
+
+  const fact = createExecutionFact({
+    toolName,
+    params,
+    result,
+    callId: targetAction.call_id,
+    language: executionContext.language || 'es',
   });
 
   const isSuccess = result.success !== false;
@@ -356,8 +413,11 @@ export async function executeContinuationDecision({
 
   return {
     success: isSuccess,
+    executed: isSuccess,
     status: finalStatus,
     result,
+    fact,
+    facts: [fact],
   };
 }
 
