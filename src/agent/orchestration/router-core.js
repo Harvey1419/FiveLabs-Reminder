@@ -29,7 +29,7 @@ import {
   projectStructuredTurnIntent,
   stripStructuredNulls,
 } from '../contracts/foreground-turn-schema.js';
-import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
+import { executeTurnIntent, inferIntentFromTool, clearPendingIntentState } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 import { mergePendingIntentActions } from '../core/pending-intent.js';
 import {
@@ -308,7 +308,9 @@ function providerUnavailableError(language) {
  */
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const startMs = Date.now();
-  const requestedReferenceMs = options?.requestTimeMs == null ? NaN : Number(options.requestTimeMs);
+  const requestedReferenceMs = options?.requestTimeMs != null
+    ? Number(options.requestTimeMs)
+    : (options?.referenceTime != null ? new Date(options.referenceTime).getTime() : NaN);
   const requestReferenceTime = new Date(Number.isFinite(requestedReferenceMs) ? requestedReferenceMs : startMs);
   const user = typeof userOrPhone === 'string'
     ? { phone_number: userOrPhone, timezone: 'America/Bogota', locale: 'es-CO' }
@@ -389,7 +391,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     { role: 'user', content: messageText },
   ];
 
-  const activeAgentRun = await getActiveAgentRun(phoneNumber || user);
+  const activeAgentRun = await getActiveAgentRun(phoneNumber || user, requestReferenceTime);
   if (activeAgentRun && (activeAgentRun.status === 'waiting_for_approval' || activeAgentRun.status === 'waiting_for_input')) {
     const isApproval = activeAgentRun.status === 'waiting_for_approval';
     const schema = isApproval ? APPROVAL_DECISION_SCHEMA : CONTINUATION_DECISION_SCHEMA;
@@ -504,7 +506,19 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
             if (execResult.success) {
-              const reply = validation.decision.reply || (language === 'en' ? 'Reminder created.' : 'Recordatorio creado.');
+              clearPendingIntentState(user);
+              const wm = getWorkingMemory(user);
+              if (wm?.pendingClarifications?.length > 0) {
+                saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
+              }
+
+              let reply = validation.decision.reply;
+              if (!reply && (execResult.facts?.length > 0 || execResult.fact)) {
+                reply = composeExecutionReply(execResult.facts || [execResult.fact], language);
+              }
+              if (!reply) {
+                reply = language === 'en' ? 'Reminder created.' : 'Recordatorio creado.';
+              }
               return {
                 intent: 'reminder',
                 entities: conversationStateEntities(user),
@@ -512,12 +526,30 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
                 confirmation: reply,
                 ctaUrl: null, ctaHeader: null, ctaButtonText: null,
                 plan: { type: 'continuation_decision' },
-                executionFacts: [execResult.result],
+                executionFacts: execResult.facts || (execResult.fact ? [execResult.fact] : []),
+                memoryDisposition: 'skip_operational',
+              };
+            } else {
+              const reply = execResult.error || (language === 'en' ? 'Could not create reminder.' : 'No pude crear el recordatorio.');
+              return {
+                intent: 'reminder',
+                entities: conversationStateEntities(user),
+                language,
+                confirmation: reply,
+                ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+                plan: { type: 'continuation_decision_failed' },
+                executionFacts: execResult.facts || (execResult.fact ? [execResult.fact] : []),
                 memoryDisposition: 'skip_operational',
               };
             }
           } else if (relation === 'cancel') {
             await updateAgentRunInDb(activeAgentRun.id, { status: 'cancelled' });
+            clearPendingIntentState(user);
+            const wm = getWorkingMemory(user);
+            if (wm?.pendingClarifications?.length > 0) {
+              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
+            }
+
             const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
             return {
               intent: 'chat',
