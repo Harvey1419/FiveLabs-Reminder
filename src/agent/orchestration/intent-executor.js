@@ -18,6 +18,7 @@ import {
   createPendingIntent,
   mergePendingIntentActions,
 } from '../core/pending-intent.js';
+import { createApprovalRun } from '../core/agent-run.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -587,7 +588,7 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
     return;
   }
 
-  if (result.requiresClarification && action?.domain && action?.action) {
+  if (result.action !== 'entity_deletion_confirmation_required' && result.requiresClarification && action?.domain && action?.action) {
     savePendingIntentState(user, [action], {
       question: result.error || result.rawSummary || '',
       missingFields: pendingMissingFields([action], null, result.errorCode),
@@ -950,6 +951,30 @@ export async function executeTurnIntent(intent, context) {
     const fact = createExecutionFact({ toolName, params, result, callId, language: context.language });
     records.push({ action, toolName, params, result, fact });
     facts.push(fact);
+
+    if (
+      result.action === 'entity_deletion_confirmation_required'
+      && Array.isArray(result.data?.previewEntities)
+      && result.data.previewEntities.length > 0
+    ) {
+      const preparedActions = result.data.previewEntities.map((entity, idx) => ({
+        callId: `call-${idx + 1}`,
+        domain: 'entity',
+        action: 'delete',
+        targetId: entity.id,
+        targetName: entity.name,
+        payload: { action: 'delete', entityIds: [entity.id] },
+        status: 'prepared',
+      }));
+
+      await createApprovalRun({
+        user: context.user,
+        kind: 'entity_destructive_batch',
+        preparedActions,
+        question: result.error || result.rawSummary,
+        context: { previewEntities: result.data.previewEntities },
+      });
+    }
 
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
       updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result, pendingEffect });

@@ -13,6 +13,7 @@ import { buildAgentCorePrompt } from '../core/agent-core.js';
 import {
   formatWorkingMemoryPrompt,
   getWorkingMemory,
+  saveWorkingMemory,
   getWorkingMemorySnapshot,
   hydrateWorkingMemoryFromHistory,
   sanitizeResponseText,
@@ -439,13 +440,25 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               run: activeAgentRun,
               decision: validation.decision.decision,
               selectedCallIds: validation.decision.selectedCallIds,
-              executionContext: { user, language, isPro, timezone, referenceTime, correlationId: requestId },
+              executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
-            const reply = validation.decision.reply || (validation.decision.decision === 'reject'
-              ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
-              : (language === 'en'
-                ? `Done — deleted ${execResult.executedCount || 0} projects.`
-                : `Listo — eliminé ${execResult.executedCount || 0} proyectos.`));
+
+            const wm = getWorkingMemory(user);
+            if (wm?.pendingClarifications?.length > 0) {
+              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
+            }
+
+            let reply = validation.decision.reply;
+            if (!reply && execResult.facts?.length > 0) {
+              reply = composeExecutionReply(execResult.facts, language);
+            }
+            if (!reply) {
+              reply = validation.decision.decision === 'reject'
+                ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
+                : (language === 'en'
+                  ? `Done — deleted ${execResult.executedCount || 0} projects.`
+                  : `Listo — eliminé ${execResult.executedCount || 0} proyectos.`);
+            }
 
             return {
               intent: 'entity',
@@ -453,8 +466,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               language,
               confirmation: reply,
               ctaUrl: null, ctaHeader: null, ctaButtonText: null,
-              plan: { type: 'approval_decision' },
-              executionFacts: execResult.results?.map((r) => r.result) || [],
+              plan: { type: 'approval_decision', decision: validation.decision.decision },
+              executionFacts: execResult.facts || [],
               memoryDisposition: 'skip_operational',
             };
           } else if (relation === 'cancel') {
@@ -463,6 +476,12 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               decision: 'reject',
               executionContext: { user },
             });
+
+            const wm = getWorkingMemory(user);
+            if (wm?.pendingClarifications?.length > 0) {
+              saveWorkingMemory(user, { ...wm, pendingClarifications: [] });
+            }
+
             const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
             return {
               intent: 'chat',
@@ -482,7 +501,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
             const execResult = await executeContinuationDecision({
               run: activeAgentRun,
               suppliedFields: validation.decision.suppliedFields,
-              executionContext: { user, language, isPro, timezone, referenceTime, correlationId: requestId },
+              executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
             if (execResult.success) {
               const reply = validation.decision.reply || (language === 'en' ? 'Reminder created.' : 'Recordatorio creado.');
