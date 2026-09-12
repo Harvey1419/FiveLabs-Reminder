@@ -116,7 +116,7 @@ describe('Hermes direct TurnIntent router', () => {
     const history = [{
       role: 'assistant',
       content: '☑️ Tareas · 1\n\n• Inventario antiguo',
-      entities: { _turnMetadata: { kind: 'operational_result' } },
+      intent: 'task',
     }];
 
     const result = await routeMessage('Consulta el estado actual.', user, history);

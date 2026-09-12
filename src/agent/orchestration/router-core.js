@@ -58,7 +58,8 @@ function compactHistoryForModel(history = []) {
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => {
       const operational = turn.role === 'assistant'
-        && turn.entities?._turnMetadata?.kind === 'operational_result';
+        && (turn.entities?._turnMetadata?.kind === 'operational_result'
+          || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent)));
       return {
         role: turn.role,
         content: operational
