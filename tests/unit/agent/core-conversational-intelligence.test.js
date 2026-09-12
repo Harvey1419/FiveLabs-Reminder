@@ -99,7 +99,7 @@ describe('Core Conversational Intelligence Upgrade', () => {
       expect(execution.records).toHaveLength(1);
       expect(execution.records[0].result.requiresClarification).toBe(true);
 
-      const stagedRun = await getActiveAgentRun(user);
+      const stagedRun = await getActiveAgentRun(user, context.referenceTime);
       expect(stagedRun).not.toBeNull();
       expect(stagedRun.status).toBe('waiting_for_input');
       expect(stagedRun.preparedActions).toHaveLength(3);
@@ -223,7 +223,7 @@ describe('Core Conversational Intelligence Upgrade', () => {
       await executeTurnIntent(intent, context);
 
       // Verify proposal_approval run was staged in waiting_for_approval
-      const activeRun = await getActiveAgentRun(user);
+      const activeRun = await getActiveAgentRun(user, context.referenceTime);
       expect(activeRun).not.toBeNull();
       expect(activeRun.status).toBe('waiting_for_approval');
       expect(activeRun.kind).toBe('proposal_approval');
