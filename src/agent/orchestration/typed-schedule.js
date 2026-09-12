@@ -104,7 +104,9 @@ export function resolveTypedSchedule(schedule, {
     ? { ...schedule, minute: 0 }
     : { ...schedule };
 
-  if (normalizedSchedule.kind === 'local_time' && Number.isInteger(normalizedSchedule.dayOffset)) {
+  if ((normalizedSchedule.kind === 'local_time' || normalizedSchedule.kind === 'calendar_date_time')
+    && Number.isInteger(normalizedSchedule.dayOffset)
+    && (!Number.isInteger(normalizedSchedule.month) || !Number.isInteger(normalizedSchedule.day))) {
     normalizedSchedule.kind = 'relative_day_time';
   }
 

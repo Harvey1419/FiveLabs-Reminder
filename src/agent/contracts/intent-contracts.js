@@ -193,26 +193,34 @@ function linkOperationalCollectionContainer(actions) {
   copies[index] = { ...copies[index], entityName: memberNames[0] };
   return copies;
 }
+function getEffectiveScheduleKind(schedule) {
+  if (schedule?.kind === 'calendar_date_time' && Number.isInteger(schedule.dayOffset) && (!Number.isInteger(schedule.month) || !Number.isInteger(schedule.day))) {
+    return 'relative_day_time';
+  }
+  return schedule?.kind;
+}
 function hasCompleteReminderSchedule(schedule) {
   if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return false;
-  if (schedule.kind === 'relative_offset') return Number.isInteger(schedule.offsetMinutes);
-  if (schedule.kind === 'relative_day_time') return Number.isInteger(schedule.dayOffset) && Number.isInteger(schedule.hour);
-  if (schedule.kind === 'calendar_date_time') return Number.isInteger(schedule.month) && Number.isInteger(schedule.day) && Number.isInteger(schedule.hour);
-  if (schedule.kind === 'weekday_time') return typeof schedule.weekday === 'string' && Number.isInteger(schedule.hour);
-  if (schedule.kind === 'local_time') return Number.isInteger(schedule.hour);
+  const kind = getEffectiveScheduleKind(schedule);
+  if (kind === 'relative_offset') return Number.isInteger(schedule.offsetMinutes);
+  if (kind === 'relative_day_time') return Number.isInteger(schedule.dayOffset) && Number.isInteger(schedule.hour);
+  if (kind === 'calendar_date_time') return Number.isInteger(schedule.month) && Number.isInteger(schedule.day) && Number.isInteger(schedule.hour);
+  if (kind === 'weekday_time') return typeof schedule.weekday === 'string' && Number.isInteger(schedule.hour);
+  if (kind === 'local_time') return Number.isInteger(schedule.hour);
   return false;
 }
 function inferPartialReminderScheduleFields(schedule) {
   if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return [];
+  const kind = getEffectiveScheduleKind(schedule);
   const hasClock = Number.isInteger(schedule.hour);
   let hasDate = false;
-  if (schedule.kind === 'relative_day_time') hasDate = Number.isInteger(schedule.dayOffset);
-  if (schedule.kind === 'calendar_date_time') hasDate = Number.isInteger(schedule.month) && Number.isInteger(schedule.day);
-  if (schedule.kind === 'weekday_time') hasDate = typeof schedule.weekday === 'string';
-  if (schedule.kind === 'local_time') {
+  if (kind === 'relative_day_time') hasDate = Number.isInteger(schedule.dayOffset);
+  if (kind === 'calendar_date_time') hasDate = Number.isInteger(schedule.month) && Number.isInteger(schedule.day);
+  if (kind === 'weekday_time') hasDate = typeof schedule.weekday === 'string';
+  if (kind === 'local_time') {
     return hasClock ? ['date'] : [];
   }
-  if (!['relative_day_time', 'calendar_date_time', 'weekday_time'].includes(schedule.kind)) return [];
+  if (!['relative_day_time', 'calendar_date_time', 'weekday_time'].includes(kind)) return [];
   if (!hasDate && !hasClock) return [];
   return [
     ...(!hasDate ? ['date'] : []),
