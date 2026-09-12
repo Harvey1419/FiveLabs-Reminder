@@ -2,10 +2,13 @@
  * Semantic embeddings through the project's single AI gateway.
  * The database contract remains vector(768), so OpenRouter is asked to shorten
  * text-embedding-3-small to 768 dimensions instead of requiring a migration.
+ * OPENROUTER_EMBEDDING_API_KEY can isolate this workload from the foreground
+ * model key; the foreground key remains the fallback for compatibility.
  */
 
 function getOpenRouterApiKey() {
-  return process.env.OPENROUTER_API_KEY?.replace(/"/g, '').trim()
+  return process.env.OPENROUTER_EMBEDDING_API_KEY?.replace(/"/g, '').trim()
+    || process.env.OPENROUTER_API_KEY?.replace(/"/g, '').trim()
     || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY.trim() : null);
 }
 

@@ -21,6 +21,7 @@ function openRouterResponse(content, provider = 'test-provider') {
 
 describe('Hybrid low-latency model routing and multimodal inputs', () => {
   const originalKey = process.env.OPENROUTER_API_KEY;
+  const originalEmbeddingKey = process.env.OPENROUTER_EMBEDDING_API_KEY;
 
   beforeEach(() => {
     process.env.OPENROUTER_API_KEY = 'sk-or-test';
@@ -32,6 +33,8 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
     vi.restoreAllMocks();
     if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = originalKey;
+    if (originalEmbeddingKey === undefined) delete process.env.OPENROUTER_EMBEDDING_API_KEY;
+    else process.env.OPENROUTER_EMBEDDING_API_KEY = originalEmbeddingKey;
   });
 
   it('routes normal chat to GPT-OSS 120B on Groq through OpenRouter', async () => {
@@ -285,6 +288,19 @@ describe('Hybrid low-latency model routing and multimodal inputs', () => {
       model: 'openai/text-embedding-3-small', input: 'Vivo en Barranquilla',
       dimensions: 768, encoding_format: 'float',
     });
+  });
+
+  it('uses a dedicated embeddings key when configured', async () => {
+    process.env.OPENROUTER_EMBEDDING_API_KEY = 'sk-or-embedding-test';
+    const vector = Array.from({ length: 768 }, () => 0.1);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: [{ embedding: vector, index: 0, object: 'embedding' }],
+      model: 'openai/text-embedding-3-small', object: 'list',
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    await generateEmbedding('Vivo en Barranquilla');
+
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-or-embedding-test');
   });
 
   it('batches embeddings for controlled memory reindexing without changing order', async () => {
