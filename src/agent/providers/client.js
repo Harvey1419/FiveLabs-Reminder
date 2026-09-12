@@ -640,8 +640,7 @@ export async function callChatCompletion(messages, {
     return buildUnavailableResponse(returnMessage, 'missing_credentials', language);
   }
 
-  const strictStructuredOutput = purpose === 'initial'
-    && requestedResponseFormat?.type === 'json_schema'
+  const strictStructuredOutput = requestedResponseFormat?.type === 'json_schema'
     && requestedResponseFormat.json_schema?.strict === true;
   const foregroundProfiles = createForegroundProfiles({ strictStructuredOutput });
   const requestedStartIndex = startStage
