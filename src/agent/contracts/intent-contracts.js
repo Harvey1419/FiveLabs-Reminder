@@ -233,6 +233,15 @@ function mutationRequiresTarget(domain, action, raw) {
   return false;
 }
 
+function scheduleBearingMutation(domain, action, field = 'schedule') {
+  if (field === 'endSchedule') return domain === 'calendar' && ['create', 'update'].includes(action);
+  return (
+    (domain === 'reminder' && ['create', 'update'].includes(action))
+    || (domain === 'task' && ['create', 'update'].includes(action))
+    || (domain === 'calendar' && ['create', 'update'].includes(action))
+  );
+}
+
 export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El intent del turno debe ser un objeto.' };
   if (!Array.isArray(intent.actions) || intent.actions.length === 0) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El turno requiere al menos una acción.' };
@@ -276,6 +285,23 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       : raw;
     const declaredPendingFields = Array.isArray(normalizedRaw.missingFields) && normalizedRaw.missingFields.length > 0;
     const mayRemainPending = declaredPendingFields;
+
+    // Every schedule-bearing mutation crosses the same canonical boundary.
+    // A partial schedule is valid only when Hermes explicitly represents the
+    // missing component as a pending clarification; otherwise it must be
+    // rejected before any executor can perform temporal arithmetic.
+    for (const scheduleField of ['schedule', 'endSchedule']) {
+      const schedule = normalizedRaw[scheduleField];
+      if (!schedule || !scheduleBearingMutation(domain, action, scheduleField)) continue;
+      const knownKind = typeof schedule === 'object'
+        && !Array.isArray(schedule)
+        && typedSchedule.properties.kind.enum.includes(schedule.kind)
+        && schedule.kind !== 'inherit_context';
+      if (!knownKind) return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal no es utilizable.' };
+      if (!hasCompleteReminderSchedule(schedule) && !mayRemainPending && !mayInheritPending) {
+        return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal está incompleta.' };
+      }
+    }
     if (mutationRequiresTarget(domain, action, normalizedRaw) && !hasTarget(normalizedRaw) && !mayRemainPending && !mayInheritPending) return { valid: false, errorCode: 'MISSING_TARGET', error: `${domain}.${action} requiere una referencia explícita al objeto existente.` };
     if (domain === 'entity'
       && ['create', 'upsert'].includes(action)

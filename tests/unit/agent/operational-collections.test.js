@@ -293,6 +293,19 @@ describe('operational collection invariants', () => {
     ] })).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
   });
 
+  it('applies the same schedule boundary to schedule-bearing updates', () => {
+    const incomplete = { kind: 'relative_day_time', dayOffset: 2 };
+    expect(validateTurnIntent({ actions: [
+      { domain: 'reminder', action: 'update', target: 'Llamar', schedule: incomplete },
+    ] })).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
+    expect(validateTurnIntent({ actions: [
+      { domain: 'task', action: 'update', target: 'Revisar', schedule: incomplete },
+    ] })).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
+    expect(validateTurnIntent({ actions: [
+      { domain: 'calendar', action: 'update', target: 'Reunión', schedule: incomplete },
+    ] })).toMatchObject({ valid: false, errorCode: 'MISSING_SCHEDULE' });
+  });
+
   it('does not write a failed task batch into Working Memory', async () => {
     executeTool.mockResolvedValue({
       success: false,
