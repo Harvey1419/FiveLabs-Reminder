@@ -179,12 +179,13 @@ export async function executeEntityTool({ action, params = {}, user, language = 
     }
 
     case 'delete': {
+      const entityIds = Array.isArray(params.entityIds) && params.entityIds.length > 0 ? params.entityIds : null;
       const targetName = params.targetName || null;
       const category = params.category || null;
       const scope = params.scope || 'single';
       const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
       const preview = await deleteEntities({
-        userId, targetName, category, scope, preserveNames, dryRun: !clarificationResolution,
+        userId, targetName, category, scope, preserveNames, dryRun: !clarificationResolution && !entityIds, entityIds,
       });
 
       if (!preview.success) {
@@ -244,7 +245,7 @@ export async function executeEntityTool({ action, params = {}, user, language = 
           formattedCard: `⚠️ *Confirmación necesaria*\n\n${question}`,
           requiresClarification: true,
           pendingClarifications,
-          data: { pendingClarifications },
+          data: { pendingClarifications, previewEntities: preview.entities },
         };
       }
 

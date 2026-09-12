@@ -31,6 +31,19 @@ import {
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 import { mergePendingIntentActions } from '../core/pending-intent.js';
+import {
+  getActiveAgentRun,
+  executeApprovalDecision,
+  executeContinuationDecision,
+  formatActiveRunPrompt,
+} from '../core/agent-run.js';
+import {
+  APPROVAL_DECISION_SCHEMA,
+  CONTINUATION_DECISION_SCHEMA,
+  validateApprovalDecision,
+  validateContinuationDecision,
+} from '../contracts/agent-run-contracts.js';
+import { updateAgentRunInDb } from '../../infrastructure/database/agent-runs.js';
 
 const MAX_HISTORY_TURNS = 30;
 const MAX_HISTORY_CHARS = 12000;
@@ -374,6 +387,136 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ...pastTurns,
     { role: 'user', content: messageText },
   ];
+
+  const activeAgentRun = await getActiveAgentRun(phoneNumber || user);
+  if (activeAgentRun && (activeAgentRun.status === 'waiting_for_approval' || activeAgentRun.status === 'waiting_for_input')) {
+    const isApproval = activeAgentRun.status === 'waiting_for_approval';
+    const schema = isApproval ? APPROVAL_DECISION_SCHEMA : CONTINUATION_DECISION_SCHEMA;
+    const runPrompt = formatActiveRunPrompt(activeAgentRun);
+
+    const runMessages = [
+      { role: 'system', content: `${prompt}\n\n${runPrompt}` },
+      ...pastTurns,
+      { role: 'user', content: messageText },
+    ];
+
+    let runModelResponse = null;
+    try {
+      runModelResponse = await callChatCompletion(runMessages, {
+        max_tokens: 4096,
+        correlationId: options?.correlationId,
+        tools: null,
+        toolChoice: 'none',
+        responseFormat: {
+          type: 'json_schema',
+          json_schema: {
+            name: isApproval ? 'hermes_approval_decision' : 'hermes_continuation_decision',
+            strict: true,
+            schema,
+          },
+        },
+        returnMessage: true,
+        purpose: isApproval ? 'approval_decision' : 'continuation_decision',
+        language,
+        validateStructuredContent: (content) => {
+          const parsed = parseIntentArguments(content);
+          return isApproval ? validateApprovalDecision(parsed) : validateContinuationDecision(parsed);
+        },
+      });
+    } catch (err) {
+      console.warn(`[router req=${requestId}] active run model call failed:`, err.message);
+    }
+
+    if (runModelResponse?.content) {
+      const parsedArgs = parseIntentArguments(runModelResponse.content);
+      const validation = isApproval ? validateApprovalDecision(parsedArgs) : validateContinuationDecision(parsedArgs);
+
+      if (validation.valid) {
+        const { relation } = validation.decision;
+        if (isApproval) {
+          if (relation === 'approval') {
+            const execResult = await executeApprovalDecision({
+              run: activeAgentRun,
+              decision: validation.decision.decision,
+              selectedCallIds: validation.decision.selectedCallIds,
+              executionContext: { user, language, isPro, timezone, referenceTime, correlationId: requestId },
+            });
+            const reply = validation.decision.reply || (validation.decision.decision === 'reject'
+              ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
+              : (language === 'en'
+                ? `Done — deleted ${execResult.executedCount || 0} projects.`
+                : `Listo — eliminé ${execResult.executedCount || 0} proyectos.`));
+
+            return {
+              intent: 'entity',
+              entities: conversationStateEntities(user),
+              language,
+              confirmation: reply,
+              ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+              plan: { type: 'approval_decision' },
+              executionFacts: execResult.results?.map((r) => r.result) || [],
+              memoryDisposition: 'skip_operational',
+            };
+          } else if (relation === 'cancel') {
+            await executeApprovalDecision({
+              run: activeAgentRun,
+              decision: 'reject',
+              executionContext: { user },
+            });
+            const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
+            return {
+              intent: 'chat',
+              entities: conversationStateEntities(user),
+              language,
+              confirmation: reply,
+              ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+              plan: { type: 'cancelled_run' },
+              executionFacts: [],
+              memoryDisposition: 'skip_operational',
+            };
+          }
+          // If relation === 'unrelated', activeAgentRun remains suspended, fall through to normal turn!
+        } else {
+          // is continuation (waiting_for_input)
+          if (relation === 'resume') {
+            const execResult = await executeContinuationDecision({
+              run: activeAgentRun,
+              suppliedFields: validation.decision.suppliedFields,
+              executionContext: { user, language, isPro, timezone, referenceTime, correlationId: requestId },
+            });
+            if (execResult.success) {
+              const reply = validation.decision.reply || (language === 'en' ? 'Reminder created.' : 'Recordatorio creado.');
+              return {
+                intent: 'reminder',
+                entities: conversationStateEntities(user),
+                language,
+                confirmation: reply,
+                ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+                plan: { type: 'continuation_decision' },
+                executionFacts: [execResult.result],
+                memoryDisposition: 'skip_operational',
+              };
+            }
+          } else if (relation === 'cancel') {
+            await updateAgentRunInDb(activeAgentRun.id, { status: 'cancelled' });
+            const reply = validation.decision.reply || (language === 'en' ? 'Understood, I cancelled the operation.' : 'Entendido, cancelé la operación.');
+            return {
+              intent: 'chat',
+              entities: conversationStateEntities(user),
+              language,
+              confirmation: reply,
+              ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+              plan: { type: 'cancelled_run' },
+              executionFacts: [],
+              memoryDisposition: 'skip_operational',
+            };
+          }
+          // If relation === 'unrelated', activeAgentRun remains suspended, fall through to normal turn!
+        }
+      }
+    }
+  }
+
   const turnResponseFormat = {
     type: 'json_schema',
     json_schema: {

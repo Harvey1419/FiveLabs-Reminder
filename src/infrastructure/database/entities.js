@@ -377,18 +377,26 @@ export async function deleteEntities({
   scope = 'single',
   preserveNames = [],
   dryRun = false,
+  entityIds = null,
 }) {
-  if (!userId || (scope !== 'all' && !targetName)) {
+  const hasExactIds = Array.isArray(entityIds) && entityIds.length > 0;
+  if (!userId || (!hasExactIds && scope !== 'all' && !targetName)) {
     return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing deletion target.', deletedCount: 0 };
   }
 
   try {
     let query = supabase.from('entities').select('*').eq('user_id', userId);
-    if (category) query = query.eq('category', category);
+    if (hasExactIds) {
+      query = query.in('id', entityIds);
+    } else if (category) {
+      query = query.eq('category', category);
+    }
     const { data: entities, error: fetchError } = await query;
     if (fetchError) return { success: false, errorCode: 'DATABASE_ERROR', error: fetchError.message, deletedCount: 0 };
 
-    const selection = selectEntitiesForDeletion(entities, { targetName, category, scope, preserveNames });
+    const selection = hasExactIds
+      ? { status: 'RESOLVED', entities: entities || [], candidates: [] }
+      : selectEntitiesForDeletion(entities, { targetName, category, scope, preserveNames });
     if (selection.status === 'AMBIGUOUS') {
       return { success: false, errorCode: 'AMBIGUOUS_TARGET', error: 'Multiple entities match.', candidates: selection.candidates, deletedCount: 0 };
     }

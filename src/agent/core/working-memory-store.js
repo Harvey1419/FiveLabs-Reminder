@@ -3,6 +3,7 @@ import {
   formatPendingIntentForPrompt,
   sanitizePendingAction,
 } from './pending-intent.js';
+import { clearAgentRunsForUser } from '../../infrastructure/database/agent-runs.js';
 
 /**
  * Working Memory state store.
@@ -231,6 +232,7 @@ export function getWorkingMemory(userOrPhone) {
 export function clearWorkingMemory(userOrPhone) {
   const keys = getLookupKeys(userOrPhone);
   for (const key of keys) workingMemoryStore.delete(key);
+  clearAgentRunsForUser(userOrPhone);
 }
 
 /**
