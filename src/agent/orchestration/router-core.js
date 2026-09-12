@@ -421,17 +421,16 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
 
-            let reply = validation.decision.reply;
-            if (!reply && execResult.facts?.length > 0) {
-              reply = composeExecutionReply(execResult.facts, language);
-            }
+            let reply = composeExecutionReply(execResult.facts, language, {
+              framing: validation.decision.reply ? { before: validation.decision.reply, after: '' } : null,
+            });
             const primaryDomain = activeAgentRun.preparedActions?.[0]?.domain || 'entity';
             if (!reply) {
-              reply = validation.decision.decision === 'reject'
+              reply = validation.decision.reply || (validation.decision.decision === 'reject'
                 ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
                 : (language === 'en'
                   ? `Done — processed ${execResult.executedCount || 0} ${primaryDomain}s.`
-                  : `Listo — procesé ${execResult.executedCount || 0} ${primaryDomain === 'reminder' ? 'recordatorios' : (primaryDomain === 'task' ? 'tareas' : 'proyectos')}.`);
+                  : `Listo — procesé ${execResult.executedCount || 0} ${primaryDomain === 'reminder' ? 'recordatorios' : (primaryDomain === 'task' ? 'tareas' : 'proyectos')}.`));
             }
 
             return {
@@ -473,12 +472,11 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
             if (execResult.success) {
-              let reply = validation.decision.reply;
-              if (!reply && (execResult.facts?.length > 0 || execResult.fact)) {
-                reply = composeExecutionReply(execResult.facts || [execResult.fact], language);
-              }
+              let reply = composeExecutionReply(execResult.facts || (execResult.fact ? [execResult.fact] : []), language, {
+                framing: validation.decision.reply ? { before: validation.decision.reply, after: '' } : null,
+              });
               if (!reply) {
-                reply = language === 'en' ? 'Reminder created.' : 'Recordatorio creado.';
+                reply = validation.decision.reply || (language === 'en' ? 'Reminder created.' : 'Recordatorio creado.');
               }
               return {
                 intent: 'reminder',

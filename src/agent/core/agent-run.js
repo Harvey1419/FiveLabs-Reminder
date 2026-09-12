@@ -504,7 +504,7 @@ export function formatActiveRunPrompt(activeRun) {
     for (const a of activeRun.preparedActions) {
       lines.push(` - ${a.call_id}: [${a.domain}.${a.action}] ${a.target_name || ''} (ID: ${a.target_id || 'n/a'})`);
     }
-    lines.push('Instrucción: Si el usuario aprueba todo, responde con relation="approval" y decision="approve_all". Si aprueba solo algunos, decision="approve_subset" con los selectedCallIds exactos. Si rechaza o cancela, relation="cancel". Si habla de otro tema no relacionado, relation="unrelated".');
+    lines.push('Instrucción: Si el usuario aprueba todo, responde con relation="approval" y decision="approve_all". Si aprueba solo algunos, decision="approve_subset" con los selectedCallIds exactos. Si rechaza o cancela, relation="cancel". Si habla de otro tema no relacionado, relation="unrelated". IMPORTANTE: Si aprueba (approve_all o approve_subset), la acción se ejecutará de inmediato en este turno; redacta el campo reply en tiempo pasado o confirmación inmediata (ej: "Listo, eliminé los proyectos seleccionados."), NUNCA en tiempo futuro ("eliminaré", "voy a eliminar").');
   } else if (activeRun.status === 'waiting_for_input') {
     lines.push('[OPERACIÓN SUSPENDIDA ESPERANDO DATOS FALTANTES]');
     lines.push(`runId=${activeRun.id} | kind=${activeRun.kind}`);

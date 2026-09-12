@@ -51,7 +51,7 @@ export const APPROVAL_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
     },
     reply: {
       type: 'string',
-      description: 'Direct conversational explanation or acknowledgement to the user.',
+      description: 'Direct conversational explanation or acknowledgement to the user. For approvals, write in immediate confirmation/past tense (e.g. "Listo, eliminé los proyectos seleccionados."), never future tense ("eliminaré").',
     },
   },
   required: ['relation'],

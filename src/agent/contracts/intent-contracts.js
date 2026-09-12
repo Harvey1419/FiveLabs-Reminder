@@ -63,14 +63,14 @@ const actionSchema = {
   properties: {
     domain: { type: 'string', enum: DOMAINS },
     action: { type: 'string' },
-    target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For pending actions it selects only the pending proposal.' },
+    target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For entity.delete, the project or list name to delete (deleting a project automatically deletes all its tasks in cascade; never use scope="all" for one project).' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
     title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
     entityName: { type: 'string', description: 'Entity name. For entity.create/upsert, its own name. For task actions, the explicit or implicit shared purpose/container repeated on every compound member. For task.complete/update/delete, include the owning container whenever the target belongs to a named project, so duplicate titles cannot cross containers.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
     category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
-    scope: { type: 'string', description: `Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
+    scope: { type: 'string', description: `For entity.delete: "all" deletes EVERY project/entity across the user account (use ONLY when the user explicitly requests deleting all projects/lists). For single projects, leave scope null/omitted. Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today'] },
     query: { type: 'string' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
@@ -99,7 +99,8 @@ export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la a
 conversation.reply es no operativo y no afirma lecturas ni mutaciones. agenda.read es inventario vivo multi-dominio; para recordatorios usa reminder.list. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
 LÍMITE ESTRICTO ENTRE CREACIÓN Y EDICIÓN (CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY): crear no lleva target; actualizar/cancelar/completar/eliminar requieren target humano existente y solo los deltas pedidos. Un valor a cambiar nunca es identidad.
 Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
-COLECCIONES OPERATIVAS: un nuevo contenedor accionable requiere entity.upsert(project, entityName) + un task.create por elemento con ese entityName; nunca sin proyecto/colapsado. Para un contenedor activo o existente, no vuelvas a hacer upsert: tareas se acotan por entityName. Para eliminar colecciones en lote, emite una sola entity.delete con scope="all", category="project" y preserveNames.
+COLECCIONES Y PROYECTOS: un nuevo contenedor accionable requiere entity.upsert(project, entityName) + un task.create por elemento con ese entityName. Para eliminar una lista/proyecto específico (y sus tareas en cascada), usa entity.delete con target="Nombre"; NUNCA uses scope="all" para una sola lista. scope="all" es solo si pide borrar TODOS los proyectos de la cuenta.
+PREGUNTAS DE VERIFICACIÓN: Una pregunta JAMÁS autoriza mutaciones. Consultas de estado (ej. '¿los eliminaste?') se responden en conversation.reply o lectura viva (entity.list), NUNCA con mutaciones.
 Significado temporal tipado (Temporal meaning must remain typed): relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona aritmética de fechas/zonas horarias.
 Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
 Mantén recurrencia y advanceMinutes en su recordatorio/evento. Afirmaciones personales duraderas usan conversation.reply más aprendizaje pasivo; memory.save solo ante petición explícita.
