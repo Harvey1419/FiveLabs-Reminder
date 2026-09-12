@@ -100,7 +100,7 @@ async function resolveTargetReminder({ target, owner, user }) {
     return { targetId: resolvedId, pending, exactReminder };
   }
   if (resolution.status === 'AMBIGUOUS') {
-    return { targetId: null, pending, ambiguous: true };
+    return { targetId: null, pending, ambiguous: true, candidates: resolution.candidates || [] };
   }
   return { targetId: null, pending, notFound: true };
 }
@@ -159,6 +159,21 @@ export async function executeReminderUpdate({
     };
   }
   if (resolved.ambiguous) {
+    const candidates = Array.isArray(resolved.candidates) && resolved.candidates.length > 0
+      ? resolved.candidates
+      : (Array.isArray(resolved.pending) ? resolved.pending.slice(0, 5) : []);
+
+    const candidateLines = candidates.map((cand, idx) => {
+      const timeVal = cand.time || cand.send_at || cand.localTime || null;
+      const timeStr = timeVal ? formatHumanFriendlyDateTime(new Date(timeVal), timezone, language) : '';
+      const content = cand.summary || cand.title || cand.content || 'Recordatorio';
+      return `${idx + 1}. *${content}*${timeStr ? `\n   🕒 ${timeStr}` : ''}`;
+    }).join('\n\n');
+
+    const formattedCard = language === 'en'
+      ? `⚠️ *Multiple reminders match*\n\n${candidateLines}\n\nWhich one would you like to update?`
+      : `⚠️ *Hay varios recordatorios que coinciden*\n\n${candidateLines}\n\n¿Cuál de ellos deseas actualizar?`;
+
     return {
       success: false,
       action: 'ambiguous_target',
@@ -166,10 +181,20 @@ export async function executeReminderUpdate({
       error: language === 'en'
         ? 'Multiple reminders match. Please clarify which one you want to update.'
         : 'Hay varios recordatorios que coinciden. Dime cuál quieres actualizar.',
-      rawSummary: language === 'en'
-        ? 'Multiple reminders match.'
-        : 'Hay varios recordatorios que coinciden.',
+      rawSummary: formattedCard,
+      formattedCard,
       requiresClarification: true,
+      data: {
+        reminders: candidates.map((cand, idx) => ({
+          position: idx + 1,
+          type: 'reminder',
+          internalId: cand.internalId || cand.id,
+          id: cand.internalId || cand.id,
+          summary: cand.summary || cand.title || cand.content || '',
+          title: cand.title || cand.summary || cand.content || '',
+          time: cand.time || cand.send_at || null,
+        })),
+      },
     };
   }
   if (!resolved.targetId) {

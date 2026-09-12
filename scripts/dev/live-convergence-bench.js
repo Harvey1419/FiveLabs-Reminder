@@ -84,7 +84,7 @@ async function runBenchmark() {
   console.log(`Active test user: ${user.phone_number} (ID: ${user.id}, TZ: ${user.timezone})\n`);
 
   let passedScenarios = 0;
-  let totalScenarios = 4;
+  let totalScenarios = 6;
 
   // =========================================================================
   // SCENARIO 1: Incomplete Reminder Continuation (Deterministic Delta Merge)
@@ -250,6 +250,88 @@ async function runBenchmark() {
     console.log(`${GREEN}${BOLD}✔ Scenario 4 Passed!${RESET}`);
   } catch (err) {
     console.error(`${RED}${BOLD}✖ Scenario 4 Failed:${RESET}`, err);
+  }
+
+  // =========================================================================
+  // SCENARIO 5: Multi-Draft Reminder Batch Continuation (N-ary Execution)
+  // =========================================================================
+  subBanner('SCENARIO 5: Multi-Draft Reminder Batch Continuation');
+  try {
+    await cleanUserState(user);
+
+    // Turn 1: 3 reminders without schedule (requires input)
+    console.log(`\nTurn 1: Requesting 3 reminders without schedule...`);
+    await runTurn('Recuérdame hacer ejercicio, llamar al cliente y enviar reporte', user);
+
+    const activeRun1 = await getActiveAgentRun(user);
+    assert(activeRun1 !== null, 'AgentRun created for multi-draft reminders');
+    assert(activeRun1.status === 'waiting_for_input', `AgentRun is waiting_for_input (got: ${activeRun1?.status})`);
+    const prepared1 = activeRun1.preparedActions || activeRun1.prepared_actions;
+    assert(prepared1?.length === 3, `Exactly 3 prepared actions staged (got: ${prepared1?.length})`);
+
+    // Turn 2: Supply schedule "Mañana a las 3 de la tarde"
+    console.log(`\nTurn 2: Supplying schedule "Mañana a las 3 de la tarde"...`);
+    await runTurn('Mañana a las 3 de la tarde', user);
+
+    const activeRun2 = await getActiveAgentRun(user);
+    assert(activeRun2 === null, 'AgentRun completed after batch continuation');
+
+    // Verify all 3 reminders created in Supabase
+    const { data: reminders } = await supabase
+      .from('reminders')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('send_at', { ascending: true });
+
+    assert(reminders && reminders.length === 3, `All 3 reminders created in DB (got: ${reminders?.length})`);
+    console.log(`  Created reminders:`);
+    for (const r of (reminders || [])) {
+      console.log(`    - ${r.content} @ ${r.send_at}`);
+    }
+
+    passedScenarios += 1;
+    console.log(`${GREEN}${BOLD}✔ Scenario 5 Passed!${RESET}`);
+  } catch (err) {
+    console.error(`${RED}${BOLD}✖ Scenario 5 Failed:${RESET}`, err);
+  }
+
+  // =========================================================================
+  // SCENARIO 6: Actionable Proposal Staging (TIME_IN_PAST -> Proposal Approval)
+  // =========================================================================
+  subBanner('SCENARIO 6: Past Time Proposal -> One-Click Approval');
+  try {
+    await cleanUserState(user);
+
+    // Turn 1: Request reminder at an hour already passed today (8:00 AM)
+    console.log(`\nTurn 1: Requesting reminder for past time today (8:00 AM)...`);
+    const { result: turn1 } = await runTurn('Recuérdame hoy a las 8am tomar vitaminas', user);
+
+    const activeRun1 = await getActiveAgentRun(user);
+    assert(activeRun1 !== null, 'AgentRun created for proposal approval');
+    assert(activeRun1.status === 'waiting_for_approval', `AgentRun is waiting_for_approval (got: ${activeRun1?.status})`);
+    assert(activeRun1.kind === 'proposal_approval', `AgentRun kind is proposal_approval (got: ${activeRun1?.kind})`);
+
+    // Turn 2: Approve proposal with "dale"
+    console.log(`\nTurn 2: Confirming proposal with "dale"...`);
+    const { result: turn2 } = await runTurn('dale', user);
+
+    const activeRun2 = await getActiveAgentRun(user);
+    assert(activeRun2 === null, 'AgentRun completed after proposal approval');
+
+    // Verify reminder created in DB for tomorrow
+    const { data: reminders } = await supabase
+      .from('reminders')
+      .select('*')
+      .eq('user_id', user.id);
+
+    assert(reminders && reminders.length === 1, `Exactly 1 reminder created (got: ${reminders?.length})`);
+    assert(/vitaminas/i.test(reminders[0]?.content), `Reminder content matches vitaminas: "${reminders[0]?.content}"`);
+    console.log(`  Approved reminder created @ ${reminders[0]?.send_at}`);
+
+    passedScenarios += 1;
+    console.log(`${GREEN}${BOLD}✔ Scenario 6 Passed!${RESET}`);
+  } catch (err) {
+    console.error(`${RED}${BOLD}✖ Scenario 6 Failed:${RESET}`, err);
   }
 
   // Final Cleanup
