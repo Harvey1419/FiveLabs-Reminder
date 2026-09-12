@@ -27,6 +27,8 @@ export async function executeTaskUpdate({
 
   const resolution = await resolveTaskTarget({
     target: targetQuery,
+    entityName: params.entityName || null,
+    entityId: params.entityId || null,
     userId,
     userOrPhone: user || phoneNumber,
     operation: 'update',
