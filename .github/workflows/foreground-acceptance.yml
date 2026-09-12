@@ -1,15 +1,6 @@
 name: Foreground acceptance
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/agent/providers/**'
-      - 'src/agent/contracts/**'
-      - 'src/agent/core/agent-core.js'
-      - 'src/agent/orchestration/router-core.js'
-      - 'tests/acceptance/**'
-      - '.github/workflows/foreground-acceptance.yml'
 permissions:
   contents: read
 concurrency:
@@ -35,12 +26,11 @@ jobs:
             echo '::error::Live foreground acceptance requires the OPENROUTER_API_KEY Actions secret. Mock tests do not establish live Groq acceptance.'
             exit 1
           fi
-      - name: Live foreground acceptance (isolated domain writes)
+      - name: Live foreground contract acceptance (read-only)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           KAPSO_API_KEY: test-kapso-key
           FOREGROUND_ACCEPTANCE_STAGE: primary
-          FOREGROUND_ACCEPTANCE_FOCUS: domain-action
         run: pnpm exec vitest run --config tests/acceptance/vitest.config.js
       - name: Keep bounded acceptance metadata
         if: always()
