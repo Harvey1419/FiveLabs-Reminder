@@ -13,6 +13,7 @@ vi.mock('../../src/agent/providers/client.js', async (importOriginal) => {
 vi.mock('../../src/agent/tools/index.js', () => ({ executeTool: vi.fn() }));
 vi.mock('../../src/features/memory/service.js', () => ({
   retrieveRelevantMemories: vi.fn().mockResolvedValue([]),
+  retrieveStandingPreferences: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../../src/infrastructure/database/index.js', () => ({
   getDailyOverview: vi.fn().mockResolvedValue(null),

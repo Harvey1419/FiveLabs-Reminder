@@ -10,6 +10,7 @@ vi.mock('../../../src/agent/providers/client.js', () => ({
 }));
 vi.mock('../../../src/features/memory/service.js', () => ({
   retrieveRelevantMemories: vi.fn().mockResolvedValue([]),
+  retrieveStandingPreferences: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
   getDailyOverview: vi.fn().mockResolvedValue(null),
@@ -125,6 +126,22 @@ describe('Hermes direct TurnIntent router', () => {
     expect(messages.some((message) => message.content.includes('Inventario antiguo'))).toBe(false);
     expect(messages.some((message) => message.content.includes('Resultado operativo previo'))).toBe(true);
     expect(executeTool).toHaveBeenCalled();
+  });
+
+  it('preserves interactive assistant questions and nudges in history while censoring operational cards', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Anotado para las 5:00 PM.' }],
+    }));
+    const history = [{
+      role: 'assistant',
+      content: '¿A qué hora prefieres que te programe el recordatorio?',
+      intent: 'reminder',
+    }];
+
+    await routeMessage('A las 5pm', user, history);
+    const messages = callChatCompletion.mock.calls[0][0];
+    expect(messages.some((message) => message.content.includes('¿A qué hora prefieres que te programe el recordatorio?'))).toBe(true);
+    expect(messages.some((message) => message.content.includes('Resultado operativo previo'))).toBe(false);
   });
 
   it('routes a normal typed standalone greeting through Hermes conversation.reply in one call', async () => {

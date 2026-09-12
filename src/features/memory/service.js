@@ -1,4 +1,4 @@
-import { saveMemory, searchMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
+import { saveMemory, searchMemories, getActiveMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_MAX_CANDIDATES = 16;
@@ -242,6 +242,22 @@ export function selectCoreProfileMemories(memories, limit = 10) {
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, safeLimit)
     .map(({ memory }) => ({ ...memory, category: `core_profile:${memory.category || 'fact'}` }));
+}
+
+/**
+ * Retrieve standing profile and preference memories (Engram-inspired core layer).
+ * These represent durable user preferences, notifications rules, and identity facts
+ * that should govern the assistant's behavior across all domains.
+ */
+export async function retrieveStandingPreferences({ userId, limit = 5 }) {
+  if (!userId) return [];
+  try {
+    const active = await getActiveMemories({ userId, limit: 30 });
+    return selectCoreProfileMemories(active, limit);
+  } catch (error) {
+    console.warn('[memoryService] retrieveStandingPreferences failed:', error.message);
+    return [];
+  }
 }
 
 /**

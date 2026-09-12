@@ -1,5 +1,5 @@
 import { callChatCompletion, callResponseSynthesis } from '../providers/client.js';
-import { retrieveRelevantMemories } from '../../features/memory/service.js';
+import { retrieveRelevantMemories, retrieveStandingPreferences } from '../../features/memory/service.js';
 import {
   getDailyOverview,
   getUserSubscription,
@@ -70,9 +70,13 @@ function compactHistoryForModel(history = []) {
     .filter((turn) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.content === 'string')
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => {
-      const operational = turn.role === 'assistant'
-        && (turn.entities?._turnMetadata?.kind === 'operational_result'
-          || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent)));
+      const isInteractiveOrQuestion = turn.content.includes('?')
+        || turn.entities?._workingMemory?.lastAction === 'nudge'
+        || turn.entities?._turnMetadata?.kind === 'clarification'
+        || turn.entities?._turnMetadata?.kind === 'conversation';
+      const isCard = turn.entities?._turnMetadata?.kind === 'operational_result'
+        || (typeof turn.intent === 'string' && !['chat', 'clarification'].includes(turn.intent));
+      const operational = !isInteractiveOrQuestion && turn.role === 'assistant' && isCard;
       return {
         role: turn.role,
         content: operational
@@ -322,8 +326,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   hydrateWorkingMemoryFromHistory(user, history, requestReferenceTime);
 
   const contextStart = Date.now();
-  const [relevantMemories, dailyOverview, subscription, googleIntegration] = await Promise.all([
+  const [relevantMemories, standingPreferences, dailyOverview, subscription, googleIntegration] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 3 }),
+    user.id ? retrieveStandingPreferences({ userId: user.id, limit: 5 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
     user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
@@ -335,9 +340,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   user.subscription = effectiveSub;
   user.isPro = isPro;
   user.memories = relevantMemories || [];
+  user.preferences = standingPreferences || [];
 
   const memoryHints = (relevantMemories || []).length > 0
     ? relevantMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
+    : '';
+  const preferenceHints = (standingPreferences || []).length > 0
+    ? standingPreferences.map((pref) => `- [${pref.category || 'preferencia'}] ${pref.content}`).join('\n')
     : '';
   const workingMemoryKey = phoneNumber || user.id;
   const workingMemory = getWorkingMemory(workingMemoryKey);
@@ -349,10 +358,10 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   } else {
     console.log(`[router req=${requestId}] working-memory empty`);
   }
-  console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
+  console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} preferences=${standingPreferences?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
 
   const prompt = buildAgentCorePrompt({
-    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, overview: dailyOverview,
+    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name,
   });
 
