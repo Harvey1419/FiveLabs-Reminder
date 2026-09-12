@@ -1,8 +1,3 @@
-import {
-  PENDING_INTENT_TTL_MS,
-  formatPendingIntentForPrompt,
-  sanitizePendingAction,
-} from './pending-intent.js';
 import { clearAgentRunsForUser } from '../../infrastructure/database/agent-runs.js';
 
 /**
@@ -15,46 +10,6 @@ import { clearAgentRunsForUser } from '../../infrastructure/database/agent-runs.
 const workingMemoryStore = new Map();
 const WORKING_MEMORY_TTL_MS = 2 * 60 * 60 * 1000;
 const PERSISTED_WORKING_MEMORY_MAX_AGE_MS = WORKING_MEMORY_TTL_MS;
-
-function sanitizePendingIntent(intent) {
-  if (!intent || typeof intent !== 'object') return null;
-  const actions = Array.isArray(intent.actions)
-    ? intent.actions.map(sanitizePendingAction).filter(Boolean).slice(0, 12)
-    : [];
-  if (actions.length === 0) return null;
-  return {
-    version: 1,
-    actions,
-    missingFields: [...new Set((intent.missingFields || []).map((field) => String(field).trim()).filter(Boolean))].slice(0, 12),
-    question: String(intent.question || '').trim(),
-    createdAt: intent.createdAt || new Date().toISOString(),
-    updatedAt: intent.updatedAt || new Date().toISOString(),
-  };
-}
-
-function sanitizePendingOperation(operation) {
-  if (!operation) return null;
-  if (operation.kind === 'entity_delete') {
-    return {
-      kind: 'entity_delete',
-      targetName: operation.targetName ? String(operation.targetName).trim() : null,
-      category: operation.category ? String(operation.category).trim() : null,
-      scope: operation.scope === 'all' ? 'all' : 'single',
-      preserveNames: Array.isArray(operation.preserveNames)
-        ? operation.preserveNames.map((name) => String(name).trim()).filter(Boolean).slice(0, 20)
-        : [],
-    };
-  }
-  if (operation.kind === 'reminder_cancel' && ['elapsed', 'all'].includes(operation.scope)) {
-    const cutoff = operation.cutoffAt ? new Date(operation.cutoffAt) : null;
-    return {
-      kind: 'reminder_cancel',
-      scope: operation.scope,
-      cutoffAt: cutoff && !Number.isNaN(cutoff.getTime()) ? cutoff.toISOString() : null,
-    };
-  }
-  return null;
-}
 
 function getLookupKeys(userOrPhone) {
   if (!userOrPhone) return [];
@@ -137,51 +92,6 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
       : null)
     || null;
 
-  const pendingIntent = sanitizePendingIntent(memoryData.pendingIntent);
-  const pendingClarifications = Array.isArray(memoryData.pendingClarifications)
-    ? memoryData.pendingClarifications.map((item) => ({
-      type: item.type || 'clarification',
-      content: String(item.content || '').trim(),
-      advanceMinutes: Number.isFinite(Number(item.advanceMinutes)) ? Number(item.advanceMinutes) : null,
-      reason: String(item.reason || '').trim(),
-      question: String(item.question || '').trim(),
-      proposedReminder: item.proposedReminder?.targetTime
-        ? {
-          content: String(item.proposedReminder.content || item.content || '').trim(),
-          targetTime: String(item.proposedReminder.targetTime).trim(),
-          advanceMinutes: Number.isFinite(Number(item.proposedReminder.advanceMinutes))
-            ? Number(item.proposedReminder.advanceMinutes)
-            : null,
-          recurrence: item.proposedReminder.recurrence || null,
-          requiresConfirmation: Boolean(item.proposedReminder.requiresConfirmation),
-          nudgeIntervalMinutes: Number.isFinite(Number(item.proposedReminder.nudgeIntervalMinutes))
-            ? Number(item.proposedReminder.nudgeIntervalMinutes)
-            : null,
-          maxNudges: Number.isFinite(Number(item.proposedReminder.maxNudges))
-            ? Number(item.proposedReminder.maxNudges)
-            : null,
-          replacePending: Boolean(item.proposedReminder.replacePending),
-          checklist: Array.isArray(item.proposedReminder.checklist)
-            ? item.proposedReminder.checklist.slice(0, 20)
-            : null,
-        }
-        : null,
-      proposedOperation: sanitizePendingOperation(item.proposedOperation),
-    })).filter((item) => item.content)
-    : [];
-  const hasPendingState = Boolean(pendingIntent) || pendingClarifications.length > 0;
-  const explicitPendingExpiry = Number(memoryData.pendingExpiresAt);
-  const inheritedPendingExpiry = Number(existingEntry?.pendingExpiresAt);
-  const pendingExpiresAt = hasPendingState
-    ? (memoryData.refreshPendingExpiry === true
-      ? Date.now() + PENDING_INTENT_TTL_MS
-      : (Number.isFinite(explicitPendingExpiry) && explicitPendingExpiry > Date.now()
-        ? explicitPendingExpiry
-        : (Number.isFinite(inheritedPendingExpiry) && inheritedPendingExpiry > Date.now()
-          ? inheritedPendingExpiry
-          : Date.now() + PENDING_INTENT_TTL_MS)))
-    : null;
-
   const validRestoredTimestamp = restoredTimestamp === null ? NaN : Number(restoredTimestamp);
   const payload = {
     source: memoryData.source || 'unified',
@@ -193,9 +103,6 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
     lastAction: memoryData.lastAction || 'list',
     notificationReminderId: explicitNotifId,
     notificationContent: memoryData.notificationContent || null,
-    pendingIntent,
-    pendingClarifications,
-    pendingExpiresAt,
     timestamp: Number.isFinite(validRestoredTimestamp) ? validRestoredTimestamp : Date.now(),
     items: normalizedItems,
   };
@@ -213,15 +120,6 @@ export function getWorkingMemory(userOrPhone) {
     if (Date.now() - entry.timestamp > WORKING_MEMORY_TTL_MS) {
       workingMemoryStore.delete(key);
       continue;
-    }
-    if (entry.pendingExpiresAt && entry.pendingExpiresAt <= Date.now()) {
-      entry.pendingIntent = null;
-      entry.pendingClarifications = [];
-      entry.pendingExpiresAt = null;
-      if (!entry.items?.length) {
-        for (const lookupKey of keys) workingMemoryStore.delete(lookupKey);
-        return null;
-      }
     }
     return entry;
   }
@@ -278,26 +176,9 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
       continue;
     }
 
-    const hasPersistedPending = Boolean(snapshot.pendingIntent)
-      || (Array.isArray(snapshot.pendingClarifications) && snapshot.pendingClarifications.length > 0);
-    const persistedPendingExpiry = Number(snapshot.pendingExpiresAt);
-    const pendingIsUnavailable = hasPersistedPending
-      && (!Number.isFinite(persistedPendingExpiry) || persistedPendingExpiry <= referenceMs);
-    const restorableSnapshot = pendingIsUnavailable
-      ? {
-          ...snapshot,
-          pendingIntent: null,
-          pendingClarifications: [],
-          pendingExpiresAt: null,
-        }
-      : snapshot;
+    if (!(Array.isArray(snapshot.items) && snapshot.items.length > 0) && !snapshot.activeEntity) return null;
 
-    // A recent assistant turn may carry an older preserved pending intent.
-    // Its own deadline remains authoritative; the turn timestamp must never
-    // mint a fresh TTL or make Node reinterpret conversation continuity.
-    if (pendingIsUnavailable && !(Array.isArray(snapshot.items) && snapshot.items.length > 0)) return null;
-
-    saveWorkingMemory(userOrPhone, restorableSnapshot, { restoredTimestamp: timestampMs });
+    saveWorkingMemory(userOrPhone, snapshot, { restoredTimestamp: timestampMs });
     return getWorkingMemory(userOrPhone);
   }
 
@@ -306,36 +187,7 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
 
 export function formatWorkingMemoryPrompt(userOrPhone) {
   const wm = getWorkingMemory(userOrPhone);
-  if (!wm) return '';
-  const pendingClarifications = Array.isArray(wm.pendingClarifications) ? wm.pendingClarifications : [];
-  const pendingIntentText = formatPendingIntentForPrompt(wm.pendingIntent);
-  if ((!wm.items || wm.items.length === 0) && pendingClarifications.length === 0 && !pendingIntentText) return '';
-
-  let pendingSection = [];
-  if (pendingIntentText) {
-    pendingSection.push(
-      '[Typed Pending Intent — una operación conversacional coherente NO ejecutada]',
-      pendingIntentText,
-      'Interpreta si el mensaje actual completa, corrige, cancela o ignora esta intención. Para completarla devuelve las acciones finales fusionadas con continuationIndex y pendingIntentEffect=resolve. Si aún falta información usa replace y una sola clarification.request. Si cambia de tema usa preserve. Para cancelar usa pending.discard. Nunca pierdas campos conocidos ni ejecutes una continuación stale.',
-    );
-  }
-  if (pendingClarifications.length > 0) {
-    const lines = pendingClarifications.slice(0, 5).map((item, index) => {
-      const advance = item.advanceMinutes ? ` | Aviso previo solicitado: ${item.advanceMinutes} minutos` : '';
-      const question = item.question ? ` | Pregunta pendiente: ${item.question}` : '';
-      const proposedAt = item.proposedReminder?.targetTime ? ` | proposedAt: ${item.proposedReminder.targetTime}` : '';
-      const proposedOperation = item.proposedOperation
-        ? ` | proposedOperation=${JSON.stringify(item.proposedOperation)}`
-        : '';
-      return `${index + 1}. contextRef={source:pending_state,position:${index + 1}} | status=NOT_EXECUTED | ${item.content}${proposedAt}${proposedOperation}${advance}${question}`;
-    });
-    pendingSection.push(
-      '[Typed Pending State — propuestas de fondo NO ejecutadas]',
-      ...lines,
-      'Si el mensaje actual responde o modifica una propuesta, usa exactamente una transición canónica: pending.execute, pending.discard, pending.revise o clarification.request. Si cambia de tema y no aborda la propuesta, atiende el mensaje actual sin forzar una transición y conserva este estado pendiente. No repitas acciones ya completadas ni trates la propuesta como ejecutada.',
-    );
-    if (!wm.items || wm.items.length === 0) return pendingSection.join('\n');
-  }
+  if (!wm || !wm.items || wm.items.length === 0) return '';
 
   const lines = wm.items.slice(0, 10).map((it) => {
     const typeLabel = it.type === 'calendar_event'
@@ -364,8 +216,6 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     : '';
 
   return [
-    ...pendingSection,
-    ...(pendingSection.length > 0 ? ['[Elementos ejecutados más recientes — foco para referencias nuevas]'] : []),
     '[Memoria de Trabajo del Turno Anterior — referencias, NO inventario vivo]',
     `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
     ...(containerInstruction ? [containerInstruction] : []),

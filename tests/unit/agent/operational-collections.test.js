@@ -250,8 +250,9 @@ describe('operational collection invariants', () => {
       toolName: 'manage_entity', params: { action: 'upsert', name: 'Viaje', category: 'project' },
     });
     expect(getWorkingMemory(user)).toMatchObject({
-      activeEntity: 'Viaje', pendingIntent: null, pendingClarifications: [],
+      activeEntity: 'Viaje',
     });
+    expect(getWorkingMemory(user)?.pendingIntent).toBeUndefined();
   });
 
   it('never turns an undeclared invalid action into a typed Pending Intent', async () => {

@@ -1,8 +1,5 @@
 import { getWorkingMemory } from '../core/working-memory-store.js';
-import {
-  parseStructuredOrdinal,
-  resolveContextReference,
-} from '../core/context-reference.js';
+import { resolveContextReference } from '../core/context-reference.js';
 import { getLocalDateParts } from '../../shared/time.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import {
@@ -20,15 +17,6 @@ function resolveWorkingItem(user, target, preferredType) {
     workingMemory: getWorkingMemory(user),
   });
   return resolved.status === 'RESOLVED' ? resolved.item : null;
-}
-
-function normalizePendingTarget(action, user) {
-  if (action.domain !== 'pending') return action;
-  const rawTarget = String(action.target || '').trim();
-  const ordinal = parseStructuredOrdinal(rawTarget);
-  if (rawTarget && ordinal !== -1) return action;
-  const count = getWorkingMemory(user)?.pendingClarifications?.length || 0;
-  return count > 0 ? { ...action, target: String(count) } : action;
 }
 
 function normalizeCalendarYear(action, context) {
@@ -149,7 +137,6 @@ export function normalizeTurnIntentForRuntime(intent, context) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
   const actions = intent.actions.map((original) => {
     let action = { ...original };
-    action = normalizePendingTarget(action, context.user);
     action = normalizeCalendarYear(action, context);
     action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);

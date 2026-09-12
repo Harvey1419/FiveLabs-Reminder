@@ -10,41 +10,7 @@ const context = {
 };
 
 describe('semantic intent runtime normalization', () => {
-  it('resolves “último” against the current pending collection', () => {
-    saveWorkingMemory(user, {
-      source: 'reminder',
-      scope: 'clarification',
-      pendingClarifications: [{ content: 'Uno' }, { content: 'Dos' }, { content: 'Tres' }],
-      items: [],
-    });
 
-    const normalized = normalizeTurnIntentForRuntime({
-      actions: [{ domain: 'pending', action: 'discard', target: 'el último' }],
-    }, context);
-
-    expect(normalized.actions[0].target).toBe('3');
-    clearWorkingMemory(user);
-  });
-
-  it('binds an implicit pending action to the latest pending clarification without overwriting explicit targets', () => {
-    saveWorkingMemory(user, {
-      source: 'reminder',
-      scope: 'clarification',
-      pendingClarifications: [{ content: 'Uno' }, { content: 'Dos' }],
-      items: [],
-    });
-
-    const implicit = normalizeTurnIntentForRuntime({
-      actions: [{ domain: 'pending', action: 'execute' }],
-    }, context);
-    const explicit = normalizeTurnIntentForRuntime({
-      actions: [{ domain: 'pending', action: 'execute', target: 'la primera' }],
-    }, context);
-
-    expect(implicit.actions[0].target).toBe('2');
-    expect(explicit.actions[0].target).toBe('la primera');
-    clearWorkingMemory(user);
-  });
 
   it('fills a missing calendar year from the user-local reference date', () => {
     const normalized = normalizeTurnIntentForRuntime({

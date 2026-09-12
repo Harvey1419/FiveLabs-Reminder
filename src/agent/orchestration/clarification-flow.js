@@ -15,29 +15,21 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
 
   const expiresAt = Number(latestState.expiresAt || 0);
   if (expiresAt && expiresAt <= Date.now()) return;
-  const pendingClarifications = Array.isArray(latestState.pendingClarifications)
-    ? latestState.pendingClarifications
-    : [];
-  const pendingIntent = latestState.pendingIntent || null;
   const persistedWorkingMemory = latestState.workingMemory || null;
   const persistedItems = Array.isArray(persistedWorkingMemory?.items)
     ? persistedWorkingMemory.items
     : [];
-  if (pendingClarifications.length === 0 && !pendingIntent && persistedItems.length === 0) return;
-  const hasEntityProposal = pendingClarifications.some((item) => item?.proposedOperation?.kind === 'entity_delete');
+  if (persistedItems.length === 0 && !persistedWorkingMemory?.activeEntity) return;
   const persistedTimestamp = Number(persistedWorkingMemory?.timestamp);
 
   saveWorkingMemory(userOrPhone, {
-    source: persistedWorkingMemory?.source || (hasEntityProposal ? 'entity' : 'reminder'),
-    scope: persistedWorkingMemory?.scope || (pendingClarifications.length > 0 ? 'clarification' : 'current'),
+    source: persistedWorkingMemory?.source || 'reminder',
+    scope: persistedWorkingMemory?.scope || 'current',
     semanticQuery: persistedWorkingMemory?.semanticQuery || null,
-    entityType: persistedWorkingMemory?.entityType || (hasEntityProposal ? 'entity' : 'reminder'),
+    entityType: persistedWorkingMemory?.entityType || 'reminder',
     activeEntity: persistedWorkingMemory?.activeEntity || null,
     activeEntityId: persistedWorkingMemory?.activeEntityId || null,
-    lastAction: persistedWorkingMemory?.lastAction || (pendingClarifications.length > 0 ? 'clarification_required' : 'restored'),
-    pendingIntent,
-    pendingClarifications,
-    pendingExpiresAt: expiresAt || null,
+    lastAction: persistedWorkingMemory?.lastAction || 'restored',
     items: persistedItems,
   }, {
     restoredTimestamp: Number.isFinite(persistedTimestamp) ? persistedTimestamp : null,
@@ -46,10 +38,6 @@ export function hydrateClarificationStateFromHistory(userOrPhone, history = []) 
 
 export function getClarificationStateSnapshot(userOrPhone) {
   const memory = getWorkingMemory(userOrPhone);
-  const pendingClarifications = Array.isArray(memory?.pendingClarifications)
-    ? memory.pendingClarifications
-    : [];
-  const pendingIntent = memory?.pendingIntent || null;
   const items = Array.isArray(memory?.items)
     ? memory.items.slice(0, 10).map((item) => ({
       id: item.internalId,
@@ -61,11 +49,11 @@ export function getClarificationStateSnapshot(userOrPhone) {
       entityName: item.entityName,
     }))
     : [];
-  const hasState = pendingClarifications.length > 0 || Boolean(pendingIntent) || items.length > 0;
+  const hasState = items.length > 0 || Boolean(memory?.activeEntity);
   return {
     version: 3,
-    pendingIntent,
-    pendingClarifications,
+    pendingIntent: null,
+    pendingClarifications: [],
     workingMemory: hasState
       ? {
         source: memory?.source || 'unified',
@@ -80,7 +68,7 @@ export function getClarificationStateSnapshot(userOrPhone) {
       }
       : null,
     expiresAt: hasState
-      ? Number(memory?.pendingExpiresAt || (Number(memory?.timestamp || Date.now()) + 15 * 60 * 1000))
+      ? Number(Number(memory?.timestamp || Date.now()) + 15 * 60 * 1000)
       : null,
   };
 }

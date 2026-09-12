@@ -195,3 +195,45 @@ export function resolveTypedSchedule(schedule, {
   const built = buildResolvedClockDate({ year, month, day }, normalizedSchedule, timezone, reference);
   return built.valid ? { ...built, temporalKind: normalizedSchedule.kind } : built;
 }
+
+function scheduleHasClock(schedule) {
+  return Number.isInteger(schedule?.hour);
+}
+
+function clockFields(schedule) {
+  if (!scheduleHasClock(schedule)) return {};
+  return {
+    hour: schedule.hour,
+    minute: Number.isInteger(schedule.minute) ? schedule.minute : 0,
+    ...(schedule.clockMode ? { clockMode: schedule.clockMode } : {}),
+  };
+}
+
+function isDateBearingSchedule(schedule) {
+  return ['relative_day_time', 'calendar_date_time', 'weekday_time'].includes(schedule?.kind);
+}
+
+function cloneJson(value) {
+  return value ? JSON.parse(JSON.stringify(value)) : value;
+}
+
+/** Merge typed temporal components without interpreting natural-language text. */
+export function mergePendingSchedule(baseSchedule, deltaSchedule) {
+  if (!deltaSchedule) return baseSchedule ? cloneJson(baseSchedule) : null;
+  if (!baseSchedule || deltaSchedule.kind === 'relative_offset') return cloneJson(deltaSchedule);
+  if (deltaSchedule.kind === 'inherit_context') return cloneJson(baseSchedule);
+
+  if (deltaSchedule.kind === 'local_time' && isDateBearingSchedule(baseSchedule)) {
+    return { ...cloneJson(baseSchedule), ...clockFields(deltaSchedule) };
+  }
+
+  if (isDateBearingSchedule(deltaSchedule)) {
+    return {
+      ...cloneJson(deltaSchedule),
+      ...(scheduleHasClock(deltaSchedule) ? {} : clockFields(baseSchedule)),
+    };
+  }
+
+  return cloneJson(deltaSchedule);
+}
+
