@@ -11,6 +11,7 @@ import { resolveTypedSchedule, mergePendingSchedule } from '../orchestration/typ
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { createExecutionFact } from './execution-facts.js';
+import { saveWorkingMemory } from './working-memory-store.js';
 
 export const AGENT_RUN_TTL_MS = 15 * 60 * 1000;
 
@@ -101,7 +102,8 @@ export async function createApprovalRun({
 export async function createInputRun({
   user,
   kind = 'reminder_creation',
-  partialAction,
+  partialAction = null,
+  partialActions = [],
   missingFields = [],
   question = '',
   expiresAtMs = null,
@@ -134,15 +136,19 @@ export async function createInputRun({
     expiresAt,
   });
 
-  const prepared = [{
-    callId: 'call-1',
-    domain: partialAction.domain,
-    action: partialAction.action,
+  const drafts = Array.isArray(partialActions) && partialActions.length > 0
+    ? partialActions
+    : (partialAction ? [partialAction] : []);
+
+  const prepared = drafts.map((draft, idx) => ({
+    callId: `call-${idx + 1}`,
+    domain: draft.domain,
+    action: draft.action,
     targetId: null,
-    targetName: partialAction.target || partialAction.content || partialAction.title || null,
-    payload: partialAction,
+    targetName: draft.target || draft.content || draft.title || null,
+    payload: draft,
     status: 'prepared',
-  }];
+  }));
 
   const staged = await stagePreparedActionsInDb(run.id, prepared);
   await recordExecutionEventInDb({
@@ -150,7 +156,7 @@ export async function createInputRun({
     userId,
     threadId,
     eventType: 'run_created_waiting_input',
-    factPayload: { kind, missingFields, question },
+    factPayload: { kind, missingFields, question, draftCount: drafts.length },
   });
 
   return {
@@ -298,6 +304,25 @@ export async function executeApprovalDecision({
     factPayload: { decision, executedCount: actionsToExecute.length, status: finalStatus },
   });
 
+  const allItems = executedResults.flatMap((r) => {
+    const data = r.result?.data;
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.reminders)) return data.reminders;
+    if (data.id && (data.title || data.content || data.name || data.summary)) return [data];
+    return [];
+  });
+  if (allItems.length > 0) {
+    saveWorkingMemory(executionUser, {
+      source: preparedActions[0]?.domain || 'reminder',
+      scope: 'current',
+      entityType: preparedActions[0]?.domain || 'reminder',
+      lastAction: 'created',
+      items: allItems,
+    });
+  }
+
   return {
     success: allSucceeded,
     executed: true,
@@ -321,85 +346,106 @@ export async function executeContinuationDecision({
     return { success: false, error: 'No prepared actions found in run.' };
   }
 
-  const targetAction = preparedActions[0];
-  const mergedPayload = {
-    ...targetAction.payload,
-    ...suppliedFields,
-  };
-
-  if (targetAction.payload?.schedule || suppliedFields.schedule) {
-    mergedPayload.schedule = mergePendingSchedule(
-      targetAction.payload?.schedule,
-      suppliedFields.schedule
-    );
-  }
-
-  let toolName = TOOL_NAMES.MANAGE_REMINDER;
-  let params = mergedPayload;
-
-  if (targetAction.domain === 'task') {
-    toolName = TOOL_NAMES.MANAGE_TASK;
-  } else if (targetAction.domain === 'entity') {
-    toolName = TOOL_NAMES.MANAGE_ENTITY;
-  } else if (targetAction.domain === 'reminder' && targetAction.action === 'create') {
-    const temporal = resolveTypedSchedule(mergedPayload.schedule, {
-      referenceTime: executionContext.referenceTime,
-      timezone: executionContext.timezone || 'UTC',
-    });
-    if (!temporal.valid) {
-      return {
-        success: false,
-        executed: false,
-        status: run.status,
-        error: temporal.error,
-        errorCode: temporal.errorCode,
-      };
-    }
-    const content = mergedPayload.content || mergedPayload.title || '';
-    params = {
-      ...mergedPayload,
-      action: 'create',
-      items: [{
-        content,
-        targetTime: temporal.canonical,
-        ...(mergedPayload.advanceMinutes ? { advanceMinutes: mergedPayload.advanceMinutes } : {}),
-        ...(mergedPayload.recurrence ? { recurrence: mergedPayload.recurrence } : {}),
-        ...(mergedPayload.requiresConfirmation ? { requiresConfirmation: true } : {}),
-        ...(mergedPayload.nudgeIntervalMinutes ? { nudgeIntervalMinutes: mergedPayload.nudgeIntervalMinutes } : {}),
-        ...(mergedPayload.maxNudges ? { maxNudges: mergedPayload.maxNudges } : {}),
-      }],
-    };
-  }
-
   const userId = run.user_id;
   const threadId = run.thread_id;
   const executionUser = (executionContext.user && typeof executionContext.user === 'object' && executionContext.user.id)
     ? executionContext.user
     : { ...(typeof executionContext.user === 'object' ? executionContext.user : {}), id: userId || threadId };
 
-  const result = await executeTool({
-    ...executionContext,
-    user: executionUser,
-    toolName,
-    params,
-    clarificationResolution: true,
-  });
+  const executedResults = [];
+  const executedFacts = [];
+  let allSucceeded = true;
 
-  const fact = createExecutionFact({
-    toolName,
-    params,
-    result,
-    callId: targetAction.call_id,
-    language: executionContext.language || 'es',
-  });
+  for (const action of preparedActions) {
+    const missingFields = action.payload?.missingFields || run.waiting_for?.fields || [];
+    const mergedPayload = {
+      ...action.payload,
+      ...suppliedFields,
+    };
 
-  const isSuccess = result.success !== false;
-  const finalStatus = isSuccess ? 'completed' : 'failed';
+    // Protect draft-specific content/title from being overwritten by a blanket suppliedFields
+    if (action.payload?.content && !missingFields.includes('content')) {
+      mergedPayload.content = action.payload.content;
+    }
+    if (action.payload?.title && !missingFields.includes('title') && !missingFields.includes('content')) {
+      mergedPayload.title = action.payload.title;
+    }
+    if (action.target_name && !mergedPayload.content && !mergedPayload.title) {
+      mergedPayload.content = action.target_name;
+    }
 
-  await updatePreparedActionInDb(run.id, targetAction.call_id, {
-    status: isSuccess ? 'executed' : 'failed',
-    executionFact: result,
-  });
+    if (action.payload?.schedule || suppliedFields.schedule) {
+      mergedPayload.schedule = mergePendingSchedule(
+        action.payload?.schedule,
+        suppliedFields.schedule
+      );
+    }
+
+    let toolName = TOOL_NAMES.MANAGE_REMINDER;
+    let params = mergedPayload;
+
+    if (action.domain === 'task') {
+      toolName = TOOL_NAMES.MANAGE_TASK;
+    } else if (action.domain === 'entity') {
+      toolName = TOOL_NAMES.MANAGE_ENTITY;
+    } else if (action.domain === 'reminder' && action.action === 'create') {
+      const temporal = resolveTypedSchedule(mergedPayload.schedule, {
+        referenceTime: executionContext.referenceTime,
+        timezone: executionContext.timezone || 'UTC',
+      });
+      if (!temporal.valid) {
+        allSucceeded = false;
+        await updatePreparedActionInDb(run.id, action.call_id, {
+          status: 'failed',
+          executionFact: { error: temporal.error, errorCode: temporal.errorCode },
+        });
+        executedResults.push({ callId: action.call_id, result: { success: false, error: temporal.error, errorCode: temporal.errorCode } });
+        continue;
+      }
+      const content = mergedPayload.content || mergedPayload.title || '';
+      params = {
+        ...mergedPayload,
+        action: 'create',
+        items: [{
+          content,
+          targetTime: temporal.canonical,
+          ...(mergedPayload.advanceMinutes ? { advanceMinutes: mergedPayload.advanceMinutes } : {}),
+          ...(mergedPayload.recurrence ? { recurrence: mergedPayload.recurrence } : {}),
+          ...(mergedPayload.requiresConfirmation ? { requiresConfirmation: true } : {}),
+          ...(mergedPayload.nudgeIntervalMinutes ? { nudgeIntervalMinutes: mergedPayload.nudgeIntervalMinutes } : {}),
+          ...(mergedPayload.maxNudges ? { maxNudges: mergedPayload.maxNudges } : {}),
+        }],
+      };
+    }
+
+    const result = await executeTool({
+      ...executionContext,
+      user: executionUser,
+      toolName,
+      params,
+      clarificationResolution: true,
+    });
+
+    const fact = createExecutionFact({
+      toolName,
+      params,
+      result,
+      callId: action.call_id,
+      language: executionContext.language || 'es',
+    });
+    executedFacts.push(fact);
+
+    const isSuccess = result.success !== false;
+    if (!isSuccess) allSucceeded = false;
+
+    await updatePreparedActionInDb(run.id, action.call_id, {
+      status: isSuccess ? 'executed' : 'failed',
+      executionFact: result,
+    });
+    executedResults.push({ callId: action.call_id, result });
+  }
+
+  const finalStatus = (allSucceeded && executedResults.length > 0) ? 'completed' : 'failed';
 
   await updateAgentRunInDb(run.id, { status: finalStatus });
   await recordExecutionEventInDb({
@@ -407,16 +453,37 @@ export async function executeContinuationDecision({
     userId: run.user_id,
     threadId: run.thread_id,
     eventType: 'run_continuation_executed',
-    factPayload: { success: isSuccess, status: finalStatus },
+    factPayload: { success: allSucceeded, executedCount: executedResults.length, status: finalStatus },
   });
 
+  const allItems = executedResults.flatMap((r) => {
+    const data = r.result?.data;
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.reminders)) return data.reminders;
+    if (data.id && (data.title || data.content || data.name || data.summary)) return [data];
+    return [];
+  });
+  if (allItems.length > 0) {
+    saveWorkingMemory(executionUser, {
+      source: preparedActions[0]?.domain || 'reminder',
+      scope: 'current',
+      entityType: preparedActions[0]?.domain || 'reminder',
+      lastAction: 'created',
+      items: allItems,
+    });
+  }
+
   return {
-    success: isSuccess,
-    executed: isSuccess,
+    success: allSucceeded,
+    executed: allSucceeded,
     status: finalStatus,
-    result,
-    fact,
-    facts: [fact],
+    results: executedResults,
+    result: executedResults[0]?.result,
+    fact: executedFacts[0],
+    facts: executedFacts,
+    domain: preparedActions[0]?.domain || 'reminder',
   };
 }
 

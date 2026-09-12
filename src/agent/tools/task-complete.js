@@ -82,16 +82,30 @@ export async function executeTaskComplete({
   }
 
   if (resolution.status === 'AMBIGUOUS') {
+    const candidates = Array.isArray(resolution.candidates) ? resolution.candidates : [];
+    const candidateLines = candidates.map((cand, idx) => `${idx + 1}. *${cand.title || cand.name || 'Tarea'}*`).join('\n');
     const message = language === 'en'
-      ? 'Multiple tasks match your request. Please clarify which one you want to complete.'
-      : 'Hay múltiples tareas que coinciden con tu solicitud. Por favor aclara cuál de ellas deseas completar.';
+      ? `⚠️ *Multiple tasks match your request*\n\n${candidateLines}\n\nPlease clarify which one you want to complete.`
+      : `⚠️ *Hay múltiples tareas que coinciden*\n\n${candidateLines}\n\nPor favor aclara cuál de ellas deseas completar.`;
     return {
       success: false,
       action: 'ambiguous_target',
       errorCode: 'AMBIGUOUS_TARGET',
       error: message,
       rawSummary: message,
-      confirmation: `⚠️ ${message}`,
+      formattedCard: message,
+      confirmation: message,
+      requiresClarification: true,
+      data: {
+        tasks: candidates.map((cand, idx) => ({
+          position: idx + 1,
+          type: 'task',
+          internalId: cand.id,
+          id: cand.id,
+          title: cand.title,
+          summary: cand.title,
+        })),
+      },
     };
   }
 

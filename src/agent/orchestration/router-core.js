@@ -405,16 +405,17 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
             if (!reply && execResult.facts?.length > 0) {
               reply = composeExecutionReply(execResult.facts, language);
             }
+            const primaryDomain = activeAgentRun.preparedActions?.[0]?.domain || 'entity';
             if (!reply) {
               reply = validation.decision.decision === 'reject'
                 ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
                 : (language === 'en'
-                  ? `Done — deleted ${execResult.executedCount || 0} projects.`
-                  : `Listo — eliminé ${execResult.executedCount || 0} proyectos.`);
+                  ? `Done — processed ${execResult.executedCount || 0} ${primaryDomain}s.`
+                  : `Listo — procesé ${execResult.executedCount || 0} ${primaryDomain === 'reminder' ? 'recordatorios' : (primaryDomain === 'task' ? 'tareas' : 'proyectos')}.`);
             }
 
             return {
-              intent: 'entity',
+              intent: primaryDomain,
               entities: conversationStateEntities(user),
               language,
               confirmation: reply,

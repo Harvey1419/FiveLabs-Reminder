@@ -600,17 +600,15 @@ export async function executeTurnIntent(intent, context) {
       missingFields: pendingMissingFields(stagedDrafts),
     };
 
-    for (const draft of stagedDrafts) {
-      await createInputRun({
-        user: context.user,
-        kind: draft.domain === 'reminder' ? 'reminder_creation' : 'input_draft',
-        partialAction: draft,
-        missingFields: pendingMissingFields([draft], clarification),
-        question: clarification.question || '',
-        context: { draft },
-        referenceTime: context.referenceTime,
-      });
-    }
+    await createInputRun({
+      user: context.user,
+      kind: stagedDrafts.every((d) => d.domain === 'reminder') ? 'reminder_creation' : 'input_draft',
+      partialActions: stagedDrafts,
+      missingFields: pendingMissingFields(stagedDrafts, clarification),
+      question: clarification.question || '',
+      context: { drafts: stagedDrafts },
+      referenceTime: context.referenceTime,
+    });
 
     const stagedSet = new Set(staged);
     actions = actions.filter((action) => !stagedSet.has(action));
@@ -742,6 +740,45 @@ export async function executeTurnIntent(intent, context) {
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
       updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result });
     }
+  }
+
+  const allProposedReminders = records.flatMap(({ result }) => (
+    Array.isArray(result?.data?.pendingClarifications)
+      ? result.data.pendingClarifications.filter((item) => item?.proposedReminder?.targetTime)
+      : []
+  ));
+
+  if (allProposedReminders.length > 0) {
+    const preparedActions = allProposedReminders.map((item, idx) => ({
+      callId: `call-${idx + 1}`,
+      domain: 'reminder',
+      action: 'create',
+      targetId: null,
+      targetName: item.content,
+      payload: {
+        action: 'create',
+        items: [{
+          content: item.content,
+          targetTime: item.proposedReminder.targetTime,
+          ...(item.proposedReminder.advanceMinutes ? { advanceMinutes: item.proposedReminder.advanceMinutes } : {}),
+          ...(item.proposedReminder.recurrence ? { recurrence: item.proposedReminder.recurrence } : {}),
+          ...(item.proposedReminder.requiresConfirmation ? { requiresConfirmation: true } : {}),
+          ...(item.proposedReminder.nudgeIntervalMinutes ? { nudgeIntervalMinutes: item.proposedReminder.nudgeIntervalMinutes } : {}),
+          ...(item.proposedReminder.maxNudges ? { maxNudges: item.proposedReminder.maxNudges } : {}),
+        }],
+      },
+      status: 'prepared',
+    }));
+
+    const questions = allProposedReminders.map((p) => p.question).filter(Boolean);
+    await createApprovalRun({
+      user: context.user,
+      kind: 'proposal_approval',
+      preparedActions,
+      question: questions.join('\n') || (context.language === 'en' ? 'Do you want me to schedule these reminders?' : '¿Deseas programar estos recordatorios?'),
+      context: { proposedReminders: allProposedReminders },
+      referenceTime: context.referenceTime,
+    });
   }
 
   return { records, facts, excluded: intent?.excluded || [] };
