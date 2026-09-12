@@ -111,4 +111,40 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[0]).not.toHaveProperty('schedule');
     clearWorkingMemory(user);
   });
+
+  it('normalizes entity.delete structurally when scope="all" or preserveNames is provided', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'entity',
+        action: 'delete',
+        scope: 'all',
+        category: 'project',
+        preserveNames: ['Reminder Pro'],
+      }],
+    }, context);
+
+    expect(normalized.actions[0]).toEqual({
+      domain: 'entity',
+      action: 'delete',
+      scope: 'all',
+      category: 'project',
+      preserveNames: ['Reminder Pro'],
+    });
+  });
+
+  it('never infers bulk entity delete from natural language target strings (regex elimination invariant)', () => {
+    // When Hermes incorrectly sends "todos los proyectos" in target without scope="all",
+    // Node must NOT use regex to infer scope="all" or category="project".
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'entity',
+        action: 'delete',
+        target: 'todos los proyectos',
+      }],
+    }, context);
+
+    expect(normalized.actions[0].scope).toBeUndefined();
+    expect(normalized.actions[0].target).toBe('todos los proyectos');
+  });
 });
+

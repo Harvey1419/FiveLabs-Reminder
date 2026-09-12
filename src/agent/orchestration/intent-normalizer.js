@@ -130,22 +130,19 @@ function normalizeRecurringReminder(action, context) {
 }
 
 /**
- * Natural bulk entity deletion phrases (e.g. "all projects", "todos los proyectos")
- * normalize to scope="all" and category="project".
+ * Structural bulk entity deletion normalizer:
+ * Enforces scope="all", category="project" fallback, and preserveNames array
+ * ONLY when scope="all" or preserveNames is already structurally provided.
+ * Node never infers bulk operations from natural-language target strings.
  */
 function normalizeEntityDelete(action) {
   if (action.domain !== 'entity' || action.action !== 'delete') return action;
 
-  const targetStr = String(action.target || action.entityName || '').trim();
-  const isBulkTarget = /^(all\s+(projects|entities|lists)|(todos\s+los|todas\s+las)\s+(proyectos|entidades|listas))/i.test(targetStr);
-
-  if (isBulkTarget || action.scope === 'all' || Array.isArray(action.preserveNames)) {
+  if (action.scope === 'all' || Array.isArray(action.preserveNames)) {
     return {
       ...action,
       scope: 'all',
       category: action.category || 'project',
-      target: isBulkTarget ? null : action.target,
-      entityName: isBulkTarget ? null : action.entityName,
       preserveNames: Array.isArray(action.preserveNames) ? action.preserveNames : [],
     };
   }
