@@ -278,9 +278,9 @@ function buildDomainCall(action, context) {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_ENTITY, params: { action: 'merge', sourceName: action.sourceName, targetName: action.target || action.entityName } };
       }
       if (action.action === 'delete') {
-        const scope = Array.isArray(action.preserveNames) ? 'all' : (action.scope || 'single');
+        const scope = Array.isArray(action.preserveNames) || action.scope === 'all' ? 'all' : (action.scope || 'single');
+        const preserveNames = Array.isArray(action.preserveNames) ? action.preserveNames : [];
         if (scope !== 'all' && !(action.target || action.entityName)) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta la entidad que quieres eliminar.' };
-        if (scope === 'all' && !Array.isArray(action.preserveNames)) return { valid: false, errorCode: 'MISSING_PRESERVE_NAMES', error: 'Una eliminación masiva debe indicar las excepciones a preservar.' };
         if (scope === 'all' && !action.category) return { valid: false, errorCode: 'MISSING_CATEGORY', error: 'Una eliminación masiva debe indicar la categoría exacta.' };
         return {
           valid: true,
@@ -290,7 +290,7 @@ function buildDomainCall(action, context) {
             ...(action.target || action.entityName ? { targetName: action.target || action.entityName } : {}),
             ...(action.category ? { category: action.category } : {}),
             scope,
-            ...(Array.isArray(action.preserveNames) ? { preserveNames: action.preserveNames } : {}),
+            preserveNames,
           },
         };
       }

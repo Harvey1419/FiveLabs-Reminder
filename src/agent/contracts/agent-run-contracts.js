@@ -1,3 +1,6 @@
+import { strictProviderSchema, stripStructuredNulls } from './foreground-turn-schema.js';
+import { typedSchedule } from './intent-contracts.js';
+
 export const RUN_STATUSES = Object.freeze([
   'running',
   'waiting_for_input',
@@ -27,7 +30,7 @@ export const APPROVAL_DECISIONS = Object.freeze(['approve_all', 'approve_subset'
 
 export const CONTINUATION_RELATIONS = Object.freeze(['resume', 'unrelated', 'cancel']);
 
-export const APPROVAL_DECISION_SCHEMA = Object.freeze({
+export const APPROVAL_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -52,9 +55,16 @@ export const APPROVAL_DECISION_SCHEMA = Object.freeze({
     },
   },
   required: ['relation'],
-});
+}));
 
-export const CONTINUATION_DECISION_SCHEMA = Object.freeze({
+const continuationSchedule = structuredClone(typedSchedule);
+continuationSchedule.properties.clockMode = {
+  type: 'string',
+  enum: ['explicit_24h', 'ambiguous_12h'],
+  description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
+};
+
+export const CONTINUATION_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -65,7 +75,14 @@ export const CONTINUATION_DECISION_SCHEMA = Object.freeze({
     },
     suppliedFields: {
       type: 'object',
-      description: 'Structured delta supplied by the user (e.g. { schedule: { ... } }). Node merges these fields deterministically.',
+      additionalProperties: false,
+      description: 'Structured delta supplied by the user. Node merges these fields deterministically.',
+      properties: {
+        schedule: continuationSchedule,
+        content: { type: 'string', description: 'Updated or supplied text content.' },
+        target: { type: 'string', description: 'Target entity or reference if supplied.' },
+      },
+      required: [],
     },
     reply: {
       type: 'string',
@@ -73,12 +90,13 @@ export const CONTINUATION_DECISION_SCHEMA = Object.freeze({
     },
   },
   required: ['relation'],
-});
+}));
 
 /**
  * Validate an approval decision produced by the model.
  */
-export function validateApprovalDecision(payload) {
+export function validateApprovalDecision(rawPayload) {
+  const payload = stripStructuredNulls(rawPayload);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return { valid: false, errorCode: 'INVALID_APPROVAL_DECISION', error: 'Approval decision must be an object.' };
   }
@@ -117,7 +135,8 @@ export function validateApprovalDecision(payload) {
 /**
  * Validate a continuation decision produced by the model.
  */
-export function validateContinuationDecision(payload) {
+export function validateContinuationDecision(rawPayload) {
+  const payload = stripStructuredNulls(rawPayload);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return { valid: false, errorCode: 'INVALID_CONTINUATION_DECISION', error: 'Continuation decision must be an object.' };
   }

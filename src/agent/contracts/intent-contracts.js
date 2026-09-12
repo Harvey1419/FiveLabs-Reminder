@@ -34,7 +34,7 @@ const CANONICAL_OPERATION_PARTS = new Map(CANONICAL_OPERATIONS.map((operation) =
   const separator = operation.indexOf('.');
   return [operation, Object.freeze({ domain: operation.slice(0, separator), action: operation.slice(separator + 1) })];
 }));
-const typedSchedule = {
+export const typedSchedule = {
   type: 'object',
   additionalProperties: false,
   description: 'Structured temporal meaning. Preserve the user’s temporal semantics exactly; Node owns calendar arithmetic and timezone resolution.',
@@ -99,7 +99,7 @@ export const EXECUTE_TURN_DESCRIPTION = `Return the CURRENT user's meaning as ca
 conversation.reply is non-operational and cannot claim reads/mutations. agenda.read is cross-domain live inventory; use reminder/task/calendar for domain-specific reads. Never reconstruct live state from chat history.
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: create has no target; update/cancel/complete/delete target an existing human-identified object and contain only requested deltas. A patch value is never identity.
 Reminder removal is reminder.cancel; emit one cancel per target. reminder.acknowledge marks a real-world follow-up done; one authoritative active target may be bound by Node, otherwise identify or clarify. Completion is not an update.
-OPERATIONAL COLLECTIONS: infer from members, not labels. A NEW actionable collection MUST use entity.upsert(project, entityName) + one task.create per member with that entityName; never projectless/collapsed. For an existing or active container, do NOT upsert again: add/read/complete/remove stay task-scoped by entityName. entity.list/delete concerns the container; knowledge collections stay entities.
+OPERATIONAL COLLECTIONS: infer from members, not labels. A NEW actionable collection MUST use entity.upsert(project, entityName) + one task.create per member with that entityName; never projectless/collapsed. For an existing or active container, do NOT upsert again: add/read/complete/remove stay task-scoped by entityName. entity.list/delete concerns the container; knowledge collections stay entities. Para eliminar colecciones en lote (ej. "elimina todos los proyectos excepto X"), emite una sola entity.delete con scope="all", category="project" y preserveNames=["X"] (o [] si no hay excepciones); nunca pongas "all projects" en target.
 Temporal meaning must remain typed: relative_offset=duration; relative_day_time=relative day+clock; weekday_time=weekday+clock; local_time=clock only. Node owns date/timezone arithmetic.
 For missing data, keep partial canonical actions with missingFields and one clarification.request, never one per field/item. Retain known fields.
 Keep recurrence and advanceMinutes on their reminder/event. Durable personal statements use conversation.reply plus passive learning; memory.save only on explicit request.
