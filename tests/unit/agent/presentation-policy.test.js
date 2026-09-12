@@ -197,4 +197,46 @@ describe('turn-level presentation policy', () => {
     expect(text).toContain('¿Cuál recordatorio?');
     expect(text).toContain('¿Cuál tarea?');
   });
+
+  it('presents successful reads as retrieved information, not completed actions', () => {
+    const text = composeTurnPresentation([
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'list',
+        data: { tasks: [{ title: 'Revisar contrato' }] },
+        card: '☑️ *Tareas pendientes*\n\n• Revisar contrato',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'list',
+        data: { reminders: [{ content: 'Llamar a Ana' }] },
+        card: '🔔 *Recordatorios pendientes*\n\n• Llamar a Ana',
+      }),
+    ], 'es');
+
+    expect(text).toContain('Tareas pendientes');
+    expect(text).toContain('Recordatorios pendientes');
+    expect(text).not.toContain('acciones realizadas');
+    expect(text).not.toContain('realizadas');
+  });
+
+  it('keeps mutation framing when reads and mutations share a turn', () => {
+    const text = composeTurnPresentation([
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'list',
+        card: '☑️ *Tareas pendientes*\n\n• Revisar contrato',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_TASK,
+        requestedAction: 'complete',
+        data: { title: 'Llamar a Ana' },
+        card: '✅ *Tarea completada*\n\n• Llamar a Ana',
+      }),
+    ], 'es');
+
+    expect(text).toContain('Tareas pendientes');
+    expect(text).toContain('Tareas · 1 completados');
+    expect(text).toContain('Llamar a Ana');
+  });
 });
