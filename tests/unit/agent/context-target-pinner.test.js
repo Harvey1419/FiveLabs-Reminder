@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { pinReminderCancellationTargets } from '../../../src/agent/orchestration/context-target-pinner.js';
+import {
+  pinReminderCancellationTargets,
+  pinReminderTargets,
+} from '../../../src/agent/orchestration/context-target-pinner.js';
 
 function memory(items) {
   return {
@@ -61,5 +64,21 @@ describe('contextual reminder target pinning', () => {
     const actions = [{ domain: 'reminder', action: 'cancel', target: 'Sacar una cita' }];
 
     expect(pinReminderCancellationTargets(actions, workingMemory).size).toBe(0);
+  });
+
+  it('pins reminder update targets to the pre-mutation Working Memory snapshot', () => {
+    const workingMemory = memory([
+      { id: 'rem-1', content: 'Llamar al banco' },
+      { id: 'rem-2', content: 'Sacar una cita' },
+    ]);
+    const actions = [
+      { domain: 'reminder', action: 'update', target: '1' },
+      { domain: 'reminder', action: 'update', target: 'Sacar una cita' },
+    ];
+
+    expect([...pinReminderTargets(actions, workingMemory).entries()]).toEqual([
+      [0, 'rem-1'],
+      [1, 'rem-2'],
+    ]);
   });
 });
