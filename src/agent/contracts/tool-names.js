@@ -3,6 +3,7 @@ export const TOOL_NAMES = Object.freeze({
   REPLY_TO_USER: 'reply_to_user',
   MANAGE_REMINDER: 'manage_reminder',
   MANAGE_TASK: 'manage_task',
+  MANAGE_PROJECT: 'manage_project',
   MANAGE_ENTITY: 'manage_entity',
   MANAGE_MEMORY: 'manage_memory',
   MANAGE_SUBSCRIPTION: 'manage_subscription',

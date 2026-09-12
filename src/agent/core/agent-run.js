@@ -227,8 +227,10 @@ export async function executeApprovalDecision({
     ? executionContext.user
     : { ...(typeof executionContext.user === 'object' ? executionContext.user : {}), id: userId || threadId };
 
-  // Group by domain for efficient execution if entity batch delete
+  // Group by domain for efficient execution if entity/project batch delete
   if (run.kind === 'entity_destructive_batch') {
+    const isProject = actionsToExecute[0]?.domain === 'project';
+    const targetTool = isProject ? TOOL_NAMES.MANAGE_PROJECT : TOOL_NAMES.MANAGE_ENTITY;
     const entityIds = actionsToExecute
       .map((a) => a.target_id)
       .filter(Boolean);
@@ -237,17 +239,17 @@ export async function executeApprovalDecision({
       const deleteResult = await executeTool({
         ...executionContext,
         user: executionUser,
-        toolName: TOOL_NAMES.MANAGE_ENTITY,
+        toolName: targetTool,
         params: {
           action: 'delete',
-          entityIds,
+          ...(isProject ? { projectIds: entityIds } : { entityIds }),
         },
         clarificationResolution: true,
       });
 
       const fact = createExecutionFact({
-        toolName: TOOL_NAMES.MANAGE_ENTITY,
-        params: { action: 'delete', entityIds },
+        toolName: targetTool,
+        params: { action: 'delete', ...(isProject ? { projectIds: entityIds } : { entityIds }) },
         result: deleteResult,
         callId: 'approval_exec',
         language: executionContext.language || 'es',
@@ -265,8 +267,9 @@ export async function executeApprovalDecision({
   } else {
     // Generic action-by-action dispatch
     for (const action of actionsToExecute) {
-      const toolName = action.domain === 'entity' ? TOOL_NAMES.MANAGE_ENTITY
-        : (action.domain === 'reminder' ? TOOL_NAMES.MANAGE_REMINDER : TOOL_NAMES.MANAGE_TASK);
+      const toolName = action.domain === 'project' ? TOOL_NAMES.MANAGE_PROJECT
+        : (action.domain === 'entity' ? TOOL_NAMES.MANAGE_ENTITY
+        : (action.domain === 'reminder' ? TOOL_NAMES.MANAGE_REMINDER : TOOL_NAMES.MANAGE_TASK));
       const toolResult = await executeTool({
         ...executionContext,
         user: executionUser,
@@ -386,6 +389,8 @@ export async function executeContinuationDecision({
 
     if (action.domain === 'task') {
       toolName = TOOL_NAMES.MANAGE_TASK;
+    } else if (action.domain === 'project') {
+      toolName = TOOL_NAMES.MANAGE_PROJECT;
     } else if (action.domain === 'entity') {
       toolName = TOOL_NAMES.MANAGE_ENTITY;
     } else if (action.domain === 'reminder' && action.action === 'create') {

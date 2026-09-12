@@ -2,7 +2,7 @@ import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 
 const DOMAINS = Object.freeze([
-  'conversation', 'agenda', 'reminder', 'task', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
+  'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
 ]);
 const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
 const MISSING_FIELDS = Object.freeze([
@@ -14,6 +14,7 @@ const DOMAIN_ACTIONS = Object.freeze({
   agenda: new Set(['read']),
   reminder: new Set(['create', 'update', 'cancel', 'acknowledge', 'list', 'add_advance']),
   task: new Set(['create', 'update', 'complete', 'delete', 'list']),
+  project: new Set(['create', 'upsert', 'rename', 'delete', 'list']),
   entity: new Set(['create', 'upsert', 'rename', 'merge', 'delete', 'deduplicate', 'list']),
   calendar: new Set(['create', 'update', 'delete', 'list', 'search', 'next', 'connect', 'disconnect']),
   memory: new Set(['save', 'search', 'list', 'forget']),
@@ -99,8 +100,8 @@ export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la a
 conversation.reply es no operativo y no afirma lecturas ni mutaciones. agenda.read es inventario vivo multi-dominio; para recordatorios usa reminder.list. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
 LÍMITE ESTRICTO ENTRE CREACIÓN Y EDICIÓN (CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY): crear no lleva target; actualizar/cancelar/completar/eliminar requieren target humano existente y solo los deltas pedidos. Un valor a cambiar nunca es identidad.
 Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
-COLECCIONES Y PROYECTOS: un nuevo contenedor accionable requiere entity.upsert(project, entityName) + un task.create por elemento con ese entityName. Para eliminar una lista/proyecto específico (y sus tareas en cascada), usa entity.delete con target="Nombre"; NUNCA uses scope="all" para una sola lista. scope="all" es solo si pide borrar TODOS los proyectos de la cuenta.
-PREGUNTAS DE VERIFICACIÓN: Una pregunta JAMÁS autoriza mutaciones. Consultas de estado (ej. '¿los eliminaste?') se responden en conversation.reply o lectura viva (entity.list), NUNCA con mutaciones.
+COLECCIONES Y PROYECTOS: listas o proyectos con tareas usan project (o entity con category="project") + task.create por elemento. Para listar proyectos/listas usa project.list (o entity.list con category="project"); NUNCA sin categoría. Para eliminar una lista usa project.delete(target="Nombre"); scope="all" solo para borrar toda la cuenta.
+PREGUNTAS DE VERIFICACIÓN: Una pregunta JAMÁS autoriza mutaciones. Consultas de estado (ej. '¿los eliminaste?') se responden en conversation.reply o lectura viva (project.list, task.list), NUNCA con mutaciones.
 Significado temporal tipado (Temporal meaning must remain typed): relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona aritmética de fechas/zonas horarias.
 Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
 Mantén recurrencia y advanceMinutes en su recordatorio/evento. Afirmaciones personales duraderas usan conversation.reply más aprendizaje pasivo; memory.save solo ante petición explícita.

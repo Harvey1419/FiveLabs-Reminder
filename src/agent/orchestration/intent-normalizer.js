@@ -150,6 +150,19 @@ function normalizeEntityDelete(action) {
   return action;
 }
 
+function normalizeProjectOperations(action) {
+  if (action.domain === 'project' && action.action === 'delete') {
+    if (action.scope === 'all' || Array.isArray(action.preserveNames)) {
+      return {
+        ...action,
+        scope: 'all',
+        preserveNames: Array.isArray(action.preserveNames) ? action.preserveNames : [],
+      };
+    }
+  }
+  return action;
+}
+
 /**
  * Add deterministic runtime context only. This layer never changes semantic
  * domain/action and never turns identity/context into patch content.
@@ -163,6 +176,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeUpdateFields(action);
     action = normalizeRecurringReminder(action, context);
     action = normalizeEntityDelete(action);
+    action = normalizeProjectOperations(action);
     return action;
   });
   return { ...intent, actions };

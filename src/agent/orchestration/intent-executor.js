@@ -262,11 +262,40 @@ function buildDomainCall(action, context) {
       return { valid: true, toolName: TOOL_NAMES.MANAGE_TASK, params: { action: 'update', target, updates, ...(action.entityName ? { entityName: action.entityName } : {}) } };
     }
 
+    case 'project': {
+      if (action.action === 'create' || action.action === 'upsert') {
+        const name = intentTarget(action);
+        if (!name) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta el nombre del proyecto o lista.' };
+        return { valid: true, toolName: TOOL_NAMES.MANAGE_PROJECT, params: { action: action.action, name, description: action.description || null } };
+      }
+      if (action.action === 'rename') {
+        if (!action.oldName && !action.target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta el nombre actual.' };
+        if (!action.newName) return { valid: false, errorCode: 'MISSING_UPDATES', error: 'Falta el nombre nuevo.' };
+        return { valid: true, toolName: TOOL_NAMES.MANAGE_PROJECT, params: { action: 'rename', oldName: action.oldName || action.target, newName: action.newName } };
+      }
+      if (action.action === 'delete') {
+        const scope = Array.isArray(action.preserveNames) || action.scope === 'all' ? 'all' : (action.scope || 'single');
+        const preserveNames = Array.isArray(action.preserveNames) ? action.preserveNames : [];
+        if (scope !== 'all' && !(action.target || action.entityName)) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta el proyecto que quieres eliminar.' };
+        return {
+          valid: true,
+          toolName: TOOL_NAMES.MANAGE_PROJECT,
+          params: {
+            action: 'delete',
+            ...(action.target || action.entityName ? { targetName: action.target || action.entityName } : {}),
+            scope,
+            preserveNames,
+          },
+        };
+      }
+      return { valid: true, toolName: TOOL_NAMES.MANAGE_PROJECT, params: { action: 'list', ...(action.query ? { query: action.query } : {}), ...(action.limit ? { limit: action.limit } : {}) } };
+    }
+
     case 'entity': {
       if (action.action === 'create' || action.action === 'upsert') {
         const name = intentTarget(action);
         if (!name) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta el nombre.' };
-        return { valid: true, toolName: TOOL_NAMES.MANAGE_ENTITY, params: { action: action.action, name, category: action.category || 'project' } };
+        return { valid: true, toolName: TOOL_NAMES.MANAGE_ENTITY, params: { action: action.action, name, category: action.category || 'other' } };
       }
       if (action.action === 'rename') {
         if (!action.oldName && !action.target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta el nombre actual.' };
@@ -274,7 +303,7 @@ function buildDomainCall(action, context) {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_ENTITY, params: { action: 'rename', oldName: action.oldName || action.target, newName: action.newName } };
       }
       if (action.action === 'merge') {
-        if (!action.sourceName || !(action.target || action.entityName)) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Faltan las entidades que quieres combinar.' };
+        if (!action.sourceName || !(action.target || action.entityName)) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta las entidades que quieres combinar.' };
         return { valid: true, toolName: TOOL_NAMES.MANAGE_ENTITY, params: { action: 'merge', sourceName: action.sourceName, targetName: action.target || action.entityName } };
       }
       if (action.action === 'delete') {
@@ -431,6 +460,7 @@ function extractWorkingItems(data) {
 
 function inferItemType(toolName) {
   if (toolName === TOOL_NAMES.MANAGE_TASK) return 'task';
+  if (toolName === TOOL_NAMES.MANAGE_PROJECT) return 'project';
   if (toolName === TOOL_NAMES.MANAGE_REMINDER) return 'reminder';
   if (toolName === TOOL_NAMES.MANAGE_GOOGLE_CALENDAR) return 'calendar_event';
   if (toolName === TOOL_NAMES.MANAGE_ENTITY) return 'entity';
@@ -521,7 +551,9 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
       ? 'calendar'
       : toolName === TOOL_NAMES.MANAGE_REMINDER
         ? 'reminder'
-        : toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'task';
+        : toolName === TOOL_NAMES.MANAGE_PROJECT
+          ? 'project'
+          : toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'task';
 
   const uniformEntityName = items.length > 0
     && items.every((item) => item?.entityName && item.entityName === items[0]?.entityName)
@@ -535,10 +567,10 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
     : null;
   const activeEntity = result.data?.entityName
     || params.entityName
-    || (toolName === TOOL_NAMES.MANAGE_ENTITY ? result.data?.name : null)
+    || ((toolName === TOOL_NAMES.MANAGE_PROJECT || toolName === TOOL_NAMES.MANAGE_ENTITY) ? result.data?.name : null)
     || uniformEntityName;
   const activeEntityId = result.data?.entityId
-    || (toolName === TOOL_NAMES.MANAGE_ENTITY ? result.data?.id : null)
+    || ((toolName === TOOL_NAMES.MANAGE_PROJECT || toolName === TOOL_NAMES.MANAGE_ENTITY) ? result.data?.id : null)
     || uniformEntityId;
 
   let workingItems = items;
@@ -656,7 +688,8 @@ export async function executeTurnIntent(intent, context) {
         action: 'create',
         items: taskCreateBatch.flatMap((prepared) => prepared.params.items || []),
       };
-      result = await executeTool({
+      const runTool = context.executeTool || executeTool;
+      result = await runTool({
         toolName,
         params,
         user: context.user,
@@ -691,7 +724,8 @@ export async function executeTurnIntent(intent, context) {
             };
           }
         }
-        result = await executeTool({
+        const runTool = context.executeTool || executeTool;
+        result = await runTool({
           toolName,
           params,
           user: context.user,
@@ -714,27 +748,30 @@ export async function executeTurnIntent(intent, context) {
     facts.push(fact);
 
     if (
-      result.action === 'entity_deletion_confirmation_required'
-      && Array.isArray(result.data?.previewEntities)
-      && result.data.previewEntities.length > 0
+      (result.action === 'entity_deletion_confirmation_required' || result.action === 'project_deletion_confirmation_required')
+      && (Array.isArray(result.data?.previewProjects) || Array.isArray(result.data?.previewEntities))
     ) {
-      const preparedActions = result.data.previewEntities.map((entity, idx) => ({
-        callId: `call-${idx + 1}`,
-        domain: 'entity',
-        action: 'delete',
-        targetId: entity.id,
-        targetName: entity.name,
-        payload: { action: 'delete', entityIds: [entity.id] },
-        status: 'prepared',
-      }));
+      const isProject = result.action === 'project_deletion_confirmation_required';
+      const items = (isProject ? result.data?.previewProjects : result.data?.previewEntities) || [];
+      if (items.length > 0) {
+        const preparedActions = items.map((item, idx) => ({
+          callId: `call-${idx + 1}`,
+          domain: isProject ? 'project' : 'entity',
+          action: 'delete',
+          targetId: item.id,
+          targetName: item.name,
+          payload: isProject ? { action: 'delete', projectIds: [item.id] } : { action: 'delete', entityIds: [item.id] },
+          status: 'prepared',
+        }));
 
-      await createApprovalRun({
-        user: context.user,
-        kind: 'entity_destructive_batch',
-        preparedActions,
-        question: result.error || result.rawSummary,
-        context: { previewEntities: result.data.previewEntities },
-      });
+        await createApprovalRun({
+          user: context.user,
+          kind: 'entity_destructive_batch',
+          preparedActions,
+          question: result.error || result.rawSummary,
+          context: { previewEntities: items, isProject },
+        });
+      }
     }
 
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
@@ -789,6 +826,7 @@ export function inferIntentFromTool(toolName) {
     [TOOL_NAMES.MANAGE_MEMORY]: 'memory',
     [TOOL_NAMES.MANAGE_REMINDER]: 'reminder',
     [TOOL_NAMES.MANAGE_TASK]: 'task',
+    [TOOL_NAMES.MANAGE_PROJECT]: 'project',
     [TOOL_NAMES.MANAGE_ENTITY]: 'entity',
     [TOOL_NAMES.MANAGE_SUBSCRIPTION]: 'subscription',
     [TOOL_NAMES.MANAGE_GOOGLE_CALENDAR]: 'calendar',

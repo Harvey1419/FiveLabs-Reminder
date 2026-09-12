@@ -1,0 +1,199 @@
+import {
+  findOrCreateProjectFuzzy,
+  renameProject,
+  findProjects,
+  deleteProjects,
+  selectProjectCandidate,
+} from '../../infrastructure/database/projects.js';
+
+/**
+ * Domain tool for managing operational containers (projects, checklists, shopping lists).
+ */
+export async function executeProjectTool({
+  action,
+  params = {},
+  user,
+  language = 'es',
+  clarificationResolution = false,
+}) {
+  const userId = user?.id;
+  const normalizedAction = String(action || 'create');
+
+  switch (normalizedAction) {
+    case 'create':
+    case 'upsert': {
+      const name = params.name || params.target;
+      if (!name) {
+        return {
+          success: false,
+          action: 'invalid_parameters',
+          errorCode: 'INVALID_PARAMETERS',
+          error: language === 'en' ? 'Missing project name.' : 'Falta el nombre del proyecto o lista.',
+          rawSummary: language === 'en' ? 'Missing project name.' : 'Falta el nombre del proyecto o lista.',
+        };
+      }
+
+      const project = await findOrCreateProjectFuzzy({
+        userId,
+        name,
+        description: params.description || null,
+        metadata: params.metadata || {},
+      });
+
+      if (!project) {
+        return {
+          success: false,
+          action: 'database_error',
+          errorCode: 'DATABASE_ERROR',
+          error: language === 'en' ? 'Could not save project.' : 'No se pudo guardar el proyecto.',
+          rawSummary: language === 'en' ? 'Could not save project.' : 'No se pudo guardar el proyecto.',
+        };
+      }
+
+      return {
+        success: true,
+        action: 'created_project',
+        data: project,
+      };
+    }
+
+    case 'rename': {
+      const { oldName, newName } = params;
+      if (!oldName || !newName) {
+        return {
+          success: false,
+          action: 'invalid_parameters',
+          errorCode: 'INVALID_PARAMETERS',
+          error: language === 'en' ? 'Missing oldName and newName.' : 'Faltan oldName y newName para renombrar.',
+          rawSummary: language === 'en' ? 'Missing oldName and newName.' : 'Faltan oldName y newName para renombrar.',
+        };
+      }
+
+      const res = await renameProject({ userId, oldName, newName });
+      if (!res.success) {
+        return {
+          success: false,
+          action: 'project_not_found',
+          errorCode: 'PROJECT_NOT_FOUND',
+          error: res.error || (language === 'en' ? `Could not rename '${oldName}'.` : `No se pudo renombrar '${oldName}'.`),
+          rawSummary: res.error || (language === 'en' ? `Could not rename '${oldName}'.` : `No se pudo renombrar '${oldName}'.`),
+        };
+      }
+
+      return {
+        success: true,
+        action: 'renamed_project',
+        data: res.project,
+      };
+    }
+
+    case 'list': {
+      const { query = null, status = 'active', limit = 50 } = params;
+      const projects = await findProjects({ userId, query, status, limit });
+      return {
+        success: true,
+        action: 'listed_projects',
+        data: projects,
+      };
+    }
+
+    case 'delete': {
+      const projectIds = Array.isArray(params.projectIds) && params.projectIds.length > 0 ? params.projectIds : null;
+      const targetName = params.targetName || params.target || null;
+      const scope = params.scope || 'single';
+      const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
+
+      const preview = await deleteProjects({
+        userId,
+        targetName,
+        scope,
+        preserveNames,
+        dryRun: !clarificationResolution && !projectIds,
+        projectIds,
+      });
+
+      if (!preview.success) {
+        const message = preview.errorCode === 'AMBIGUOUS_TARGET'
+          ? (language === 'en' ? 'Several projects match that name. Which one should I delete?' : 'Hay varios proyectos que coinciden con ese nombre. ¿Cuál deseas eliminar?')
+          : (language === 'en' ? 'I could not find projects matching that request.' : 'No encontré proyectos que coincidan con esa solicitud.');
+        return {
+          success: false,
+          action: preview.errorCode === 'AMBIGUOUS_TARGET' ? 'ambiguous_project' : 'project_not_found',
+          errorCode: preview.errorCode || 'NOT_FOUND',
+          error: message,
+          rawSummary: message,
+          formattedCard: `⚠️ ${message}`,
+          requiresClarification: preview.errorCode === 'AMBIGUOUS_TARGET',
+        };
+      }
+
+      if (!clarificationResolution) {
+        const names = preview.projects.map((p) => p.name);
+        const preservedText = preserveNames.length > 0
+          ? (language === 'en' ? ` I will keep ${preserveNames.join(', ')}.` : ` Conservaré ${preserveNames.join(', ')}.`)
+          : '';
+        const taskText = preview.pendingTaskCount > 0
+          ? (language === 'en'
+            ? ` ${preview.pendingTaskCount} unfinished task${preview.pendingTaskCount === 1 ? ' will' : 's will'} also be deleted.`
+            : ` También se ${preview.pendingTaskCount === 1 ? 'eliminará' : 'eliminarán'} ${preview.pendingTaskCount} ${preview.pendingTaskCount === 1 ? 'tarea pendiente asociada' : 'tareas pendientes asociadas'}.`)
+          : '';
+        const historyText = preview.preservedCompletedTaskCount > 0
+          ? (language === 'en'
+            ? ` ${preview.preservedCompletedTaskCount} completed task${preview.preservedCompletedTaskCount === 1 ? ' will remain' : 's will remain'} in history.`
+            : ` ${preview.preservedCompletedTaskCount} ${preview.preservedCompletedTaskCount === 1 ? 'tarea completada permanecerá' : 'tareas completadas permanecerán'} en el historial.`)
+          : '';
+        const reminderText = preview.activeReminderCount > 0
+          ? (language === 'en'
+            ? ` ${preview.activeReminderCount} active reminder${preview.activeReminderCount === 1 ? ' will' : 's will'} also be cancelled.`
+            : ` También se ${preview.activeReminderCount === 1 ? 'cancelará' : 'cancelarán'} ${preview.activeReminderCount} ${preview.activeReminderCount === 1 ? 'recordatorio activo relacionado' : 'recordatorios activos relacionados'}.`)
+          : '';
+        const question = language === 'en'
+          ? `Should I delete ${names.length} ${names.length === 1 ? 'project' : 'projects'}: ${names.join(', ')}?${preservedText}${taskText}${reminderText}${historyText}`
+          : `¿Quieres que elimine ${names.length} ${names.length === 1 ? 'proyecto' : 'proyectos'}: ${names.join(', ')}?${preservedText}${taskText}${reminderText}${historyText}`;
+
+        const proposedOperation = {
+          kind: 'project_delete',
+          targetName,
+          scope,
+          preserveNames,
+        };
+        const pendingClarifications = [{
+          type: 'project_deletion',
+          content: scope === 'all' ? 'Eliminación de proyectos' : `Eliminar ${targetName}`,
+          question,
+          proposedOperation,
+        }];
+
+        return {
+          success: false,
+          complete: false,
+          action: 'project_deletion_confirmation_required',
+          errorCode: 'CONFIRMATION_REQUIRED',
+          error: question,
+          rawSummary: `⚠️ *Confirmación necesaria*\n\n${question}`,
+          formattedCard: `⚠️ *Confirmación necesaria*\n\n${question}`,
+          requiresClarification: true,
+          pendingClarifications,
+          data: { pendingClarifications, previewProjects: preview.projects },
+        };
+      }
+
+      return {
+        success: true,
+        complete: preview.complete !== false,
+        partialSuccess: preview.partialSuccess === true,
+        action: 'deleted_projects',
+        data: preview,
+      };
+    }
+
+    default:
+      return {
+        success: false,
+        action: 'unsupported_action',
+        errorCode: 'UNSUPPORTED_ACTION',
+        error: `Acción '${action}' no soportada para manage_project.`,
+        rawSummary: `Acción '${action}' no soportada para manage_project.`,
+      };
+  }
+}

@@ -10,6 +10,7 @@ import { executeTaskUpdate } from './task-update.js';
 import { executeTaskDelete } from './task-delete.js';
 import { executeTaskReadTool } from './task-read.js';
 import { executeEntityTool } from './entities.js';
+import { executeProjectTool } from './projects.js';
 import { executeMemoryTool } from './memory.js';
 import { executeSubscriptionTool } from './subscriptions.js';
 import { executeCalendarTool } from './calendar.js';
@@ -81,6 +82,7 @@ export async function executeTool({
         else result = unsupportedDomainAction('manage_task', action);
         break;
       }
+      case TOOL_NAMES.MANAGE_PROJECT: result = await executeProjectTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
       case TOOL_NAMES.MANAGE_ENTITY: result = await executeEntityTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
       case TOOL_NAMES.MANAGE_MEMORY: result = await executeMemoryTool({ action: params?.action || 'save', params, user, language }); break;
       case TOOL_NAMES.MANAGE_SUBSCRIPTION: result = await executeSubscriptionTool({ action: params?.action || 'get_link', params, user, language }); break;

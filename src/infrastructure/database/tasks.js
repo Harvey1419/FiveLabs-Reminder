@@ -88,6 +88,7 @@ export async function createTask({
       priority: normalizedPriority,
       status: 'pending',
       entity_id: entityId || null,
+      project_id: entityId || null,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
     };
 
@@ -175,6 +176,7 @@ export async function createTasksBatch({ userId, items = [] }) {
           priority: normalizedPriority,
           status: 'pending',
           entity_id: entityId,
+          project_id: entityId || null,
           due_date: isoDueDate,
         },
       });

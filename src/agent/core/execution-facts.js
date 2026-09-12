@@ -57,6 +57,13 @@ function getCanonicalCard(toolName, params, result, language) {
     if (params?.action === 'delete') return formatCanonicalTaskDelete(result?.data, presentation);
   }
 
+  if (toolName === TOOL_NAMES.MANAGE_PROJECT) {
+    if (['create', 'upsert'].includes(params?.action) && result?.data) return formatCanonicalEntityCreate(result.data, presentation);
+    if (params?.action === 'rename') return formatCanonicalEntityRename(result?.data, params, presentation);
+    if (params?.action === 'list') return formatCanonicalEntityList(result?.data, { ...presentation, category: 'project' });
+    if (params?.action === 'delete') return formatCanonicalEntityDelete(result?.data, presentation);
+  }
+
   if (toolName === TOOL_NAMES.MANAGE_ENTITY) {
     if (['create', 'upsert'].includes(params?.action) && result?.data) return formatCanonicalEntityCreate(result.data, presentation);
     if (params?.action === 'rename') return formatCanonicalEntityRename(result?.data, params, presentation);
