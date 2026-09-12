@@ -86,7 +86,7 @@ describe('PR 3: Incomplete Reminders & Continuations via AgentRun (Flow A)', () 
     expect(wm?.pendingIntent).toBeUndefined();
 
     // AgentRun state machine has staged run in waiting_for_input
-    const activeRun = await getActiveAgentRun(user);
+    const activeRun = await getActiveAgentRun(user, context.referenceTime);
     expect(activeRun).not.toBeNull();
     expect(activeRun.status).toBe('waiting_for_input');
     expect(activeRun.kind).toBe('reminder_creation');

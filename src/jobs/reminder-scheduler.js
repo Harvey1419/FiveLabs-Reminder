@@ -7,6 +7,7 @@ import {
   getRemindersDueForNudge,
   incrementReminderNudge,
   getLatestInboundPhoneNumberId,
+  saveMessage,
   supabase,
 } from '../infrastructure/database/index.js';
 import { sendReminderMessage, stripReminderPrefix } from '../integrations/whatsapp/kapso-client.js';
@@ -206,6 +207,21 @@ export async function checkAndDispatchNudges() {
       if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
       if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
 
+      await saveMessage({
+        userId: reminder.user_id,
+        phoneNumber: reminder.phone_number,
+        role: 'assistant',
+        content: nudgeMessage,
+        intent: 'reminder',
+        messageId: sendResult.messageId,
+        entities: {
+          _workingMemory: {
+            ...wmPayload,
+            persistedAt: new Date().toISOString(),
+          },
+        },
+      });
+
       console.log(`[scheduler worker=${WORKER_ID}] Nudge #${nextCount} sent for reminder ${reminder.id} ("${reminder.content}") to ${reminder.phone_number}`);
     }
   } catch (err) {
@@ -272,6 +288,21 @@ export async function processReminder(reminder) {
     };
     if (reminder.phone_number) saveWorkingMemory(reminder.phone_number, wmPayload);
     if (reminder.user_id) saveWorkingMemory(reminder.user_id, wmPayload);
+
+    await saveMessage({
+      userId: reminder.user_id,
+      phoneNumber: reminder.phone_number,
+      role: 'assistant',
+      content: reminder.content,
+      intent: 'reminder',
+      messageId: deliveryId,
+      entities: {
+        _workingMemory: {
+          ...wmPayload,
+          persistedAt: dispatchedAt.toISOString(),
+        },
+      },
+    });
 
     console.log(`[scheduler worker=${WORKER_ID}] reminder sent ok: ${reminder.id} ("${reminder.content}") deliveryId=${deliveryId} recurring=${recurring}`);
   } catch (error) {

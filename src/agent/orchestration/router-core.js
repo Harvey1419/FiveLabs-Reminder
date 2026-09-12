@@ -176,34 +176,56 @@ function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
   };
 }
 
-export function bindAuthoritativeFollowupTargets(intent, overview) {
+export function bindAuthoritativeFollowupTargets(intent, overview, workingMemory = null) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
+
+  const wmReminderId = String(workingMemory?.notificationReminderId || '').trim();
+  const wmHumanTarget = String(workingMemory?.notificationContent || '').trim();
+
   const active = Array.isArray(overview?.pendingConfirmationReminders)
     ? overview.pendingConfirmationReminders
     : [];
-  if (active.length !== 1) return intent;
+  const singleActive = active.length === 1 ? active[0] : null;
+  const singleHumanTarget = String(singleActive?.content || singleActive?.title || '').trim();
+  const singleReminderId = String(singleActive?.id || '').trim();
 
-  const reminder = active[0];
-  const humanTarget = String(reminder?.content || reminder?.title || '').trim();
-  const reminderId = String(reminder?.id || '').trim();
-  if (!humanTarget || !reminderId) return intent;
+  if (!wmReminderId && (!singleReminderId || !singleHumanTarget)) return intent;
 
   return {
     ...intent,
     actions: intent.actions.map((action) => {
       if (action?.domain !== 'reminder' || action?.action !== 'acknowledge') return action;
       const declaredTarget = String(action.target || '').trim();
-      const targetsActiveFollowup = !declaredTarget
-        || declaredTarget === '1'
-        || declaredTarget.localeCompare(humanTarget, undefined, { sensitivity: 'base' }) === 0;
-      if (!targetsActiveFollowup) return action;
-      return {
-        ...action,
-        target: declaredTarget || humanTarget,
-        // Added after canonical validation and never rendered to Hermes. This
-        // pins the mutation to the sole backend-authoritative active follow-up.
-        authoritativeReminderId: reminderId,
-      };
+
+      // Prioritize working memory from a recent nudge/notification
+      if (wmReminderId && wmHumanTarget) {
+        const targetsWm = !declaredTarget
+          || declaredTarget === '1'
+          || declaredTarget.localeCompare(wmHumanTarget, undefined, { sensitivity: 'base' }) === 0;
+        if (targetsWm) {
+          return {
+            ...action,
+            target: declaredTarget || wmHumanTarget,
+            authoritativeReminderId: wmReminderId,
+          };
+        }
+      }
+
+      // Fallback to sole active notice from overview
+      if (singleReminderId && singleHumanTarget) {
+        const targetsActive = !declaredTarget
+          || declaredTarget === '1'
+          || declaredTarget.localeCompare(singleHumanTarget, undefined, { sensitivity: 'base' }) === 0;
+        if (targetsActive) {
+          return {
+            ...action,
+            target: declaredTarget || singleHumanTarget,
+            authoritativeReminderId: singleReminderId,
+          };
+        }
+      }
+
+      return action;
     }),
   };
 }
@@ -585,7 +607,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
-  const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview);
+  const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview, workingMemory);
   console.log(`[router req=${requestId}] semantic intent actions=${semanticIntent.actions.map(summarizeAction).join(' | ')}`);
   const runtimeIntent = normalizeTurnIntentForRuntime(semanticIntent, {
     user,

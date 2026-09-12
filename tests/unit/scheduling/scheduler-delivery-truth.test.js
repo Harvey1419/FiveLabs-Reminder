@@ -9,6 +9,7 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
   getRemindersDueForNudge: vi.fn().mockResolvedValue([]),
   incrementReminderNudge: vi.fn(),
   getLatestInboundPhoneNumberId: vi.fn(),
+  saveMessage: vi.fn().mockResolvedValue({ id: 'msg-1' }),
   supabase: { from: vi.fn() },
 }));
 
@@ -25,10 +26,13 @@ const {
   getLatestInboundPhoneNumberId,
   markReminderAsDispatched,
   markReminderAsFailed,
+  saveMessage,
+  getRemindersDueForNudge,
+  incrementReminderNudge,
   supabase,
 } = await import('../../../src/infrastructure/database/index.js');
 const { sendReminderMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
-const { processReminder } = await import('../../../src/jobs/reminder-scheduler.js');
+const { processReminder, checkAndDispatchNudges } = await import('../../../src/jobs/reminder-scheduler.js');
 
 function dueReminder(overrides = {}) {
   return {
@@ -78,6 +82,15 @@ describe('scheduler delivery truth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getLatestInboundPhoneNumberId.mockResolvedValue('597907523413541');
+    const defaultChain = {
+      select: vi.fn(() => defaultChain),
+      eq: vi.fn(() => defaultChain),
+      neq: vi.fn(() => defaultChain),
+      not: vi.fn(() => defaultChain),
+      is: vi.fn(() => defaultChain),
+      limit: vi.fn(async () => ({ data: [], error: null })),
+    };
+    supabase.from.mockReturnValue(defaultChain);
   });
 
   it('persists the real provider message id for a one-time reminder', async () => {
@@ -96,6 +109,19 @@ describe('scheduler delivery truth', () => {
     expect(markReminderAsDispatched).toHaveBeenCalledWith('reminder-1', {
       deliveryId: 'wamid.ACTUAL_PROVIDER_ID',
     });
+    expect(saveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      phoneNumber: '19164158325',
+      role: 'assistant',
+      content: 'Tenemos que irnos',
+      messageId: 'wamid.ACTUAL_PROVIDER_ID',
+      entities: expect.objectContaining({
+        _workingMemory: expect.objectContaining({
+          notificationReminderId: 'reminder-1',
+          lastAction: 'reminder_dispatched',
+        }),
+      }),
+    }));
     expect(markReminderAsFailed).not.toHaveBeenCalled();
   });
 
@@ -147,5 +173,43 @@ describe('scheduler delivery truth', () => {
     expect(db.getUpdates().acknowledged_at).toBeNull();
     expect(db.getUpdates().nudge_count).toBe(0);
     expect(markReminderAsDispatched).not.toHaveBeenCalled();
+  });
+
+  it('persists assistant message and working memory when sending a nudge', async () => {
+    getRemindersDueForNudge.mockResolvedValueOnce([
+      dueReminder({
+        id: 'reminder-nudge-1',
+        content: 'Me amo mucho',
+        requires_confirmation: true,
+        nudge_count: 0,
+      }),
+    ]);
+    sendReminderMessage.mockResolvedValueOnce({
+      success: true,
+      messageId: 'wamid.NUDGE_MSG_ID',
+    });
+
+    await checkAndDispatchNudges();
+
+    expect(sendReminderMessage).toHaveBeenCalledWith(
+      '19164158325',
+      expect.stringContaining('Me amo mucho'),
+      expect.any(Object),
+    );
+    expect(incrementReminderNudge).toHaveBeenCalledWith('reminder-nudge-1', 1);
+    expect(saveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      phoneNumber: '19164158325',
+      role: 'assistant',
+      content: expect.stringContaining('Me amo mucho'),
+      messageId: 'wamid.NUDGE_MSG_ID',
+      entities: expect.objectContaining({
+        _workingMemory: expect.objectContaining({
+          notificationReminderId: 'reminder-nudge-1',
+          lastAction: 'nudge',
+          notificationContent: 'Me amo mucho',
+        }),
+      }),
+    }));
   });
 });
