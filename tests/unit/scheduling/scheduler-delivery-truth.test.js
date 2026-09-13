@@ -104,7 +104,7 @@ describe('scheduler delivery truth', () => {
     expect(sendReminderMessage).toHaveBeenCalledWith(
       '19164158325',
       'Tenemos que irnos',
-      { phoneNumberId: '597907523413541' },
+      expect.objectContaining({ phoneNumberId: '597907523413541' }),
     );
     expect(markReminderAsDispatched).toHaveBeenCalledWith('reminder-1', {
       deliveryId: 'wamid.ACTUAL_PROVIDER_ID',

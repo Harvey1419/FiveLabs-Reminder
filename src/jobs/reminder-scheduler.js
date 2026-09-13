@@ -13,12 +13,20 @@ import {
 import { sendReminderMessage, stripReminderPrefix } from '../integrations/whatsapp/kapso-client.js';
 import { saveWorkingMemory } from '../agent/core/working-memory.js';
 import { computeNextRecurringSendAt } from '../shared/reminder-recurrence.js';
+import { detectLocaleFromPhone } from '../shared/time.js';
 
 const CHECK_INTERVAL_MS = 15 * 1000;
 const MAX_STALE_MS = 2 * 60 * 60 * 1000;
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
+
+export function isEnglishReminder(reminder) {
+  if (reminder?.locale) return reminder.locale.startsWith('en');
+  if (reminder?.users?.locale) return reminder.users.locale.startsWith('en');
+  if (reminder?.phone_number) return detectLocaleFromPhone(reminder.phone_number) === 'en-US';
+  return false;
+}
 
 function isRecurring(reminder) {
   return Boolean(String(reminder?.recurrence_rule || '').trim());
@@ -176,15 +184,29 @@ export async function checkAndDispatchNudges() {
       const nextCount = (reminder.nudge_count || 0) + 1;
       const cleanText = stripReminderPrefix(reminder.content);
       const isTask = Boolean(reminder.task_id);
-      const nudgeMessage = isTask
-        ? `🔔 ¿Pudiste completar la tarea: *${cleanText}*? (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando termines.`
-        : `🔔 *Recordatorio pendiente:* ${cleanText} (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando lo hayas completado.`;
+      const isEnglish = isEnglishReminder(reminder);
+      const nudgeMessage = isEnglish
+        ? (reminder.task_id
+            ? `🔔 Were you able to complete the task: *${cleanText}*? (Notice #${nextCount}). Tap 'Done' or reply when finished.`
+            : `🔔 *Pending reminder:* ${cleanText} (Notice #${nextCount}). Tap 'Done' or reply once completed.`)
+        : (reminder.task_id
+            ? `🔔 ¿Pudiste completar la tarea: *${cleanText}*? (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando termines.`
+            : `🔔 *Recordatorio pendiente:* ${cleanText} (Aviso #${nextCount}). Escribe 'Listo' o 'OK' cuando lo hayas completado.`);
 
       const phoneNumberId = await getLatestInboundPhoneNumberId(
         reminder.phone_number,
         reminder.created_at || null,
       );
-      const sendResult = await sendReminderMessage(reminder.phone_number, nudgeMessage, { phoneNumberId });
+      const nudgeButtons = [
+        { id: `rem:ack:${reminder.id}`, title: isEnglish ? '✅ Done' : '✅ Listo' },
+        { id: `rem:snooze:15:${reminder.id}`, title: '⏰ +15 min' },
+        { id: `rem:snooze:60:${reminder.id}`, title: isEnglish ? '⏰ +1 hour' : '⏰ +1 hora' },
+      ];
+      const sendResult = await sendReminderMessage(reminder.phone_number, nudgeMessage, {
+        phoneNumberId,
+        buttons: nudgeButtons,
+        language: isEnglish ? 'en' : 'es',
+      });
       if (!sendResult?.success || !sendResult?.messageId) {
         throw new Error(sendResult?.error || 'Kapso did not accept the reminder nudge.');
       }
@@ -249,7 +271,24 @@ export async function processReminder(reminder) {
       reminder.phone_number,
       reminder.created_at || null,
     );
-    const sendResult = await sendReminderMessage(reminder.phone_number, reminder.content, { phoneNumberId });
+
+    const isEnglish = isEnglishReminder(reminder);
+
+    const sendOpts = {
+      phoneNumberId,
+      language: isEnglish ? 'en' : 'es',
+      buttons: [
+        { id: `rem:ack:${reminder.id}`, title: isEnglish ? '✅ Done' : '✅ Listo' },
+        { id: `rem:snooze:15:${reminder.id}`, title: '⏰ +15 min' },
+        { id: `rem:snooze:60:${reminder.id}`, title: isEnglish ? '⏰ +1 hour' : '⏰ +1 hora' },
+      ],
+    };
+
+    const sendResult = await sendReminderMessage(
+      reminder.phone_number,
+      reminder.content,
+      sendOpts,
+    );
     if (!sendResult?.success || !sendResult?.messageId) {
       throw new Error(sendResult?.error || 'Kapso did not accept the scheduled reminder.');
     }

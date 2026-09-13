@@ -4,6 +4,7 @@ import {
   inspectOwnedEntityReferences,
   saveReminder,
 } from '../../infrastructure/database/index.js';
+import { getReminderConfirmationPreference } from '../../infrastructure/database/memories.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
 
@@ -183,11 +184,25 @@ export async function executeTaskCreate({
 
   // Preserve current product behavior: reminders remain post-persistence and
   // do not participate in the atomic task INSERT.
+  let confirmationPref = null;
+  let prefResolved = false;
+
   for (let index = 0; index < preparedItems.length; index += 1) {
     const item = preparedItems[index];
     const task = taskResult.data[index];
     if (item.scheduleReminder && item.dueDate && new Date(item.dueDate).getTime() > Date.now()) {
       try {
+        if (!prefResolved) {
+          try {
+            confirmationPref = (userId && typeof getReminderConfirmationPreference === 'function')
+              ? await getReminderConfirmationPreference(userId)
+              : null;
+          } catch {
+            confirmationPref = null;
+          }
+          prefResolved = true;
+        }
+
         const reminderContent = item.entityName
           ? `[${item.entityName}] ${item.title}`
           : item.title;
@@ -198,6 +213,7 @@ export async function executeTaskCreate({
           content: reminderContent,
           sendAt: item.dueDate,
           requiresConfirmation: true,
+          nudgeIntervalMinutes: confirmationPref?.nudgeIntervalMinutes || 15,
         });
       } catch (error) {
         console.warn('[task-create] auto-reminder error:', error.message);

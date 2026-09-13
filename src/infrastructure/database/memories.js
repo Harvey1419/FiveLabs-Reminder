@@ -503,3 +503,55 @@ export async function forgetMemoriesByTopic(userId, topicKey) {
   const res = await forgetMemories({ userId, topicKey });
   return res?.deletedCount || 0;
 }
+
+/**
+ * Check if the user has an active preference for persistent confirmation reminders.
+ * Looks for preferences with topic_key matching 'preference/reminders' or 'persistent_confirmation'
+ * or content referencing confirmation/insistencia.
+ *
+ * @param {string} userId
+ * @returns {Promise<{ requiresConfirmation: boolean, nudgeIntervalMinutes?: number, preferenceText?: string }|null>}
+ */
+export async function getReminderConfirmationPreference(userId) {
+  if (!userId) return null;
+  try {
+    let client;
+    try {
+      client = supabase;
+    } catch {
+      return null;
+    }
+    if (!client || typeof client.from !== 'function') return null;
+    const url = process.env.SUPABASE_URL || '';
+    const isPlaceholder = url.includes('placeholder') || !url;
+    if (isPlaceholder && !client?.from?._isMockFunction && !client?.from?.mock) {
+      return null;
+    }
+    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 20 });
+    const match = (preferences || []).find((m) => {
+      const topic = String(m.topic_key || '').toLowerCase();
+      const content = String(m.content || '').toLowerCase();
+      return (
+        topic.includes('preference/reminders') ||
+        topic.includes('persistent_confirmation') ||
+        topic.includes('reminder_confirmation') ||
+        (content.includes('confirm') && (content.includes('recordatorio') || content.includes('insist')))
+      );
+    });
+
+    if (!match) return null;
+
+    const minMatch = match.content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i);
+    const interval = minMatch ? Number(minMatch[1]) : 15;
+
+    return {
+      requiresConfirmation: true,
+      nudgeIntervalMinutes: interval,
+      preferenceText: match.content,
+    };
+  } catch (err) {
+    console.warn('[memories] getReminderConfirmationPreference error:', err.message);
+    return null;
+  }
+}
+

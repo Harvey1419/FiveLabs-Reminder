@@ -340,6 +340,120 @@ export async function sendWhatsAppCtaUrl({
 }
 
 /**
+ * Send WhatsApp Interactive Quick Reply Buttons (up to 3 buttons).
+ */
+export async function sendWhatsAppQuickReplyButtons({
+  phoneNumberId = null,
+  phoneNumber = null,
+  bsuid = null,
+  headerText = null,
+  bodyText,
+  footerText = 'Hermes TempleLabs',
+  buttons = [],
+}) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
+  }
+
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
+
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
+
+  if (!cleanPhone && !cleanBsuid) {
+    throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
+  }
+
+  const formattedButtons = (Array.isArray(buttons) ? buttons : []).slice(0, 3).map((btn, idx) => ({
+    type: 'reply',
+    reply: {
+      id: String(btn.id || `btn_${idx}`).slice(0, 256),
+      title: String(btn.title || btn.text || 'Opción').slice(0, 20),
+    },
+  }));
+
+  const interactivePayload = {
+    type: 'button',
+    body: { text: bodyText },
+    action: {
+      buttons: formattedButtons,
+    },
+  };
+
+  if (headerText) {
+    interactivePayload.header = {
+      type: 'text',
+      text: headerText.slice(0, 60),
+    };
+  }
+
+  if (footerText) {
+    interactivePayload.footer = {
+      text: footerText.slice(0, 60),
+    };
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    type: 'interactive',
+    interactive: interactivePayload,
+  };
+
+  if (cleanPhone) {
+    payload.to = cleanPhone;
+  } else {
+    payload.recipient = cleanBsuid;
+  }
+
+  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const messageId = data.messages?.[0]?.id || 'unknown';
+      if (messageId && messageId !== 'unknown') {
+        markAsProcessed(messageId);
+      }
+      console.log(`[kapso] sent interactive buttons ok to=${cleanPhone || cleanBsuid} messageId=${messageId}`);
+      return { success: true, messageId, data };
+    }
+
+    const errText = await response.text();
+    console.warn(`[kapso] Interactive buttons rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumberId,
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: bodyText,
+    });
+  } catch (err) {
+    console.warn(`[kapso] Interactive buttons error: ${err.message}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumberId,
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: bodyText,
+    });
+  }
+}
+
+/**
  * Backward compatibility helper for routers and scheduler.
  */
 export async function sendReminderConfirmation(recipient, message, { phoneNumberId = null } = {}) {
@@ -574,6 +688,8 @@ export async function sendReminderMessage(recipient, content, {
   templateName = process.env.REMINDER_TEMPLATE_NAME || 'reminder_task_one_reminder',
   forceTemplate = false,
   phoneNumberId = null,
+  buttons = null,
+  language = 'es',
 } = {}) {
   const cleanContent = stripReminderPrefix(content);
   const str = String(recipient).trim();
@@ -582,14 +698,28 @@ export async function sendReminderMessage(recipient, content, {
   // 1. Check if recipient is within 24h window
   const isInsideWindow = forceTemplate ? false : await isWithin24HourWindow(str);
 
-  if (isInsideWindow) {
-    const reminderText = `⏰ Recordatorio: ${cleanContent}`;
-    const textRes = await sendReminderConfirmation(recipient, reminderText, { phoneNumberId });
+  const isEnglish = language === 'en' || (typeof language === 'string' && language.startsWith('en'));
+  const reminderPrefix = isEnglish ? '⏰ Reminder: ' : '⏰ Recordatorio: ';
 
-    // If freeform text succeeded, return immediately
+  if (isInsideWindow) {
+    const reminderText = `${reminderPrefix}${cleanContent}`;
+    let textRes;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      textRes = await sendWhatsAppQuickReplyButtons({
+        phoneNumberId,
+        phoneNumber: isBsuid ? null : str,
+        bsuid: isBsuid ? str : null,
+        bodyText: reminderText,
+        buttons,
+      });
+    } else {
+      textRes = await sendReminderConfirmation(recipient, reminderText, { phoneNumberId });
+    }
+
+    // If freeform text or interactive buttons succeeded, return immediately
     if (textRes?.success) return textRes;
 
-    console.log(`[kapso] Freeform text failed (${textRes?.error || 'window closed'}). Auto-recovering via template "${templateName}"...`);
+    console.log(`[kapso] Freeform/interactive message failed (${textRes?.error || 'window closed'}). Auto-recovering via template "${templateName}"...`);
   } else {
     console.log(`[kapso] Recipient ${str} is outside 24h window. Dispatching via approved template "${templateName}"...`);
   }
@@ -600,7 +730,7 @@ export async function sendReminderMessage(recipient, content, {
     phoneNumber: isBsuid ? null : str,
     bsuid: isBsuid ? str : null,
     templateName,
-    languageCode: 'es',
+    languageCode: isEnglish ? 'en_US' : 'es',
     parameters: [cleanContent],
   });
 }

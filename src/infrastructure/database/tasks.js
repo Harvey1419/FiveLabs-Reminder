@@ -477,6 +477,16 @@ export async function completeTasks({
       return { completedCount: 0, tasks: [], error: { code: 'DATABASE_ERROR', message: updateErr.message } };
     }
 
+    try {
+      await supabase
+        .from('reminders')
+        .update({ acknowledged_at: nowIso, status: 'sent' })
+        .in('task_id', targetIds)
+        .is('acknowledged_at', null);
+    } catch (remErr) {
+      console.warn('[tasks] completeTasks reminder cascade warning:', remErr.message);
+    }
+
     console.log(`[tasks] Completed ${updatedTasks?.length || 0} task(s) for user ${userId}`);
     return {
       completedCount: updatedTasks?.length || 0,
@@ -581,6 +591,28 @@ export async function updateTask(taskId, updates = {}, userId = null) {
       return { data: null, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
     }
 
+    if (payload.status === 'completed') {
+      try {
+        await supabase
+          .from('reminders')
+          .update({ acknowledged_at: new Date().toISOString(), status: 'sent' })
+          .eq('task_id', resolvedId)
+          .is('acknowledged_at', null);
+      } catch (remErr) {
+        console.warn('[tasks] updateTask complete reminder cascade warning:', remErr.message);
+      }
+    } else if (payload.due_date) {
+      try {
+        await supabase
+          .from('reminders')
+          .update({ send_at: new Date(payload.due_date).toISOString() })
+          .eq('task_id', resolvedId)
+          .eq('status', 'pending');
+      } catch (remErr) {
+        console.warn('[tasks] updateTask due_date reminder cascade warning:', remErr.message);
+      }
+    }
+
     return { ...data[0], data: data[0], error: null };
   } catch (err) {
     console.error('[tasks] updateTask threw:', err);
@@ -644,6 +676,16 @@ export async function deleteTask(taskId, userId = null) {
         }
       }
       return { success: false, error: { code: 'NOT_FOUND', message: 'Task not found.', source: 'domain' } };
+    }
+
+    try {
+      await supabase
+        .from('reminders')
+        .update({ status: 'cancelled' })
+        .eq('task_id', resolvedId)
+        .eq('status', 'pending');
+    } catch (remErr) {
+      console.warn('[tasks] deleteTask reminder cascade warning:', remErr.message);
     }
 
     return { success: true, error: null };

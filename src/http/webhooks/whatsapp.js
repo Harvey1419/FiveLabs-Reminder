@@ -3,7 +3,12 @@ import { routeMessage } from '../../agent/orchestration/router.js';
 import { sendWhatsAppText, sendWhatsAppCtaUrl, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
-import { updateReminderDeliveryStatus } from '../../infrastructure/database/index.js';
+import {
+  updateReminderDeliveryStatus,
+  acknowledgeReminder,
+  updateReminder,
+  updateTask,
+} from '../../infrastructure/database/index.js';
 import { extractMemoryInBackground } from '../../jobs/memory-extractor.js';
 import { transcribeAudio } from '../../integrations/media/transcription.js';
 import { processDocumentOrImage } from '../../integrations/media/document-processor.js';
@@ -249,6 +254,76 @@ export async function handleWebhook(req, res) {
       let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
       const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
+      // Fast-path: WhatsApp Interactive Button Replies (Zero LLM Turn, Instant Execution)
+      const interactiveObj = message.interactive || body.message?.interactive || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.interactive;
+      const buttonReply = interactiveObj?.button_reply || message.button_reply;
+      if (buttonReply?.id) {
+        const buttonId = String(buttonReply.id || '').trim();
+        if (buttonId.startsWith('rem:ack:')) {
+          const reminderId = buttonId.replace('rem:ack:', '').trim();
+          const ackResult = await acknowledgeReminder(reminderId, user.id);
+          if (ackResult?.task_id) {
+            try {
+              await updateTask(ackResult.task_id, { status: 'completed' }, user.id);
+            } catch (taskErr) {
+              console.warn(`[webhook fast-path req=${correlationId}] task completion cascade warning:`, taskErr.message);
+            }
+          }
+          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          const confirmText = isEnglishUser
+            ? '✅ Great! I’ve marked this reminder as completed.'
+            : '✅ ¡Excelente! He marcado este recordatorio como completado.';
+          await sendWhatsAppText({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            text: confirmText,
+          });
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'assistant',
+            content: confirmText,
+            intent: 'reminder_ack',
+            entities: { reminderId },
+          });
+          console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} acknowledged via button reply in ${Date.now() - queueEnqueueTime}ms`);
+          return;
+        }
+
+        if (buttonId.startsWith('rem:snooze:')) {
+          const parts = buttonId.split(':');
+          const minutes = Number(parts[2]) || 15;
+          const reminderId = parts[3] ? parts.slice(3).join(':').trim() : '';
+          const newSendAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+          await updateReminder(reminderId, { send_at: newSendAt, status: 'pending', acknowledged_at: null }, user.id, user.phone_number);
+          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          const confirmText = isEnglishUser
+            ? `⏰ Got it, I’ll remind you again in ${minutes} minutes.`
+            : `⏰ Listo, te lo recordaré nuevamente en ${minutes} minutos.`;
+          await sendWhatsAppText({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            text: confirmText,
+          });
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'assistant',
+            content: confirmText,
+            intent: 'reminder_snooze',
+            entities: { reminderId, minutes, newSendAt },
+          });
+          console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} snoozed by ${minutes}m via button reply in ${Date.now() - queueEnqueueTime}ms`);
+          return;
+        }
+
+        if (buttonReply.title && !messageText) {
+          messageText = buttonReply.title;
+        }
+      }
+
       // Show typing indicator immediately
       if (messageId) {
         sendTypingIndicator(messageId, phoneNumberId).catch((err) => {
@@ -363,16 +438,24 @@ export async function handleWebhook(req, res) {
 
       // Dynamic Timezone Resolution
       if (locationTz && user.timezone !== locationTz) {
+        // High-confidence: Native WhatsApp GPS Location Pin
         console.log(`[webhook req=${correlationId}] Dynamic timezone switch via location pin: ${user.timezone} -> ${locationTz}`);
         await updateUserTimezone(user.id, locationTz);
         user.timezone = locationTz;
       } else {
-        const isTravelPhrase = /\b(estoy en|llegue a|llegué a|viaje a|viajé a|me mude a|me mudé a|ahora en|desde|ubicado en|ando por|de viaje en|de viaje por|visitando|me encuentro en|viviendo en|radicado en|actualmente en|pasando por)\b/i.test(messageText);
-        const textTz = detectTimezoneFromLocationText(messageText);
-        if (textTz && isTravelPhrase && user.timezone !== textTz) {
-          console.log(`[webhook req=${correlationId}] Dynamic timezone switch via conversational text: ${user.timezone} -> ${textTz}`);
-          await updateUserTimezone(user.id, textTz);
-          user.timezone = textTz;
+        // Strict guard: only switch via conversational text if user EXPLICITLY commands a timezone change or states current residence,
+        // and NEVER if the message is creating a task, list, reminder, or mentioning a future trip/flight/hotel.
+        const isTaskOrFutureContext = /\b(lista|tarea|recuerdame|recuérdame|recordar|comprar|viaje a|viajar a|vuelo a|hotel|itinerario|ir a|visitar)\b/i.test(messageText);
+        const isExplicitLocationDirective = /^(?:estoy viviendo en|ahora vivo en|me mud[eé] a|cambia(?:r)? mi zona horaria a|mi zona horaria es)\s+/i.test(messageText.trim()) ||
+          /\b(?:físicamente me encuentro en|actualmente resido en)\b/i.test(messageText);
+
+        if (!isTaskOrFutureContext && isExplicitLocationDirective) {
+          const textTz = detectTimezoneFromLocationText(messageText);
+          if (textTz && user.timezone !== textTz) {
+            console.log(`[webhook req=${correlationId}] Dynamic timezone switch via explicit directive: ${user.timezone} -> ${textTz}`);
+            await updateUserTimezone(user.id, textTz);
+            user.timezone = textTz;
+          }
         }
       }
 

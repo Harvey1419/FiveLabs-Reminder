@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
+import { describe, it, expect, vi } from 'vitest';
+import { formatMorningBriefingMessage, claimMorningBriefing } from '../../../src/jobs/morning-briefing.js';
 import { formatCompactOverview } from '../../../src/agent/core/agent-core.js';
+import { supabase } from '../../../src/infrastructure/database/index.js';
 
 describe('Morning Briefing & Overview Domain Separation', () => {
   it('formats empty briefing cleanly when no reminders or tasks exist', () => {
@@ -66,6 +67,59 @@ describe('Morning Briefing & Overview Domain Separation', () => {
     expect(msg).toContain('▫️ Esparadrapo');
   });
 
+  it('omits companion Google Calendar reminders from timed reminders section when Calendar is connected', () => {
+    const overview = {
+      timedRemindersToday: [
+        { id: 'rem-gcal-1', delivery_id: 'gcal:ev-123', content: '🔔 [Google Calendar] Cita médica en 15 minutos', localTime: '9:45 a. m.' },
+        { id: 'rem-custom-1', delivery_id: null, content: 'Tomar café', localTime: '11:00 a. m.' },
+      ],
+      tasksDueToday: [],
+      openTasksByEntity: {},
+      openTasksGeneral: [],
+    };
+    const calendar = {
+      state: 'CONNECTED',
+      events: [{ summary: 'Cita médica', localStartTime: '10:00 a. m.', isAllDay: false }],
+    };
+
+    const msg = formatMorningBriefingMessage({ overview, calendar, timezone: 'America/Bogota' });
+    expect(msg).toContain('📅 *Compromisos en Google Calendar:*');
+    expect(msg).toContain('Cita médica');
+    expect(msg).toContain('⏰ *Compromisos con hora fija:*');
+    expect(msg).toContain('Tomar café');
+    expect(msg).not.toContain('🔔 [Google Calendar] Cita médica');
+  });
+
+  it('formats morning briefing in English when language is en or user locale is en-US', () => {
+    const overview = {
+      timedRemindersToday: [{ id: 'rem-1', content: 'Standup meeting', localTime: '9:00 AM' }],
+      tasksDueToday: [{ id: 'task-1', title: 'Ship feature', localTime: '5:00 PM' }],
+      openTasksByEntity: { 'Sprint 42': [{ id: 'task-2', title: 'Write unit tests' }] },
+      openTasksGeneral: [],
+    };
+    const calendar = {
+      state: 'CONNECTED',
+      events: [{ summary: 'Client Demo', localStartTime: '11:00 AM', isAllDay: false }],
+    };
+
+    const msg = formatMorningBriefingMessage({
+      overview,
+      calendar,
+      timezone: 'America/New_York',
+      language: 'en',
+    });
+
+    expect(msg).toContain('Good morning!');
+    expect(msg).toContain('Google Calendar Commitments:');
+    expect(msg).toContain('Client Demo');
+    expect(msg).toContain('Scheduled Commitments:');
+    expect(msg).toContain('Standup meeting');
+    expect(msg).toContain('Tasks to Complete Today:');
+    expect(msg).toContain('Due today');
+    expect(msg).toContain('Ship feature');
+    expect(msg).toContain('Executive tip:');
+  });
+
   it('formatCompactOverview exposes counts only and never leaks an answer cache into the LLM prompt', () => {
     const overview = {
       pendingConfirmationReminders: [],
@@ -85,3 +139,38 @@ describe('Morning Briefing & Overview Domain Separation', () => {
     expect(text).not.toContain('Diseñar arquitectura');
   });
 });
+
+describe('Distributed Worker Idempotency (claimMorningBriefing)', () => {
+  it('claims briefing when user has never received a briefing or received one yesterday', async () => {
+    vi.spyOn(supabase, 'from').mockReturnValue({
+      update: () => ({
+        eq: () => ({
+          or: () => ({
+            select: () => Promise.resolve({ data: [{ id: 'user-1' }], error: null }),
+          }),
+        }),
+      }),
+    });
+
+    const claimed = await claimMorningBriefing('user-1', 'America/Bogota');
+    expect(claimed).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('rejects claim when another worker has already claimed or dispatched today', async () => {
+    vi.spyOn(supabase, 'from').mockReturnValue({
+      update: () => ({
+        eq: () => ({
+          or: () => ({
+            select: () => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+      }),
+    });
+
+    const claimed = await claimMorningBriefing('user-1', 'America/Bogota');
+    expect(claimed).toBe(false);
+    vi.restoreAllMocks();
+  });
+});
+

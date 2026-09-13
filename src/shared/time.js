@@ -55,6 +55,54 @@ const COUNTRY_CALLING_CODES = Object.freeze([
   { prefix: '351', tz: 'Europe/Lisbon' },
 ]);
 
+export const SPANISH_CALLING_PREFIXES = Object.freeze([
+  '34',  // España
+  '57',  // Colombia
+  '52',  // México
+  '54',  // Argentina
+  '56',  // Chile
+  '51',  // Perú
+  '593', // Ecuador
+  '58',  // Venezuela
+  '591', // Bolivia
+  '598', // Uruguay
+  '595', // Paraguay
+  '506', // Costa Rica
+  '507', // Panamá
+  '502', // Guatemala
+  '503', // El Salvador
+  '504', // Honduras
+  '505', // Nicaragua
+  '53',  // Cuba
+]);
+
+export const SPANISH_BSUID_CODES = Object.freeze(new Set([
+  'ES', 'CO', 'MX', 'AR', 'PE', 'CL', 'EC', 'VE', 'UY', 'PY', 'BO', 'CR', 'PA', 'GT', 'SV', 'HN', 'NI', 'CU', 'DO', 'PR'
+]));
+
+/**
+ * Detect default locale ('es-CO' vs 'en-US') strictly based on the Hispanosphere domain.
+ * Any phone or BSUID outside Spanish-speaking countries (including Brazil, Europe, North America, Asia)
+ * defaults to English ('en-US') as the global lingua franca.
+ */
+export function detectLocaleFromPhone(rawPhone) {
+  if (!rawPhone || typeof rawPhone !== 'string') return 'es-CO';
+  const trimmed = rawPhone.trim();
+
+  // 1. Meta BSUID ISO 3166-1 alpha-2 (e.g. "CO.123...", "US.123...", "BR.123...")
+  if (trimmed.includes('.')) {
+    const isoCode = trimmed.split('.')[0]?.toUpperCase();
+    return SPANISH_BSUID_CODES.has(isoCode) ? 'es-CO' : 'en-US';
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return 'es-CO';
+
+  // 2. Spanish-speaking E.164 country prefixes
+  const isSpanish = SPANISH_CALLING_PREFIXES.some(prefix => digits.startsWith(prefix));
+  return isSpanish ? 'es-CO' : 'en-US';
+}
+
 /**
  * US/Canada Area Code sets for O(1) matching.
  */

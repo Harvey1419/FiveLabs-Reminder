@@ -1,4 +1,7 @@
-import { deleteTask } from '../../infrastructure/database/index.js';
+import {
+  deleteTask,
+  cancelRemindersByTaskId,
+} from '../../infrastructure/database/index.js';
 import { resolveTaskTarget } from './task-reference.js';
 
 export async function executeTaskDelete({
@@ -93,6 +96,8 @@ export async function executeTaskDelete({
   }
 
   const resolvedTask = resolution.task || resolution.item?.raw || resolution.item || null;
+  await cancelRemindersByTaskId(resolution.taskId, userId);
+
   return {
     success: true,
     action: 'deleted_task',

@@ -1,4 +1,8 @@
-import { updateTask } from '../../infrastructure/database/index.js';
+import {
+  updateTask,
+  rescheduleRemindersByTaskId,
+  acknowledgeRemindersByTaskId,
+} from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
 import { resolveTaskTarget } from './task-reference.js';
@@ -92,10 +96,10 @@ export async function executeTaskUpdate({
   }
 
   const updatesObj = params.updates || {};
-  const title = updatesObj.title;
-  const priority = updatesObj.priority;
-  const status = updatesObj.status;
-  const dueDate = updatesObj.dueDate;
+  const title = updatesObj.title !== undefined ? updatesObj.title : params.title;
+  const priority = updatesObj.priority !== undefined ? updatesObj.priority : params.priority;
+  const status = updatesObj.status !== undefined ? updatesObj.status : params.status;
+  const dueDate = updatesObj.dueDate !== undefined ? updatesObj.dueDate : params.dueDate;
   const updates = {};
 
   if (title) updates.title = String(title).trim();
@@ -138,6 +142,13 @@ export async function executeTaskUpdate({
   }
 
   const updatedTask = updateResult.data || updateResult;
+  if (updates.due_date) {
+    await rescheduleRemindersByTaskId(resolution.taskId, updates.due_date, userId);
+  }
+  if (updates.status === 'completed') {
+    await acknowledgeRemindersByTaskId(resolution.taskId, userId);
+  }
+
   return {
     success: true,
     action: 'updated_task',

@@ -1,6 +1,7 @@
 import {
   completeTasksByQuery,
   updateTask,
+  acknowledgeRemindersByTaskId,
 } from '../../infrastructure/database/index.js';
 import { resolveTaskTarget } from './task-reference.js';
 
@@ -143,6 +144,8 @@ export async function executeTaskComplete({
   }
 
   const completedTask = updateResult.data || updateResult;
+  await acknowledgeRemindersByTaskId(completedTask.id, userId);
+
   return {
     success: true,
     action: 'completed_task',

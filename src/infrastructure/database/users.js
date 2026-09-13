@@ -1,5 +1,5 @@
 import { supabase } from './index.js';
-import { detectTimezoneFromPhone } from '../../shared/time.js';
+import { detectTimezoneFromPhone, detectLocaleFromPhone } from '../../shared/time.js';
 
 // High-speed in-memory cache for user profiles (TTL: 15 minutes)
 export const userCache = new Map();
@@ -20,6 +20,9 @@ export function normalizeUserPhone(phone) {
 export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defaultLocale = 'es-CO', displayName = null) {
   const cleanPhone = normalizeUserPhone(phoneNumber);
   const resolvedTz = defaultTz || (cleanPhone ? detectTimezoneFromPhone(cleanPhone) : 'America/Bogota');
+  const resolvedLocale = (defaultLocale === 'es-CO' && cleanPhone)
+    ? detectLocaleFromPhone(cleanPhone)
+    : (defaultLocale || 'es-CO');
 
   if (!cleanPhone) {
     return {
@@ -27,7 +30,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
       phone_number: '',
       display_name: displayName,
       timezone: resolvedTz,
-      locale: defaultLocale,
+      locale: resolvedLocale,
       created_at: new Date().toISOString(),
     };
   }
@@ -63,7 +66,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
         phone_number: cleanPhone,
         display_name: displayName,
         timezone: resolvedTz,
-        locale: defaultLocale,
+        locale: resolvedLocale,
       })
       .select()
       .single();
@@ -96,7 +99,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
     phone_number: cleanPhone,
     display_name: displayName,
     timezone: resolvedTz,
-    locale: defaultLocale,
+    locale: resolvedLocale,
     created_at: new Date().toISOString(),
   };
 }

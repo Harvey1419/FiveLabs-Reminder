@@ -3,6 +3,7 @@ import { hasUsableGoogleCredentials, isGoogleAuthError } from '../../integration
 import { resolveCalendarTemporalScope, formatLocalDateTime } from '../../shared/time.js';
 import { normalizeAgendaScope, isAllPendingScope } from '../../shared/agenda-scopes.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../../integrations/google/calendar.js';
+import { reconcileCalendarCompanionReminders } from '../calendar/reconciliation.js';
 
 const DEFAULT_TIMEZONE = 'America/Bogota';
 
@@ -23,6 +24,14 @@ export async function getUnifiedAgenda({
   language = 'es',
 }) {
   const tz = timezone || DEFAULT_TIMEZONE;
+
+  // JIT Calendar Reconciliation: non-blocking sync in background if userId is present
+  if (userId && process.env.NODE_ENV !== 'test') {
+    reconcileCalendarCompanionReminders({ userId, phoneNumber, timezone: tz }).catch(err => {
+      console.warn(`[unifiedAgenda] JIT reconciliation non-blocking warning for user ${userId}:`, err.message);
+    });
+  }
+
   const canonicalScope = normalizeAgendaScope(scope, 'upcoming');
   const temporal = resolveCalendarTemporalScope({ scope: canonicalScope, date, dateFrom, dateTo }, tz);
   const timeMin = temporal.timeMin;

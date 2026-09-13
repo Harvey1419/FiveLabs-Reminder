@@ -980,6 +980,83 @@ export async function rescheduleCalendarCompanionReminders({
   }
 }
 
+/**
+ * Acknowledge companion reminders associated with a completed task.
+ */
+export async function acknowledgeRemindersByTaskId(taskId, userId = null) {
+  if (!taskId) return { acknowledgedCount: 0 };
+  const now = new Date().toISOString();
+  try {
+    let q = supabase
+      .from('reminders')
+      .update({ acknowledged_at: now, status: 'sent' })
+      .eq('task_id', taskId)
+      .is('acknowledged_at', null);
+
+    if (userId) q = q.eq('user_id', userId);
+    const { data, error } = await q.select('id');
+    if (error) {
+      console.warn('[reminders] acknowledgeRemindersByTaskId error:', error.message);
+      return { acknowledgedCount: 0 };
+    }
+    return { acknowledgedCount: data?.length || 0 };
+  } catch (err) {
+    console.warn('[reminders] acknowledgeRemindersByTaskId threw:', err.message);
+    return { acknowledgedCount: 0 };
+  }
+}
+
+/**
+ * Cancel companion reminders associated with a deleted task.
+ */
+export async function cancelRemindersByTaskId(taskId, userId = null) {
+  if (!taskId) return { cancelledCount: 0 };
+  try {
+    let q = supabase
+      .from('reminders')
+      .update({ status: 'cancelled' })
+      .eq('task_id', taskId)
+      .eq('status', 'pending');
+
+    if (userId) q = q.eq('user_id', userId);
+    const { data, error } = await q.select('id');
+    if (error) {
+      console.warn('[reminders] cancelRemindersByTaskId error:', error.message);
+      return { cancelledCount: 0 };
+    }
+    return { cancelledCount: data?.length || 0 };
+  } catch (err) {
+    console.warn('[reminders] cancelRemindersByTaskId threw:', err.message);
+    return { cancelledCount: 0 };
+  }
+}
+
+/**
+ * Reschedule companion reminders associated with an updated task.
+ */
+export async function rescheduleRemindersByTaskId(taskId, newDueDate, userId = null) {
+  if (!taskId || !newDueDate) return { rescheduledCount: 0 };
+  try {
+    const newSendAt = new Date(newDueDate).toISOString();
+    let q = supabase
+      .from('reminders')
+      .update({ send_at: newSendAt })
+      .eq('task_id', taskId)
+      .eq('status', 'pending');
+
+    if (userId) q = q.eq('user_id', userId);
+    const { data, error } = await q.select('id');
+    if (error) {
+      console.warn('[reminders] rescheduleRemindersByTaskId error:', error.message);
+      return { rescheduledCount: 0 };
+    }
+    return { rescheduledCount: data?.length || 0, newSendAt };
+  } catch (err) {
+    console.warn('[reminders] rescheduleRemindersByTaskId threw:', err.message);
+    return { rescheduledCount: 0 };
+  }
+}
+
 export { supabase };
 export * from './users.js';
 export * from './tasks.js';

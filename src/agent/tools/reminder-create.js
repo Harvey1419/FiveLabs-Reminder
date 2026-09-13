@@ -6,6 +6,7 @@ import {
   hasProAccess,
   shouldEnforceBillingForUser,
 } from '../../infrastructure/database/index.js';
+import { getReminderConfirmationPreference } from '../../infrastructure/database/memories.js';
 import {
   parseTargetTime,
   formatHumanFriendlyDateTime,
@@ -94,14 +95,26 @@ export async function executeReminderCreate({
   const rejectedItems = [];
   const savedReminders = [];
 
+  let confirmationPref = null;
+  try {
+    confirmationPref = (userId && typeof getReminderConfirmationPreference === 'function')
+      ? await getReminderConfirmationPreference(userId)
+      : null;
+  } catch {
+    confirmationPref = null;
+  }
+
   for (const item of rawItems) {
     const content = item.content || '';
     const targetTime = item.targetTime || '';
     const advanceMinutes = item.advanceMinutes || null;
     const advanceNoticeTime = item.advanceNoticeTime || null;
     const recurrenceRule = item.recurrence || null;
-    const requiresConfirmation = item.requiresConfirmation || false;
-    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || null;
+    const hasExplicitConfirmation = item.requiresConfirmation !== undefined && item.requiresConfirmation !== null;
+    const requiresConfirmation = hasExplicitConfirmation
+      ? Boolean(item.requiresConfirmation)
+      : Boolean(confirmationPref?.requiresConfirmation);
+    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || (requiresConfirmation ? (confirmationPref?.nudgeIntervalMinutes || 15) : null);
     const maxNudges = item.maxNudges || null;
     const replacePending = item.replacePending || false;
     const checklist = item.checklist || null;
