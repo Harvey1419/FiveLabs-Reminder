@@ -1,6 +1,8 @@
 import {
   getUserIntegration,
   saveReminder,
+  cancelCalendarCompanionReminders,
+  rescheduleCalendarCompanionReminders,
 } from '../../infrastructure/database/index.js';
 import {
   getGoogleConnectUrl,
@@ -432,13 +434,14 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       if (hasExplicitAdvanceNotice && Number.isFinite(advanceMinutes) && advanceMinutes > 0) {
         reminderSendAt = new Date(startDateTime.getTime() - advanceMinutes * 60 * 1000).toISOString();
         if (new Date(reminderSendAt).getTime() > Date.now()) {
-          const advContent = `🔔 [Aviso Previo] ${event.summary} en ${advanceMinutes} minutos`;
+          const advContent = `🔔 [Google Calendar] ${event.summary} en ${advanceMinutes} minutos`;
           try {
             const inserted = await saveReminder({
               userId,
               phoneNumber,
               content: advContent,
               sendAt: reminderSendAt,
+              deliveryId: `gcal:${event.id}`,
               requiresConfirmation: true,
             });
             if (inserted) reminderCreated = true;
@@ -543,11 +546,36 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           timezone: tz,
         });
 
-        const summary = `Evento actualizado en Google Calendar: *${updated.summary}*.`;
+        let companionUpdated = false;
+        if (startDateTime) {
+          try {
+            const resch = await rescheduleCalendarCompanionReminders({
+              userId,
+              eventId,
+              summary: updated.summary,
+              newStartDateTime: startDateTime,
+            });
+            companionUpdated = resch.rescheduled > 0;
+          } catch (rErr) {
+            console.warn('[calendarTools] Companion reschedule error:', rErr.message);
+          }
+        }
+
+        let summary = `✏️ *Google Calendar · ${language === 'en' ? 'Event updated' : 'Evento actualizado'}*\n\n• 📅 *${updated.summary}*`;
+        if (startDateTime) {
+          summary += ` — ${formatHumanFriendlyDateTime(startDateTime, tz, language)}`;
+        }
+        if (companionUpdated) {
+          summary += `\n• 🔔 ${language === 'en' ? 'WhatsApp reminder rescheduled' : 'Recordatorio en WhatsApp reprogramado'}`;
+        }
+
         return {
           success: true,
           action: 'google_event_updated',
-          data: updated,
+          data: {
+            ...updated,
+            companionUpdated,
+          },
           rawSummary: summary,
           formattedCard: summary,
         };
@@ -655,16 +683,35 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
+      let companionCancelled = false;
       const deletedItemSummary = resolvedRef?.summary || null;
-      const summary = deleted
-        ? (deletedItemSummary
-            ? `Evento eliminado de tu Google Calendar: *${deletedItemSummary}*.`
-            : (language === 'en' ? 'Event deleted from your Google Calendar.' : 'Evento eliminado de tu Google Calendar.'))
-        : (language === 'en' ? 'Could not delete event from Google Calendar.' : 'No se pudo eliminar el evento de Google Calendar.');
+      if (deleted) {
+        try {
+          const cancelRes = await cancelCalendarCompanionReminders({
+            userId,
+            eventId,
+            summary: deletedItemSummary,
+          });
+          companionCancelled = cancelRes.cancelled > 0;
+        } catch (cErr) {
+          console.warn('[calendarTools] Companion cancel error:', cErr.message);
+        }
+      }
+
+      let summary;
+      if (deleted) {
+        const deletedTitle = deletedItemSummary ? `*${deletedItemSummary}*` : (language === 'en' ? 'Event' : 'Evento');
+        summary = `🗑️ *Google Calendar · ${language === 'en' ? 'Event deleted' : 'Evento eliminado'}*\n\n• 📅 ${deletedTitle}`;
+        if (companionCancelled) {
+          summary += `\n• 🔔 ${language === 'en' ? 'Associated WhatsApp reminder cancelled' : 'Recordatorio de WhatsApp asociado cancelado'}`;
+        }
+      } else {
+        summary = language === 'en' ? 'Could not delete event from Google Calendar.' : 'No se pudo eliminar el evento de Google Calendar.';
+      }
       return {
         success: deleted,
         action: deleted ? 'google_event_deleted' : 'google_api_error',
-        data: { eventId, deleted },
+        data: { eventId, deleted, companionCancelled },
         rawSummary: summary,
         formattedCard: summary,
         confirmation: summary,

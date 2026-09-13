@@ -21,6 +21,7 @@ export async function saveReminder({
   content,
   sendAt,
   taskId = null,
+  deliveryId = null,
   recurrenceRule = null,
   requiresConfirmation = false,
   nudgeIntervalMinutes = 15,
@@ -34,6 +35,7 @@ export async function saveReminder({
     recurrence_rule: recurrenceRule || null,
     status: 'pending',
     task_id: taskId || null,
+    delivery_id: deliveryId || null,
     requires_confirmation: isPersistent,
     nudge_interval_minutes: isPersistent ? (Number(nudgeIntervalMinutes) || 15) : null,
     max_nudges: isPersistent ? (maxNudges !== undefined ? Number(maxNudges) : 5) : null,
@@ -873,6 +875,109 @@ export async function getNextPendingReminder() {
 
   if (error && error.code !== 'PGRST116') throw error;
   return data || null;
+}
+
+/**
+ * Cancel companion reminders linked to a Google Calendar event.
+ */
+export async function cancelCalendarCompanionReminders({ userId, eventId, summary = null }) {
+  if (!userId || (!eventId && !summary)) return { cancelled: 0 };
+  try {
+    if (eventId) {
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({ status: 'cancelled', acknowledged_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('delivery_id', `gcal:${eventId}`)
+        .in('status', ['pending', 'processing'])
+        .select('id');
+      if (!error && data?.length > 0) {
+        return { cancelled: data.length };
+      }
+    }
+    if (summary) {
+      const cleanSummary = String(summary).trim();
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({ status: 'cancelled', acknowledged_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .in('status', ['pending', 'processing'])
+        .ilike('content', `%${cleanSummary}%`)
+        .select('id');
+      if (!error && data?.length > 0) {
+        return { cancelled: data.length };
+      }
+    }
+    return { cancelled: 0 };
+  } catch (err) {
+    console.warn('[reminders] cancelCalendarCompanionReminders warning:', err.message);
+    return { cancelled: 0 };
+  }
+}
+
+/**
+ * Reschedule companion reminders linked to a Google Calendar event.
+ */
+export async function rescheduleCalendarCompanionReminders({
+  userId,
+  eventId,
+  summary = null,
+  newStartDateTime,
+  advanceMinutes = null,
+}) {
+  if (!userId || (!eventId && !summary) || !newStartDateTime) return { rescheduled: 0 };
+  try {
+    let targetReminder = null;
+    if (eventId) {
+      const { data } = await supabase
+        .from('reminders')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('delivery_id', `gcal:${eventId}`)
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
+      targetReminder = data;
+    }
+    if (!targetReminder && summary) {
+      const { data } = await supabase
+        .from('reminders')
+        .select('*')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'processing'])
+        .ilike('content', `%${String(summary).trim()}%`)
+        .maybeSingle();
+      targetReminder = data;
+    }
+    if (!targetReminder) return { rescheduled: 0 };
+
+    const advMin = advanceMinutes !== null && Number.isFinite(Number(advanceMinutes))
+      ? Number(advanceMinutes)
+      : 30;
+    const startTime = new Date(newStartDateTime).getTime();
+    const newSendAt = new Date(startTime - advMin * 60 * 1000).toISOString();
+    const updatedContent = advMin > 0
+      ? `🔔 [Google Calendar] ${summary || 'Evento'} en ${advMin} minutos`
+      : `🔔 [Google Calendar] ${summary || 'Evento'} ahora`;
+
+    const { data: updated, error } = await supabase
+      .from('reminders')
+      .update({
+        send_at: newSendAt,
+        content: updatedContent,
+        delivery_id: eventId ? `gcal:${eventId}` : targetReminder.delivery_id,
+      })
+      .eq('id', targetReminder.id)
+      .select('id');
+
+    if (error) {
+      console.warn('[reminders] rescheduleCalendarCompanionReminders warning:', error.message);
+      return { rescheduled: 0 };
+    }
+    return { rescheduled: updated?.length || 0, newSendAt };
+  } catch (err) {
+    console.warn('[reminders] rescheduleCalendarCompanionReminders error:', err.message);
+    return { rescheduled: 0 };
+  }
 }
 
 export { supabase };

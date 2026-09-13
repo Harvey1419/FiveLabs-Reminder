@@ -616,16 +616,30 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
 
   if (operationalActions.length === 0) {
-    const confirmation = conversationReply || structuredDecisionError(language);
+    let confirmation = conversationReply || structuredDecisionError(language);
+    let extractedCta = null;
+    if (confirmation.includes('[auth_url]') || confirmation.includes('/auth/google')) {
+      try {
+        const authUrl = getGoogleConnectUrl({ userId: user?.id, phoneNumber: phoneNumber || user?.phone_number });
+        extractedCta = {
+          ctaUrl: authUrl,
+          ctaHeader: '📅 Google Calendar',
+          ctaButtonText: language === 'en' ? 'Connect' : 'Conectar',
+        };
+      } catch (err) {
+        console.warn('[router] generating auth_url in conversation failed:', err.message);
+      }
+    }
+    confirmation = await replaceTrustedLinkPlaceholders({ text: confirmation, user, phoneNumber });
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
     return {
       intent: 'chat',
       entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
       language,
       confirmation,
-      ctaUrl: null,
-      ctaHeader: null,
-      ctaButtonText: null,
+      ctaUrl: extractedCta?.ctaUrl || null,
+      ctaHeader: extractedCta?.ctaHeader || null,
+      ctaButtonText: extractedCta?.ctaButtonText || null,
       plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
       executionFacts: [],
       memoryDisposition: isAttachmentOnlyTurn ? 'skip_attachment' : 'extract',

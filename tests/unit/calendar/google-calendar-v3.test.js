@@ -11,6 +11,8 @@ import { getGoogleRedirectUri, hasUsableGoogleCredentials, isGoogleAuthError } f
 import { formatCanonicalAgenda } from '../../../src/shared/agenda-presentation.js';
 import { formatMorningBriefingMessage } from '../../../src/jobs/morning-briefing.js';
 import * as dbIntegrations from '../../../src/infrastructure/database/integrations.js';
+import * as dbIndex from '../../../src/infrastructure/database/index.js';
+import * as googleCalendar from '../../../src/integrations/google/calendar.js';
 
 describe('Google Calendar current architecture', () => {
   describe('connection states', () => {
@@ -216,6 +218,122 @@ describe('Google Calendar current architecture', () => {
         }],
       });
       expect(createResult.valid).toBe(true);
+    });
+  });
+
+  describe('dual persistence companion reminders and lifecycle cascade', () => {
+    it('create_event links WhatsApp reminder with deliveryId=gcal:id and renders unified card', async () => {
+      vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue({
+        access_token: 'valid_token',
+        account_email: 'test@example.com',
+      });
+      const createEventSpy = vi.spyOn(googleCalendar, 'createCalendarEvent').mockResolvedValue({
+        id: 'evt-test-dual-123',
+        summary: 'Cita médica',
+        startDateTime: '2099-10-15T16:00:00-05:00',
+        endDateTime: '2099-10-15T17:00:00-05:00',
+      });
+      const saveReminderSpy = vi.spyOn(dbIndex, 'saveReminder').mockResolvedValue({
+        id: 'rem-dual-1',
+        content: '🔔 [Google Calendar] Cita médica en 30 minutos',
+        send_at: '2099-10-15T15:30:00.000Z',
+      });
+
+      const res = await executeCalendarTool({
+        action: 'create_event',
+        params: {
+          summary: 'Cita médica',
+          startDateTime: '2099-10-15T16:00:00-05:00',
+          advanceMinutes: 30,
+        },
+        user: { id: 'u-dual-1', phone_number: '+573001112233', timezone: 'America/Bogota' },
+        language: 'es',
+      });
+
+      expect(res.success).toBe(true);
+      expect(saveReminderSpy).toHaveBeenCalledWith(expect.objectContaining({
+        deliveryId: 'gcal:evt-test-dual-123',
+        content: expect.stringContaining('Cita médica'),
+      }));
+      expect(res.data.reminderCreated).toBe(true);
+      expect(res.formattedCard).toContain('Evento agendado en Google Calendar');
+      expect(res.formattedCard).toContain('Recordatorio programado en WhatsApp');
+      expect(res.formattedCard).toContain('30 minutos antes');
+
+      createEventSpy.mockRestore();
+      saveReminderSpy.mockRestore();
+      vi.restoreAllMocks();
+    });
+
+    it('delete_event cascades cancellation to companion reminders and renders cancellation fact', async () => {
+      vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue({
+        access_token: 'valid_token',
+        account_email: 'test@example.com',
+      });
+      const listEventsSpy = vi.spyOn(googleCalendar, 'listCalendarEvents').mockResolvedValue([
+        { id: 'evt-to-delete', summary: 'Cita médica' },
+      ]);
+      const deleteEventSpy = vi.spyOn(googleCalendar, 'deleteCalendarEvent').mockResolvedValue(true);
+      const cancelCompanionSpy = vi.spyOn(dbIndex, 'cancelCalendarCompanionReminders').mockResolvedValue({ cancelled: 1 });
+
+      const res = await executeCalendarTool({
+        action: 'delete_event',
+        params: { target: 'Cita médica' },
+        user: { id: 'u-dual-1', phone_number: '+573001112233', timezone: 'America/Bogota' },
+        language: 'es',
+      });
+
+      expect(res.success).toBe(true);
+      expect(deleteEventSpy).toHaveBeenCalled();
+      expect(cancelCompanionSpy).toHaveBeenCalled();
+      expect(res.formattedCard).toContain('Evento eliminado');
+      expect(res.formattedCard).toContain('Recordatorio de WhatsApp asociado cancelado');
+
+      listEventsSpy.mockRestore();
+      deleteEventSpy.mockRestore();
+      cancelCompanionSpy.mockRestore();
+      vi.restoreAllMocks();
+    });
+
+    it('update_event cascades reschedule to companion reminders when start time shifts', async () => {
+      vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue({
+        access_token: 'valid_token',
+        account_email: 'test@example.com',
+      });
+      const listEventsSpy = vi.spyOn(googleCalendar, 'listCalendarEvents').mockResolvedValue([
+        { id: 'evt-to-update', summary: 'Cita médica' },
+      ]);
+      const updateEventSpy = vi.spyOn(googleCalendar, 'updateCalendarEvent').mockResolvedValue({
+        id: 'evt-to-update',
+        summary: 'Cita médica reprogramada',
+        startDateTime: '2099-10-15T17:00:00-05:00',
+      });
+      const rescheduleCompanionSpy = vi.spyOn(dbIndex, 'rescheduleCalendarCompanionReminders').mockResolvedValue({
+        rescheduled: 1,
+        newSendAt: '2099-10-15T16:30:00.000Z',
+      });
+
+      const res = await executeCalendarTool({
+        action: 'update_event',
+        params: {
+          target: 'Cita médica',
+          startDateTime: '2099-10-15T17:00:00-05:00',
+          summary: 'Cita médica reprogramada',
+        },
+        user: { id: 'u-dual-1', phone_number: '+573001112233', timezone: 'America/Bogota' },
+        language: 'es',
+      });
+
+      expect(res.success).toBe(true);
+      expect(updateEventSpy).toHaveBeenCalled();
+      expect(rescheduleCompanionSpy).toHaveBeenCalled();
+      expect(res.formattedCard).toContain('Evento actualizado');
+      expect(res.formattedCard).toContain('Recordatorio en WhatsApp reprogramado');
+
+      listEventsSpy.mockRestore();
+      updateEventSpy.mockRestore();
+      rescheduleCompanionSpy.mockRestore();
+      vi.restoreAllMocks();
     });
   });
 });

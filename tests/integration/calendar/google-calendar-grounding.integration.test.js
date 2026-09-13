@@ -112,6 +112,17 @@ describe('Google Calendar Deterministic Grounding & Temporal Range Test Suite', 
     expect(res.confirmation).not.toContain('https://hermes.templelabs.co/auth/google');
   }, 15000);
 
+  // TEST 1d: Explicit connect requests route to calendar.connect and deliver interactive CTA button
+  it('TEST 1d: Explicit connect requests route to calendar.connect and deliver interactive CTA button', async () => {
+    await deleteUserIntegration(userA.id, 'google');
+
+    const res = await routeMessage('Me gustaria conectarme a google calendar', userA, []);
+    expect(res.intent).toBe('calendar');
+    expect(res.ctaUrl).toBeDefined();
+    expect(res.ctaUrl).toContain('/auth/google');
+    expect(res.ctaButtonText).toBeDefined();
+  }, 20000);
+
   // TEST 2: Google no conectado
   it('TEST 2: Disconnected Google integration -> prompt grounds status as disconnected and provides connect link', async () => {
     await deleteUserIntegration(userB.id, 'google');
