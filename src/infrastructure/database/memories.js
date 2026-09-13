@@ -211,8 +211,18 @@ export async function saveMemory({
  * @param {number} [params.limit=15]
  * @returns {Promise<Array<object>>}
  */
+function isDatabaseConfigured() {
+  const url = process.env.SUPABASE_URL || '';
+  const secret = process.env.SUPABASE_SECRET || '';
+  const isMock = Boolean(supabase?.from?._isMockFunction || supabase?.from?.mock);
+  return Boolean(
+    (isMock || (url && !url.includes('placeholder') && secret && !secret.includes('placeholder')))
+    && typeof supabase?.from === 'function'
+  );
+}
+
 export async function getActiveMemories({ userId, category = null, limit = 15 }) {
-  if (!userId) return [];
+  if (!userId || !isDatabaseConfigured()) return [];
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
 
   try {
@@ -505,53 +515,87 @@ export async function forgetMemoriesByTopic(userId, topicKey) {
 }
 
 /**
+ * Retrieve the active reminder dispatch policy for a user based on their stored preferences/memories.
+ * Adapts deterministic behavior dynamically:
+ * - disableButtonsForRecurring: suppresses interactive buttons on recurring reminders if user requested it.
+ * - requiresConfirmation: whether standard reminders require persistent confirmation nudges.
+ * - nudgeIntervalMinutes: interval for confirmation nudges.
+ *
+ * @param {string} userId
+ * @returns {Promise<{ disableButtonsForRecurring: boolean, requiresConfirmation: boolean, nudgeIntervalMinutes: number, preferenceText?: string }>}
+ */
+export async function getReminderDispatchPolicy(userId) {
+  const defaultPolicy = {
+    disableButtonsForRecurring: false,
+    requiresConfirmation: false,
+    nudgeIntervalMinutes: 15,
+    preferenceText: null,
+  };
+  if (!userId) return defaultPolicy;
+
+  try {
+    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 20 });
+    if (!Array.isArray(preferences) || preferences.length === 0) return defaultPolicy;
+
+    let disableButtonsForRecurring = false;
+    let requiresConfirmation = false;
+    let nudgeIntervalMinutes = 15;
+    let matchedText = null;
+
+    for (const m of preferences) {
+      const topic = String(m.topic_key || '').toLowerCase();
+      const content = String(m.content || '').toLowerCase();
+
+      // Check for recurring button suppression preference:
+      // e.g. "Los recordatorios recurrentes no deben incluir botones de confirmación"
+      // or topic "preference/reminders/confirmation_buttons"
+      const isRecurringButtonTopic = topic.includes('confirmation_buttons') || (topic.includes('preference/reminders') && (content.includes('boton') || content.includes('botón')));
+      const mentionsButtons = content.includes('boton') || content.includes('botón');
+      const mentionsRecurring = content.includes('recurrente') || topic.includes('recurring');
+      const isNegative = content.includes('no ') || content.includes('sin ') || content.includes('quitar') || content.includes('eliminar');
+
+      if ((isRecurringButtonTopic || (mentionsButtons && mentionsRecurring)) && isNegative) {
+        disableButtonsForRecurring = true;
+        matchedText = m.content;
+      }
+
+      // Check for persistent confirmation preference
+      const isConfirmationTopic = topic.includes('persistent_confirmation') || topic.includes('reminder_confirmation');
+      const isConfirmationContent = content.includes('confirm') && (content.includes('recordatorio') || content.includes('insist'));
+      if ((isConfirmationTopic || isConfirmationContent) && !isNegative) {
+        requiresConfirmation = true;
+        const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i);
+        if (minMatch) nudgeIntervalMinutes = Number(minMatch[1]);
+        if (!matchedText) matchedText = m.content;
+      }
+    }
+
+    return {
+      disableButtonsForRecurring,
+      requiresConfirmation,
+      nudgeIntervalMinutes,
+      preferenceText: matchedText,
+    };
+  } catch (err) {
+    console.warn('[memories] getReminderDispatchPolicy error:', err.message);
+    return defaultPolicy;
+  }
+}
+
+/**
  * Check if the user has an active preference for persistent confirmation reminders.
- * Looks for preferences with topic_key matching 'preference/reminders' or 'persistent_confirmation'
- * or content referencing confirmation/insistencia.
  *
  * @param {string} userId
  * @returns {Promise<{ requiresConfirmation: boolean, nudgeIntervalMinutes?: number, preferenceText?: string }|null>}
  */
 export async function getReminderConfirmationPreference(userId) {
   if (!userId) return null;
-  try {
-    let client;
-    try {
-      client = supabase;
-    } catch {
-      return null;
-    }
-    if (!client || typeof client.from !== 'function') return null;
-    const url = process.env.SUPABASE_URL || '';
-    const isPlaceholder = url.includes('placeholder') || !url;
-    if (isPlaceholder && !client?.from?._isMockFunction && !client?.from?.mock) {
-      return null;
-    }
-    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 20 });
-    const match = (preferences || []).find((m) => {
-      const topic = String(m.topic_key || '').toLowerCase();
-      const content = String(m.content || '').toLowerCase();
-      return (
-        topic.includes('preference/reminders') ||
-        topic.includes('persistent_confirmation') ||
-        topic.includes('reminder_confirmation') ||
-        (content.includes('confirm') && (content.includes('recordatorio') || content.includes('insist')))
-      );
-    });
-
-    if (!match) return null;
-
-    const minMatch = match.content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i);
-    const interval = minMatch ? Number(minMatch[1]) : 15;
-
-    return {
-      requiresConfirmation: true,
-      nudgeIntervalMinutes: interval,
-      preferenceText: match.content,
-    };
-  } catch (err) {
-    console.warn('[memories] getReminderConfirmationPreference error:', err.message);
-    return null;
-  }
+  const policy = await getReminderDispatchPolicy(userId);
+  if (!policy.requiresConfirmation) return null;
+  return {
+    requiresConfirmation: true,
+    nudgeIntervalMinutes: policy.nudgeIntervalMinutes,
+    preferenceText: policy.preferenceText,
+  };
 }
 

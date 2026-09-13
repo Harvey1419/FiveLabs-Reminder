@@ -167,7 +167,13 @@ function buildDomainCall(action, context) {
         const params = { action: 'update', target, updates };
         if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
         if (Object.keys(updates).length === 0 && !action.advanceMinutes) {
-          return { valid: false, errorCode: 'MISSING_UPDATES', error: 'No se indicó qué cambiar del recordatorio.' };
+          return {
+            valid: false,
+            errorCode: 'MISSING_UPDATES',
+            error: context?.language === 'en'
+              ? 'What would you like to change on the reminder? (time, date, or title)'
+              : '¡De una! ¿Qué te gustaría cambiarle al recordatorio? ¿La hora, la fecha o el texto?',
+          };
         }
         return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params };
       }
@@ -258,7 +264,15 @@ function buildDomainCall(action, context) {
         if (!temporal.valid) return temporal;
         updates.dueDate = temporal.canonical;
       }
-      if (Object.keys(updates).length === 0) return { valid: false, errorCode: 'MISSING_UPDATES', error: 'No se indicó qué cambiar de la tarea.' };
+      if (Object.keys(updates).length === 0) {
+        return {
+          valid: false,
+          errorCode: 'MISSING_UPDATES',
+          error: context?.language === 'en'
+            ? 'What would you like to update on the task?'
+            : '¡Listo! ¿Qué te gustaría modificar de la tarea? ¿El estado, la fecha o el nombre?',
+        };
+      }
       return { valid: true, toolName: TOOL_NAMES.MANAGE_TASK, params: { action: 'update', target, updates, ...(action.entityName ? { entityName: action.entityName } : {}) } };
     }
 
@@ -372,7 +386,13 @@ function buildDomainCall(action, context) {
         if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
         if (action.addGoogleMeet) params.addGoogleMeet = true;
         if (!params.summary && !params.startDateTime && !params.endDateTime && !params.durationMinutes && !params.description && !params.advanceMinutes && !params.addGoogleMeet) {
-          return { valid: false, errorCode: 'MISSING_UPDATES', error: 'No se indicó qué cambiar del evento.' };
+          return {
+            valid: false,
+            errorCode: 'MISSING_UPDATES',
+            error: context?.language === 'en'
+              ? 'What would you like to change on the event?'
+              : '¡Entendido! ¿Qué te gustaría modificar del evento de tu calendario?',
+          };
         }
         return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params };
       }

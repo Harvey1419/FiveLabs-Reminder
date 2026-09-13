@@ -9,6 +9,7 @@ import {
   getLatestInboundPhoneNumberId,
   saveMessage,
   supabase,
+  getReminderDispatchPolicy,
 } from '../infrastructure/database/index.js';
 import { sendReminderMessage, stripReminderPrefix } from '../integrations/whatsapp/kapso-client.js';
 import { saveWorkingMemory } from '../agent/core/working-memory.js';
@@ -274,14 +275,28 @@ export async function processReminder(reminder) {
 
     const isEnglish = isEnglishReminder(reminder);
 
+    let includeButtons = true;
+    if (recurring && reminder.user_id) {
+      try {
+        const policy = await getReminderDispatchPolicy(reminder.user_id);
+        if (policy?.disableButtonsForRecurring) {
+          includeButtons = false;
+        }
+      } catch (policyErr) {
+        console.warn(`[scheduler worker=${WORKER_ID}] failed to load reminder policy:`, policyErr.message);
+      }
+    }
+
     const sendOpts = {
       phoneNumberId,
       language: isEnglish ? 'en' : 'es',
-      buttons: [
-        { id: `rem:ack:${reminder.id}`, title: isEnglish ? '✅ Done' : '✅ Listo' },
-        { id: `rem:snooze:15:${reminder.id}`, title: '⏰ +15 min' },
-        { id: `rem:snooze:60:${reminder.id}`, title: isEnglish ? '⏰ +1 hour' : '⏰ +1 hora' },
-      ],
+      ...(includeButtons ? {
+        buttons: [
+          { id: `rem:ack:${reminder.id}`, title: isEnglish ? '✅ Done' : '✅ Listo' },
+          { id: `rem:snooze:15:${reminder.id}`, title: '⏰ +15 min' },
+          { id: `rem:snooze:60:${reminder.id}`, title: isEnglish ? '⏰ +1 hour' : '⏰ +1 hora' },
+        ],
+      } : {}),
     };
 
     const sendResult = await sendReminderMessage(
