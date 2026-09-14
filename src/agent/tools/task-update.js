@@ -1,4 +1,5 @@
 import {
+  supabase,
   updateTask,
   rescheduleRemindersByTaskId,
   acknowledgeRemindersByTaskId,
@@ -107,12 +108,29 @@ export async function executeTaskUpdate({
   if (description !== undefined) {
     const cleanDesc = description ? String(description).trim() : null;
     const shouldAppend = Boolean(updatesObj.append ?? params.append);
-    if (cleanDesc && shouldAppend && resolution.task?.description) {
-      const existing = String(resolution.task.description).trim();
-      if (existing && !existing.includes(cleanDesc)) {
-        updates.description = `${existing}\n• ${cleanDesc.startsWith('• ') || cleanDesc.startsWith('- ') ? cleanDesc.slice(2) : cleanDesc}`;
+    let existingDesc = resolution.task?.description ? String(resolution.task.description).trim() : null;
+
+    if (cleanDesc && shouldAppend && resolution.taskId) {
+      try {
+        const { data: freshTask } = await supabase
+          .from('tasks')
+          .select('id, description')
+          .eq('id', resolution.taskId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (freshTask?.description) {
+          existingDesc = String(freshTask.description).trim();
+        }
+      } catch {
+        // Fallback to in-memory description
+      }
+    }
+
+    if (cleanDesc && shouldAppend && existingDesc) {
+      if (!existingDesc.includes(cleanDesc)) {
+        updates.description = `${existingDesc}\n• ${cleanDesc.startsWith('• ') || cleanDesc.startsWith('- ') ? cleanDesc.slice(2) : cleanDesc}`;
       } else {
-        updates.description = existing || cleanDesc;
+        updates.description = existingDesc;
       }
     } else {
       updates.description = cleanDesc;

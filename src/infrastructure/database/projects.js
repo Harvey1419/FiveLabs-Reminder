@@ -241,7 +241,43 @@ export async function findProjects({
       console.error('[projects] findProjects error:', error);
       return [];
     }
-    return data || [];
+
+    const projectItems = (data || []).slice();
+
+    try {
+      let eq = supabase
+        .from('entities')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('category', 'project')
+        .limit(limit);
+      if (query) {
+        eq = eq.ilike('name', `%${query.trim()}%`);
+      }
+      const { data: legacyEntities } = await eq;
+      if (legacyEntities && legacyEntities.length > 0) {
+        const knownIds = new Set(projectItems.map((p) => p.id));
+        const knownNames = new Set(projectItems.map((p) => p.name.toLowerCase().trim()));
+        for (const leg of legacyEntities) {
+          if (!knownIds.has(leg.id) && !knownNames.has(leg.name.toLowerCase().trim())) {
+            projectItems.push({
+              id: leg.id,
+              user_id: leg.user_id,
+              name: leg.name,
+              description: leg.description || null,
+              status: 'active',
+              metadata: leg.metadata || {},
+              created_at: leg.created_at,
+              updated_at: leg.updated_at,
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+
+    return projectItems;
   } catch (err) {
     console.error('[projects] findProjects threw:', err);
     return [];

@@ -722,6 +722,17 @@ export async function renameEntity(paramsOrUserId, oldNameArg, newNameArg, categ
 
       if (!updateErr && updated) {
         updatedEntity = updated;
+        if (updated.category === 'project') {
+          try {
+            await supabase
+              .from('projects')
+              .update({ name: cleanNew, updated_at: new Date().toISOString() })
+              .eq('id', updated.id)
+              .eq('user_id', userId);
+          } catch {
+            // Non-fatal sync
+          }
+        }
       }
     } else {
       // Source wasn't pre-registered in entities table; ensure target entity exists
@@ -1066,7 +1077,43 @@ export async function findEntities({ userId, query, category, limit = 10 }) {
       return [];
     }
 
-    return data || [];
+    const entityItems = (data || []).slice();
+
+    if (!category || category === 'project') {
+      try {
+        let pq = supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .limit(limit);
+        if (query) {
+          pq = pq.ilike('name', `%${query.trim()}%`);
+        }
+        const { data: activeProjects } = await pq;
+        if (activeProjects && activeProjects.length > 0) {
+          const knownIds = new Set(entityItems.map((e) => e.id));
+          const knownNames = new Set(entityItems.map((e) => e.name.toLowerCase().trim()));
+          for (const proj of activeProjects) {
+            if (!knownIds.has(proj.id) && !knownNames.has(proj.name.toLowerCase().trim())) {
+              entityItems.push({
+                id: proj.id,
+                user_id: proj.user_id,
+                name: proj.name,
+                category: 'project',
+                metadata: proj.metadata || {},
+                created_at: proj.created_at,
+                updated_at: proj.updated_at,
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-fatal fallback
+      }
+    }
+
+    return entityItems;
   } catch (err) {
     console.error('[entities] findEntities threw:', err);
     return [];
