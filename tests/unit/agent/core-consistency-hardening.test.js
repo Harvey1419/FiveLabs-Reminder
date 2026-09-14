@@ -67,7 +67,7 @@ describe('core consistency hardening', () => {
       ],
     }, { language: 'es', timezone: 'America/Bogota' });
 
-    expect(card).toContain('📁 *Reminder*\n• Primera\n• Segunda');
+    expect(card).toContain('📁 *Reminder*\n1. Primera\n2. Segunda');
     expect(card).not.toContain('Primera\n📁 Reminder');
   });
 

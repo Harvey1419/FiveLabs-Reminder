@@ -86,8 +86,8 @@ describe('turn-level presentation policy', () => {
     const text = composeTurnPresentation(facts, 'es');
     expect(text).toContain('2 tareas creadas');
     expect(text.match(/📁 \*Trabajo\*/g)?.length).toBe(1);
-    expect(text).toContain('• Preparar propuesta');
-    expect(text).toContain('• Enviar factura');
+    expect(text).toContain('1. Preparar propuesta');
+    expect(text).toContain('2. Enviar factura');
   });
 
   it('composes mixed domains as one turn without nesting full cards', () => {

@@ -15,8 +15,8 @@ describe('Unified Agenda task hierarchy', () => {
       timezone: 'America/Bogota',
     }, { language: 'es', timezone: 'America/Bogota' });
 
-    expect(card).toContain('📁 *Reminder*\n• Gestionar mejor los proyectos\n• Mejorar la gestión de memoria');
-    expect(card).toContain('📌 *Sin proyecto*\n• Comprar comida');
+    expect(card).toContain('📁 *Reminder*\n1. Gestionar mejor los proyectos\n2. Mejorar la gestión de memoria');
+    expect(card).toContain('📌 *Sin proyecto*\n3. Comprar comida');
     expect(card).not.toContain('[Reminder]');
     expect(card).toContain('📅 *Google Calendar*\n🔒 No conectado');
   });

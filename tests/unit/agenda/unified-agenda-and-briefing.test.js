@@ -83,7 +83,7 @@ describe('Unified Agenda & Morning Briefing', () => {
       const card = renderAgenda(res.data);
       expect(card).toContain('Cita médica');
       expect(card).toContain('Recordatorio diario');
-      expect(card).toContain('📁 *Trabajo*\n• Revisar informe mensual');
+      expect(card).toContain('📁 *Trabajo*\n1. Revisar informe mensual');
       expect(card).not.toContain('[id:');
     });
 

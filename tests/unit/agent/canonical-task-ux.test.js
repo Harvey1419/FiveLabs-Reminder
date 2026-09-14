@@ -22,8 +22,8 @@ describe('canonical task UX', () => {
       language: 'es',
     });
 
-    expect(fact.card).toContain('📁 *Reminder*\n• Gestionar mejor los proyectos\n• Mejorar la gestión de memoria');
-    expect(fact.card).toContain('📌 *Sin proyecto*\n• Comprar leche');
+    expect(fact.card).toContain('📁 *Reminder*\n1. Gestionar mejor los proyectos\n2. Mejorar la gestión de memoria');
+    expect(fact.card).toContain('📌 *Sin proyecto*\n3. Comprar leche');
     expect(fact.card).not.toContain('[Reminder]');
     expect(fact.card).not.toContain('legacy formatter should not win');
   });
@@ -47,8 +47,8 @@ describe('canonical task UX', () => {
     });
 
     expect(fact.card).toContain('📅 *Google Calendar*\n🔒 No conectado');
-    expect(fact.card).toContain('📁 *Reminder*\n• Gestionar mejor los proyectos\n• Mejorar la gestión de memoria');
-    expect(fact.card).toContain('📌 *Sin proyecto*\n• Comprar leche');
+    expect(fact.card).toContain('📁 *Reminder*\n1. Gestionar mejor los proyectos\n2. Mejorar la gestión de memoria');
+    expect(fact.card).toContain('📌 *Sin proyecto*\n3. Comprar leche');
     expect(fact.card).not.toContain('[Reminder]');
     expect(fact.card).not.toContain('legacy agenda formatter should not win');
   });

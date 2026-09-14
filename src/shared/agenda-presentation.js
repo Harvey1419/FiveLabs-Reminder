@@ -58,6 +58,7 @@ export function formatCanonicalTaskList(data = {}, {
     timezone,
     isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
     projectName,
+    numbered: true,
   });
 
   const header = scope === 'all_pending'
@@ -123,6 +124,7 @@ export function formatCanonicalAgenda(data = {}, {
       language,
       timezone,
       isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
+      numbered: true,
     });
     sections.push(`☑️ *${isEn ? 'Tasks' : 'Tareas'} · ${tasks.length}*\n\n${groups}`);
   }

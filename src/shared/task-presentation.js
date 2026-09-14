@@ -52,6 +52,7 @@ export function formatTaskProjectGroups(tasks = [], {
   timezone = 'UTC',
   isMultiDay = false,
   projectName = null,
+  numbered = false,
 } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   if (safeTasks.length === 0) return '';
@@ -60,6 +61,7 @@ export function formatTaskProjectGroups(tasks = [], {
     ? new Map([[projectName, safeTasks]])
     : groupTasksByProject(safeTasks, language);
 
+  let globalIndex = 1;
   return [...groups.entries()].map(([project, projectTasks]) => {
     const isUnscoped = project === (language === 'en' ? 'No project' : 'Sin proyecto');
     const projectIcon = isUnscoped ? '📌' : '📁';
@@ -67,7 +69,8 @@ export function formatTaskProjectGroups(tasks = [], {
       const title = task?.title || task?.content || (language === 'en' ? 'Untitled task' : 'Tarea sin título');
       const time = getTaskTime(task, { timezone, language, isMultiDay });
       const notesBadge = formatTaskNotesBadge(task, language === 'en');
-      return `• ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
+      const prefix = numbered ? `${globalIndex++}.` : '•';
+      return `${prefix} ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
     });
     return `${projectIcon} *${project}*\n${lines.join('\n')}`;
   }).join('\n\n');
@@ -89,7 +92,12 @@ export function formatCanonicalTaskCreate(data, {
   const header = language === 'en'
     ? `✅ *${tasks.length === 1 ? 'Task created' : `${tasks.length} tasks created`}*`
     : `✅ *${tasks.length === 1 ? 'Tarea creada' : `${tasks.length} tareas creadas`}*`;
-  const groups = formatTaskProjectGroups(tasks, { language, timezone, isMultiDay: true });
+  const groups = formatTaskProjectGroups(tasks, {
+    language,
+    timezone,
+    isMultiDay: true,
+    numbered: tasks.length > 1,
+  });
   return `${header}${groups ? `\n\n${groups}` : ''}`;
 }
 

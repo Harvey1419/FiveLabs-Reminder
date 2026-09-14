@@ -9,13 +9,19 @@ async function resolveTaskContainer({ userId, entityId = null, entityName = null
   if (entityId) return { id: entityId, name: entityName || null };
   if (!entityName) return { id: null, name: null };
 
-  const { data, error } = await supabase
-    .from('entities')
-    .select('id, name')
-    .eq('user_id', userId);
+  const [{ data: entitiesData, error }, { data: projectsData }] = await Promise.all([
+    supabase.from('entities').select('id, name').eq('user_id', userId),
+    supabase.from('projects').select('id, name').eq('user_id', userId).eq('status', 'active'),
+  ]);
 
   if (error) throw error;
-  const selection = selectEntityCandidate(data || [], entityName);
+  const allContainers = [
+    ...(entitiesData || []),
+    ...(projectsData || []).map((p) => ({ id: p.id, name: p.name })),
+  ];
+  const uniqueContainers = Array.from(new Map(allContainers.map((c) => [c.id, c])).values());
+
+  const selection = selectEntityCandidate(uniqueContainers, entityName);
   if (selection.status === 'AMBIGUOUS') {
     return { id: null, name: entityName, ambiguous: true, candidates: selection.candidates || [] };
   }
@@ -67,11 +73,17 @@ export async function getTaskList({
 
   let query = supabase
     .from('tasks')
-    .select('*, entities:entity_id(id, name, category)')
+    .select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)')
     .eq('user_id', userId);
 
   if (status && status !== 'all') query = query.eq('status', status);
-  if (container.id) query = query.eq('entity_id', container.id);
+  if (container.id) {
+    if (typeof query.or === 'function') {
+      query = query.or(`entity_id.eq.${container.id},project_id.eq.${container.id}`);
+    } else {
+      query = query.eq('entity_id', container.id);
+    }
+  }
 
   if (parsedScope.scope !== 'all_pending') {
     const temporal = resolveCalendarTemporalScope({
@@ -96,10 +108,11 @@ export async function getTaskList({
 
   const tasks = (data || []).map((task) => {
     const dueDate = task.due_date || null;
+    const resolvedEntityName = task.entities?.name || task.projects?.name || container.name || null;
     return {
       ...task,
       type: 'task',
-      entityName: task.entities?.name || container.name || null,
+      entityName: resolvedEntityName,
       dueDate,
       localTime: dueDate
         ? new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-CO', {

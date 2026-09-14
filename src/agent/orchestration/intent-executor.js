@@ -9,6 +9,7 @@ import {
 import {
   parseStructuredOrdinal,
   resolveContextReference,
+  extractMultipleOrdinals,
 } from '../core/context-reference.js';
 import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
@@ -634,6 +635,25 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
 export async function executeTurnIntent(intent, context) {
   let actions = Array.isArray(intent?.actions) ? intent.actions : [];
   if (actions.length === 0) return { records: [], facts: [], excluded: intent?.excluded || [] };
+
+  const expandedActions = [];
+  for (const action of actions) {
+    if (action.domain === 'task' && ['delete', 'complete'].includes(action.action) && action.target) {
+      const ordinals = extractMultipleOrdinals(action.target);
+      if (ordinals.length > 1) {
+        for (const ord of ordinals) {
+          expandedActions.push({
+            ...action,
+            target: ord,
+          });
+        }
+        continue;
+      }
+    }
+    expandedActions.push(action);
+  }
+  actions = expandedActions;
+
   if (actions.length > MAX_ACTIONS_PER_TURN) {
     const result = failedResult('TURN_ACTION_LIMIT', `El turno supera el límite de ${MAX_ACTIONS_PER_TURN} acciones.`, context.language);
     const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'intent_limit', language: context.language });

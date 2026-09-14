@@ -16,7 +16,7 @@ describe('Unified Agenda canonical WhatsApp presentation', () => {
     expect(card).toContain('🔒 No conectado');
     expect(card).toContain('🔔 *Recordatorios · 1*');
     expect(card).toContain('☑️ *Tareas · 1*');
-    expect(card).toContain('📁 *reminder*\n• Mejorar memoria');
+    expect(card).toContain('📁 *reminder*\n1. Mejorar memoria');
   });
 
   it('shows a connected empty calendar as a valid empty source, not as disconnected', () => {

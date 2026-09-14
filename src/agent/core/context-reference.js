@@ -23,7 +23,32 @@ export function parseStructuredOrdinal(reference) {
   const normalized = normalizeTextForMatching(raw);
   if (ORDINALS.has(raw)) return ORDINALS.get(raw);
   if (ORDINALS.has(normalized)) return ORDINALS.get(normalized);
+
+  const match = normalized.match(/^(?:a\s+)?(?:el|la|al|opcion|tarea|item|numero|#)\s*(\d+)$/i)
+    || normalized.match(/^#?(\d+)$/);
+  if (match) {
+    const num = Number.parseInt(match[1], 10);
+    if (num > 0 && num <= 100) return num;
+  }
+
   return null;
+}
+
+export function extractMultipleOrdinals(reference) {
+  const raw = String(reference || '').trim().toLowerCase();
+  if (!raw) return [];
+
+  const single = parseStructuredOrdinal(reference);
+  if (single !== null) return [String(single)];
+
+  const tokens = raw.split(/\s*(?:,|y|and|\be\b)\s*/i).map((t) => t.trim()).filter(Boolean);
+  if (tokens.length > 1) {
+    const parsed = tokens.map((token) => parseStructuredOrdinal(token));
+    if (parsed.every((val) => val !== null)) {
+      return parsed.map((p) => (p === -1 ? 'ultimo' : String(p)));
+    }
+  }
+  return [];
 }
 
 function shapeCandidate(candidate, index) {
