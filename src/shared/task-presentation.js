@@ -24,6 +24,24 @@ function getTaskTime(task, { timezone, language, isMultiDay }) {
   return task?.localTime || null;
 }
 
+export function countTaskNotes(task) {
+  const desc = task?.description || task?.notes || null;
+  if (!desc || typeof desc !== 'string') return 0;
+  const trimmed = desc.trim();
+  if (!trimmed) return 0;
+  const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean);
+  return lines.length > 0 ? lines.length : 1;
+}
+
+export function formatTaskNotesBadge(task, isEnglish = false) {
+  const count = countTaskNotes(task);
+  if (count <= 0) return '';
+  if (isEnglish) {
+    return count === 1 ? ' 📝 _(1 note)_' : ` 📝 _(${count} notes)_`;
+  }
+  return count === 1 ? ' 📝 _(1 nota)_' : ` 📝 _(${count} notas)_`;
+}
+
 /**
  * Canonical WhatsApp presentation for task collections.
  * Hierarchy is always Project -> tasks. Identity metadata is never rendered as
@@ -48,7 +66,8 @@ export function formatTaskProjectGroups(tasks = [], {
     const lines = projectTasks.map((task) => {
       const title = task?.title || task?.content || (language === 'en' ? 'Untitled task' : 'Tarea sin título');
       const time = getTaskTime(task, { timezone, language, isMultiDay });
-      return `• ${title}${time ? ` — ${time}` : ''}`;
+      const notesBadge = formatTaskNotesBadge(task, language === 'en');
+      return `• ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
     });
     return `${projectIcon} *${project}*\n${lines.join('\n')}`;
   }).join('\n\n');

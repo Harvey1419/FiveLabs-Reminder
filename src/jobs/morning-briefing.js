@@ -4,6 +4,7 @@ import { hasUsableGoogleCredentials, isGoogleAuthError } from '../integrations/g
 import { resolveCalendarTemporalScope } from '../shared/time.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../integrations/google/calendar.js';
 import { reconcileCalendarCompanionReminders } from '../features/calendar/reconciliation.js';
+import { formatTaskNotesBadge } from '../shared/task-presentation.js';
 
 const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
 
@@ -238,7 +239,8 @@ export function formatMorningBriefingMessage({
     const lines = tasksDueToday.map(t => {
       const time = t.localTime ? (isEnglish ? ` _(before ${t.localTime})_` : ` _(antes de las ${t.localTime})_`) : '';
       const entity = t.entityName ? ` [${t.entityName}]` : '';
-      return `• 🎯 *${isEnglish ? 'Due today' : 'Vence hoy'}${time}:* ${t.title || t.content}${entity}`;
+      const notesBadge = formatTaskNotesBadge(t, isEnglish);
+      return `• 🎯 *${isEnglish ? 'Due today' : 'Vence hoy'}${time}:* ${t.title || t.content}${entity}${notesBadge}`;
     });
     sections.push(
       isEnglish
@@ -255,7 +257,8 @@ export function formatMorningBriefingMessage({
       const tasks = openTasksByEntity[entityName];
       lines.push(`📁 *${entityName}:*`);
       for (const t of tasks) {
-        lines.push(`▫️ ${t.title || t.content}`);
+        const notesBadge = formatTaskNotesBadge(t, isEnglish);
+        lines.push(`▫️ ${t.title || t.content}${notesBadge}`);
       }
       lines.push('');
     }
@@ -265,7 +268,8 @@ export function formatMorningBriefingMessage({
         lines.push(isEnglish ? `📋 *Other pending tasks:*` : `📋 *Otros pendientes:*`);
       }
       for (const t of openTasksGeneral) {
-        lines.push(`▫️ ${t.title || t.content}`);
+        const notesBadge = formatTaskNotesBadge(t, isEnglish);
+        lines.push(`▫️ ${t.title || t.content}${notesBadge}`);
       }
     }
 

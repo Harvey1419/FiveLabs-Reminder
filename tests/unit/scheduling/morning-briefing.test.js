@@ -138,6 +138,42 @@ describe('Morning Briefing & Overview Domain Separation', () => {
     expect(text).not.toContain('Pagar nómina');
     expect(text).not.toContain('Diseñar arquitectura');
   });
+
+  it('renders compact notes badge instead of dumping raw task notes into briefing', () => {
+    const overview = {
+      timedRemindersToday: [],
+      tasksDueToday: [
+        {
+          id: 'task-1',
+          title: 'Configurar pasarela',
+          description: 'Esta es una nota larguísima que no debe inundar el mensaje\nSegunda línea de detalles',
+          entityName: 'Pagos',
+        },
+      ],
+      openTasksByEntity: {
+        'Productos Inteligentes': [
+          {
+            id: 'task-2',
+            title: 'Producto de Meta Ads',
+            description: 'Detalle de configuración de API y token de acceso',
+          },
+        ],
+      },
+      openTasksGeneral: [
+        {
+          id: 'task-3',
+          title: 'Comprar insumos',
+        },
+      ],
+    };
+
+    const msg = formatMorningBriefingMessage({ overview, timezone: 'America/Bogota' });
+    expect(msg).toContain('Configurar pasarela [Pagos] 📝 _(2 notas)_');
+    expect(msg).toContain('▫️ Producto de Meta Ads 📝 _(1 nota)_');
+    expect(msg).toContain('▫️ Comprar insumos');
+    expect(msg).not.toContain('Esta es una nota larguísima');
+    expect(msg).not.toContain('Detalle de configuración de API');
+  });
 });
 
 describe('Distributed Worker Idempotency (claimMorningBriefing)', () => {
