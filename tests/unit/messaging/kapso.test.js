@@ -386,4 +386,92 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
       }
     });
   });
+
+  describe('8. WhatsApp Interactive Flows', () => {
+    it('structures interactive flow payload with tasks data and draft mode correctly', async () => {
+      const { sendWhatsAppFlow } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.FLOW_TEST_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppFlow({
+          phoneNumber: '573046154163',
+          headerText: '📁 reminder',
+          bodyText: '📁 *reminder* · 2 tareas\n\n1. Comprar café\n2. Revisar informe',
+          buttonText: 'Completar tareas',
+          flowId: '1599560168243520',
+          flowToken: 'test_token_123',
+          screen: 'TASK_SELECTION',
+          flowData: {
+            tasks: [
+              { id: 't1', title: '1. Comprar café', description: '📝 Tostado medio' },
+              { id: 't2', title: '2. Revisar informe', description: '' },
+            ],
+          },
+          mode: 'draft',
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayload.type).toBe('interactive');
+        expect(capturedPayload.interactive.type).toBe('flow');
+        expect(capturedPayload.interactive.header.text).toBe('📁 reminder');
+        expect(capturedPayload.interactive.action.name).toBe('flow');
+        expect(capturedPayload.interactive.action.parameters.flow_id).toBe('1599560168243520');
+        expect(capturedPayload.interactive.action.parameters.flow_cta).toBe('Completar tareas');
+        expect(capturedPayload.interactive.action.parameters.mode).toBe('draft');
+        expect(capturedPayload.interactive.action.parameters.flow_action_payload.screen).toBe('TASK_SELECTION');
+        expect(capturedPayload.interactive.action.parameters.flow_action_payload.data.tasks).toHaveLength(2);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('falls back to sendWhatsAppText if Flow interactive payload is rejected by API', async () => {
+      const { sendWhatsAppFlow } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      const capturedPayloads = [];
+
+      global.fetch = async (url, options) => {
+        const body = JSON.parse(options.body);
+        capturedPayloads.push(body);
+        if (body.type === 'interactive') {
+          return {
+            ok: false,
+            status: 400,
+            text: async () => JSON.stringify({ error: { message: 'Flow not available' } }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.TEXT_FALLBACK_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppFlow({
+          phoneNumber: '573046154163',
+          bodyText: '📁 *reminder* · 1 tarea\n\n1. Comprar café',
+          buttonText: 'Completar tareas',
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayloads).toHaveLength(2);
+        expect(capturedPayloads[0].type).toBe('interactive');
+        expect(capturedPayloads[1].type).toBe('text');
+        expect(capturedPayloads[1].text.body).toBe('📁 *reminder* · 1 tarea\n\n1. Comprar café');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });

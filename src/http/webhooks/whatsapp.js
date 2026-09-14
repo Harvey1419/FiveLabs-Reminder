@@ -1,11 +1,12 @@
 import crypto from 'crypto';
 import { routeMessage } from '../../agent/orchestration/router.js';
-import { sendWhatsAppText, sendWhatsAppCtaUrl, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
+import { sendWhatsAppText, sendWhatsAppCtaUrl, sendWhatsAppFlow, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
 import {
   updateReminderDeliveryStatus,
   acknowledgeReminder,
+  acknowledgeRemindersByTaskId,
   updateReminder,
   updateTask,
 } from '../../infrastructure/database/index.js';
@@ -254,8 +255,77 @@ export async function handleWebhook(req, res) {
       let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
       const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
-      // Fast-path: WhatsApp Interactive Button Replies (Zero LLM Turn, Instant Execution)
+      // Fast-path: WhatsApp Interactive Button Replies & Flow Submissions (Zero LLM Turn, Instant Execution)
       const interactiveObj = message.interactive || body.message?.interactive || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.interactive;
+
+      // Handle WhatsApp Flow Completion (nfm_reply)
+      if (interactiveObj?.type === 'nfm_reply' || interactiveObj?.nfm_reply) {
+        const nfmReply = interactiveObj.nfm_reply || interactiveObj;
+        const rawResponse = nfmReply.response_json || nfmReply.responseJson || '{}';
+        let parsedData = {};
+        try {
+          parsedData = typeof rawResponse === 'string' ? JSON.parse(rawResponse) : (rawResponse || {});
+        } catch (e) {
+          console.warn(`[webhook fast-path req=${correlationId}] Failed to parse Flow response_json:`, e.message);
+        }
+
+        const rawSelected = parsedData.selected_ids || parsedData.selected_tasks || [];
+        const selectedIds = Array.isArray(rawSelected) ? rawSelected : (rawSelected ? [rawSelected] : []);
+
+        if (selectedIds.length > 0) {
+          const completedTasks = [];
+          for (const taskId of selectedIds) {
+            try {
+              const res = await updateTask(taskId, { status: 'completed' }, user.id);
+              if (res?.data || res?.id) {
+                const taskRecord = res.data || res;
+                completedTasks.push(taskRecord);
+                await acknowledgeRemindersByTaskId(taskRecord.id, user.id);
+              }
+            } catch (err) {
+              console.warn(`[webhook fast-path req=${correlationId}] Error completing task ${taskId} from flow:`, err.message);
+            }
+          }
+
+          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          let confirmText;
+          if (completedTasks.length === 0) {
+            confirmText = isEnglishUser
+              ? '⚠️ The selected tasks could not be updated or were already completed.'
+              : '⚠️ Las tareas seleccionadas no pudieron actualizarse o ya estaban completadas.';
+          } else if (completedTasks.length === 1) {
+            const t = completedTasks[0];
+            confirmText = isEnglishUser
+              ? `✅ *Task completed*\n\n• ${t.title || t.content || 'Task'}`
+              : `✅ *Tarea completada*\n\n• ${t.title || t.content || 'Tarea'}`;
+          } else {
+            const taskLines = completedTasks.map((t) => `• ${t.title || t.content || 'Tarea'}`).join('\n');
+            confirmText = isEnglishUser
+              ? `✅ *${completedTasks.length} tasks completed*\n\n${taskLines}`
+              : `✅ *${completedTasks.length} tareas completadas*\n\n${taskLines}`;
+          }
+
+          await sendWhatsAppText({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            text: confirmText,
+          });
+
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'assistant',
+            content: confirmText,
+            intent: 'task_complete_flow',
+            entities: { completedTaskIds: selectedIds },
+          });
+
+          console.log(`[webhook fast-path req=${correlationId}] Flow completed ${completedTasks.length}/${selectedIds.length} tasks in ${Date.now() - queueEnqueueTime}ms`);
+          return;
+        }
+      }
+
       const buttonReply = interactiveObj?.button_reply || message.button_reply;
       if (buttonReply?.id) {
         const buttonId = String(buttonReply.id || '').trim();
@@ -508,7 +578,24 @@ export async function handleWebhook(req, res) {
       let deliveryResult = null;
       if (result.confirmation) {
         const sendStart = Date.now();
-        if (result.ctaUrl) {
+        if (result.flow) {
+          const flowLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
+          deliveryResult = await sendWhatsAppFlow({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            headerText: result.flow.headerText || null,
+            bodyText: result.confirmation,
+            footerText: result.flow.footerText || null,
+            buttonText: result.flow.buttonText || (flowLanguage === 'en' ? 'Complete tasks' : 'Completar tareas'),
+            flowId: result.flow.flowId,
+            flowToken: result.flow.flowToken,
+            flowAction: result.flow.flowAction || 'navigate',
+            screen: result.flow.screen || 'TASK_SELECTION',
+            flowData: result.flow.data,
+            mode: result.flow.mode,
+          });
+        } else if (result.ctaUrl) {
           const ctaLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
           deliveryResult = await sendWhatsAppCtaUrl({
             phoneNumberId,

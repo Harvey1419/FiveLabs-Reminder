@@ -121,6 +121,7 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
+    flow: result?.flow || null,
     presentationData: result?.data ?? null,
     presentationParams: params && typeof params === 'object' ? { ...params } : {},
     presentationContext: getPresentationContext(result, language),

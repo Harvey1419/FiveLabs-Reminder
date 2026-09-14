@@ -340,6 +340,151 @@ export async function sendWhatsAppCtaUrl({
 }
 
 /**
+ * Send an interactive WhatsApp Flow message.
+ * Launches a native Flow screen (e.g. task selection) when tapped.
+ *
+ * @param {object} params
+ * @param {string} [params.phoneNumberId]
+ * @param {string|null} [params.phoneNumber]
+ * @param {string|null} [params.bsuid]
+ * @param {string|null} [params.headerText]
+ * @param {string} params.bodyText
+ * @param {string|null} [params.footerText]
+ * @param {string} [params.buttonText]
+ * @param {string} [params.flowId]
+ * @param {string} [params.flowToken]
+ * @param {string} [params.flowAction]
+ * @param {string} [params.screen]
+ * @param {object} [params.flowData]
+ * @param {'draft'|'published'} [params.mode]
+ * @returns {Promise<{success: boolean, messageId: string, data: any}>}
+ */
+export async function sendWhatsAppFlow({
+  phoneNumberId = null,
+  phoneNumber = null,
+  bsuid = null,
+  headerText = null,
+  bodyText,
+  footerText = 'Hermes TempleLabs',
+  buttonText = 'Completar tareas',
+  flowId = null,
+  flowToken = null,
+  flowAction = 'navigate',
+  screen = 'TASK_SELECTION',
+  flowData = {},
+  mode = null,
+}) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
+  }
+
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
+
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
+
+  if (!cleanPhone && !cleanBsuid) {
+    throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
+  }
+
+  const targetFlowId = String(
+    flowId || process.env.KAPSO_TASK_COMPLETION_FLOW_ID || '1599560168243520'
+  ).trim();
+  const targetMode = String(mode || process.env.KAPSO_FLOW_MODE || 'draft').trim();
+
+  const interactivePayload = {
+    type: 'flow',
+    body: { text: bodyText },
+    action: {
+      name: 'flow',
+      parameters: {
+        flow_message_version: '3',
+        flow_token: flowToken || `flow_${Date.now()}`,
+        flow_id: targetFlowId,
+        flow_cta: (buttonText || 'Completar tareas').slice(0, 20),
+        flow_action: flowAction,
+        flow_action_payload: {
+          screen,
+          data: flowData || {},
+        },
+        mode: targetMode,
+      },
+    },
+  };
+
+  if (headerText) {
+    interactivePayload.header = {
+      type: 'text',
+      text: headerText.slice(0, 60),
+    };
+  }
+
+  if (footerText) {
+    interactivePayload.footer = {
+      text: footerText.slice(0, 60),
+    };
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    type: 'interactive',
+    interactive: interactivePayload,
+  };
+
+  if (cleanPhone) {
+    payload.to = cleanPhone;
+  } else {
+    payload.recipient = cleanBsuid;
+  }
+
+  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const messageId = data.messages?.[0]?.id || 'unknown';
+      if (messageId && messageId !== 'unknown') {
+        markAsProcessed(messageId);
+      }
+      console.log(`[kapso] sent Flow button ok to=${cleanPhone || cleanBsuid} messageId=${messageId} flowId=${targetFlowId}`);
+      return { success: true, messageId, data };
+    }
+
+    const errText = await response.text();
+    console.warn(`[kapso] Flow interactive message rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: bodyText,
+    });
+  } catch (err) {
+    console.warn(`[kapso] Flow interactive message error: ${err.message}, falling back to text...`);
+    return await sendWhatsAppText({
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: bodyText,
+    });
+  }
+}
+
+
+/**
  * Send WhatsApp Interactive Quick Reply Buttons (up to 3 buttons).
  */
 export async function sendWhatsAppQuickReplyButtons({

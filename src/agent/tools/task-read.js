@@ -34,10 +34,38 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       };
     }
 
+    const flowId = process.env.KAPSO_TASK_COMPLETION_FLOW_ID || '1599560168243520';
+    let flow = null;
+    if (flowId && Array.isArray(data.tasks) && data.tasks.length > 0) {
+      const flowTasks = data.tasks.slice(0, 20).map((task, idx) => {
+        const title = String(task.title || task.content || (language === 'en' ? 'Untitled task' : 'Tarea sin título')).trim();
+        const shortTitle = title.length > 27 ? `${title.slice(0, 24)}...` : title;
+        const notes = String(task.description || task.notes || '').trim();
+        return {
+          id: String(task.id),
+          title: `${idx + 1}. ${shortTitle}`,
+          description: notes ? `📝 ${notes.slice(0, 60)}` : '',
+        };
+      });
+
+      flow = {
+        flowId,
+        buttonText: language === 'en' ? 'Complete tasks' : 'Completar tareas',
+        flowToken: `task_flow_${Date.now()}`,
+        flowAction: 'navigate',
+        screen: 'TASK_SELECTION',
+        mode: process.env.KAPSO_FLOW_MODE || 'draft',
+        data: {
+          tasks: flowTasks,
+        },
+      };
+    }
+
     return {
       success: true,
       action: 'listed_tasks',
       data,
+      flow,
       rawSummary: language === 'en' ? 'Tasks loaded.' : 'Tareas consultadas.',
     };
   } catch (error) {

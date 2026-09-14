@@ -705,6 +705,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const primary = execution.records[0] || null;
   const ctaFact = execution.facts.find((fact) => fact.ctaUrl) || null;
   const ctaRecord = execution.records.find(({ result }) => result?.ctaUrl || result?.data?.auth_url || result?.data?.checkout_url) || null;
+  const flowFact = execution.facts.find((fact) => fact.flow) || null;
+  const flowRecord = execution.records.find(({ result }) => result?.flow) || null;
 
   console.log(`[router req=${requestId}] action out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms tools=${toolElapsedMs}ms actions=${runtimeIntent.actions.length})`);
 
@@ -719,6 +721,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ctaUrl: ctaFact?.ctaUrl || ctaRecord?.result?.data?.auth_url || ctaRecord?.result?.data?.checkout_url || null,
     ctaHeader: ctaFact?.ctaHeader || null,
     ctaButtonText: ctaFact?.ctaButtonText || null,
+    flow: flowFact?.flow || flowRecord?.result?.flow || null,
     plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
     executionFacts: execution.facts,
     memoryDisposition: 'skip_operational',

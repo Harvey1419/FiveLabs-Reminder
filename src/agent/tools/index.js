@@ -109,7 +109,7 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
     }
 
     const rawSummary = result.confirmation || result.rawSummary || 'Operación completada.';
-    return { success: true, action: result.action || params?.action || 'executed', data: result.data, rawSummary, confirmation: rawSummary, ctaUrl: result.ctaUrl || null, ctaHeader: result.ctaHeader || null, ctaButtonText: result.ctaButtonText || null, requiresClarification: Boolean(result.requiresClarification), pendingClarifications: result.pendingClarifications || result.data?.pendingClarifications || [], partialSuccess: Boolean(result.partialSuccess), complete: result.complete !== false };
+    return { success: true, action: result.action || params?.action || 'executed', data: result.data, rawSummary, confirmation: rawSummary, ctaUrl: result.ctaUrl || null, ctaHeader: result.ctaHeader || null, ctaButtonText: result.ctaButtonText || null, flow: result.flow || null, requiresClarification: Boolean(result.requiresClarification), pendingClarifications: result.pendingClarifications || result.data?.pendingClarifications || [], partialSuccess: Boolean(result.partialSuccess), complete: result.complete !== false };
   } catch (err) {
     console.error(`${reqId} Unexpected exception in ${toolName}:`, err);
     return { success: false, action: 'error', errorCode: 'UNEXPECTED_EXCEPTION', error: err.message, rawSummary: err.message, confirmation: formatErrorCard('UNEXPECTED_EXCEPTION', null, language), complete: false };
