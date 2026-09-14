@@ -178,6 +178,19 @@ function normalizeProjectOperations(action) {
   return action;
 }
 
+function normalizeTaskEntityName(action, context) {
+  if (action.domain !== 'task' || !action.entityName) return action;
+  const target = String(action.entityName).trim();
+  const workingItem = resolveWorkingItem(context?.user, target, 'project');
+  if (workingItem) {
+    const resolvedName = workingItem.title || workingItem.name || workingItem.summary;
+    if (resolvedName) {
+      return { ...action, entityName: resolvedName };
+    }
+  }
+  return action;
+}
+
 /**
  * Add deterministic runtime context only. This layer never changes semantic
  * domain/action and never turns identity/context into patch content.
@@ -192,6 +205,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeRecurringReminder(action, context);
     action = normalizeEntityDelete(action);
     action = normalizeProjectOperations(action);
+    action = normalizeTaskEntityName(action, context);
     return action;
   });
   return { ...intent, actions };

@@ -56,21 +56,39 @@ export function formatCanonicalEntityList(entities = [], {
       : '🗂️ *Entidades registradas*\n\nNo tienes entidades registradas.';
   }
 
+  const isEn = language === 'en';
   const labels = categoryLabels(language);
-  const header = language === 'en'
+  const header = isEn
     ? (isProjectList ? '📁 *Your projects*' : '🗂️ *Your registered entities*')
     : (isProjectList ? '📁 *Tus proyectos*' : '🗂️ *Tus entidades registradas*');
-  const lines = safeEntities.map((entity) => {
-    const name = entity?.name || (language === 'en' ? 'Unnamed' : 'Sin nombre');
-    if (isProjectList) {
+
+  if (isProjectList) {
+    let globalIndex = 1;
+    const lines = safeEntities.map((entity) => {
+      const name = entity?.name || (isEn ? 'Unnamed' : 'Sin nombre');
       const hasCount = entity?.taskCount !== undefined || entity?.pendingTaskCount !== undefined;
+      let badge = '';
       if (hasCount) {
         const count = Number(entity?.taskCount ?? entity?.pendingTaskCount ?? 0);
-        const taskUnit = count === 1 ? (language === 'en' ? 'task' : 'tarea') : (language === 'en' ? 'tasks' : 'tareas');
-        return `• *${name}* (${count} ${taskUnit})`;
+        if (count > 0) {
+          const taskWord = count === 1 ? (isEn ? 'pending task' : 'tarea pendiente') : (isEn ? 'pending tasks' : 'tareas pendientes');
+          badge = ` · ${count} ${taskWord}`;
+        } else {
+          badge = isEn ? ' · _no pending tasks_' : ' · _sin tareas pendientes_';
+        }
       }
-      return `• *${name}*`;
-    }
+      return `${globalIndex++}. *${name}*${badge}`;
+    });
+
+    const tip = isEn
+      ? '\n\n💡 _Ask "tasks in [project]" or "view tasks for 1"._'
+      : '\n\n💡 _Pide "tareas de [proyecto]" o "ver tareas de la 1"._';
+
+    return `${header}\n\n${lines.join('\n')}${tip}`;
+  }
+
+  const lines = safeEntities.map((entity) => {
+    const name = entity?.name || (isEn ? 'Unnamed' : 'Sin nombre');
     return `• *${name}* — ${labels[entity?.category] || labels.other}`;
   });
   return `${header}\n\n${lines.join('\n')}`;

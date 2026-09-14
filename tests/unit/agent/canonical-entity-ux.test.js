@@ -20,8 +20,8 @@ describe('canonical entity UX', () => {
     });
 
     expect(fact.card).toContain('📁 *Tus proyectos*');
-    expect(fact.card).toContain('• *Reminder*');
-    expect(fact.card).toContain('• *Trabajo*');
+    expect(fact.card).toContain('1. *Reminder*');
+    expect(fact.card).toContain('2. *Trabajo*');
     expect(fact.card).not.toContain('legacy list card');
   });
 

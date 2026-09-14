@@ -26,9 +26,9 @@ describe('Project domain boundary and presentation', () => {
 
     const card = formatCanonicalEntityList(projects, { category: 'project', language: 'es' });
     expect(card).toContain('📁 *Tus proyectos*');
-    expect(card).toContain('• *Reforma baño*');
-    expect(card).toContain('• *Lista de compras*');
-    expect(card).toContain('• *reminder*');
+    expect(card).toContain('1. *Reforma baño*');
+    expect(card).toContain('2. *Lista de compras*');
+    expect(card).toContain('3. *reminder*');
     expect(card).not.toContain('— proyecto');
     expect(card).not.toContain('Tus entidades registradas');
   });
@@ -66,8 +66,8 @@ describe('Project domain boundary and presentation', () => {
 
     const fact = result.facts[0];
     expect(fact.card).toContain('📁 *Tus proyectos*');
-    expect(fact.card).toContain('• *Reforma baño*');
-    expect(fact.card).toContain('• *Yax*');
+    expect(fact.card).toContain('1. *Reforma baño*');
+    expect(fact.card).toContain('2. *Yax*');
   });
 
   it('batches multiple contiguous project.delete actions into a single manage_project call with targetNames', async () => {
@@ -159,14 +159,14 @@ describe('Project domain boundary and presentation', () => {
     ];
 
     const cardEs = formatCanonicalEntityList(projects, { category: 'project', language: 'es' });
-    expect(cardEs).toContain('• *Apartamento* (0 tareas)');
-    expect(cardEs).toContain('• *reminder* (2 tareas)');
-    expect(cardEs).toContain('• *Reforma baño* (1 tarea)');
+    expect(cardEs).toContain('1. *Apartamento* · _sin tareas pendientes_');
+    expect(cardEs).toContain('2. *reminder* · 2 tareas pendientes');
+    expect(cardEs).toContain('3. *Reforma baño* · 1 tarea pendiente');
 
     const cardEn = formatCanonicalEntityList(projects, { category: 'project', language: 'en' });
-    expect(cardEn).toContain('• *Apartamento* (0 tasks)');
-    expect(cardEn).toContain('• *reminder* (2 tasks)');
-    expect(cardEn).toContain('• *Reforma baño* (1 task)');
+    expect(cardEn).toContain('1. *Apartamento* · _no pending tasks_');
+    expect(cardEn).toContain('2. *reminder* · 2 pending tasks');
+    expect(cardEn).toContain('3. *Reforma baño* · 1 pending task');
   });
 
   it('formats project-scoped task list card with clean unified header and numbered items', () => {

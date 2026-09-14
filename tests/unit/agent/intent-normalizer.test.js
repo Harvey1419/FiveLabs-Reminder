@@ -146,5 +146,27 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[0].scope).toBeUndefined();
     expect(normalized.actions[0].target).toBe('todos los proyectos');
   });
+
+  it('resolves ordinal task entityName references against active projects in working memory', () => {
+    saveWorkingMemory(user, {
+      entityType: 'project',
+      items: [
+        { position: 1, name: 'Reforma baño', type: 'project', internalId: 'p1' },
+        { position: 2, name: 'reminder', type: 'project', internalId: 'p2' },
+      ],
+    });
+
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'la 1',
+        scope: 'all_pending',
+      }],
+    }, context);
+
+    expect(normalized.actions[0].entityName).toBe('Reforma baño');
+    clearWorkingMemory(user);
+  });
 });
 

@@ -31,6 +31,7 @@ import {
 } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
+import { sanitizeUserQueryText, detectInventoryQuery } from './inventory-query.js';
 import {
   getActiveAgentRun,
   executeApprovalDecision,
@@ -308,6 +309,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const trustedMessageText = String(messageText || '')
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
     .trim();
+  const sanitizedUserText = sanitizeUserQueryText(trustedMessageText);
   const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(String(messageText || ''));
   const isAttachmentOnlyTurn = options?.attachmentOnly === true || (hasAttachmentEvidence && !trustedMessageText);
 
@@ -356,7 +358,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   let rawPastTurns = Array.isArray(history) ? history.slice() : [];
   const lastTurn = rawPastTurns.at(-1);
-  if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText)) rawPastTurns.pop();
+  if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText || lastTurn.content === sanitizedUserText)) rawPastTurns.pop();
   const pastTurns = compactHistoryForModel(rawPastTurns);
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
   const historyChars = pastTurns.reduce((sum, turn) => sum + turn.content.length, 0);
@@ -364,7 +366,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const messages = [
     { role: 'system', content: prompt },
     ...pastTurns,
-    { role: 'user', content: messageText },
+    { role: 'user', content: sanitizedUserText || messageText },
   ];
 
   const activeAgentRun = await getActiveAgentRun(phoneNumber || user, requestReferenceTime);
@@ -376,7 +378,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     const runMessages = [
       { role: 'system', content: `${prompt}\n\n${runPrompt}` },
       ...pastTurns,
-      { role: 'user', content: messageText },
+      { role: 'user', content: sanitizedUserText || messageText },
     ];
 
     let runModelResponse = null;
@@ -566,6 +568,14 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let collected = structuredDecision.unavailable ? { valid: true, intent: null } : structuredDecision.validation;
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
 
+  if (!isAttachmentOnlyTurn && (!collected.valid || !collected.intent)) {
+    const fallbackAction = detectInventoryQuery(sanitizedUserText || messageText);
+    if (fallbackAction) {
+      console.log(`[router req=${requestId}] Recovered inventory query from invalid model intent: ${summarizeAction(fallbackAction)}`);
+      collected = { valid: true, intent: { actions: [fallbackAction] } };
+    }
+  }
+
   if (!collected.valid) {
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
     return {
@@ -617,7 +627,24 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 
   const conversationReply = conversationReplyFromActions(runtimeIntent.actions);
-  const operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
+  let operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
+  let inventoryIntercepted = false;
+
+  if (operationalActions.length === 0) {
+    const interceptedAction = detectInventoryQuery(sanitizedUserText || messageText);
+    if (interceptedAction) {
+      console.log(`[router req=${requestId}] Intercepted inventory query from conversation reply: ${summarizeAction(interceptedAction)}`);
+      runtimeIntent.actions = [interceptedAction];
+      const normalizedIntercepted = normalizeTurnIntentForRuntime(runtimeIntent, {
+        user,
+        referenceTime: requestReferenceTime,
+        timezone,
+      });
+      runtimeIntent.actions = normalizedIntercepted.actions;
+      operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
+      inventoryIntercepted = true;
+    }
+  }
 
   if (operationalActions.length === 0) {
     let confirmation = conversationReply || structuredDecisionError(language);
@@ -682,7 +709,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     );
   });
 
-  let framing = conversationReply ? { before: conversationReply, after: '' } : null;
+  const baseFraming = (!inventoryIntercepted && conversationReply) ? conversationReply : null;
+  let framing = baseFraming ? { before: baseFraming, after: '' } : null;
   if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
     const excludedFraming = await callResponseSynthesis({
@@ -693,7 +721,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       correlationId: options?.correlationId,
     });
     modelElapsedMs += Date.now() - synthesisStart;
-    const before = [conversationReply, excludedFraming?.before].filter(Boolean).join('\n\n');
+    const before = [baseFraming, excludedFraming?.before].filter(Boolean).join('\n\n');
     framing = before ? { before, after: '' } : null;
   }
 

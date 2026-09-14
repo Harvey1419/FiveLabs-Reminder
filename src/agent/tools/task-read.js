@@ -34,7 +34,8 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       };
     }
 
-    const flowId = process.env.KAPSO_TASK_COMPLETION_FLOW_ID || '1599560168243520';
+    const enableFlow = process.env.ENABLE_WHATSAPP_FLOWS === 'true';
+    const flowId = enableFlow ? (process.env.KAPSO_TASK_COMPLETION_FLOW_ID || '1599560168243520') : null;
     let flow = null;
     if (flowId && Array.isArray(data.tasks) && data.tasks.length > 0) {
       const flowTasks = data.tasks.slice(0, 20).map((task, idx) => {

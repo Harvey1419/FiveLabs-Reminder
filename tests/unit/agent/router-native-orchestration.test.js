@@ -416,4 +416,40 @@ describe('Hermes direct TurnIntent router', () => {
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
+
+  it('intercepts task inventory queries when model outputs conversation reply to prevent hallucinations', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{
+        domain: 'conversation',
+        action: 'reply',
+        content: 'En reminder te queda 1 tarea: Mejorar la memoria.',
+      }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      action: 'listed_tasks',
+      rawSummary: 'Tareas consultadas.',
+      data: {
+        tasks: [
+          { id: 't1', content: 'enumerar tareas en vez de por lista con punto' },
+          { id: 't2', content: 'Gestionar mejor los proyectos' },
+          { id: 't3', content: 'Mejorar la gestión de la memoria' },
+        ],
+        entityName: 'reminder',
+        scope: 'all_pending',
+      },
+    });
+
+    const result = await routeMessage('"qué tareas tengo en reminder', user, []);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({ action: 'list', entityName: 'reminder', scope: 'all_pending' }),
+    }));
+    expect(result.confirmation).toContain('*reminder*');
+    expect(result.confirmation).toContain('1. enumerar tareas en vez de por lista con punto');
+    expect(result.confirmation).toContain('2. Gestionar mejor los proyectos');
+    expect(result.confirmation).toContain('3. Mejorar la gestión de la memoria');
+    expect(result.confirmation).not.toContain('te queda 1 tarea');
+  });
 });

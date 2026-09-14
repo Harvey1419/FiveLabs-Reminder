@@ -580,21 +580,31 @@ export async function handleWebhook(req, res) {
         const sendStart = Date.now();
         if (result.flow) {
           const flowLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
-          deliveryResult = await sendWhatsAppFlow({
-            phoneNumberId,
-            phoneNumber,
-            bsuid,
-            headerText: result.flow.headerText || null,
-            bodyText: result.confirmation,
-            footerText: result.flow.footerText || null,
-            buttonText: result.flow.buttonText || (flowLanguage === 'en' ? 'Complete tasks' : 'Completar tareas'),
-            flowId: result.flow.flowId,
-            flowToken: result.flow.flowToken,
-            flowAction: result.flow.flowAction || 'navigate',
-            screen: result.flow.screen || 'TASK_SELECTION',
-            flowData: result.flow.data,
-            mode: result.flow.mode,
-          });
+          try {
+            deliveryResult = await sendWhatsAppFlow({
+              phoneNumberId,
+              phoneNumber,
+              bsuid,
+              headerText: result.flow.headerText || null,
+              bodyText: result.confirmation,
+              footerText: result.flow.footerText || null,
+              buttonText: result.flow.buttonText || (flowLanguage === 'en' ? 'Complete tasks' : 'Completar tareas'),
+              flowId: result.flow.flowId,
+              flowToken: result.flow.flowToken,
+              flowAction: result.flow.flowAction || 'navigate',
+              screen: result.flow.screen || 'TASK_SELECTION',
+              flowData: result.flow.data,
+              mode: result.flow.mode,
+            });
+          } catch (flowError) {
+            console.warn(`[webhook req=${correlationId}] Flow dispatch failed, falling back to text message:`, flowError.message);
+            deliveryResult = await sendWhatsAppText({
+              phoneNumberId,
+              phoneNumber,
+              bsuid,
+              text: result.confirmation,
+            });
+          }
         } else if (result.ctaUrl) {
           const ctaLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
           deliveryResult = await sendWhatsAppCtaUrl({
