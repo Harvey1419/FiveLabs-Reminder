@@ -118,7 +118,7 @@ export async function findOrCreateProjectFuzzy({
       const selected = selectProjectCandidate(existingList, cleanName, { threshold });
       if (selected.status === 'RESOLVED') {
         const bestMatch = selected.project;
-        const merged = mergeMetadata(bestMatch.metadata, metadata);
+        let projectRecord = bestMatch;
         if (metadata && Object.keys(metadata).length > 0) {
           const { data: updated } = await supabase
             .from('projects')
@@ -126,15 +126,48 @@ export async function findOrCreateProjectFuzzy({
             .eq('id', bestMatch.id)
             .select('*')
             .single();
-          return updated || bestMatch;
+          projectRecord = updated || bestMatch;
         }
-        return bestMatch;
+
+        // Sync to entities table for backward compatibility
+        try {
+          await supabase.from('entities').upsert({
+            id: projectRecord.id,
+            user_id: userId,
+            name: projectRecord.name,
+            category: 'project',
+            metadata: projectRecord.metadata || {},
+          }, { onConflict: 'user_id, name, category' });
+        } catch {
+          // Ignore
+        }
+
+        return projectRecord;
       }
+    }
+
+    // Check if an existing entity with category 'project' already has this name
+    // so we can preserve its UUID when creating the project record!
+    let preferredId = null;
+    try {
+      const { data: existingEntity } = await supabase
+        .from('entities')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('category', 'project')
+        .ilike('name', cleanName)
+        .limit(1);
+      if (existingEntity && existingEntity[0]?.id) {
+        preferredId = existingEntity[0].id;
+      }
+    } catch {
+      // Non-fatal fallback
     }
 
     const { data: created, error: createErr } = await supabase
       .from('projects')
       .insert({
+        ...(preferredId ? { id: preferredId } : {}),
         user_id: userId,
         name: cleanName,
         description,

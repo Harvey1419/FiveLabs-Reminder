@@ -350,7 +350,35 @@ export async function findOrCreateEntityFuzzy({
             .eq('user_id', userId)
             .select()
             .single();
-          return updated || { ...bestMatch, ...updates };
+          const resEntity = updated || { ...bestMatch, ...updates };
+          if (resEntity.category === 'project') {
+            try {
+              await supabase.from('projects').upsert({
+                id: resEntity.id,
+                user_id: userId,
+                name: resEntity.name,
+                metadata: resEntity.metadata || {},
+                status: 'active',
+              }, { onConflict: 'user_id, name' });
+            } catch {
+              // Non-fatal
+            }
+          }
+          return resEntity;
+        }
+
+        if (bestMatch.category === 'project') {
+          try {
+            await supabase.from('projects').upsert({
+              id: bestMatch.id,
+              user_id: userId,
+              name: bestMatch.name,
+              metadata: bestMatch.metadata || {},
+              status: 'active',
+            }, { onConflict: 'user_id, name' });
+          } catch {
+            // Non-fatal
+          }
         }
         return bestMatch;
       }
@@ -377,7 +405,35 @@ export async function findOrCreateEntityFuzzy({
         .eq('name', cleanName)
         .maybeSingle();
 
+      if (fallback?.id && fallback.category === 'project') {
+        try {
+          await supabase.from('projects').upsert({
+            id: fallback.id,
+            user_id: userId,
+            name: fallback.name,
+            metadata: fallback.metadata || {},
+            status: 'active',
+          }, { onConflict: 'user_id, name' });
+        } catch {
+          // Non-fatal
+        }
+      }
+
       return fallback || null;
+    }
+
+    if (created?.id && category === 'project') {
+      try {
+        await supabase.from('projects').upsert({
+          id: created.id,
+          user_id: userId,
+          name: created.name,
+          metadata: created.metadata || {},
+          status: 'active',
+        }, { onConflict: 'user_id, name' });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return created;

@@ -30,6 +30,7 @@ export async function createTask({
   priority = 'medium',
   dueDate = null,
   entityId = null,
+  projectId = null,
 }) {
   if (!userId) {
     return { data: null, error: { code: 'INVALID_PARAMETERS', message: 'Missing userId', source: 'validation' } };
@@ -81,6 +82,23 @@ export async function createTask({
       return { ...existing[0], data: existing[0], error: null };
     }
 
+    let resolvedProjectId = projectId || null;
+    if (!resolvedProjectId && entityId) {
+      try {
+        const { data: validProject } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('id', entityId)
+          .maybeSingle();
+        if (validProject?.id) {
+          resolvedProjectId = validProject.id;
+        }
+      } catch {
+        resolvedProjectId = null;
+      }
+    }
+
     const payload = {
       user_id: userId,
       title: cleanTitle,
@@ -88,7 +106,7 @@ export async function createTask({
       priority: normalizedPriority,
       status: 'pending',
       entity_id: entityId || null,
-      project_id: entityId || null,
+      project_id: resolvedProjectId,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
     };
 
@@ -166,6 +184,7 @@ export async function createTasksBatch({ userId, items = [] }) {
 
       const isoDueDate = item?.dueDate ? new Date(item.dueDate).toISOString() : null;
       const entityId = item?.entityId || null;
+      const candidateProjectId = item?.projectId || (item?.entityCategory === 'project' ? entityId : null);
       const identity = taskPersistenceIdentity(cleanTitle, entityId, isoDueDate);
       prepared.push({
         identity,
@@ -176,7 +195,7 @@ export async function createTasksBatch({ userId, items = [] }) {
           priority: normalizedPriority,
           status: 'pending',
           entity_id: entityId,
-          project_id: entityId || null,
+          project_id: candidateProjectId || null,
           due_date: isoDueDate,
         },
       });
@@ -185,6 +204,39 @@ export async function createTasksBatch({ userId, items = [] }) {
     const uniquePrepared = Array.from(
       new Map(prepared.map((item) => [item.identity, item])).values(),
     );
+
+    // Validate which projectIds actually exist in `projects` table to guarantee foreign key integrity
+    const candidateProjectIds = Array.from(new Set(
+      uniquePrepared.map((item) => item.payload.project_id).filter(Boolean)
+    ));
+
+    if (candidateProjectIds.length > 0) {
+      try {
+        let projectsQ = supabase
+          .from('projects')
+          .select('id')
+          .eq('user_id', userId);
+
+        if (typeof projectsQ.in === 'function') {
+          projectsQ = projectsQ.in('id', candidateProjectIds);
+        }
+        if (typeof projectsQ.limit === 'function') {
+          projectsQ = projectsQ.limit(candidateProjectIds.length);
+        }
+        const res = await projectsQ;
+        if (res && Array.isArray(res.data)) {
+          const validSet = new Set(res.data.map((p) => p.id));
+          for (const item of uniquePrepared) {
+            if (item.payload.project_id && !validSet.has(item.payload.project_id)) {
+              item.payload.project_id = null;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[tasks] could not verify candidate projects:', err.message);
+      }
+    }
+
     const persistedByIdentity = new Map();
     const toInsert = [];
 

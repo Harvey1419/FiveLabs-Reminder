@@ -1,12 +1,14 @@
 import {
   createTasksBatch,
   findOrCreateEntityFuzzy,
+  findOrCreateProjectFuzzy,
   inspectOwnedEntityReferences,
   saveReminder,
 } from '../../infrastructure/database/index.js';
 import { getReminderConfirmationPreference } from '../../infrastructure/database/memories.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
+import { formatErrorCard } from './formatters.js';
 
 /** Canonical task creation mutation. Natural-language interpretation belongs
  * upstream; this module only validates and persists structured task data. */
@@ -128,11 +130,15 @@ export async function executeTaskCreate({
 
     let entityId = null;
     let resolvedEntityName = null;
+    let projectId = null;
     if (entityName) {
       const identity = `${entityCategory}\u0000${String(entityName).trim().toLocaleLowerCase()}`;
       const entity = resolvedContainers.get(identity);
       entityId = entity.id;
       resolvedEntityName = entity.name;
+      if (entityCategory === 'project') {
+        projectId = entity.id;
+      }
     }
 
     let parsedDueDate = null;
@@ -144,6 +150,8 @@ export async function executeTaskCreate({
       priority: normalizedPriority,
       dueDate: parsedDueDate ? parsedDueDate.toISOString() : null,
       entityId,
+      projectId,
+      entityCategory,
       entityName: resolvedEntityName || entityName,
       scheduleReminder,
     });
@@ -161,12 +169,23 @@ export async function executeTaskCreate({
     };
     const isConstraint = failure.code === 'DATABASE_CONSTRAINT_ERROR' || failure.code === '23514';
     const isValidation = failure.code === 'INVALID_PARAMETERS';
+    const userFacingError = isValidation
+      ? (failure.message || 'Parámetros inválidos para crear la tarea.')
+      : (language === 'en'
+        ? 'Could not save tasks due to a database issue.'
+        : 'No se pudieron registrar las tareas por un inconveniente en el sistema.');
+
     return {
       success: false,
       action: isValidation ? 'invalid_parameters' : (isConstraint ? 'database_constraint_error' : 'database_error'),
       errorCode: isValidation ? 'INVALID_PARAMETERS' : (isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : 'DATABASE_ERROR'),
-      error: failure.message || 'Error de base de datos al registrar las tareas.',
-      rawSummary: failure.message || 'Error de base de datos.',
+      error: failure.technicalMessage || failure.message || userFacingError,
+      rawSummary: userFacingError,
+      formattedCard: formatErrorCard(
+        isValidation ? 'INVALID_PARAMETERS' : (isConstraint ? 'DATABASE_CONSTRAINT_ERROR' : 'DATABASE_ERROR'),
+        userFacingError,
+        language
+      ),
     };
   }
 

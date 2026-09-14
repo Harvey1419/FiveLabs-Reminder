@@ -39,16 +39,22 @@ function sanitizeCalendarParams(action, params) {
 }
 
 /** Canonical deterministic domain router. Reads and mutations have one explicit execution path each. */
-export async function executeTool({
-  toolName,
-  params = {},
-  user = null,
-  isPro: requestedIsPro,
-  language: requestedLanguage,
-  correlationId = null,
-  referenceTime = null,
-  clarificationResolution = false,
-} = {}) {
+export async function executeTool(firstArg, secondArg, thirdArg) {
+  const options = (typeof firstArg === 'string')
+    ? { toolName: firstArg, params: secondArg, user: thirdArg }
+    : (firstArg || {});
+
+  const {
+    toolName,
+    params = {},
+    user = null,
+    isPro: requestedIsPro,
+    language: requestedLanguage,
+    correlationId = null,
+    referenceTime = null,
+    clarificationResolution = false,
+  } = options;
+
   const isPro = requestedIsPro ?? (user?.isPro || false);
   const language = requestedLanguage || (user?.locale?.startsWith('en') ? 'en' : 'es');
   const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';

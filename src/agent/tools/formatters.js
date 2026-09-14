@@ -501,5 +501,13 @@ export function formatMemoryListCard(memories, language = 'es') {
 }
 
 export function formatErrorCard(errorCode, userMessage, language = 'es') {
-  return `⚠️ ${userMessage || (language === 'en' ? 'An error occurred while processing your request.' : 'Ocurrió un inconveniente al procesar tu solicitud.')}`;
+  const isTechnical = typeof userMessage === 'string' && (
+    /violates .* constraint|check constraint|relation .* does not exist|syntax error|column .* does not exist|duplicate key|foreign key|null value in column/i.test(userMessage)
+  );
+
+  const cleanMessage = isTechnical
+    ? (language === 'en' ? 'An unexpected error occurred while processing your request. Please try again.' : 'Ocurrió un inconveniente al guardar los datos. Por favor intenta nuevamente.')
+    : (userMessage || (language === 'en' ? 'An error occurred while processing your request.' : 'Ocurrió un inconveniente al procesar tu solicitud.'));
+
+  return `⚠️ ${cleanMessage}`;
 }

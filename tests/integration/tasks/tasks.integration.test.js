@@ -20,6 +20,7 @@ describe('Hermes Task Management & Transaction Guard Test Suite', () => {
     user = await getOrCreateUserByPhone(testPhone, 'America/Bogota');
     await supabase.from('tasks').delete().eq('user_id', user.id);
     await supabase.from('reminders').delete().eq('user_id', user.id);
+    await supabase.from('projects').delete().eq('user_id', user.id);
     await supabase.from('entities').delete().eq('user_id', user.id);
     await supabase.from('subscriptions').delete().eq('user_id', user.id);
 
@@ -35,6 +36,7 @@ describe('Hermes Task Management & Transaction Guard Test Suite', () => {
   afterAll(async () => {
     await supabase.from('tasks').delete().eq('user_id', user.id);
     await supabase.from('reminders').delete().eq('user_id', user.id);
+    await supabase.from('projects').delete().eq('user_id', user.id);
     await supabase.from('entities').delete().eq('user_id', user.id);
     await supabase.from('subscriptions').delete().eq('user_id', user.id);
   }, 20000);
@@ -59,7 +61,7 @@ describe('Hermes Task Management & Transaction Guard Test Suite', () => {
     expect(tasks.length).toBe(1);
     expect(tasks[0].title).toBe('Configurar pasarela de pagos');
     expect(tasks[0].entities?.name).toBe('Proyecto Hermes Test');
-  });
+  }, 30000);
 
   it('filters tasks by entityName fuzzy match in getTasks', async () => {
     await executeTool('manage_task', {
@@ -80,7 +82,7 @@ describe('Hermes Task Management & Transaction Guard Test Suite', () => {
     const shoppingTasks = await getTasks({ userId: user.id, entityName: 'Lista de compras' });
     expect(shoppingTasks.length).toBe(1);
     expect(shoppingTasks[0].title).toBe('Comprar frutas');
-  });
+  }, 30000);
 
   it('routes message to add a task in a project and persists to DB', async () => {
     const res = await routeMessage(

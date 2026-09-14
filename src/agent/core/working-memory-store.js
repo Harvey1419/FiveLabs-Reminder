@@ -232,6 +232,8 @@ export function sanitizeResponseText(text) {
   cleaned = cleaned.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
   cleaned = cleaned.replace(/\bhermes[0-9a-f]{10,}\b/gi, '');
   cleaned = cleaned.replace(/\[\s*\]/g, '');
+  cleaned = cleaned.replace(/insert or update on table [^]+ violates foreign key constraint [^\n.]+/gi, 'Ocurrió un inconveniente al guardar los datos.');
+  cleaned = cleaned.replace(/new row for relation [^]+ violates check constraint [^\n.]+/gi, 'Los datos no cumplen las restricciones del sistema.');
   cleaned = cleaned
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
