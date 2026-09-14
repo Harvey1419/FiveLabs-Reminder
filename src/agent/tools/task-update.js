@@ -100,9 +100,13 @@ export async function executeTaskUpdate({
   const priority = updatesObj.priority !== undefined ? updatesObj.priority : params.priority;
   const status = updatesObj.status !== undefined ? updatesObj.status : params.status;
   const dueDate = updatesObj.dueDate !== undefined ? updatesObj.dueDate : params.dueDate;
+  const description = updatesObj.description !== undefined ? updatesObj.description : params.description;
   const updates = {};
 
   if (title) updates.title = String(title).trim();
+  if (description !== undefined) {
+    updates.description = description ? String(description).trim() : null;
+  }
   if (priority) {
     const normalizedPriority = normalizeTaskPriority(priority);
     if (!normalizedPriority) {

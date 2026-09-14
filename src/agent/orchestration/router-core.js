@@ -351,7 +351,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   const prompt = buildAgentCorePrompt({
     nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
-    workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name,
+    workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
   });
 
   let rawPastTurns = Array.isArray(history) ? history.slice() : [];
