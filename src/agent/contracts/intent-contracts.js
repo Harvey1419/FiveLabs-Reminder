@@ -96,16 +96,16 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, ownership, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). El significado explícito actual domina; contexto previo solo resuelve referencias. No expongas IDs internos.
-conversation.reply es no operativo y no afirma lecturas ni mutaciones. agenda.read es inventario vivo multi-dominio; para recordatorios usa reminder.list. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
-LÍMITE ESTRICTO ENTRE CREACIÓN Y EDICIÓN (CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY): crear no lleva target; actualizar/cancelar/completar/eliminar requieren target humano existente y solo los deltas pedidos. Un valor a cambiar nunca es identidad.
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). El significado explícito actual domina; contexto previo solo resuelve referencias. No expongas IDs internos.
+conversation.reply es no operativo y no afirma lecturas ni mutaciones. agenda.read es inventario multi-dominio; recordatorios usa reminder.list. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
+LÍMITE ESTRICTO ENTRE CREACIÓN Y EDICIÓN (CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY): crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente y solo los deltas pedidos. Un valor a cambiar nunca es identidad.
 Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
-PROYECTOS Y TAREAS: proyectos usan project (o entity con category="project") + task.create por elemento. Listar usa project.list (o entity.list category="project"). Borrar usa project.delete(target="Nombre"). Notas o detalles en task.update usan description; NUNCA uses title para notas (title o newName es solo para renombrar). Para múltiples tareas u ordinales (ej. 'elimina la 1 y la 3'), emite una acción por elemento (task.delete target="1", target="3").
-CALENDARIO: Consultas usan calendar.list (o calendar.next/search); citas calendar.create (advanceMinutes=30); vincular/desvincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
+PROYECTOS Y TAREAS: proyectos usan project (o entity con category="project") + task.create por elemento. Listar proyectos usa project.list. Borrar usa project.delete(target="Nombre"). Consultar tareas (ej. 'que tareas tengo en reminder') EXIGE task.list (con entityName="reminder" si aplica); NUNCA listes tareas en conversation.reply ni inventes conteos. Notas o detalles en task.update usan description; NUNCA uses title para notas (title o newName es solo para renombrar). Para múltiples tareas u ordinales (ej. 'elimina la 1 y la 3'), emite una acción por elemento (task.delete target="1", target="3").
+CALENDARIO: Consultas usan calendar.list/next/search; citas calendar.create (advanceMinutes=30); vincular/desvincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 PREGUNTAS: Preguntas JAMÁS autorizan mutaciones. Consultas de estado se responden con conversation.reply o lecturas vivas, NUNCA con mutaciones.
-Significado temporal tipado (Temporal meaning must remain typed): relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona aritmética de fechas/zonas horarias.
+Significado temporal tipado (Temporal meaning must remain typed): relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas y husos.
 Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
-Mantén recurrencia y advanceMinutes en su recordatorio/evento. Afirmaciones personales duraderas usan conversation.reply más aprendizaje pasivo; memory.save solo ante petición explícita.
+Mantén recurrencia y advanceMinutes en su recordatorio/evento. Datos personales usan conversation.reply y aprendizaje pasivo; memory.save solo ante petición explícita.
 Para mensajes mixtos emite acciones válidas, cláusulas no ejecutables en excluded, y no dupliques cards verificadas en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {

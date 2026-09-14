@@ -1,5 +1,5 @@
 import { formatHumanFriendlyDateTime } from './time.js';
-import { formatTaskProjectGroups } from './task-presentation.js';
+import { formatTaskProjectGroups, getTaskTime, formatTaskNotesBadge } from './task-presentation.js';
 import { isAllPendingScope, normalizeAgendaScope, normalizeTaskScope } from './agenda-scopes.js';
 
 function scopeLabel(scope, language) {
@@ -53,11 +53,24 @@ export function formatCanonicalTaskList(data = {}, {
       : `☑️ *Tareas para ${scopeLabel(scope, language)}*\n\nNo tienes tareas en este período.`;
   }
 
+  if (projectName) {
+    const isEn = language === 'en';
+    const taskWord = tasks.length === 1 ? (isEn ? 'task' : 'tarea') : (isEn ? 'tasks' : 'tareas');
+    const header = `📁 *${projectName}* · ${tasks.length} ${taskWord}`;
+    let globalIndex = 1;
+    const lines = tasks.map((task) => {
+      const title = task?.title || task?.content || (isEn ? 'Untitled task' : 'Tarea sin título');
+      const time = getTaskTime(task, { timezone, language, isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope) });
+      const notesBadge = formatTaskNotesBadge(task, isEn);
+      return `${globalIndex++}. ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
+    });
+    return `${header}\n\n${lines.join('\n')}`;
+  }
+
   const groups = formatTaskProjectGroups(tasks, {
     language,
     timezone,
     isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
-    projectName,
     numbered: true,
   });
 

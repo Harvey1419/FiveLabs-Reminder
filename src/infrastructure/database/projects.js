@@ -277,6 +277,31 @@ export async function findProjects({
       // Non-fatal fallback
     }
 
+    try {
+      const { data: pendingTasks } = await supabase
+        .from('tasks')
+        .select('project_id, entity_id')
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+      const countsById = new Map();
+      if (pendingTasks && Array.isArray(pendingTasks)) {
+        for (const t of pendingTasks) {
+          const containerId = t.project_id || t.entity_id;
+          if (containerId) {
+            countsById.set(containerId, (countsById.get(containerId) || 0) + 1);
+          }
+        }
+      }
+      for (const p of projectItems) {
+        p.taskCount = countsById.get(p.id) || 0;
+      }
+    } catch {
+      for (const p of projectItems) {
+        if (p.taskCount === undefined) p.taskCount = 0;
+      }
+    }
+
     return projectItems;
   } catch (err) {
     console.error('[projects] findProjects threw:', err);

@@ -9,6 +9,7 @@ import { executeTurnIntent } from '../../../src/agent/orchestration/intent-execu
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
 import { validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { formatCanonicalEntityList, formatCanonicalEntityDelete } from '../../../src/shared/entity-presentation.js';
+import { formatCanonicalTaskList } from '../../../src/shared/agenda-presentation.js';
 import { selectProjectsForDeletion } from '../../../src/infrastructure/database/projects.js';
 
 describe('Project domain boundary and presentation', () => {
@@ -148,5 +149,38 @@ describe('Project domain boundary and presentation', () => {
     expect(card).toContain('• Chicamocha');
     expect(card).toContain('🗑️ También se eliminaron 3 tareas pendientes asociadas.');
     expect(card).toContain('📚 5 tareas completadas permanecen en el historial.');
+  });
+
+  it('formats project list card with dynamic task count badges', () => {
+    const projects = [
+      { id: 'p1', name: 'Apartamento', taskCount: 0 },
+      { id: 'p2', name: 'reminder', taskCount: 2 },
+      { id: 'p3', name: 'Reforma baño', taskCount: 1 },
+    ];
+
+    const cardEs = formatCanonicalEntityList(projects, { category: 'project', language: 'es' });
+    expect(cardEs).toContain('• *Apartamento* (0 tareas)');
+    expect(cardEs).toContain('• *reminder* (2 tareas)');
+    expect(cardEs).toContain('• *Reforma baño* (1 tarea)');
+
+    const cardEn = formatCanonicalEntityList(projects, { category: 'project', language: 'en' });
+    expect(cardEn).toContain('• *Apartamento* (0 tasks)');
+    expect(cardEn).toContain('• *reminder* (2 tasks)');
+    expect(cardEn).toContain('• *Reforma baño* (1 task)');
+  });
+
+  it('formats project-scoped task list card with clean unified header and numbered items', () => {
+    const card = formatCanonicalTaskList({
+      entityName: 'reminder',
+      tasks: [
+        { title: 'Revisar interpretación de audios con correcciones' },
+        { title: 'enumerar tareas en vez de por lista con punto' },
+      ],
+    }, { language: 'es' });
+
+    expect(card).toContain('📁 *reminder* · 2 tareas');
+    expect(card).toContain('1. Revisar interpretación de audios con correcciones');
+    expect(card).toContain('2. enumerar tareas en vez de por lista con punto');
+    expect(card).not.toContain('☑️ *Tareas · 2*');
   });
 });

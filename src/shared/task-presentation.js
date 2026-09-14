@@ -16,7 +16,7 @@ export function groupTasksByProject(tasks = [], language = 'es') {
   return groups;
 }
 
-function getTaskTime(task, { timezone, language, isMultiDay }) {
+export function getTaskTime(task, { timezone, language, isMultiDay }) {
   const dueDate = task?.dueDate || task?.due_date || null;
   if (isMultiDay && dueDate) {
     return formatHumanFriendlyDateTime(dueDate, timezone, language);

@@ -1111,6 +1111,35 @@ export async function findEntities({ userId, query, category, limit = 10 }) {
       } catch {
         // Non-fatal fallback
       }
+
+      try {
+        const { data: pendingTasks } = await supabase
+          .from('tasks')
+          .select('project_id, entity_id')
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+
+        const countsById = new Map();
+        if (pendingTasks && Array.isArray(pendingTasks)) {
+          for (const t of pendingTasks) {
+            const containerId = t.project_id || t.entity_id;
+            if (containerId) {
+              countsById.set(containerId, (countsById.get(containerId) || 0) + 1);
+            }
+          }
+        }
+        for (const e of entityItems) {
+          if (e.category === 'project' || !e.category) {
+            e.taskCount = countsById.get(e.id) || 0;
+          }
+        }
+      } catch {
+        for (const e of entityItems) {
+          if (e.category === 'project' && e.taskCount === undefined) {
+            e.taskCount = 0;
+          }
+        }
+      }
     }
 
     return entityItems;

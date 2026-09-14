@@ -62,7 +62,15 @@ export function formatCanonicalEntityList(entities = [], {
     : (isProjectList ? '📁 *Tus proyectos*' : '🗂️ *Tus entidades registradas*');
   const lines = safeEntities.map((entity) => {
     const name = entity?.name || (language === 'en' ? 'Unnamed' : 'Sin nombre');
-    if (isProjectList) return `• *${name}*`;
+    if (isProjectList) {
+      const hasCount = entity?.taskCount !== undefined || entity?.pendingTaskCount !== undefined;
+      if (hasCount) {
+        const count = Number(entity?.taskCount ?? entity?.pendingTaskCount ?? 0);
+        const taskUnit = count === 1 ? (language === 'en' ? 'task' : 'tarea') : (language === 'en' ? 'tasks' : 'tareas');
+        return `• *${name}* (${count} ${taskUnit})`;
+      }
+      return `• *${name}*`;
+    }
     return `• *${name}* — ${labels[entity?.category] || labels.other}`;
   });
   return `${header}\n\n${lines.join('\n')}`;
