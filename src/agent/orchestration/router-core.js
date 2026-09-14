@@ -425,7 +425,11 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               framing: validation.decision.reply ? { before: validation.decision.reply, after: '' } : null,
             });
             const primaryDomain = activeAgentRun.preparedActions?.[0]?.domain || 'entity';
-            if (!reply) {
+            if (!execResult.executed || !execResult.success) {
+              reply = language === 'en'
+                ? 'No pending actions could be executed.'
+                : 'No se pudo completar la operación pendiente. Por favor intenta nuevamente.';
+            } else if (!reply) {
               reply = validation.decision.reply || (validation.decision.decision === 'reject'
                 ? (language === 'en' ? 'Operation cancelled.' : 'Operación cancelada.')
                 : (language === 'en'

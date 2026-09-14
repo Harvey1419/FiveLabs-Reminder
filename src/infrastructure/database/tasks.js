@@ -356,13 +356,26 @@ export async function getTasks({ userId, status = 'pending', entityId = null, en
     if (entityId) matchingEntityIds.add(entityId);
 
     if (entityName && !entityId) {
-      const { data: allEntities } = await supabase
-        .from('entities')
-        .select('id, name')
-        .eq('user_id', userId);
+      const [{ data: allEntities }, { data: allProjects }] = await Promise.all([
+        supabase
+          .from('entities')
+          .select('id, name')
+          .eq('user_id', userId),
+        supabase
+          .from('projects')
+          .select('id, name')
+          .eq('user_id', userId)
+          .eq('status', 'active'),
+      ]);
 
-      if (allEntities && allEntities.length > 0) {
-        const selection = selectEntityCandidate(allEntities, entityName);
+      const allContainers = [
+        ...(allEntities || []),
+        ...(allProjects || []).map((p) => ({ id: p.id, name: p.name })),
+      ];
+      const uniqueContainers = Array.from(new Map(allContainers.map((c) => [c.id, c])).values());
+
+      if (uniqueContainers.length > 0) {
+        const selection = selectEntityCandidate(uniqueContainers, entityName);
         if (selection.status === 'RESOLVED') matchingEntityIds.add(selection.entity.id);
       }
 
@@ -375,7 +388,7 @@ export async function getTasks({ userId, status = 'pending', entityId = null, en
 
     let q = supabase
       .from('tasks')
-      .select('*, entities:entity_id(id, name, category)')
+      .select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)')
       .eq('user_id', userId)
       .limit(safeLimit);
 
@@ -383,10 +396,13 @@ export async function getTasks({ userId, status = 'pending', entityId = null, en
       q = q.eq('status', status);
     }
 
-    if (matchingEntityIds.size === 1) {
-      q = q.eq('entity_id', Array.from(matchingEntityIds)[0]);
-    } else if (matchingEntityIds.size > 1) {
-      q = q.in('entity_id', Array.from(matchingEntityIds));
+    const targetIds = Array.from(matchingEntityIds);
+    if (targetIds.length > 0) {
+      if (typeof q.or === 'function') {
+        q = q.or(`entity_id.in.(${targetIds.join(',')}),project_id.in.(${targetIds.join(',')})`);
+      } else {
+        q = q.in('entity_id', targetIds);
+      }
     }
 
     // Order by priority and due_date ASC
@@ -399,7 +415,13 @@ export async function getTasks({ userId, status = 'pending', entityId = null, en
       return [];
     }
 
-    return data || [];
+    const tasks = data || [];
+    for (const t of tasks) {
+      if (!t.entities && t.projects) {
+        t.entities = { id: t.projects.id, name: t.projects.name, category: 'project' };
+      }
+    }
+    return tasks;
   } catch (err) {
     console.error('[tasks] getTasks threw:', err);
     return [];

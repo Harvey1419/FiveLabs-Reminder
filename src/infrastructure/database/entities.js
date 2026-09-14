@@ -491,11 +491,17 @@ export async function deleteEntities({
     }
 
     const ids = selection.entities.map((entity) => entity.id);
-    const { data: linkedTasks, error: linkedTasksError } = await supabase
+    let tasksQ = supabase
       .from('tasks')
       .select('id, status')
-      .eq('user_id', userId)
-      .in('entity_id', ids);
+      .eq('user_id', userId);
+
+    if (typeof tasksQ.or === 'function') {
+      tasksQ = tasksQ.or(`entity_id.in.(${ids.join(',')}),project_id.in.(${ids.join(',')})`);
+    } else {
+      tasksQ = tasksQ.in('entity_id', ids);
+    }
+    const { data: linkedTasks, error: linkedTasksError } = await tasksQ;
     if (linkedTasksError) {
       return { success: false, errorCode: 'DATABASE_ERROR', error: linkedTasksError.message, deletedCount: 0 };
     }
@@ -535,6 +541,15 @@ export async function deleteEntities({
       .in('id', ids)
       .select('id, name, category');
     if (deleteError) return { success: false, errorCode: 'DATABASE_ERROR', error: deleteError.message, deletedCount: 0 };
+
+    // Sync delete to projects table for matching project containers
+    try {
+      await supabase
+        .from('projects')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', ids);
+    } catch {}
 
     let cancelledReminderCount = 0;
     let reminderCleanupError = null;

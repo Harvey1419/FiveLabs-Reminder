@@ -10,13 +10,26 @@ import { selectEntityCandidate } from '../../infrastructure/database/entities.js
 
 async function resolveUserContainer(query, normalizedQuery, userId) {
   if (!userId || !normalizedQuery) return null;
-  const { data: userEntities } = await supabase
-    .from('entities')
-    .select('id, name, category')
-    .eq('user_id', userId);
+  const [{ data: userEntities }, { data: userProjects }] = await Promise.all([
+    supabase
+      .from('entities')
+      .select('id, name, category')
+      .eq('user_id', userId),
+    supabase
+      .from('projects')
+      .select('id, name')
+      .eq('user_id', userId)
+      .eq('status', 'active'),
+  ]);
 
-  if (userEntities && userEntities.length > 0) {
-    const selection = selectEntityCandidate(userEntities, query);
+  const allContainers = [
+    ...(userEntities || []),
+    ...(userProjects || []).map((p) => ({ id: p.id, name: p.name, category: 'project' })),
+  ];
+  const uniqueContainers = Array.from(new Map(allContainers.map((c) => [c.id, c])).values());
+
+  if (uniqueContainers.length > 0) {
+    const selection = selectEntityCandidate(uniqueContainers, query);
     if (selection.status === 'RESOLVED') {
       const matchedEntity = selection.entity;
       return {
@@ -65,18 +78,24 @@ export async function resolveTaskTarget({
   }
 
   if (isStrictUUID(rawStr)) {
-    const directTaskQuery = supabase
+    let directTaskQuery = supabase
         .from('tasks')
-        .select('id, user_id, status')
+        .select('id, user_id, status, description, title, entity_id, project_id')
         .eq('id', rawStr);
-    if (scopedEntityId) directTaskQuery.eq('entity_id', scopedEntityId);
+    if (scopedEntityId) {
+      if (typeof directTaskQuery.or === 'function') {
+        directTaskQuery = directTaskQuery.or(`entity_id.eq.${scopedEntityId},project_id.eq.${scopedEntityId}`);
+      } else {
+        directTaskQuery = directTaskQuery.eq('entity_id', scopedEntityId);
+      }
+    }
     const { data: directTask } = await directTaskQuery.maybeSingle();
     if (operation === 'complete') {
       if (!directTask || (userId && directTask.user_id !== userId)) return { status: 'NOT_FOUND' };
       if (directTask.status !== 'pending') return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
       return { status: 'RESOLVED', taskId: directTask.id, task: directTask };
     }
-    return { status: 'RESOLVED', taskId: rawStr };
+    return { status: 'RESOLVED', taskId: rawStr, task: directTask };
   }
 
   const refRes = resolveContextReference({
@@ -94,7 +113,7 @@ export async function resolveTaskTarget({
     if (operation === 'complete') {
       const { data: directTask } = await supabase
         .from('tasks')
-        .select('id, user_id, status')
+        .select('id, user_id, status, description, title, entity_id, project_id')
         .eq('id', refRes.item.internalId)
         .maybeSingle();
       if (directTask && directTask.status !== 'pending') {
@@ -117,10 +136,16 @@ export async function resolveTaskTarget({
 
   let tasksQuery = supabase
     .from('tasks')
-    .select('*, entities:entity_id(id, name, category)')
+    .select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)')
     .eq('user_id', userId);
 
-  if (scopedEntityId) tasksQuery = tasksQuery.eq('entity_id', scopedEntityId);
+  if (scopedEntityId) {
+    if (typeof tasksQuery.or === 'function') {
+      tasksQuery = tasksQuery.or(`entity_id.eq.${scopedEntityId},project_id.eq.${scopedEntityId}`);
+    } else {
+      tasksQuery = tasksQuery.eq('entity_id', scopedEntityId);
+    }
+  }
 
   if (statuses.length === 1) tasksQuery = tasksQuery.eq('status', statuses[0]);
   else tasksQuery = tasksQuery.in('status', statuses);

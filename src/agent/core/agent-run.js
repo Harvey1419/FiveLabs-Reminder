@@ -174,7 +174,22 @@ export async function executeApprovalDecision({
   selectedCallIds = [],
   executionContext = {},
 }) {
-  const preparedActions = run.preparedActions || (await getPreparedActionsFromDb(run.id));
+  let preparedActions = run.preparedActions || (await getPreparedActionsFromDb(run.id));
+  if ((!preparedActions || preparedActions.length === 0) && Array.isArray(run.context?.previewEntities) && run.context.previewEntities.length > 0) {
+    const isProj = run.context.isProject ?? false;
+    preparedActions = run.context.previewEntities.map((item, idx) => ({
+      call_id: `call-${idx + 1}`,
+      callId: `call-${idx + 1}`,
+      domain: isProj ? 'project' : 'entity',
+      action: 'delete',
+      target_id: item.id,
+      targetId: item.id,
+      target_name: item.name,
+      targetName: item.name,
+      payload: isProj ? { action: 'delete', projectIds: [item.id] } : { action: 'delete', entityIds: [item.id] },
+      status: 'prepared',
+    }));
+  }
   const threadId = run.thread_id;
   const userId = run.user_id;
 

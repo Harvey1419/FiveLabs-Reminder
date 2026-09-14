@@ -255,8 +255,14 @@ function buildDomainCall(action, context) {
         return { valid: true, toolName: TOOL_NAMES.MANAGE_TASK, params: { action: action.action, target, ...(action.entityName ? { entityName: action.entityName } : {}) } };
       }
       const updates = {};
-      if (action.title || action.content) updates.title = action.title || action.content;
-      if (action.description) updates.description = action.description;
+      if (action.title || action.newName) updates.title = action.title || action.newName;
+      if (action.description) {
+        updates.description = action.description;
+        updates.append = true;
+      } else if (action.content && !action.title && !action.newName) {
+        updates.description = action.content;
+        updates.append = true;
+      }
       if (action.priority) updates.priority = action.priority;
       if (action.status) updates.status = action.status;
       if (action.schedule) {

@@ -591,7 +591,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
   }
 
   let userRemindersQ = supabase.from('reminders').select('*');
-  let userTasksQ = supabase.from('tasks').select('*, entities:entity_id(id, name, category)');
+  let userTasksQ = supabase.from('tasks').select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)');
 
   if (userId) {
     userRemindersQ = userRemindersQ.eq('user_id', userId);
@@ -618,8 +618,8 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
       : (item.send_at || item.due_date || null);
 
     const isTask = !item.send_at && (item.title !== undefined || item.due_date !== undefined);
-    const entityName = item.entities?.name || null;
-    const entityCategory = item.entities?.category || null;
+    const entityName = item.entities?.name || item.projects?.name || null;
+    const entityCategory = item.entities?.category || (item.projects?.id || item.project_id ? 'project' : null);
 
     if (!rawDate) {
       return {

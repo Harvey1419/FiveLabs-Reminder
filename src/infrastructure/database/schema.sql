@@ -347,7 +347,7 @@ CREATE TABLE IF NOT EXISTS prepared_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   run_id UUID NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
   call_id TEXT NOT NULL,
-  domain TEXT NOT NULL CHECK (domain IN ('entity', 'reminder', 'task', 'calendar', 'conversation')),
+  domain TEXT NOT NULL CHECK (domain IN ('entity', 'project', 'reminder', 'task', 'calendar', 'conversation')),
   action TEXT NOT NULL,
   target_id UUID,
   target_name TEXT,

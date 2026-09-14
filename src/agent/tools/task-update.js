@@ -105,7 +105,18 @@ export async function executeTaskUpdate({
 
   if (title) updates.title = String(title).trim();
   if (description !== undefined) {
-    updates.description = description ? String(description).trim() : null;
+    const cleanDesc = description ? String(description).trim() : null;
+    const shouldAppend = Boolean(updatesObj.append ?? params.append);
+    if (cleanDesc && shouldAppend && resolution.task?.description) {
+      const existing = String(resolution.task.description).trim();
+      if (existing && !existing.includes(cleanDesc)) {
+        updates.description = `${existing}\n• ${cleanDesc.startsWith('• ') || cleanDesc.startsWith('- ') ? cleanDesc.slice(2) : cleanDesc}`;
+      } else {
+        updates.description = existing || cleanDesc;
+      }
+    } else {
+      updates.description = cleanDesc;
+    }
   }
   if (priority) {
     const normalizedPriority = normalizeTaskPriority(priority);
