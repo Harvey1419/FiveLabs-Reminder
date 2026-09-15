@@ -168,5 +168,40 @@ describe('semantic intent runtime normalization', () => {
     expect(normalized.actions[0].entityName).toBe('Reforma baño');
     clearWorkingMemory(user);
   });
+
+  it('resolves ordinal target into reminder content from task working memory', () => {
+    saveWorkingMemory(user, {
+      entityType: 'task',
+      items: [
+        { position: 1, title: 'Comprar insumos médicos', type: 'task', internalId: 't1' },
+        { position: 2, title: 'Llamar al contador', type: 'task', internalId: 't2' },
+      ],
+    });
+
+    const normalizedTarget = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        target: '1',
+        schedule: { kind: 'local_time', hour: 17, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalizedTarget.actions[0].content).toBe('Comprar insumos médicos');
+    expect(normalizedTarget.actions[0].target).toBeUndefined();
+
+    const normalizedContent = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'la 2',
+        schedule: { kind: 'local_time', hour: 15, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalizedContent.actions[0].content).toBe('Llamar al contador');
+
+    clearWorkingMemory(user);
+  });
 });
 

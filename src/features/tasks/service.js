@@ -90,15 +90,22 @@ export async function getTaskList({
       scope: parsedScope.scope,
       ...(parsedScope.date ? { date: parsedScope.date } : {}),
     }, tz);
+    const dateField = status === 'completed' ? 'completed_at' : 'due_date';
     query = query
-      .gte('due_date', temporal.timeMin instanceof Date ? temporal.timeMin.toISOString() : String(temporal.timeMin))
-      .lt('due_date', temporal.timeMax instanceof Date ? temporal.timeMax.toISOString() : String(temporal.timeMax));
+      .gte(dateField, temporal.timeMin instanceof Date ? temporal.timeMin.toISOString() : String(temporal.timeMin))
+      .lt(dateField, temporal.timeMax instanceof Date ? temporal.timeMax.toISOString() : String(temporal.timeMax));
   }
 
-  query = query
-    .order('due_date', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(Math.min(Math.max(1, Number(limit) || 50), 100));
+  if (status === 'completed') {
+    query = query
+      .order('completed_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false });
+  } else {
+    query = query
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+  }
+  query = query.limit(Math.min(Math.max(1, Number(limit) || 50), 100));
 
   const { data, error } = await query;
   if (error) {
@@ -108,21 +115,22 @@ export async function getTaskList({
 
   const tasks = (data || []).map((task) => {
     const dueDate = task.due_date || null;
+    const relevantDate = status === 'completed' ? (task.completed_at || task.updated_at || dueDate) : dueDate;
     const resolvedEntityName = task.entities?.name || task.projects?.name || container.name || null;
     return {
       ...task,
       type: 'task',
       entityName: resolvedEntityName,
       dueDate,
-      localTime: dueDate
+      localTime: relevantDate
         ? new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-CO', {
           timeZone: tz,
           hour: 'numeric',
           minute: '2-digit',
           hour12: true,
-        }).format(new Date(dueDate))
+        }).format(new Date(relevantDate))
         : null,
-      localFormatted: dueDate ? formatLocalDateTime(new Date(dueDate), tz, locale) : null,
+      localFormatted: relevantDate ? formatLocalDateTime(new Date(relevantDate), tz, locale) : null,
     };
   });
 
@@ -140,6 +148,7 @@ export async function getTaskList({
   return {
     tasks,
     items,
+    status: status || 'pending',
     entityName: container.name || entityName || null,
     scope: parsedScope.runtimeScope,
     timezone: tz,

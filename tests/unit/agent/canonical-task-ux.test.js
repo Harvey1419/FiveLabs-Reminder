@@ -119,4 +119,48 @@ describe('canonical task UX', () => {
     expect(deleted.card).toBe('🗑️ *Tarea eliminada*\n\n• Enviar factura final');
     expect(deleted.card).not.toContain('legacy delete card');
   });
+
+  it('renders completed tasks wrap-up card with celebration header and strikethroughs', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'list', status: 'completed', scope: 'today' },
+      result: {
+        success: true,
+        action: 'listed_tasks',
+        data: {
+          status: 'completed',
+          scope: 'today',
+          tasks: [
+            { id: '1', title: 'Comprar insumos', status: 'completed', entityName: 'Clínica', localTime: '10:30 AM' },
+            { id: '2', title: 'Revisar métricas', status: 'completed', entityName: null, localTime: '04:00 PM' },
+          ],
+        },
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toContain('🎉 *Tareas completadas hoy · 2*');
+    expect(fact.card).toContain('1. ~Comprar insumos~ [Clínica] _(10:30 AM)_');
+    expect(fact.card).toContain('2. ~Revisar métricas~ _(04:00 PM)_');
+    expect(fact.card).toContain('¡Gran trabajo hoy! Cerramos con broche de oro. 🚀');
+  });
+
+  it('renders empty completed tasks wrap-up card when no tasks completed today', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'list', status: 'completed', scope: 'today' },
+      result: {
+        success: true,
+        action: 'listed_tasks',
+        data: {
+          status: 'completed',
+          scope: 'today',
+          tasks: [],
+        },
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toBe('🎉 *Tareas completadas hoy*\n\nNo has completado tareas hoy todavía.');
+  });
 });

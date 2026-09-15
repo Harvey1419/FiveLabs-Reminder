@@ -37,6 +37,36 @@ export function formatCanonicalTaskList(data = {}, {
   const projectName = data?.entityName || null;
   const scope = normalizeTaskScope(data?.scope, 'all_pending');
 
+  const isCompleted = data?.status === 'completed' || (tasks.length > 0 && tasks.every((t) => t.status === 'completed'));
+  if (isCompleted) {
+    const isEn = language === 'en';
+    const scopeTxt = (scope === 'today' || scope === 'all_pending')
+      ? (isEn ? 'today' : 'hoy')
+      : scopeLabel(scope, language);
+    if (tasks.length === 0) {
+      return isEn
+        ? `🎉 *Completed tasks ${scopeTxt}*\n\nYou haven't completed any tasks ${scopeTxt} yet.`
+        : `🎉 *Tareas completadas ${scopeTxt}*\n\nNo has completado tareas ${scopeTxt} todavía.`;
+    }
+    const header = isEn
+      ? `🎉 *Completed tasks ${scopeTxt} · ${tasks.length}*`
+      : `🎉 *Tareas completadas ${scopeTxt} · ${tasks.length}*`;
+
+    let globalIndex = 1;
+    const lines = tasks.map((task) => {
+      const title = task?.title || task?.content || (isEn ? 'Untitled task' : 'Tarea sin título');
+      const entity = (task?.entityName || task?.entities?.name) ? ` [${task.entityName || task.entities.name}]` : '';
+      const time = task?.localTime ? ` _(${task.localTime})_` : '';
+      return `${globalIndex++}. ~${title}~${entity}${time}`;
+    });
+
+    const footer = isEn
+      ? '\n\nGreat job today! Keep up the momentum. 🚀'
+      : '\n\n¡Gran trabajo hoy! Cerramos con broche de oro. 🚀';
+
+    return `${header}\n\n${lines.join('\n')}${footer}`;
+  }
+
   if (tasks.length === 0) {
     if (projectName) {
       return language === 'en'

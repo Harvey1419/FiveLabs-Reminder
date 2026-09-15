@@ -45,7 +45,18 @@ export function detectInventoryQuery(rawText) {
   // Clean trailing punctuation (?, !, .)
   const clean = text.replace(/[?.!]+$/, '').trim();
 
-  // 1. Projects listing
+  // 1. Completed tasks query (daily wrap-up)
+  const completedTaskPattern = /^(?:(?:qu[eé]|cu[aá]les)\s+(?:tareas\s+)?complet[eé]\s+hoy|qu[eé]\s+hice\s+hoy|(?:ver|mostrar|listar|dime|ens[eñ]ame)\s+(?:las\s+)?tareas\s+completadas(?:\s+hoy)?|tareas\s+completadas(?:\s+hoy)?|lo\s+que\s+complet[eé]\s+hoy|what\s+did\s+i\s+(?:complete|finish|do)\s+today|completed\s+tasks(?:\s+today)?|show\s+(?:my\s+)?completed\s+tasks(?:\s+today)?)$/i;
+  if (completedTaskPattern.test(clean)) {
+    return {
+      domain: 'task',
+      action: 'list',
+      status: 'completed',
+      scope: 'today',
+    };
+  }
+
+  // 2. Projects listing
   const projectListPattern = /^(?:(?:qu[eé]|cu[aá]les)\s+(?:son\s+)?(?:mis\s+)?proyectos(?:\s+(?:que\s+tengo|tengo|hay))?|(?:ver|mostrar|listar|dime|ens[eñ]ame)\s+(?:mis\s+)?proyectos|mis\s+proyectos|proyectos|list\s+projects|show\s+(?:my\s+)?projects|my\s+projects)$/i;
   if (projectListPattern.test(clean)) {
     return { domain: 'project', action: 'list' };

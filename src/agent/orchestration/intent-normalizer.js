@@ -1,5 +1,5 @@
 import { getWorkingMemory } from '../core/working-memory-store.js';
-import { resolveContextReference } from '../core/context-reference.js';
+import { resolveContextReference, parseStructuredOrdinal } from '../core/context-reference.js';
 import { getLocalDateParts } from '../../shared/time.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import {
@@ -145,6 +145,41 @@ function normalizeRecurringReminder(action, context) {
 }
 
 /**
+ * Bridges conversational references (e.g. "recuérdame la 1 a las 5pm") into
+ * concrete reminder content using items currently active in working memory.
+ */
+function normalizeReminderCreateFromWorkingTarget(action, context) {
+  if (action.domain !== 'reminder' || action.action !== 'create') return action;
+
+  const candidateRef = action.target
+    || (action.content && parseStructuredOrdinal(action.content) !== null ? action.content : null)
+    || (action.title && parseStructuredOrdinal(action.title) !== null ? action.title : null)
+    || (action.content && /^(?:hacer\s+)?(?:la\s+|el\s+)?(?:tarea\s+|item\s+|pendiente\s+)?#?(\d+)$/i.test(action.content.trim()) ? action.content.trim() : null);
+
+  if (!candidateRef) return action;
+
+  const hasSubstantiveContent = action.content
+    && parseStructuredOrdinal(action.content) === null
+    && !/^(?:hacer\s+)?(?:la\s+|el\s+)?(?:tarea\s+|item\s+|pendiente\s+)?#?(\d+)$/i.test(action.content.trim());
+
+  if (hasSubstantiveContent && !action.target) return action;
+
+  const workingItem = resolveWorkingItem(context?.user, candidateRef, 'task')
+    || resolveWorkingItem(context?.user, candidateRef);
+
+  if (workingItem) {
+    const title = workingItem.title || workingItem.summary || workingItem.content;
+    if (title) {
+      const updated = { ...action, content: title };
+      delete updated.target;
+      return updated;
+    }
+  }
+
+  return action;
+}
+
+/**
  * Structural bulk entity deletion normalizer:
  * Enforces scope="all", category="project" fallback, and preserveNames array
  * ONLY when scope="all" or preserveNames is already structurally provided.
@@ -203,6 +238,7 @@ export function normalizeTurnIntentForRuntime(intent, context) {
     action = normalizeReadScope(action, context);
     action = normalizeUpdateFields(action);
     action = normalizeRecurringReminder(action, context);
+    action = normalizeReminderCreateFromWorkingTarget(action, context);
     action = normalizeEntityDelete(action);
     action = normalizeProjectOperations(action);
     action = normalizeTaskEntityName(action, context);

@@ -95,6 +95,39 @@ describe('inventory query interceptor', () => {
       });
     });
 
+    it('detects completed task queries (wrap-up)', () => {
+      expect(detectInventoryQuery('qué completé hoy?')).toEqual({
+        domain: 'task',
+        action: 'list',
+        status: 'completed',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('qué tareas completé hoy')).toEqual({
+        domain: 'task',
+        action: 'list',
+        status: 'completed',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('qué hice hoy?')).toEqual({
+        domain: 'task',
+        action: 'list',
+        status: 'completed',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('tareas completadas hoy')).toEqual({
+        domain: 'task',
+        action: 'list',
+        status: 'completed',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('what did I complete today?')).toEqual({
+        domain: 'task',
+        action: 'list',
+        status: 'completed',
+        scope: 'today',
+      });
+    });
+
     it('returns null for conversational or mutation messages', () => {
       expect(detectInventoryQuery('hola, cómo estás?')).toBeNull();
       expect(detectInventoryQuery('crea una tarea comprar leche')).toBeNull();

@@ -47,7 +47,7 @@ describe('Morning Briefing & Overview Domain Separation', () => {
     expect(msg).toContain('📌 *Tareas para completar hoy:*');
     expect(msg).toContain('Entregar informe contable');
     expect(msg).toContain('📁 *Lista de compras:*');
-    expect(msg).toContain('▫️ Esparadrapo');
+    expect(msg).toContain('2. Esparadrapo');
     expect(msg).toContain('📋 *Otros pendientes:*');
     expect(msg).not.toContain('⏰ *null*');
   });
@@ -64,7 +64,7 @@ describe('Morning Briefing & Overview Domain Separation', () => {
     expect(msg).not.toContain('Compromisos con hora fija');
     expect(msg).toContain('📋 *Tus tareas y pendientes abiertos:*');
     expect(msg).toContain('📁 *Lista de compras:*');
-    expect(msg).toContain('▫️ Esparadrapo');
+    expect(msg).toContain('1. Esparadrapo');
   });
 
   it('omits companion Google Calendar reminders from timed reminders section when Calendar is connected', () => {
@@ -169,8 +169,8 @@ describe('Morning Briefing & Overview Domain Separation', () => {
 
     const msg = formatMorningBriefingMessage({ overview, timezone: 'America/Bogota' });
     expect(msg).toContain('Configurar pasarela [Pagos] 📝 _(2 notas)_');
-    expect(msg).toContain('▫️ Producto de Meta Ads 📝 _(1 nota)_');
-    expect(msg).toContain('▫️ Comprar insumos');
+    expect(msg).toContain('2. Producto de Meta Ads 📝 _(1 nota)_');
+    expect(msg).toContain('3. Comprar insumos');
     expect(msg).not.toContain('Esta es una nota larguísima');
     expect(msg).not.toContain('Detalle de configuración de API');
   });

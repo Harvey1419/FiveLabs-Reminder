@@ -5,6 +5,7 @@ import { resolveCalendarTemporalScope } from '../shared/time.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../integrations/google/calendar.js';
 import { reconcileCalendarCompanionReminders } from '../features/calendar/reconciliation.js';
 import { formatTaskNotesBadge } from '../shared/task-presentation.js';
+import { saveWorkingMemory } from '../agent/core/working-memory.js';
 
 const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000; // Check every minute
 
@@ -234,13 +235,15 @@ export function formatMorningBriefingMessage({
     );
   }
 
+  let globalTaskIndex = 1;
+
   // 3. Tasks Due Today
   if (tasksDueToday.length > 0) {
     const lines = tasksDueToday.map(t => {
       const time = t.localTime ? (isEnglish ? ` _(before ${t.localTime})_` : ` _(antes de las ${t.localTime})_`) : '';
       const entity = t.entityName ? ` [${t.entityName}]` : '';
       const notesBadge = formatTaskNotesBadge(t, isEnglish);
-      return `• 🎯 *${isEnglish ? 'Due today' : 'Vence hoy'}${time}:* ${t.title || t.content}${entity}${notesBadge}`;
+      return `${globalTaskIndex++}. 🎯 *${isEnglish ? 'Due today' : 'Vence hoy'}${time}:* ${t.title || t.content}${entity}${notesBadge}`;
     });
     sections.push(
       isEnglish
@@ -258,7 +261,7 @@ export function formatMorningBriefingMessage({
       lines.push(`📁 *${entityName}:*`);
       for (const t of tasks) {
         const notesBadge = formatTaskNotesBadge(t, isEnglish);
-        lines.push(`▫️ ${t.title || t.content}${notesBadge}`);
+        lines.push(`${globalTaskIndex++}. ${t.title || t.content}${notesBadge}`);
       }
       lines.push('');
     }
@@ -269,7 +272,7 @@ export function formatMorningBriefingMessage({
       }
       for (const t of openTasksGeneral) {
         const notesBadge = formatTaskNotesBadge(t, isEnglish);
-        lines.push(`▫️ ${t.title || t.content}${notesBadge}`);
+        lines.push(`${globalTaskIndex++}. ${t.title || t.content}${notesBadge}`);
       }
     }
 
@@ -281,11 +284,19 @@ export function formatMorningBriefingMessage({
   }
 
   // Footer tip
-  sections.push(
-    isEnglish
-      ? `💡 *Executive tip:* If you want to assign a time to any task or mark it as done, just let me know. Let's make today count! 🎯`
-      : `💡 *Tip ejecutivo:* Si quieres asignarle hora a algún pendiente o marcarlo como listo, solo dímelo. ¡Con toda hoy! 🎯`
-  );
+  if (globalTaskIndex > 1) {
+    sections.push(
+      isEnglish
+        ? `💡 *Executive tip:* You can reply "complete 1" or "remind me about 2 at 3pm". Let's make today count! 🎯`
+        : `💡 *Tip ejecutivo:* Puedes responder "completa la 1" o "recuérdame la 2 a las 3pm". ¡Con toda hoy! 🎯`
+    );
+  } else {
+    sections.push(
+      isEnglish
+        ? `💡 *Executive tip:* If you want to assign a time to any task or mark it as done, just let me know. Let's make today count! 🎯`
+        : `💡 *Tip ejecutivo:* Si quieres asignarle hora a algún pendiente o marcarlo como listo, solo dímelo. ¡Con toda hoy! 🎯`
+    );
+  }
 
   return sections.join('\n\n');
 }
@@ -343,6 +354,29 @@ export async function dispatchBriefingForUser(user, todayStr, timezone) {
     await supabase.from('users')
       .update({ last_briefing_at: new Date().toISOString() })
       .eq('id', user.id);
+
+    // Populate working memory with the briefing tasks in the exact same ordinal order
+    const allBriefingTasks = [
+      ...(overview.tasksDueToday || []),
+      ...Object.values(overview.openTasksByEntity || {}).flat(),
+      ...(overview.openTasksGeneral || []),
+    ].map((t) => ({
+      id: t.id,
+      internalId: t.id,
+      title: t.title || t.content,
+      summary: t.title || t.content,
+      entityName: t.entityName || null,
+      type: 'task',
+    }));
+
+    if (allBriefingTasks.length > 0) {
+      saveWorkingMemory(user, {
+        source: 'morning_briefing',
+        entityType: 'task',
+        scope: 'today',
+        items: allBriefingTasks,
+      });
+    }
 
   } catch (err) {
     console.error(`[morningBriefing] failed to dispatch for user ${user.id}:`, err);
