@@ -51,4 +51,16 @@ describe('Reminder Pro upgrade context', () => {
       ctaButtonText: 'Pay now',
     });
   });
+
+  it('routes international phone numbers directly to Lemon Squeezy checkout', async () => {
+    const context = await resolveReminderProUpgradeContext('19164158325', 'en');
+
+    expect(context).toMatchObject({
+      amount: 9.99,
+      currency: 'USD',
+      ctaButtonText: 'Pay now',
+    });
+    expect(context.checkoutUrl).toContain('lemonsqueezy.com');
+    expect(context.checkoutUrl).toContain('checkout%5Bcustom%5D%5Bphone%5D=19164158325');
+  });
 });

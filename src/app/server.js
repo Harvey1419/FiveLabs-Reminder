@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { handleWebhook } from '../http/webhooks/whatsapp.js';
 import { handleMercadoPagoWebhook } from '../http/webhooks/mercado-pago.js';
+import { handleLemonSqueezyWebhook } from '../http/webhooks/lemon-squeezy.js';
 import { googleAuthRouter } from '../http/routes/google-auth.js';
 import { renderSubscriptionSuccessPage } from '../http/views/landing.js';
 import { renderPrivacyPolicyPage, renderTermsOfServicePage } from '../http/views/legal.js';
@@ -22,7 +23,12 @@ if (missingEnvs.length > 0) {
 // Serve static assets from public/ (brand logo, favicon, etc.)
 app.use(express.static('public'));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 // Public Home / Landing Page (Required by Google OAuth Verification)
 app.get(['/', '/about', '/app'], (req, res) => {
@@ -69,6 +75,9 @@ app.post('/webhook', handleWebhook);
 
 // MercadoPago Webhook Endpoint
 app.post('/webhooks/mercadopago', handleMercadoPagoWebhook);
+
+// Lemon Squeezy Webhook Endpoint
+app.post('/webhooks/lemonsqueezy', handleLemonSqueezyWebhook);
 
 // Subscription Callback Return Page (Browser redirect after payment)
 app.get('/subscription/callback', (req, res) => {

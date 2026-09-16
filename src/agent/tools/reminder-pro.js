@@ -1,4 +1,5 @@
 import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
+import { buildLemonSqueezyCheckoutUrl } from '../../integrations/lemon-squeezy/client.js';
 
 export const REMINDER_PRO_FALLBACK = Object.freeze({
   price: 49900,
@@ -16,6 +17,25 @@ export const REMINDER_PRO_FALLBACK = Object.freeze({
  * cannot drift into different plan configuration or fallback behavior.
  */
 export async function resolveReminderProUpgradeContext(phoneNumber, language = 'es') {
+  const isInternational = Boolean(
+    phoneNumber
+    && !String(phoneNumber).startsWith('+57')
+    && !String(phoneNumber).startsWith('57')
+    && !String(phoneNumber).startsWith('CO.')
+  );
+
+  if (isInternational) {
+    const lemonUrl = buildLemonSqueezyCheckoutUrl({ phoneNumber });
+    return {
+      checkoutUrl: lemonUrl,
+      amount: 9.99,
+      currency: 'USD',
+      ctaHeader: REMINDER_PRO_FALLBACK.ctaHeader,
+      ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
+      fallbackCheckoutUrl: lemonUrl,
+    };
+  }
+
   const context = {
     checkoutUrl: null,
     amount: REMINDER_PRO_FALLBACK.price,
