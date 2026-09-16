@@ -382,7 +382,18 @@ export async function handleWebhook(req, res) {
           const minutes = Number(parts[2]) || 15;
           const reminderId = parts[3] ? parts.slice(3).join(':').trim() : '';
           const newSendAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-          await updateReminder(reminderId, { send_at: newSendAt, status: 'pending', acknowledged_at: null }, user.id, user.phone_number);
+          await updateReminder(
+            reminderId,
+            {
+              send_at: newSendAt,
+              status: 'pending',
+              acknowledged_at: null,
+              last_nudged_at: null,
+              nudge_count: 0,
+            },
+            user.id,
+            user.phone_number
+          );
           const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
           const confirmText = isEnglishUser
             ? `⏰ Got it, I’ll remind you again in ${minutes} minutes.`

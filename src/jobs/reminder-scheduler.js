@@ -35,6 +35,12 @@ function isRecurring(reminder) {
 
 export function isNudgeDue(reminder, now = Date.now()) {
   if (!reminder?.requires_confirmation || reminder?.acknowledged_at) return false;
+  // SNOOZE / FUTURE SCHEDULE INVARIANT:
+  // A reminder whose scheduled send_at is in the future (e.g. snoozed or next recurring occurrence)
+  // must NEVER receive an escalation nudge.
+  if (reminder?.send_at && new Date(reminder.send_at).getTime() > now) {
+    return false;
+  }
   const maxNudges = reminder.max_nudges ?? 5;
   const nudgeCount = reminder.nudge_count ?? 0;
   if (nudgeCount >= maxNudges) return false;
@@ -51,12 +57,16 @@ export function isNudgeDue(reminder, now = Date.now()) {
  * advance its next send_at in-place instead of materializing another row.
  * Lifecycle fields describe the most recent delivery/acknowledgement.
  */
-async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, deliveryId = null } = {}) {
+async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, deliveryId = null, requiresConfirmation = undefined } = {}) {
   const reference = dispatchedAt || new Date();
   const nextSendAt = computeNextRecurringSendAt(reminder.send_at, reminder.recurrence_rule, reference);
   if (!nextSendAt) {
     throw new Error(`Could not compute next recurrence for reminder ${reminder.id}`);
   }
+
+  const effectiveConfirmation = typeof requiresConfirmation === 'boolean'
+    ? requiresConfirmation
+    : reminder.requires_confirmation;
 
   const updates = {
     send_at: nextSendAt.toISOString(),
@@ -64,6 +74,7 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, 
     claimed_by: null,
     claimed_at: null,
     lock_until: null,
+    requires_confirmation: effectiveConfirmation,
     // Keep the provider id for the most recent execution so delayed Meta/Kapso
     // delivery callbacks can still reconcile against this stable reminder row.
     delivery_id: deliveryId || reminder.delivery_id || null,
@@ -74,7 +85,7 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, 
     updates.sent_at = sentIso;
     updates.acknowledged_at = null;
     updates.nudge_count = 0;
-    updates.last_nudged_at = reminder.requires_confirmation ? sentIso : null;
+    updates.last_nudged_at = effectiveConfirmation ? sentIso : null;
   }
 
   const { data, error } = await supabase
@@ -193,6 +204,21 @@ export async function checkAndDispatchNudges() {
     }
 
     for (const reminder of byId.values()) {
+      if (isRecurring(reminder) && reminder.user_id) {
+        try {
+          const policy = await getReminderDispatchPolicy(reminder.user_id);
+          if (policy?.recurring?.disableNudges || policy?.disableNudgesForRecurring) {
+            await supabase
+              .from('reminders')
+              .update({ requires_confirmation: false, nudge_count: 0, last_nudged_at: null })
+              .eq('id', reminder.id);
+            continue;
+          }
+        } catch (policyErr) {
+          console.warn(`[scheduler worker=${WORKER_ID}] failed to check reminder policy for nudge:`, policyErr.message);
+        }
+      }
+
       const nextCount = (reminder.nudge_count || 0) + 1;
       const cleanText = stripReminderPrefix(reminder.content);
       const isTask = Boolean(reminder.task_id);
@@ -287,11 +313,15 @@ export async function processReminder(reminder) {
     const isEnglish = isEnglishReminder(reminder);
 
     let includeButtons = true;
+    let effectiveRequiresConfirmation = reminder.requires_confirmation;
     if (recurring && reminder.user_id) {
       try {
         const policy = await getReminderDispatchPolicy(reminder.user_id);
-        if (policy?.disableButtonsForRecurring) {
+        if (policy?.disableButtonsForRecurring || policy?.recurring?.disableButtons) {
           includeButtons = false;
+        }
+        if (policy?.disableNudgesForRecurring || policy?.recurring?.disableNudges) {
+          effectiveRequiresConfirmation = false;
         }
       } catch (policyErr) {
         console.warn(`[scheduler worker=${WORKER_ID}] failed to load reminder policy:`, policyErr.message);
@@ -323,7 +353,11 @@ export async function processReminder(reminder) {
     const dispatchedAt = new Date();
 
     if (recurring) {
-      await advanceRecurringReminderInPlace(reminder, { dispatchedAt, deliveryId });
+      await advanceRecurringReminderInPlace(reminder, {
+        dispatchedAt,
+        deliveryId,
+        requiresConfirmation: effectiveRequiresConfirmation,
+      });
     } else {
       await markReminderAsDispatched(reminder.id, { deliveryId });
       if (reminder.requires_confirmation) {

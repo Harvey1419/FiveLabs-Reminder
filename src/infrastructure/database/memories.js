@@ -522,11 +522,23 @@ export async function forgetMemoriesByTopic(userId, topicKey) {
  * - nudgeIntervalMinutes: interval for confirmation nudges.
  *
  * @param {string} userId
- * @returns {Promise<{ disableButtonsForRecurring: boolean, requiresConfirmation: boolean, nudgeIntervalMinutes: number, preferenceText?: string }>}
+ * @returns {Promise<{ global: object, recurring: object, disableButtonsForRecurring: boolean, disableNudgesForRecurring: boolean, requiresConfirmation: boolean, nudgeIntervalMinutes: number, preferenceText?: string }>}
  */
 export async function getReminderDispatchPolicy(userId) {
   const defaultPolicy = {
+    global: {
+      requiresConfirmation: false,
+      nudgeIntervalMinutes: 15,
+      disableButtons: false,
+    },
+    recurring: {
+      requiresConfirmation: false,
+      nudgeIntervalMinutes: 15,
+      disableButtons: false,
+      disableNudges: false,
+    },
     disableButtonsForRecurring: false,
+    disableNudgesForRecurring: false,
     requiresConfirmation: false,
     nudgeIntervalMinutes: 15,
     preferenceText: null,
@@ -534,46 +546,128 @@ export async function getReminderDispatchPolicy(userId) {
   if (!userId) return defaultPolicy;
 
   try {
-    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 20 });
+    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 30 });
     if (!Array.isArray(preferences) || preferences.length === 0) return defaultPolicy;
 
-    let disableButtonsForRecurring = false;
-    let requiresConfirmation = false;
-    let nudgeIntervalMinutes = 15;
+    let globalConfirmation = null;
+    let globalInterval = 15;
+    let globalDisableButtons = false;
+
+    let recurringDisableButtons = null;
+    let recurringDisableNudges = null;
+    let recurringConfirmation = null;
+    let recurringInterval = null;
+
     let matchedText = null;
 
     for (const m of preferences) {
       const topic = String(m.topic_key || '').toLowerCase();
       const content = String(m.content || '').toLowerCase();
 
-      // Check for recurring button suppression preference:
-      // e.g. "Los recordatorios recurrentes no deben incluir botones de confirmación"
-      // or topic "preference/reminders/confirmation_buttons"
-      const isRecurringButtonTopic = topic.includes('confirmation_buttons') || (topic.includes('preference/reminders') && (content.includes('boton') || content.includes('botón')));
-      const mentionsButtons = content.includes('boton') || content.includes('botón');
-      const mentionsRecurring = content.includes('recurrente') || topic.includes('recurring');
-      const isNegative = content.includes('no ') || content.includes('sin ') || content.includes('quitar') || content.includes('eliminar');
+      // Scope detection
+      const isRecurringScope = topic.includes('recurring')
+        || content.includes('recurrente')
+        || content.includes('recurrentes')
+        || content.includes('rutina')
+        || content.includes('rutinas');
 
-      if ((isRecurringButtonTopic || (mentionsButtons && mentionsRecurring)) && isNegative) {
-        disableButtonsForRecurring = true;
-        matchedText = m.content;
-      }
+      // Intent detection
+      const mentionsButtons = content.includes('boton') || content.includes('botón') || topic.includes('confirmation_buttons');
+      const mentionsNudges = content.includes('aviso pendiente')
+        || content.includes('avisos pendientes')
+        || content.includes('aviso')
+        || content.includes('avisos')
+        || content.includes('nudge')
+        || content.includes('insistir')
+        || content.includes('insistencia')
+        || content.includes('seguimiento')
+        || content.includes('confirm')
+        || topic.includes('persistent_confirmation')
+        || topic.includes('reminder_confirmation');
 
-      // Check for persistent confirmation preference
-      const isConfirmationTopic = topic.includes('persistent_confirmation') || topic.includes('reminder_confirmation');
-      const isConfirmationContent = content.includes('confirm') && (content.includes('recordatorio') || content.includes('insist'));
-      if ((isConfirmationTopic || isConfirmationContent) && !isNegative) {
-        requiresConfirmation = true;
-        const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i);
-        if (minMatch) nudgeIntervalMinutes = Number(minMatch[1]);
-        if (!matchedText) matchedText = m.content;
+      const isNegative = content.includes('no ')
+        || content.includes('sin ')
+        || content.includes('quitar')
+        || content.includes('eliminar')
+        || content.includes('desactivar')
+        || content.includes('nunca')
+        || content.includes('no deben')
+        || content.includes('no debe');
+
+      // 1. RECURRING-SPECIFIC SCOPE
+      if (isRecurringScope) {
+        if (mentionsButtons && isNegative) {
+          recurringDisableButtons = true;
+          if (!matchedText) matchedText = m.content;
+        }
+
+        if (mentionsNudges) {
+          if (isNegative) {
+            recurringDisableNudges = true;
+            recurringConfirmation = false;
+            if (!matchedText) matchedText = m.content;
+          } else {
+            recurringConfirmation = true;
+            const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i)
+              || content.match(/(\d+)\s*(?:minutos|min|m)\b.*(?:desp(?:u|ú)es|para confirm)/i);
+            if (minMatch) recurringInterval = Number(minMatch[1]);
+            if (!matchedText) matchedText = m.content;
+          }
+        }
+      } else {
+        // 2. GLOBAL / NON-SPECIFIC SCOPE
+        if (mentionsButtons && isNegative) {
+          globalDisableButtons = true;
+        }
+
+        if (mentionsNudges) {
+          if (isNegative) {
+            globalConfirmation = false;
+          } else {
+            globalConfirmation = true;
+            const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i)
+              || content.match(/(\d+)\s*(?:minutos|min|m)\b.*(?:desp(?:u|ú)es|para confirm)/i);
+            if (minMatch) globalInterval = Number(minMatch[1]);
+            if (!matchedText) matchedText = m.content;
+          }
+        }
       }
     }
 
+    // RESOLVE HIERARCHY (Specific Override > Global Default)
+    const effectiveGlobalConfirmation = Boolean(globalConfirmation);
+    const effectiveGlobalInterval = globalInterval;
+    const effectiveGlobalDisableButtons = Boolean(globalDisableButtons);
+
+    const effectiveRecurringDisableButtons = recurringDisableButtons !== null
+      ? Boolean(recurringDisableButtons)
+      : effectiveGlobalDisableButtons;
+
+    const effectiveRecurringDisableNudges = Boolean(recurringDisableNudges);
+
+    // If specific recurring nudges are disabled, it strictly overrides any global confirmation setting
+    const effectiveRecurringConfirmation = effectiveRecurringDisableNudges
+      ? false
+      : (recurringConfirmation !== null ? Boolean(recurringConfirmation) : effectiveGlobalConfirmation);
+
+    const effectiveRecurringInterval = recurringInterval ?? effectiveGlobalInterval;
+
     return {
-      disableButtonsForRecurring,
-      requiresConfirmation,
-      nudgeIntervalMinutes,
+      global: {
+        requiresConfirmation: effectiveGlobalConfirmation,
+        nudgeIntervalMinutes: effectiveGlobalInterval,
+        disableButtons: effectiveGlobalDisableButtons,
+      },
+      recurring: {
+        requiresConfirmation: effectiveRecurringConfirmation,
+        nudgeIntervalMinutes: effectiveRecurringInterval,
+        disableButtons: effectiveRecurringDisableButtons,
+        disableNudges: effectiveRecurringDisableNudges,
+      },
+      disableButtonsForRecurring: effectiveRecurringDisableButtons,
+      disableNudgesForRecurring: effectiveRecurringDisableNudges,
+      requiresConfirmation: effectiveGlobalConfirmation,
+      nudgeIntervalMinutes: effectiveGlobalInterval,
       preferenceText: matchedText,
     };
   } catch (err) {
@@ -586,15 +680,18 @@ export async function getReminderDispatchPolicy(userId) {
  * Check if the user has an active preference for persistent confirmation reminders.
  *
  * @param {string} userId
+ * @param {object} [options]
+ * @param {boolean} [options.isRecurring=false]
  * @returns {Promise<{ requiresConfirmation: boolean, nudgeIntervalMinutes?: number, preferenceText?: string }|null>}
  */
-export async function getReminderConfirmationPreference(userId) {
+export async function getReminderConfirmationPreference(userId, { isRecurring = false } = {}) {
   if (!userId) return null;
   const policy = await getReminderDispatchPolicy(userId);
-  if (!policy.requiresConfirmation) return null;
+  const targetScope = isRecurring ? policy.recurring : policy.global;
+  if (!targetScope?.requiresConfirmation) return null;
   return {
     requiresConfirmation: true,
-    nudgeIntervalMinutes: policy.nudgeIntervalMinutes,
+    nudgeIntervalMinutes: targetScope.nudgeIntervalMinutes,
     preferenceText: policy.preferenceText,
   };
 }

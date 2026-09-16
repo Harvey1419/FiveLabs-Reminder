@@ -78,4 +78,26 @@ describe('reminder acknowledgement lifecycle', () => {
     expect(isIntradayRecurrence('weekdays')).toBe(false);
     expect(isIntradayRecurrence(null)).toBe(false);
   });
+
+  it('does not consider a reminder due for a nudge if its scheduled send_at is in the future (snooze invariant)', () => {
+    const reminder = {
+      status: 'pending',
+      requires_confirmation: true,
+      acknowledged_at: null,
+      sent_at: '2026-09-16T13:00:00.000Z',
+      last_nudged_at: '2026-09-16T13:00:00.000Z',
+      send_at: '2026-09-16T13:15:00.000Z', // snoozed 15 min into future
+      nudge_interval_minutes: 10,
+      nudge_count: 0,
+      max_nudges: 3,
+    };
+
+    // At minute 10: 10 minutes elapsed since last_nudged_at, but send_at is 13:15 (in the future)
+    const atMinute10 = new Date('2026-09-16T13:10:00.000Z').getTime();
+    expect(isNudgeDue(reminder, atMinute10)).toBe(false);
+
+    // At minute 16: send_at is in the past
+    const atMinute16 = new Date('2026-09-16T13:16:00.000Z').getTime();
+    expect(isNudgeDue(reminder, atMinute16)).toBe(true);
+  });
 });

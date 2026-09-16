@@ -6,7 +6,10 @@ import {
   hasProAccess,
   shouldEnforceBillingForUser,
 } from '../../infrastructure/database/index.js';
-import { getReminderConfirmationPreference } from '../../infrastructure/database/memories.js';
+import {
+  getReminderConfirmationPreference,
+  getReminderDispatchPolicy,
+} from '../../infrastructure/database/memories.js';
 import {
   parseTargetTime,
   formatHumanFriendlyDateTime,
@@ -95,13 +98,13 @@ export async function executeReminderCreate({
   const rejectedItems = [];
   const savedReminders = [];
 
-  let confirmationPref = null;
+  let dispatchPolicy = null;
   try {
-    confirmationPref = (userId && typeof getReminderConfirmationPreference === 'function')
-      ? await getReminderConfirmationPreference(userId)
+    dispatchPolicy = (userId && typeof getReminderDispatchPolicy === 'function')
+      ? await getReminderDispatchPolicy(userId)
       : null;
   } catch {
-    confirmationPref = null;
+    dispatchPolicy = null;
   }
 
   for (const item of rawItems) {
@@ -110,11 +113,13 @@ export async function executeReminderCreate({
     const advanceMinutes = item.advanceMinutes || null;
     const advanceNoticeTime = item.advanceNoticeTime || null;
     const recurrenceRule = item.recurrence || null;
+    const isRecurring = Boolean(recurrenceRule);
+    const scopePref = isRecurring ? dispatchPolicy?.recurring : dispatchPolicy?.global;
     const hasExplicitConfirmation = item.requiresConfirmation !== undefined && item.requiresConfirmation !== null;
     const requiresConfirmation = hasExplicitConfirmation
       ? Boolean(item.requiresConfirmation)
-      : Boolean(confirmationPref?.requiresConfirmation);
-    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || (requiresConfirmation ? (confirmationPref?.nudgeIntervalMinutes || 15) : null);
+      : Boolean(scopePref?.requiresConfirmation);
+    const nudgeIntervalMinutes = item.nudgeIntervalMinutes || (requiresConfirmation ? (scopePref?.nudgeIntervalMinutes || 15) : null);
     const maxNudges = item.maxNudges || null;
     const replacePending = item.replacePending || false;
     const checklist = item.checklist || null;
