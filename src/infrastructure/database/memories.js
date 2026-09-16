@@ -139,6 +139,9 @@ export async function saveMemory({
             .in('id', duplicateIds);
           if (reconcileError) console.warn('[memories] duplicate identity reconciliation failed:', reconcileError.message);
         }
+        if (isReminderPolicyMemory(identical)) {
+          triggerEagerReminderReconciliation(userId);
+        }
         return identical;
       }
     }
@@ -193,6 +196,10 @@ export async function saveMemory({
         if (rollbackError) console.error('[memories] new version rollback failed:', rollbackError);
         return null;
       }
+    }
+
+    if (newMem && isReminderPolicyMemory(newMem)) {
+      triggerEagerReminderReconciliation(userId);
     }
 
     return newMem;
@@ -499,6 +506,11 @@ export async function forgetMemories({ userId, topicKey = null, query = null }) 
     }
 
     console.log(`[memories] Forgot/deleted ${ids.length} memories for user ${userId}`);
+
+    if (uniqueCandidates.some((m) => isReminderPolicyMemory(m))) {
+      triggerEagerReminderReconciliation(userId);
+    }
+
     return {
       deletedCount: ids.length,
       deletedMemories: uniqueCandidates,
@@ -695,4 +707,156 @@ export async function getReminderConfirmationPreference(userId, { isRecurring = 
     preferenceText: policy.preferenceText,
   };
 }
+
+/**
+ * Fast domain gate: determines if a memory object or candidate affects reminder dispatch policies.
+ *
+ * @param {object} memory
+ * @returns {boolean}
+ */
+export function isReminderPolicyMemory(memory) {
+  if (!memory) return false;
+  const topic = String(memory.topic_key || memory.topicKey || '').toLowerCase();
+  const content = String(memory.content || '').toLowerCase();
+
+  // Fast path 1: Topic key explicitly targets reminder dispatch/confirmation
+  if (
+    topic.includes('reminder') ||
+    topic.includes('recurring') ||
+    topic.includes('confirmation') ||
+    topic.includes('nudge')
+  ) {
+    return true;
+  }
+
+  // Fast path 2: Content contains reminder scope + dispatch intent
+  const mentionsScope = content.includes('recordatorio') ||
+    content.includes('recurrente') ||
+    content.includes('recurrentes') ||
+    content.includes('rutina') ||
+    content.includes('rutinas');
+
+  if (mentionsScope) {
+    const mentionsIntent = content.includes('aviso') ||
+      content.includes('avisos') ||
+      content.includes('botón') ||
+      content.includes('boton') ||
+      content.includes('confirm') ||
+      content.includes('nudge') ||
+      content.includes('insist') ||
+      content.includes('pendiente') ||
+      content.includes('pendientes') ||
+      content.includes('quitar') ||
+      content.includes('desactivar') ||
+      content.includes('eliminar') ||
+      content.includes('no ');
+    if (mentionsIntent) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Reconcile pending reminders for a user against their current hierarchical dispatch policy.
+ * Scoped strictly to pending reminders belonging to `userId`.
+ *
+ * @param {string} userId
+ * @returns {Promise<{ updatedCount: number, policy: object }>}
+ */
+export async function reconcileRemindersWithPolicy(userId) {
+  if (!userId) return { updatedCount: 0, policy: null };
+
+  try {
+    const policy = await getReminderDispatchPolicy(userId);
+    let updatedCount = 0;
+
+    // 1. RECURRING REMINDERS:
+    // If recurring nudges are disabled, heal pending recurring reminders to requires_confirmation: false
+    if (policy?.recurring?.disableNudges || policy?.disableNudgesForRecurring) {
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({
+          requires_confirmation: false,
+          nudge_count: 0,
+          last_nudged_at: null,
+        })
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .not('recurrence_rule', 'is', null)
+        .eq('requires_confirmation', true)
+        .select('id');
+
+      if (error) {
+        console.warn(`[memories] failed to reconcile recurring reminders for user ${userId}:`, error.message);
+      } else if (data?.length > 0) {
+        updatedCount += data.length;
+        console.log(`[memories] eagerly healed ${data.length} recurring reminder(s) (requires_confirmation -> false) for user ${userId}`);
+      }
+    }
+
+    // 2. GLOBAL / NON-RECURRING REMINDERS:
+    // If global confirmation is explicitly disabled, heal pending non-recurring reminders
+    if (!policy?.global?.requiresConfirmation) {
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({
+          requires_confirmation: false,
+          nudge_count: 0,
+          last_nudged_at: null,
+        })
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .is('recurrence_rule', null)
+        .eq('requires_confirmation', true)
+        .select('id');
+
+      if (error) {
+        console.warn(`[memories] failed to reconcile non-recurring reminders for user ${userId}:`, error.message);
+      } else if (data?.length > 0) {
+        updatedCount += data.length;
+        console.log(`[memories] eagerly healed ${data.length} non-recurring reminder(s) (requires_confirmation -> false) for user ${userId}`);
+      }
+    } else if (policy?.global?.nudgeIntervalMinutes) {
+      // If global confirmation is enabled and interval was adjusted
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({
+          nudge_interval_minutes: policy.global.nudgeIntervalMinutes,
+        })
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .is('recurrence_rule', null)
+        .eq('requires_confirmation', true)
+        .neq('nudge_interval_minutes', policy.global.nudgeIntervalMinutes)
+        .select('id');
+
+      if (!error && data?.length > 0) {
+        updatedCount += data.length;
+        console.log(`[memories] updated nudge interval on ${data.length} non-recurring reminder(s) for user ${userId}`);
+      }
+    }
+
+    return { updatedCount, policy };
+  } catch (err) {
+    console.warn(`[memories] reconcileRemindersWithPolicy threw for user ${userId}:`, err.message);
+    return { updatedCount: 0, policy: null };
+  }
+}
+
+/**
+ * Non-blocking eager trigger that schedules reconciliation in Node's background loop.
+ *
+ * @param {string} userId
+ */
+export function triggerEagerReminderReconciliation(userId) {
+  if (!userId) return;
+  setImmediate(async () => {
+    try {
+      await reconcileRemindersWithPolicy(userId);
+    } catch (err) {
+      console.warn('[memories] triggerEagerReminderReconciliation background error:', err?.message || err);
+    }
+  });
+}
+
 
