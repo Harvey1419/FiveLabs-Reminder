@@ -95,4 +95,27 @@ describe('active reminder acknowledgement context', () => {
     expect(prompt).not.toContain('[Seguimiento activo esperando confirmación]');
     expect(prompt).not.toContain('emite únicamente reminder.acknowledge');
   });
+
+  it('keeps notification context active for recently dispatched reminders awaiting acknowledgement', () => {
+    saveWorkingMemory(phone, {
+      source: 'reminder',
+      scope: 'today',
+      lastAction: 'reminder_dispatched',
+      notificationReminderId: 'dispatched-reminder-uuid',
+      notificationContent: 'Montar los impuestos de esthom',
+      items: [{
+        type: 'reminder',
+        internalId: 'dispatched-reminder-uuid',
+        summary: 'Montar los impuestos de esthom',
+      }],
+    });
+
+    const prompt = formatWorkingMemoryPrompt(phone, {
+      pendingConfirmationReminders: [],
+    });
+
+    expect(prompt).toContain('AWAITING_ACKNOWLEDGEMENT');
+    expect(prompt).toContain('reminder="Montar los impuestos de esthom"');
+    expect(prompt).toContain('reminder.acknowledge');
+  });
 });

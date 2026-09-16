@@ -1,5 +1,6 @@
 import { supabase, acknowledgeReminder } from '../../infrastructure/database/index.js';
 import { stripReminderPrefix } from '../../integrations/whatsapp/kapso-client.js';
+import { isIntradayRecurrence } from '../../shared/reminder-recurrence.js';
 import { resolveContextReference } from '../core/context-reference.js';
 import { formatReminderAcknowledgedCard } from './formatters.js';
 import {
@@ -85,6 +86,9 @@ export async function executeReminderAcknowledgement({ params = {}, user = null,
     const acknowledged = await acknowledgeReminder(matched.id, userId);
     if (!acknowledged) return { success: false, action: 'database_error', errorCode: 'DATABASE_ERROR', error: language === 'en' ? 'I could not confirm the reminder.' : 'No pude confirmar el recordatorio.' };
     confirmed = acknowledged;
+  }
+  if (confirmed?.id && isIntradayRecurrence(confirmed.recurrence_rule)) {
+    await supabase.from('reminders').update({ status: 'cancelled' }).eq('id', confirmed.id);
   }
 
   const formattedCard = formatReminderAcknowledgedCard(confirmed, language);

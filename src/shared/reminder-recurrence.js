@@ -4,6 +4,19 @@ function asValidDate(value) {
 }
 
 /**
+ * Check if a recurrence rule represents an intraday / high-frequency interval
+ * (e.g. hourly, hourly:2, interval:30m, interval:2h).
+ * These are typically insistent task-completion reminders rather than perpetual habits.
+ */
+export function isIntradayRecurrence(recurrenceRule) {
+  const rule = String(recurrenceRule || '').trim().toLowerCase();
+  if (!rule) return false;
+  return rule === 'hourly'
+    || rule.startsWith('hourly:')
+    || rule.startsWith('interval:');
+}
+
+/**
  * Compute the next future occurrence for the recurrence grammar already
  * supported by the scheduler. This is intentionally pure so recurrence timing
  * has one testable source of truth.

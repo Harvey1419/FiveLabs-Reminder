@@ -101,6 +101,17 @@ async function advanceRecurringReminderInPlace(reminder, { dispatchedAt = null, 
  */
 export async function reconcileRecurringScheduleState() {
   const nowIso = new Date().toISOString();
+  try {
+    await supabase
+      .from('reminders')
+      .update({ status: 'cancelled' })
+      .not('acknowledged_at', 'is', null)
+      .neq('status', 'cancelled')
+      .or('recurrence_rule.eq.hourly,recurrence_rule.like.hourly:%,recurrence_rule.like.interval:%');
+  } catch (healErr) {
+    console.warn(`[scheduler worker=${WORKER_ID}] intraday recurrence heal warning:`, healErr.message || healErr);
+  }
+
   const { data, error } = await supabase
     .from('reminders')
     .update({ status: 'pending' })

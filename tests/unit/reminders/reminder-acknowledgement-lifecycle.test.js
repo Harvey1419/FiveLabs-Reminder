@@ -64,4 +64,18 @@ describe('reminder acknowledgement lifecycle', () => {
       max_nudges: 3,
     }, referenceTime)).toBe(false);
   });
+
+  it('correctly classifies intraday / high-frequency recurrence rules', async () => {
+    const { isIntradayRecurrence } = await import('../../../src/shared/reminder-recurrence.js');
+    expect(isIntradayRecurrence('hourly')).toBe(true);
+    expect(isIntradayRecurrence('hourly:2')).toBe(true);
+    expect(isIntradayRecurrence('interval:30m')).toBe(true);
+    expect(isIntradayRecurrence('interval:2h')).toBe(true);
+
+    expect(isIntradayRecurrence('daily')).toBe(false);
+    expect(isIntradayRecurrence('weekly')).toBe(false);
+    expect(isIntradayRecurrence('monthly')).toBe(false);
+    expect(isIntradayRecurrence('weekdays')).toBe(false);
+    expect(isIntradayRecurrence(null)).toBe(false);
+  });
 });

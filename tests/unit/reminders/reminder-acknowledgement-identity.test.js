@@ -8,6 +8,7 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
       let selectedId = null;
       const chain = {
         select: vi.fn(() => chain),
+        update: vi.fn(() => chain),
         neq: vi.fn(() => chain),
         or: vi.fn(() => chain),
         eq: vi.fn((field, value) => {
@@ -98,5 +99,28 @@ describe('authoritative reminder acknowledgement identity', () => {
 
     expect(result).toMatchObject({ success: true, reminderId: 'reminder-active' });
     expect(acknowledgeReminder).not.toHaveBeenCalled();
+  });
+
+  it('cancels the recurring series when acknowledging an intraday reminder (e.g. hourly)', async () => {
+    state.rows = [{
+      id: 'reminder-hourly',
+      user_id: 'user-1',
+      phone_number: null,
+      content: 'Montar los impuestos de esthom',
+      recurrence_rule: 'hourly',
+      acknowledged_at: null,
+    }];
+    acknowledgeReminder.mockResolvedValue({
+      ...state.rows[0],
+      acknowledged_at: '2026-09-15T15:00:00.000Z',
+    });
+
+    const result = await executeReminderAcknowledgement({
+      params: { action: 'acknowledge', target: 'Montar los impuestos', reminderId: 'reminder-hourly' },
+      user,
+    });
+
+    expect(result.success).toBe(true);
+    expect(acknowledgeReminder).toHaveBeenCalledWith('reminder-hourly', 'user-1');
   });
 });

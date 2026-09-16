@@ -1,9 +1,11 @@
 import crypto from 'crypto';
+import { clearWorkingMemory } from '../../agent/core/working-memory.js';
 import { routeMessage } from '../../agent/orchestration/router.js';
 import { sendWhatsAppText, sendWhatsAppCtaUrl, sendWhatsAppFlow, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
 import {
+  supabase,
   updateReminderDeliveryStatus,
   acknowledgeReminder,
   acknowledgeRemindersByTaskId,
@@ -14,6 +16,7 @@ import { extractMemoryInBackground } from '../../jobs/memory-extractor.js';
 import { transcribeAudio } from '../../integrations/media/transcription.js';
 import { processDocumentOrImage } from '../../integrations/media/document-processor.js';
 import { detectTimezoneFromLocationText, detectTimezoneFromCoordinates, getNearestCityFromCoordinates } from '../../shared/time.js';
+import { isIntradayRecurrence } from '../../shared/reminder-recurrence.js';
 
 // In-memory dedup set for message IDs as fast-path optimization (DB is true source of truth).
 const recentlyProcessed = new Set();
@@ -338,6 +341,19 @@ export async function handleWebhook(req, res) {
             } catch (taskErr) {
               console.warn(`[webhook fast-path req=${correlationId}] task completion cascade warning:`, taskErr.message);
             }
+          }
+          if (ackResult?.id && isIntradayRecurrence(ackResult.recurrence_rule)) {
+            try {
+              await supabase.from('reminders').update({ status: 'cancelled' }).eq('id', ackResult.id);
+            } catch (cancelErr) {
+              console.warn(`[webhook fast-path req=${correlationId}] intraday recurrence cancel warning:`, cancelErr.message);
+            }
+          }
+          try {
+            clearWorkingMemory(user);
+            if (phoneNumber) clearWorkingMemory(phoneNumber);
+          } catch (memErr) {
+            console.warn(`[webhook fast-path req=${correlationId}] clearWorkingMemory warning:`, memErr.message);
           }
           const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
           const confirmText = isEnglishUser

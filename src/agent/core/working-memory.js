@@ -39,6 +39,12 @@ export function formatWorkingMemoryPrompt(userOrPhone, overview = null) {
     || (
       authoritativeFollowups.length === 1
       && authoritativeFollowups[0]?.id === memory?.notificationReminderId
+    )
+    || (
+      memory?.source === 'reminder'
+      && memory?.notificationReminderId
+      && memory?.lastAction === 'reminder_dispatched'
+      && (!authoritativeFollowups || authoritativeFollowups.length <= 1)
     );
   const awaitingAcknowledgement = Boolean(
     memory
