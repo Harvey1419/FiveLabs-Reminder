@@ -68,4 +68,30 @@ describe('Reminder Pro upgrade context', () => {
     const context = await resolveReminderProUpgradeContext('19164158325', 'es', { timezone: 'America/Bogota' });
     expect(context.checkoutUrl).toContain('checkout%5Bbilling_address%5D%5Bcountry%5D=CO');
   });
+
+  it('routes to Stripe checkout when BILLING_PROVIDER=stripe for both domestic and international', async () => {
+    process.env.BILLING_PROVIDER = 'stripe';
+    process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/8x2dR9dZsez51usg3A73G03';
+
+    const colContext = await resolveReminderProUpgradeContext('+573001234567', 'es', { userId: 'user-col-1' });
+    expect(colContext).toMatchObject({
+      amount: 14.99,
+      currency: 'USD',
+      provider: 'Stripe',
+      ctaButtonText: 'Pagar ahora',
+    });
+    expect(colContext.checkoutUrl).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
+    expect(colContext.checkoutUrl).toContain('client_reference_id=user-col-1');
+    expect(colContext.checkoutUrl).toContain('locale=es');
+
+    const intlContext = await resolveReminderProUpgradeContext('19164158325', 'en', { userId: 'user-intl-1' });
+    expect(intlContext).toMatchObject({
+      amount: 14.99,
+      currency: 'USD',
+      provider: 'Stripe',
+      ctaButtonText: 'Pay now',
+    });
+    expect(intlContext.checkoutUrl).toContain('locale=en');
+    delete process.env.BILLING_PROVIDER;
+  });
 });

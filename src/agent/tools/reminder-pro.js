@@ -1,5 +1,6 @@
 import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
 import { buildLemonSqueezyCheckoutUrl } from '../../integrations/lemon-squeezy/client.js';
+import { buildStripeCheckoutUrl } from '../../integrations/stripe/client.js';
 
 export const REMINDER_PRO_FALLBACK = Object.freeze({
   price: 49900,
@@ -19,7 +20,7 @@ export const REMINDER_PRO_FALLBACK = Object.freeze({
 export async function resolveReminderProUpgradeContext(
   phoneNumber,
   language = 'es',
-  { userId = null, timezone = null, country = null } = {},
+  { userId = null, timezone = null, country = null, email = null } = {},
 ) {
   const isColombianPhone = Boolean(
     phoneNumber
@@ -30,12 +31,28 @@ export async function resolveReminderProUpgradeContext(
   const isInternational = Boolean(phoneNumber && !isColombianPhone);
 
   const billingProvider = (process.env.BILLING_PROVIDER || '').toLowerCase();
+  const forceStripe = billingProvider === 'stripe';
   const forceLemon = billingProvider === 'lemonsqueezy';
   const forceMp = billingProvider === 'mercadopago';
-  const useLemon = forceLemon || (!forceMp && isInternational);
+  const useStripe = forceStripe;
+  const useLemon = !useStripe && (forceLemon || (!forceMp && isInternational));
 
   const resolvedCountry = country
     || (isColombianPhone || timezone === 'America/Bogota' || (!isInternational && language === 'es') ? 'CO' : null);
+
+  if (useStripe) {
+    const stripeUrl = buildStripeCheckoutUrl({ userId, phoneNumber, email, language });
+    return {
+      checkoutUrl: stripeUrl,
+      amount: 14.99,
+      currency: 'USD',
+      ctaHeader: REMINDER_PRO_FALLBACK.ctaHeader,
+      ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
+      fallbackCheckoutUrl: stripeUrl,
+      provider: 'Stripe',
+      planId: null,
+    };
+  }
 
   if (useLemon) {
     const lemonUrl = buildLemonSqueezyCheckoutUrl({ userId, phoneNumber, country: resolvedCountry });

@@ -3,6 +3,7 @@ import express from 'express';
 import { handleWebhook } from '../http/webhooks/whatsapp.js';
 import { handleMercadoPagoWebhook } from '../http/webhooks/mercado-pago.js';
 import { handleLemonSqueezyWebhook } from '../http/webhooks/lemon-squeezy.js';
+import { handleStripeWebhook } from '../http/webhooks/stripe.js';
 import { googleAuthRouter } from '../http/routes/google-auth.js';
 import { renderSubscriptionSuccessPage } from '../http/views/landing.js';
 import { renderPrivacyPolicyPage, renderTermsOfServicePage } from '../http/views/legal.js';
@@ -78,6 +79,9 @@ app.post('/webhooks/mercadopago', handleMercadoPagoWebhook);
 
 // Lemon Squeezy Webhook Endpoint
 app.post('/webhooks/lemonsqueezy', handleLemonSqueezyWebhook);
+
+// Stripe Webhook Endpoint
+app.post('/webhooks/stripe', handleStripeWebhook);
 
 // Subscription Callback Return Page (Browser redirect after payment)
 app.get('/subscription/callback', (req, res) => {
