@@ -467,4 +467,41 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(result.confirmation).toBe('¡Hola! ¿Cómo estás hoy?');
   });
+
+  it('suppresses speculative conversation reply framing when turn performs pure domain reads', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [
+        {
+          domain: 'conversation',
+          action: 'reply',
+          content: 'No tienes eventos programados en Google Calendar para mañana.',
+        },
+        {
+          domain: 'calendar',
+          action: 'list',
+          scope: 'tomorrow',
+        },
+      ],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      action: 'google_events_listed',
+      rawSummary: 'Eventos en tu Google Calendar:\n• 📅 CCS Daily interna — Mañana a las 9:00 AM',
+      confirmation: 'Eventos en tu Google Calendar:\n• 📅 CCS Daily interna — Mañana a las 9:00 AM',
+      formattedCard: 'Eventos en tu Google Calendar:\n• 📅 CCS Daily interna — Mañana a las 9:00 AM',
+      data: {
+        events: [{ summary: 'CCS Daily interna', start: '2026-09-17T09:00:00-05:00' }],
+      },
+    });
+
+    const result = await routeMessage('Y en google calendar ?', user, []);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_google_calendar',
+      params: expect.objectContaining({ action: 'list_events', scope: 'tomorrow' }),
+    }));
+    expect(result.confirmation).toContain('Eventos en tu Google Calendar');
+    expect(result.confirmation).toContain('CCS Daily interna');
+    expect(result.confirmation).not.toContain('No tienes eventos programados');
+  });
 });

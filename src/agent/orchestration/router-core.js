@@ -739,7 +739,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     );
   });
 
-  const baseFraming = conversationReply || null;
+  const hasOnlyReadActions = operationalActions.length > 0
+    && operationalActions.every((action) => ['list', 'read', 'search', 'next', 'status'].includes(action.action));
+  const baseFraming = hasOnlyReadActions ? null : (conversationReply || null);
   let framing = baseFraming ? { before: baseFraming, after: '' } : null;
   if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
