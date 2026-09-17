@@ -16,21 +16,29 @@ export const REMINDER_PRO_FALLBACK = Object.freeze({
  * shared commercial metadata and checkout-link resolution so create/update
  * cannot drift into different plan configuration or fallback behavior.
  */
-export async function resolveReminderProUpgradeContext(phoneNumber, language = 'es', { userId = null } = {}) {
-  const isInternational = Boolean(
+export async function resolveReminderProUpgradeContext(
+  phoneNumber,
+  language = 'es',
+  { userId = null, timezone = null, country = null } = {},
+) {
+  const isColombianPhone = Boolean(
     phoneNumber
-    && !String(phoneNumber).startsWith('+57')
-    && !String(phoneNumber).startsWith('57')
-    && !String(phoneNumber).startsWith('CO.')
+    && (String(phoneNumber).startsWith('+57')
+      || String(phoneNumber).startsWith('57')
+      || String(phoneNumber).startsWith('CO.'))
   );
+  const isInternational = Boolean(phoneNumber && !isColombianPhone);
 
   const billingProvider = (process.env.BILLING_PROVIDER || '').toLowerCase();
   const forceLemon = billingProvider === 'lemonsqueezy';
   const forceMp = billingProvider === 'mercadopago';
   const useLemon = forceLemon || (!forceMp && isInternational);
 
+  const resolvedCountry = country
+    || (isColombianPhone || timezone === 'America/Bogota' || (!isInternational && language === 'es') ? 'CO' : null);
+
   if (useLemon) {
-    const lemonUrl = buildLemonSqueezyCheckoutUrl({ userId, phoneNumber });
+    const lemonUrl = buildLemonSqueezyCheckoutUrl({ userId, phoneNumber, country: resolvedCountry });
     return {
       checkoutUrl: lemonUrl,
       amount: 9.99,

@@ -50,7 +50,12 @@ export function verifyLemonSqueezySignature(req) {
  * @param {string} [params.email]
  * @returns {string}
  */
-export function buildLemonSqueezyCheckoutUrl({ userId = null, phoneNumber = null, email = null } = {}) {
+export function buildLemonSqueezyCheckoutUrl({
+  userId = null,
+  phoneNumber = null,
+  email = null,
+  country = null,
+} = {}) {
   const rawBase = process.env.LEMON_SQUEEZY_CHECKOUT_URL || LEMON_SQUEEZY_DEFAULT_CHECKOUT_URL;
 
   try {
@@ -63,6 +68,9 @@ export function buildLemonSqueezyCheckoutUrl({ userId = null, phoneNumber = null
     }
     if (email) {
       url.searchParams.set('checkout[email]', String(email).trim());
+    }
+    if (country) {
+      url.searchParams.set('checkout[billing_address][country]', String(country).trim().toUpperCase());
     }
     return url.toString();
   } catch {

@@ -15,7 +15,11 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
   switch (action) {
     case 'get_link': {
       try {
-        const proContext = await resolveReminderProUpgradeContext(phoneNumber, language, { userId });
+        const proContext = await resolveReminderProUpgradeContext(phoneNumber, language, {
+          userId,
+          timezone: user?.timezone,
+          country: user?.country,
+        });
         const checkoutUrl = proContext.checkoutUrl || proContext.fallbackCheckoutUrl;
         const planAmount = proContext.amount;
         const planCurrency = proContext.currency;

@@ -63,4 +63,9 @@ describe('Reminder Pro upgrade context', () => {
     expect(context.checkoutUrl).toContain('lemonsqueezy.com');
     expect(context.checkoutUrl).toContain('checkout%5Bcustom%5D%5Bphone%5D=19164158325');
   });
+
+  it('prefills Colombian country in Lemon Squeezy checkout when timezone is Bogota', async () => {
+    const context = await resolveReminderProUpgradeContext('19164158325', 'es', { timezone: 'America/Bogota' });
+    expect(context.checkoutUrl).toContain('checkout%5Bbilling_address%5D%5Bcountry%5D=CO');
+  });
 });

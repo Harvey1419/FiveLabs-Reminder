@@ -128,6 +128,142 @@ describe('inventory query interceptor', () => {
       });
     });
 
+    it('detects unified agenda queries with correct temporal scopes', () => {
+      expect(detectInventoryQuery('Que tengo para mañana ?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('que tengo mañana')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('qué tengo hoy')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('qué tengo para hoy?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('cuál es mi agenda?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('mi agenda')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('agenda de mañana')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('qué hay mañana?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('what do I have tomorrow?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('show my agenda')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'all_pending',
+      });
+    });
+
+    it('strips conversational prefixes and detects underlying inventory query', () => {
+      expect(detectInventoryQuery('Súper, qué tengo para mañana ?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('Oye, qué tengo hoy ?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('Porfa dime que tengo hoy')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('Hermes, cuál es mi agenda?')).toEqual({
+        domain: 'agenda',
+        action: 'read',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('Genial, ver proyectos')).toEqual({
+        domain: 'project',
+        action: 'list',
+      });
+    });
+
+    it('detects calendar-specific queries', () => {
+      expect(detectInventoryQuery('qué reuniones tengo mañana?')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('Revisa mi calendario para mañana')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('qué eventos tengo hoy?')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('mis reuniones')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('mi calendario')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('check my calendar for tomorrow')).toEqual({
+        domain: 'calendar',
+        action: 'list',
+        scope: 'tomorrow',
+      });
+    });
+
+    it('detects reminder-specific queries', () => {
+      expect(detectInventoryQuery('qué recordatorios tengo para mañana?')).toEqual({
+        domain: 'reminder',
+        action: 'list',
+        scope: 'tomorrow',
+      });
+      expect(detectInventoryQuery('revisa mis recordatorios')).toEqual({
+        domain: 'reminder',
+        action: 'list',
+        scope: 'all_pending',
+      });
+      expect(detectInventoryQuery('mis recordatorios de hoy')).toEqual({
+        domain: 'reminder',
+        action: 'list',
+        scope: 'today',
+      });
+      expect(detectInventoryQuery('show my reminders')).toEqual({
+        domain: 'reminder',
+        action: 'list',
+        scope: 'all_pending',
+      });
+    });
+
     it('returns null for conversational or mutation messages', () => {
       expect(detectInventoryQuery('hola, cómo estás?')).toBeNull();
       expect(detectInventoryQuery('crea una tarea comprar leche')).toBeNull();

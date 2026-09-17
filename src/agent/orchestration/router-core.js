@@ -249,7 +249,7 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
       const proContext = await resolveReminderProUpgradeContext(
         phoneNumber || user?.phone_number,
         'es',
-        { userId: user?.id },
+        { userId: user?.id, timezone: user?.timezone, country: user?.country },
       );
       const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
       if (user?.id && !checkoutUrl?.includes('lemonsqueezy') && proContext?.planId) {
@@ -693,7 +693,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
         const proContext = await resolveReminderProUpgradeContext(
           phoneNumber || user?.phone_number,
           language,
-          { userId: user?.id },
+          { userId: user?.id, timezone: user?.timezone, country: user?.country },
         );
         const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
         if (checkoutUrl) {
