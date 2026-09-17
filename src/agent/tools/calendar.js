@@ -95,6 +95,84 @@ export function formatCalendarEventLine(ev, timezone = DEFAULT_TIMEZONE, languag
 }
 
 /**
+ * Sanitizes calendar query strings, stripping temporal and filler phrases,
+ * and inferring a temporal scope if none was explicitly provided.
+ *
+ * @param {{ query?: string|null, scope?: string|null }} input
+ * @returns {{ query: string|null, scope: string|null }}
+ */
+export function sanitizeCalendarQueryAndScope({ query, scope } = {}) {
+  let effectiveScope = scope ? String(scope).trim() : null;
+  const raw = typeof query === 'string' ? query.trim() : '';
+
+  if (!raw) {
+    return { query: null, scope: effectiveScope };
+  }
+
+  const lower = raw.toLowerCase();
+  let detectedScope = null;
+
+  if (/\b(pasado\s+mañana|pasado\s+manana|day\s+after\s+tomorrow)\b/i.test(lower)) {
+    detectedScope = 'day_after_tomorrow';
+  } else if (/\b(mañana|manana|tomorrow)\b/i.test(lower)) {
+    detectedScope = 'tomorrow';
+  } else if (/\b(hoy|today)\b/i.test(lower)) {
+    detectedScope = 'today';
+  } else if (/\b(esta\s+semana|this\s+week)\b/i.test(lower)) {
+    detectedScope = 'this_week';
+  } else if (/\b(pr[oó]xima\s+semana|next\s+week)\b/i.test(lower)) {
+    detectedScope = 'next_week';
+  } else if (/\b(este\s+fin\s+de\s+semana|este\s+finde|this\s+weekend)\b/i.test(lower)) {
+    detectedScope = 'this_weekend';
+  } else {
+    const weekdayMatches = lower.match(/\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+    if (weekdayMatches) {
+      const w = weekdayMatches[1].toLowerCase().replace('é', 'e').replace('á', 'a');
+      const map = {
+        lunes: 'monday', martes: 'tuesday', miercoles: 'wednesday', jueves: 'thursday',
+        viernes: 'friday', sabado: 'saturday', domingo: 'sunday',
+        monday: 'monday', tuesday: 'tuesday', wednesday: 'wednesday', thursday: 'thursday',
+        friday: 'friday', saturday: 'saturday', sunday: 'sunday',
+      };
+      if (map[w]) detectedScope = map[w];
+    }
+  }
+
+  if (!effectiveScope || effectiveScope === 'default_upcoming' || effectiveScope === 'upcoming') {
+    if (detectedScope) {
+      effectiveScope = detectedScope;
+    }
+  }
+
+  // Strip temporal phrases from query
+  let cleaned = lower
+    .replace(/\b(pasado\s+mañana|pasado\s+manana|day\s+after\s+tomorrow)\b/gi, ' ')
+    .replace(/\b(mañana|manana|tomorrow)\b/gi, ' ')
+    .replace(/\b(hoy|today)\b/gi, ' ')
+    .replace(/\b(esta\s+semana|this\s+week)\b/gi, ' ')
+    .replace(/\b(pr[oó]xima\s+semana|next\s+week)\b/gi, ' ')
+    .replace(/\b(este\s+fin\s+de\s+semana|este\s+finde|this\s+weekend)\b/gi, ' ')
+    .replace(/\b(el\s+|este\s+|este\s+pr[oó]ximo\s+|el\s+pr[oó]ximo\s+)?(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ');
+
+  // Strip generic calendar stopwords and search filler
+  cleaned = cleaned
+    .replace(/\b(google\s+calendar|google|calendario|calendar|agenda)\b/gi, ' ')
+    .replace(/\b(reuniones|reuni[oó]n|meetings|meeting)\b/gi, ' ')
+    .replace(/\b(eventos|evento|events|event)\b/gi, ' ')
+    .replace(/\b(citas|cita|appointments|appointment)\b/gi, ' ')
+    .replace(/\b(qu[eé]\s+tengo(\s+programado|\s+agendado)?|qu[eé]\s+hay|tengo(\s+programado|\s+agendado)?)\b/gi, ' ')
+    .replace(/\b(revisa(r)?(\s+mi)?|dame(\s+mi)?|ver(\s+mi)?|mostrar(\s+mis?)?|muestra(\s+mis?)?|consultar(\s+mi)?|consulta(\s+mi)?)\b/gi, ' ')
+    .replace(/\b(mis|mi|cu[aá]les\s+son|cu[aá]l\s+es|hay)\b/gi, ' ')
+    .replace(/\b(de|del|para|en|por|a|con|sobre|el|la|los|las|un|una|unos|unas)\b/gi, ' ')
+    .replace(/[^\w\sáéíóúüñÁÉÍÓÚÜÑ]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const finalQuery = cleaned.length > 0 ? cleaned : null;
+  return { query: finalQuery, scope: effectiveScope };
+}
+
+/**
  * Resolve a canonical mutation target. Identity comes only from params.target;
  * patch fields such as startDateTime/summary never participate in lookup.
  */
@@ -239,8 +317,14 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const queryParam = params.query || null;
-      const effectiveScope = action === 'next_event' ? 'next_event' : (params.scope || 'default_upcoming');
+      const sanitized = sanitizeCalendarQueryAndScope({
+        query: params.query,
+        scope: params.scope,
+      });
+      const queryParam = action === 'next_event' ? null : sanitized.query;
+      const effectiveScope = action === 'next_event'
+        ? 'next_event'
+        : (sanitized.scope || params.scope || 'default_upcoming');
       const resolved = resolveCalendarTemporalScope({ ...params, scope: effectiveScope }, tz);
 
       let rawEvents;
@@ -290,6 +374,10 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           summary = language === 'en'
             ? 'You have no upcoming events scheduled in your Google Calendar.'
             : 'No tienes eventos próximos programados en tu Google Calendar.';
+        } else if (queryParam) {
+          summary = language === 'en'
+            ? `No events matching "${queryParam}" were found in your Google Calendar for this period.`
+            : `No encontré eventos relacionados con "${queryParam}" en tu Google Calendar para este período.`;
         } else {
           summary = language === 'en'
             ? 'You have no events scheduled in Google Calendar for this period.'
@@ -332,8 +420,8 @@ export async function executeCalendarTool({ action, params = {}, user, language 
 
       const eventsFormatted = events.map(e => formatCalendarEventLine(e, tz, language)).join('\n');
       const header = language === 'en'
-        ? 'Events in your Google Calendar:'
-        : 'Eventos en tu Google Calendar:';
+        ? (queryParam ? `Events matching "${queryParam}" in your Google Calendar:` : 'Events in your Google Calendar:')
+        : (queryParam ? `Eventos relacionados con "${queryParam}" en tu Google Calendar:` : 'Eventos en tu Google Calendar:');
       const summary = `${header}\n${eventsFormatted}`;
 
       const structuredItems = events.map((e, idx) => ({

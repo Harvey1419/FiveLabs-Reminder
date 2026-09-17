@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { resolveCalendarTemporalScope } from '../../../src/shared/time.js';
 import { generateDeterministicCalendarEventId } from '../../../src/integrations/google/calendar.js';
-import { normalizeCalendarEvent, formatCalendarEventLine, executeCalendarTool } from '../../../src/agent/tools/calendar.js';
+import {
+  normalizeCalendarEvent,
+  formatCalendarEventLine,
+  executeCalendarTool,
+  sanitizeCalendarQueryAndScope,
+} from '../../../src/agent/tools/calendar.js';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 import { getIntentToolDefinitions, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
@@ -92,6 +97,28 @@ describe('Google Calendar current architecture', () => {
       expect(today.timeMin.toISOString()).toBe('2026-09-02T05:00:00.000Z');
       expect(tomorrow.timeMin.toISOString()).toBe('2026-09-03T05:00:00.000Z');
       expect(nextWeek.timeMin.toISOString()).toBe('2026-09-07T05:00:00.000Z');
+    });
+
+    it('sanitizes calendar queries, extracts temporal scopes and removes filler stopwords', () => {
+      const q1 = sanitizeCalendarQueryAndScope({ query: 'reuniones mañana' });
+      expect(q1.scope).toBe('tomorrow');
+      expect(q1.query).toBeNull();
+
+      const q2 = sanitizeCalendarQueryAndScope({ query: 'reunión con el médico mañana' });
+      expect(q2.scope).toBe('tomorrow');
+      expect(q2.query).toBe('médico');
+
+      const q3 = sanitizeCalendarQueryAndScope({ query: 'Revisa mi calendario de google' });
+      expect(q3.scope).toBeNull();
+      expect(q3.query).toBeNull();
+
+      const q4 = sanitizeCalendarQueryAndScope({ query: 'que reuniones tengo hoy' });
+      expect(q4.scope).toBe('today');
+      expect(q4.query).toBeNull();
+
+      const q5 = sanitizeCalendarQueryAndScope({ query: 'cita con Carlos el viernes' });
+      expect(q5.scope).toBe('friday');
+      expect(q5.query).toBe('carlos');
     });
   });
 
@@ -196,6 +223,37 @@ describe('Google Calendar current architecture', () => {
       };
       const normalizedRaw = normalizeTurnIntentForRuntime(rawScopeIntent, context);
       expect(normalizedRaw.actions[0].scope).toBe('today');
+    });
+
+    it('normalizes calendar search actions with temporal queries into canonical list actions', () => {
+      const context = {
+        user: { id: 'test-user-123' },
+        referenceTime: new Date('2026-09-12T19:00:00.000Z'),
+        timezone: 'America/Bogota',
+      };
+
+      const searchTomorrow = {
+        actions: [{ domain: 'calendar', action: 'search', query: 'reuniones mañana' }],
+      };
+      const normalizedTomorrow = normalizeTurnIntentForRuntime(searchTomorrow, context);
+      expect(normalizedTomorrow.actions[0].action).toBe('list');
+      expect(normalizedTomorrow.actions[0].scope).toBe('tomorrow');
+      expect(normalizedTomorrow.actions[0].query).toBeUndefined();
+
+      const searchSpecific = {
+        actions: [{ domain: 'calendar', action: 'search', query: 'reunión con Carlos mañana' }],
+      };
+      const normalizedSpecific = normalizeTurnIntentForRuntime(searchSpecific, context);
+      expect(normalizedSpecific.actions[0].action).toBe('search');
+      expect(normalizedSpecific.actions[0].scope).toBe('tomorrow');
+      expect(normalizedSpecific.actions[0].query).toBe('carlos');
+
+      const searchGeneric = {
+        actions: [{ domain: 'calendar', action: 'search', query: 'revisar mi calendario de google' }],
+      };
+      const normalizedGeneric = normalizeTurnIntentForRuntime(searchGeneric, context);
+      expect(normalizedGeneric.actions[0].action).toBe('list');
+      expect(normalizedGeneric.actions[0].scope).toBe('today');
     });
 
     it('validates canonical calendar operations in TurnIntent schema', () => {
@@ -333,6 +391,39 @@ describe('Google Calendar current architecture', () => {
       listEventsSpy.mockRestore();
       updateEventSpy.mockRestore();
       rescheduleCompanionSpy.mockRestore();
+      vi.restoreAllMocks();
+    });
+
+    it('search_events with temporal query sanitizes q to null and queries tomorrow window', async () => {
+      vi.spyOn(dbIntegrations, 'getUserIntegration').mockResolvedValue({
+        access_token: 'valid_token',
+        account_email: 'test@example.com',
+      });
+      let capturedParams = null;
+      const listEventsSpy = vi.spyOn(googleCalendar, 'listCalendarEvents').mockImplementation(async (userId, params) => {
+        capturedParams = params;
+        return [
+          {
+            id: 'evt-ccs-daily',
+            summary: 'CCS Daily interna',
+            start: { dateTime: '2026-09-17T09:00:00-05:00' },
+            end: { dateTime: '2026-09-17T09:30:00-05:00' },
+          },
+        ];
+      });
+
+      const res = await executeCalendarTool({
+        action: 'search_events',
+        params: { query: 'reuniones mañana' },
+        user: { id: 'u-juan', phone_number: '+573046154163', timezone: 'America/Bogota' },
+        language: 'es',
+      });
+
+      expect(res.success).toBe(true);
+      expect(capturedParams).not.toBeNull();
+      expect(capturedParams.q).toBeNull();
+      expect(res.rawSummary).toContain('CCS Daily interna');
+      listEventsSpy.mockRestore();
       vi.restoreAllMocks();
     });
   });

@@ -7,6 +7,7 @@ import {
   normalizeTaskScope,
   buildExplicitTaskDateScope,
 } from '../../shared/agenda-scopes.js';
+import { sanitizeCalendarQueryAndScope } from '../tools/calendar.js';
 
 function resolveWorkingItem(user, target, preferredType) {
   const reference = String(target || '').trim();
@@ -41,19 +42,50 @@ function normalizeReadScope(action, context) {
     return { ...action, scope: normalizeAgendaScope(action.scope, 'all_pending') };
   }
 
-  if (action.domain === 'calendar' && action.action === 'list') {
-    if (action.scope) return { ...action, scope: normalizeAgendaScope(action.scope, 'upcoming') };
-    const schedule = action.schedule;
-    if (schedule?.kind === 'relative_day_time') {
-      if (schedule.dayOffset === 0) return { ...action, scope: 'today' };
-      if (schedule.dayOffset === 1) return { ...action, scope: 'tomorrow' };
-      if (schedule.dayOffset === 2) return { ...action, scope: 'day_after_tomorrow' };
+  if (action.domain === 'calendar') {
+    if (action.action === 'list' || action.action === 'search') {
+      const rawQuery = action.query || action.target || action.description;
+      const sanitized = sanitizeCalendarQueryAndScope({ query: rawQuery, scope: action.scope });
+
+      let scope = sanitized.scope;
+      if (!scope && action.schedule) {
+        const schedule = action.schedule;
+        if (schedule.kind === 'relative_day_time') {
+          if (schedule.dayOffset === 0) scope = 'today';
+          else if (schedule.dayOffset === 1) scope = 'tomorrow';
+          else if (schedule.dayOffset === 2) scope = 'day_after_tomorrow';
+        } else if (schedule.kind === 'weekday_time' && schedule.weekday) {
+          scope = schedule.weekday;
+        } else if (schedule.kind === 'local_time') {
+          scope = 'today';
+        }
+      }
+
+      const normalizedScope = scope ? normalizeAgendaScope(scope, 'upcoming') : (action.scope ? normalizeAgendaScope(action.scope, 'upcoming') : undefined);
+
+      if (action.action === 'search') {
+        if (!sanitized.query) {
+          const { query: _q, target: _t, ...rest } = action;
+          return {
+            ...rest,
+            action: 'list',
+            scope: normalizedScope || 'today',
+          };
+        }
+        return {
+          ...action,
+          query: sanitized.query,
+          ...(normalizedScope ? { scope: normalizedScope } : {}),
+        };
+      }
+
+      const { query: _q, ...rest } = action;
+      return {
+        ...rest,
+        ...(normalizedScope ? { scope: normalizedScope } : {}),
+        ...(sanitized.query ? { query: sanitized.query } : {}),
+      };
     }
-    if (schedule?.kind === 'weekday_time' && schedule.weekday) {
-      return { ...action, scope: schedule.weekday };
-    }
-    if (schedule?.kind === 'local_time') return { ...action, scope: 'today' };
-    return action;
   }
 
   if (action.domain !== 'task' || action.action !== 'list') return action;

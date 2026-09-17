@@ -411,12 +411,28 @@ function buildDomainCall(action, context) {
       if (action.action === 'search') {
         const query = requiredText(action.query || action.target || action.description, 'MISSING_TARGET', 'Falta indicar qué evento buscas.');
         if (!query.valid) return query;
-        return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'search_events', query: query.value } };
+        return {
+          valid: true,
+          toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR,
+          params: {
+            action: 'search_events',
+            query: query.value,
+            ...(action.scope ? { scope: action.scope } : {}),
+          },
+        };
       }
       if (action.action === 'next') return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'next_event' } };
       if (action.action === 'connect') return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'get_connect_link' } };
       if (action.action === 'disconnect') return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'disconnect' } };
-      return { valid: true, toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR, params: { action: 'list_events', ...(action.scope ? { scope: action.scope } : {}) } };
+      return {
+        valid: true,
+        toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR,
+        params: {
+          action: 'list_events',
+          ...(action.scope ? { scope: action.scope } : {}),
+          ...(action.query ? { query: action.query } : {}),
+        },
+      };
     }
 
     case 'memory': {
