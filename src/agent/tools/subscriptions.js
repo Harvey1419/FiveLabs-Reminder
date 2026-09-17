@@ -39,10 +39,11 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
           ? `$${Number(planAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
           : `$${Number(planAmount).toLocaleString(language === 'en' ? 'en-US' : 'es-CO', { maximumFractionDigits: 0 })} ${planCurrency}`;
 
+        const displayUrl = (isStripe && proContext.shortCheckoutUrl) || checkoutUrl;
         const rawSummary = isStripe
           ? (language === 'en'
-            ? `💎 *Your Reminder Pro Access*\n\n💳 *Secure payment link:*\n${checkoutUrl}`
-            : `💎 *Tu acceso Reminder Pro*\n\n💳 *Enlace de pago seguro:*\n${checkoutUrl}`)
+            ? `💎 *Your Reminder Pro Access*\n\n💳 *Secure payment link:*\n${displayUrl}`
+            : `💎 *Tu acceso Reminder Pro*\n\n💳 *Enlace de pago seguro:*\n${displayUrl}`)
           : `💎 *Tu acceso Reminder Pro*\n\n💰 Precio: ${priceText}\n\n💳 Enlace de pago (${providerName}): ${checkoutUrl}`;
 
         return {

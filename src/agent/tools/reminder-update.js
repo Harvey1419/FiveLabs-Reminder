@@ -26,7 +26,8 @@ import {
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
-  const isStripe = Boolean(checkoutUrl?.includes('stripe.com'));
+  const isStripe = Boolean(checkoutUrl?.includes('stripe.com') || proUpgrade?.shortCheckoutUrl);
+  const displayCheckoutUrl = (isStripe && proUpgrade?.shortCheckoutUrl) || checkoutUrl;
   const isLemon = Boolean(checkoutUrl?.includes('lemonsqueezy'));
   const providerName = proUpgrade?.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
   const payNowLabel = language === 'en' ? 'Pay now' : 'Pagar ahora';
@@ -36,7 +37,7 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const formattedPaymentLabel = isStripe
     ? (language === 'en' ? 'Secure payment link:' : 'Enlace de pago seguro:')
     : (language === 'en' ? `Secure payment link with ${providerName}:` : `Enlace de pago (${providerName}):`);
-  const formattedCard = `${error}\n\n💳 *${formattedPaymentLabel}*\n${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`;
+  const formattedCard = `${error}\n\n💳 *${formattedPaymentLabel}*\n${displayCheckoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`;
   return {
     success: false,
     action: 'pro_tier_required',

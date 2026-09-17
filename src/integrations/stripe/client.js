@@ -50,6 +50,22 @@ export function buildStripeCheckoutUrl({
 }
 
 /**
+ * Build a clean, short redirect URL hosted on Hermes domain.
+ * Example: https://hermes.templelabs.co/pay?ref=19164158325
+ *
+ * @param {object} [params]
+ * @param {string} [params.userId]
+ * @param {string} [params.phoneNumber]
+ * @param {string} [params.baseUrl]
+ * @returns {string}
+ */
+export function getShortStripeCheckoutUrl({ userId = null, phoneNumber = null, baseUrl = null } = {}) {
+  const appBase = (baseUrl || process.env.APP_BASE_URL || 'https://hermes.templelabs.co').replace(/\/$/, '');
+  const ref = (userId && String(userId).trim()) || (phoneNumber && String(phoneNumber).trim()) || null;
+  return ref ? `${appBase}/pay?ref=${encodeURIComponent(ref)}` : `${appBase}/pay`;
+}
+
+/**
  * Validate HMAC-SHA256 signature from Stripe webhook request.
  *
  * Stripe signature format:

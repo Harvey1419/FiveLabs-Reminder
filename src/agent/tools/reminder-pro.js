@@ -1,6 +1,6 @@
 import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
 import { buildLemonSqueezyCheckoutUrl } from '../../integrations/lemon-squeezy/client.js';
-import { buildStripeCheckoutUrl } from '../../integrations/stripe/client.js';
+import { buildStripeCheckoutUrl, getShortStripeCheckoutUrl } from '../../integrations/stripe/client.js';
 
 export const REMINDER_PRO_FALLBACK = Object.freeze({
   price: 49900,
@@ -42,13 +42,15 @@ export async function resolveReminderProUpgradeContext(
 
   if (useStripe) {
     const stripeUrl = buildStripeCheckoutUrl({ userId, phoneNumber, email, language });
+    const shortUrl = getShortStripeCheckoutUrl({ userId, phoneNumber });
     return {
       checkoutUrl: stripeUrl,
+      shortCheckoutUrl: shortUrl,
       amount: 14.99,
       currency: 'USD',
       ctaHeader: REMINDER_PRO_FALLBACK.ctaHeader,
       ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
-      fallbackCheckoutUrl: stripeUrl,
+      fallbackCheckoutUrl: shortUrl || stripeUrl,
       provider: 'Stripe',
       planId: null,
     };

@@ -113,13 +113,18 @@ export function formatReminderCreateOutcomeCard({
     const valuePoints = language === 'en'
       ? ['🗓️ Schedule reminders for any day', '🔁 Repeat them automatically', '🌟 Organize your routine with more flexibility']
       : ['🗓️ Programa recordatorios para cualquier día', '🔁 Repítelos automáticamente', '🌟 Organiza tu rutina con más flexibilidad'];
-    const isStripe = Boolean(proUpgrade?.checkoutUrl?.includes('stripe.com') || proUpgrade?.fallbackCheckoutUrl?.includes('stripe.com'));
+    const isStripe = Boolean(
+      proUpgrade?.checkoutUrl?.includes('stripe.com')
+      || proUpgrade?.fallbackCheckoutUrl?.includes('stripe.com')
+      || proUpgrade?.shortCheckoutUrl
+    );
     const isLemon = Boolean(proUpgrade?.checkoutUrl?.includes('lemonsqueezy') || proUpgrade?.fallbackCheckoutUrl?.includes('lemonsqueezy'));
     const providerName = proUpgrade?.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
-    const payment = proUpgrade?.checkoutUrl
+    const displayCheckoutUrl = (isStripe && proUpgrade?.shortCheckoutUrl) || proUpgrade?.checkoutUrl;
+    const payment = displayCheckoutUrl
       ? (language === 'en'
-        ? (isStripe ? `🔒 *Secure payment link:*\n${proUpgrade.checkoutUrl}` : `🔒 *Secure payment link with ${providerName}:*\n${proUpgrade.checkoutUrl}`)
-        : (isStripe ? `🔒 *Enlace de pago seguro:*\n${proUpgrade.checkoutUrl}` : `🔒 *Enlace de pago seguro con ${providerName}:*\n${proUpgrade.checkoutUrl}`))
+        ? (isStripe ? `🔒 *Secure payment link:*\n${displayCheckoutUrl}` : `🔒 *Secure payment link with ${providerName}:*\n${displayCheckoutUrl}`)
+        : (isStripe ? `🔒 *Enlace de pago seguro:*\n${displayCheckoutUrl}` : `🔒 *Enlace de pago seguro con ${providerName}:*\n${displayCheckoutUrl}`))
       : (language === 'en'
         ? `🔒 *Secure payment link:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`
         : `🔒 *Enlace de pago seguro:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`);

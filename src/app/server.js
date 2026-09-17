@@ -4,6 +4,7 @@ import { handleWebhook } from '../http/webhooks/whatsapp.js';
 import { handleMercadoPagoWebhook } from '../http/webhooks/mercado-pago.js';
 import { handleLemonSqueezyWebhook } from '../http/webhooks/lemon-squeezy.js';
 import { handleStripeWebhook } from '../http/webhooks/stripe.js';
+import { buildStripeCheckoutUrl } from '../integrations/stripe/client.js';
 import { googleAuthRouter } from '../http/routes/google-auth.js';
 import { renderSubscriptionSuccessPage } from '../http/views/landing.js';
 import { renderPrivacyPolicyPage, renderTermsOfServicePage } from '../http/views/legal.js';
@@ -87,6 +88,17 @@ app.post('/webhooks/stripe', handleStripeWebhook);
 app.get('/subscription/callback', (req, res) => {
   const theme = req.query.theme || 'obsidian';
   res.status(200).send(renderSubscriptionSuccessPage({ theme }));
+});
+
+// Short billing redirect route
+app.get(['/pay', '/pro'], (req, res) => {
+  const ref = req.query.ref || req.query.u || req.query.userId || req.query.phone || req.query.p;
+  const language = req.query.lang || (req.headers['accept-language']?.startsWith('en') ? 'en' : 'es');
+  const destination = buildStripeCheckoutUrl({
+    userId: ref,
+    language,
+  });
+  return res.redirect(302, destination);
 });
 
 const PORT = process.env.PORT || 3005;

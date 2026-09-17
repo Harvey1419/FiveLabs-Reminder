@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import crypto from 'crypto';
 import {
   buildStripeCheckoutUrl,
+  getShortStripeCheckoutUrl,
   verifyStripeSignature,
   STRIPE_DEFAULT_CHECKOUT_URL,
 } from '../../../src/integrations/stripe/client.js';
@@ -50,6 +51,29 @@ describe('Stripe Integration Client', () => {
       const url = buildStripeCheckoutUrl();
       expect(url).not.toContain('client_reference_id');
       expect(url).toContain('locale=es');
+    });
+  });
+
+  describe('getShortStripeCheckoutUrl', () => {
+    it('generates short vanity payment URL with userId ref', () => {
+      const shortUrl = getShortStripeCheckoutUrl({ userId: 'user-123' });
+      expect(shortUrl).toBe('https://hermes.templelabs.co/pay?ref=user-123');
+    });
+
+    it('generates short vanity payment URL with phoneNumber ref when userId is absent', () => {
+      const shortUrl = getShortStripeCheckoutUrl({ phoneNumber: '19164158325' });
+      expect(shortUrl).toBe('https://hermes.templelabs.co/pay?ref=19164158325');
+    });
+
+    it('respects custom baseUrl or APP_BASE_URL environment variable', () => {
+      process.env.APP_BASE_URL = 'https://custom.app.com';
+      const shortUrl = getShortStripeCheckoutUrl({ userId: 'user-xyz' });
+      expect(shortUrl).toBe('https://custom.app.com/pay?ref=user-xyz');
+    });
+
+    it('returns base /pay route when no ref is provided', () => {
+      const shortUrl = getShortStripeCheckoutUrl();
+      expect(shortUrl).toBe('https://hermes.templelabs.co/pay');
     });
   });
 

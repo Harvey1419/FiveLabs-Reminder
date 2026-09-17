@@ -267,6 +267,20 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.rawSummary).toContain('Lemon Squeezy');
   });
 
+  it('should generate Stripe checkout link with clean short vanity link when BILLING_PROVIDER=stripe', async () => {
+    process.env.BILLING_PROVIDER = 'stripe';
+    process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/8x2dR9dZsez51usg3A73G03';
+    const user = { id: 'test-user-1916', phone_number: '19164158325', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false };
+    const res = await runTool('manage_subscription', { action: 'get_link' }, user);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('subscription_link_generated');
+    expect(res.data.checkout_url).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
+    expect(res.data.checkout_url).toContain('client_reference_id=test-user-1916');
+    expect(res.rawSummary).toContain('https://hermes.templelabs.co/pay?ref=test-user-1916');
+    expect(res.ctaUrl).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
+    delete process.env.BILLING_PROVIDER;
+  });
+
   it('should cancel subscription in MercadoPago and return confirmation', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'test_sub_123', status: 'cancelled' }) });
     const cancelRes = await cancelPreapproval('test_sub_123');

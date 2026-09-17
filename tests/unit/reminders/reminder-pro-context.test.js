@@ -83,6 +83,7 @@ describe('Reminder Pro upgrade context', () => {
     expect(colContext.checkoutUrl).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
     expect(colContext.checkoutUrl).toContain('client_reference_id=user-col-1');
     expect(colContext.checkoutUrl).toContain('locale=es');
+    expect(colContext.shortCheckoutUrl).toBe('https://hermes.templelabs.co/pay?ref=user-col-1');
 
     const intlContext = await resolveReminderProUpgradeContext('19164158325', 'en', { userId: 'user-intl-1' });
     expect(intlContext).toMatchObject({
