@@ -32,7 +32,15 @@ import {
 } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
-import { sanitizeUserQueryText, detectInventoryQuery } from './inventory-query.js';
+
+export function sanitizeUserQueryText(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
+    .trim()
+    .replace(/^["'“`«\s]+|["'”`»\s]+$/g, '')
+    .trim();
+}
 import {
   getActiveAgentRun,
   executeApprovalDecision,
@@ -596,13 +604,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   let collected = structuredDecision.unavailable ? { valid: true, intent: null } : structuredDecision.validation;
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
 
-  if (!isAttachmentOnlyTurn && (!collected.valid || !collected.intent)) {
-    const fallbackAction = detectInventoryQuery(sanitizedUserText || messageText);
-    if (fallbackAction) {
-      console.log(`[router req=${requestId}] Recovered inventory query from invalid model intent: ${summarizeAction(fallbackAction)}`);
-      collected = { valid: true, intent: { actions: [fallbackAction] } };
-    }
-  }
 
   if (!collected.valid) {
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
@@ -655,24 +656,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 
   const conversationReply = conversationReplyFromActions(runtimeIntent.actions);
-  let operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
-  let inventoryIntercepted = false;
-
-  if (operationalActions.length === 0) {
-    const interceptedAction = detectInventoryQuery(sanitizedUserText || messageText);
-    if (interceptedAction) {
-      console.log(`[router req=${requestId}] Intercepted inventory query from conversation reply: ${summarizeAction(interceptedAction)}`);
-      runtimeIntent.actions = [interceptedAction];
-      const normalizedIntercepted = normalizeTurnIntentForRuntime(runtimeIntent, {
-        user,
-        referenceTime: requestReferenceTime,
-        timezone,
-      });
-      runtimeIntent.actions = normalizedIntercepted.actions;
-      operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
-      inventoryIntercepted = true;
-    }
-  }
+  const operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
 
   if (operationalActions.length === 0) {
     let confirmation = conversationReply || structuredDecisionError(language);
@@ -755,7 +739,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     );
   });
 
-  const baseFraming = (!inventoryIntercepted && conversationReply) ? conversationReply : null;
+  const baseFraming = conversationReply || null;
   let framing = baseFraming ? { before: baseFraming, after: '' } : null;
   if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();

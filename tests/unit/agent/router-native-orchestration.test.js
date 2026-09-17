@@ -417,12 +417,13 @@ describe('Hermes direct TurnIntent router', () => {
     expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
 
-  it('intercepts task inventory queries when model outputs conversation reply to prevent hallucinations', async () => {
+  it('routes structured task list operations from Hermes without ad-hoc lexical interception', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{
-        domain: 'conversation',
-        action: 'reply',
-        content: 'En reminder te queda 1 tarea: Mejorar la memoria.',
+        domain: 'task',
+        action: 'list',
+        entityName: 'reminder',
+        scope: 'all_pending',
       }],
     }));
     executeTool.mockResolvedValue({
@@ -450,6 +451,20 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.confirmation).toContain('1. enumerar tareas en vez de por lista con punto');
     expect(result.confirmation).toContain('2. Gestionar mejor los proyectos');
     expect(result.confirmation).toContain('3. Mejorar la gestión de la memoria');
-    expect(result.confirmation).not.toContain('te queda 1 tarea');
+  });
+
+  it('respects pure conversation replies without lexical regex interception in Node', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{
+        domain: 'conversation',
+        action: 'reply',
+        content: '¡Hola! ¿Cómo estás hoy?',
+      }],
+    }));
+
+    const result = await routeMessage('Hola Hermes qué tal', user, []);
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.confirmation).toBe('¡Hola! ¿Cómo estás hoy?');
   });
 });
