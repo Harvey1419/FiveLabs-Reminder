@@ -338,7 +338,11 @@ export async function executeReminderCreate({
     }));
 
   const proUpgrade = rejectedItems.some((item) => item.code === 'PRO_TIER_REQUIRED')
-    ? await resolveReminderProUpgradeContext(phoneNumber, language)
+    ? await resolveReminderProUpgradeContext(phoneNumber, language, {
+        userId: user?.id,
+        timezone: user?.timezone,
+        country: user?.country,
+      })
     : null;
 
   const formattedCard = formatReminderCreateOutcomeCard({

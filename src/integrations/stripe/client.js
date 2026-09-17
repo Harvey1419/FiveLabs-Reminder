@@ -29,8 +29,11 @@ export function buildStripeCheckoutUrl({
   try {
     const url = new URL(rawBase);
 
-    if (userId) {
-      url.searchParams.set('client_reference_id', String(userId).trim());
+    const clientRef = (userId && String(userId).trim()) || (phoneNumber && String(phoneNumber).trim()) || null;
+    if (clientRef) {
+      url.searchParams.set('client_reference_id', clientRef);
+    } else {
+      url.searchParams.delete('client_reference_id');
     }
 
     if (email) {

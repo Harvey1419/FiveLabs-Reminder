@@ -271,4 +271,46 @@ describe('Stripe Webhook Handler', () => {
     expect(subs[0].plan).toBe('free');
     expect(subs[0].canceled_at).toBeDefined();
   });
+
+  it('processes checkout.session.completed with client_reference_id containing phone number', async () => {
+    supabase.__resetSubscriptions();
+
+    const payload = {
+      id: 'evt_test_checkout_phone',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_session_phone',
+          client_reference_id: '19164158325',
+          subscription: 'sub_stripe_phone123',
+          customer_details: {
+            email: 'unmatched@random.com',
+          },
+        },
+      },
+    };
+
+    const { header, rawBody } = makeStripeSignature(payload);
+    const req = {
+      headers: { 'stripe-signature': header },
+      body: payload,
+      rawBody,
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+
+    await handleStripeWebhook(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const subs = supabase.__getSubscriptions();
+    expect(subs.length).toBe(1);
+    expect(subs[0]).toMatchObject({
+      user_id: 'user-uuid-1',
+      mp_preapproval_id: 'sub_stripe_phone123',
+      plan: 'pro',
+      status: 'authorized',
+    });
+  });
 });

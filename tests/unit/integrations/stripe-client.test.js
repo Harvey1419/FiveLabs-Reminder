@@ -40,8 +40,15 @@ describe('Stripe Integration Client', () => {
       expect(url).toContain('locale=en');
     });
 
-    it('defaults locale=es for spanish or non-english language', () => {
-      const url = buildStripeCheckoutUrl({ language: 'es' });
+    it('embeds client_reference_id with phoneNumber when userId is missing', () => {
+      const url = buildStripeCheckoutUrl({ phoneNumber: '19164158325' });
+      expect(url).toContain('client_reference_id=19164158325');
+    });
+
+    it('cleans up dangling client_reference_id when base URL contains empty param and no id or phone is provided', () => {
+      process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/test?client_reference_id=';
+      const url = buildStripeCheckoutUrl();
+      expect(url).not.toContain('client_reference_id');
       expect(url).toContain('locale=es');
     });
   });

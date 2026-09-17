@@ -9,8 +9,8 @@ import { resolveReminderProUpgradeContext } from './reminder-pro.js';
  * Domain tool for managing subscriptions and billing.
  */
 export async function executeSubscriptionTool({ action, params = {}, user, language = 'es' }) {
-  const userId = user?.id;
-  const phoneNumber = user?.phone_number;
+  const userId = user?.id || params.userId;
+  const phoneNumber = user?.phone_number || params.phoneNumber || params.phone;
 
   switch (action) {
     case 'get_link': {
@@ -39,7 +39,11 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
           ? `$${Number(planAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
           : `$${Number(planAmount).toLocaleString(language === 'en' ? 'en-US' : 'es-CO', { maximumFractionDigits: 0 })} ${planCurrency}`;
 
-        const rawSummary = `💎 *Tu acceso Reminder Pro*\n\n💰 Precio: ${priceText}\n\n💳 Enlace de pago (${providerName}): ${checkoutUrl}`;
+        const rawSummary = isStripe
+          ? (language === 'en'
+            ? `💎 *Your Reminder Pro Access*\n\n💳 *Secure payment link:*\n${checkoutUrl}`
+            : `💎 *Tu acceso Reminder Pro*\n\n💳 *Enlace de pago seguro:*\n${checkoutUrl}`)
+          : `💎 *Tu acceso Reminder Pro*\n\n💰 Precio: ${priceText}\n\n💳 Enlace de pago (${providerName}): ${checkoutUrl}`;
 
         return {
           success: true,

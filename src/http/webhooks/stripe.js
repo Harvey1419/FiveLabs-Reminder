@@ -10,14 +10,24 @@ import { sendWhatsAppText, sendWhatsAppTemplate } from '../../integrations/whats
  * @returns {Promise<object|null>}
  */
 async function resolveUserFromStripeSession(session = {}) {
-  const userId = session.client_reference_id ? String(session.client_reference_id).trim() : null;
-  if (userId) {
-    const { data: user } = await supabase
+  const clientRef = session.client_reference_id ? String(session.client_reference_id).trim() : null;
+  if (clientRef) {
+    const { data: userById } = await supabase
       .from('users')
       .select('*')
-      .eq('id', userId)
+      .eq('id', clientRef)
       .maybeSingle();
-    if (user) return user;
+    if (userById) return userById;
+
+    const cleanRefPhone = normalizeUserPhone(clientRef);
+    if (cleanRefPhone) {
+      const { data: userByPhone } = await supabase
+        .from('users')
+        .select('*')
+        .eq('phone_number', cleanRefPhone)
+        .maybeSingle();
+      if (userByPhone) return userByPhone;
+    }
   }
 
   const rawPhone = session.customer_details?.phone || session.metadata?.phone || null;

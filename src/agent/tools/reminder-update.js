@@ -33,6 +33,10 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const error = language === 'en'
     ? 'This reminder update requires a Reminder Pro subscription.'
     : 'Este cambio del recordatorio requiere una suscripción a Reminder Pro.';
+  const formattedPaymentLabel = isStripe
+    ? (language === 'en' ? 'Secure payment link:' : 'Enlace de pago seguro:')
+    : (language === 'en' ? `Secure payment link with ${providerName}:` : `Enlace de pago (${providerName}):`);
+  const formattedCard = `${error}\n\n💳 *${formattedPaymentLabel}*\n${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`;
   return {
     success: false,
     action: 'pro_tier_required',
@@ -40,7 +44,7 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
     isProFeature: true,
     error,
     rawSummary: error,
-    formattedCard: `${error}\n\n💳 *Enlace de pago (${providerName}):* ${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`,
+    formattedCard,
     data: {
       reason: 'pro_tier_limit',
       ...(targetDate ? { targetDate } : {}),
@@ -314,7 +318,11 @@ export async function executeReminderUpdate({
     const currentLocalDate = referenceDate.toLocaleDateString('en-CA', { timeZone: timezone });
     const targetLocalDate = parsedDate.toLocaleDateString('en-CA', { timeZone: timezone });
     if (enforceBilling && targetLocalDate > currentLocalDate && !userHasPro) {
-      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language);
+      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language, {
+        userId: user?.id,
+        timezone: user?.timezone,
+        country: user?.country,
+      });
       return proRequiredResult({ language, proUpgrade, targetDate: parsedDate.toISOString() });
     }
 
@@ -325,7 +333,11 @@ export async function executeReminderUpdate({
   if (Object.prototype.hasOwnProperty.call(updates, 'recurrence')) {
     const newRecurrence = updates.recurrence ?? null;
     if (enforceBilling && newRecurrence && !userHasPro) {
-      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language);
+      const proUpgrade = await resolveReminderProUpgradeContext(phoneNumber, language, {
+        userId: user?.id,
+        timezone: user?.timezone,
+        country: user?.country,
+      });
       return proRequiredResult({ language, proUpgrade });
     }
     dbUpdates.recurrence_rule = newRecurrence;

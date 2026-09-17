@@ -118,17 +118,19 @@ export function formatReminderCreateOutcomeCard({
     const providerName = proUpgrade?.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
     const payment = proUpgrade?.checkoutUrl
       ? (language === 'en'
-        ? `🔒 *Secure payment link with ${providerName}:*\n${proUpgrade.checkoutUrl}`
-        : `🔒 *Enlace de pago seguro con ${providerName}:*\n${proUpgrade.checkoutUrl}`)
+        ? (isStripe ? `🔒 *Secure payment link:*\n${proUpgrade.checkoutUrl}` : `🔒 *Secure payment link with ${providerName}:*\n${proUpgrade.checkoutUrl}`)
+        : (isStripe ? `🔒 *Enlace de pago seguro:*\n${proUpgrade.checkoutUrl}` : `🔒 *Enlace de pago seguro con ${providerName}:*\n${proUpgrade.checkoutUrl}`))
       : (language === 'en'
         ? `🔒 *Secure payment link:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`
         : `🔒 *Enlace de pago seguro:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`);
     const pricing = proUpgrade
       ? `${formatCurrency(proUpgrade.amount, proUpgrade.currency || 'COP', language)}${language === 'en' ? '/month' : '/mes'}`
       : (language === 'en' ? '$49,900 COP/month' : '$49.900 COP/mes');
-    const priceLine = language === 'en'
-      ? `💎 Activate Pro for *${pricing}*`
-      : `💎 Activa Pro por *${pricing}*`;
+    const priceLine = isStripe
+      ? null
+      : (language === 'en'
+        ? `💎 Activate Pro for *${pricing}*`
+        : `💎 Activa Pro por *${pricing}*`);
     const actionLine = language === 'en'
       ? '👇 Tap *Pay now* to activate it and keep planning with me.'
       : '👇 Toca *Pagar ahora* para activarlo y seguir organizándote conmigo.';
@@ -145,7 +147,7 @@ export function formatReminderCreateOutcomeCard({
       priceLine,
       payment,
       actionLine,
-    ].join('\n'));
+    ].filter((line) => line !== null).join('\n'));
   }
 
   return sections.join('\n\n');
