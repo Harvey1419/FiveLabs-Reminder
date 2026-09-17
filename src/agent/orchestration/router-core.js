@@ -672,7 +672,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       } catch (err) {
         console.warn('[router] generating auth_url in conversation failed:', err.message);
       }
-    } else if (confirmation.includes('[checkout_url]') || confirmation.includes('lemonsqueezy.com') || confirmation.includes('mercadopago.com')) {
+    } else if (confirmation.includes('[checkout_url]') || confirmation.includes('lemonsqueezy.com') || confirmation.includes('mercadopago.com') || confirmation.includes('stripe.com')) {
       try {
         const proContext = await resolveReminderProUpgradeContext(
           phoneNumber || user?.phone_number,
