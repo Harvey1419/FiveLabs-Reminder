@@ -254,6 +254,19 @@ describe('AI Tools & Plan Tier Gating', () => {
     fetchSpy.mockRestore();
   });
 
+  it('should generate Lemon Squeezy checkout link through manage_subscription for international user 19164158325', async () => {
+    const user = { id: 'test-user-1916', phone_number: '19164158325', timezone: 'America/Bogota', locale: 'es-CO', is_admin: false };
+    const res = await runTool('manage_subscription', { action: 'get_link' }, user);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('subscription_link_generated');
+    expect(res.data.checkout_url).toContain('lemonsqueezy.com');
+    expect(res.data.checkout_url).toContain('checkout%5Bcustom%5D%5Bphone%5D=19164158325');
+    expect(res.data.provider).toBe('Lemon Squeezy');
+    expect(res.data.amount).toBe(9.99);
+    expect(res.data.currency).toBe('USD');
+    expect(res.rawSummary).toContain('Lemon Squeezy');
+  });
+
   it('should cancel subscription in MercadoPago and return confirmation', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => ({ id: 'test_sub_123', status: 'cancelled' }) });
     const cancelRes = await cancelPreapproval('test_sub_123');

@@ -3,7 +3,7 @@ import {
   getUserSubscription,
   createPendingSubscription,
 } from '../../infrastructure/database/index.js';
-import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
+import { resolveReminderProUpgradeContext } from './reminder-pro.js';
 
 /**
  * Domain tool for managing subscriptions and billing.
@@ -15,29 +15,25 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
   switch (action) {
     case 'get_link': {
       try {
-        const plan = await getOrCreateCanonicalPlan({
-          reason: 'Hermes TempleLabs Pro',
-          amount: 49900,
-          currency: 'COP',
-          phoneNumber,
-        });
+        const proContext = await resolveReminderProUpgradeContext(phoneNumber, language, { userId });
+        const checkoutUrl = proContext.checkoutUrl || proContext.fallbackCheckoutUrl;
+        const planAmount = proContext.amount;
+        const planCurrency = proContext.currency;
+        const providerName = proContext.provider || (checkoutUrl?.includes('lemonsqueezy') ? 'Lemon Squeezy' : 'Mercado Pago');
 
-        const planAmount = plan.amount || 49900;
-        const checkoutUrl = plan.init_point || plan.checkout_url;
-
-        if (userId) {
+        if (userId && !checkoutUrl?.includes('lemonsqueezy') && proContext.planId) {
           await createPendingSubscription(userId, {
-            mpPreapprovalId: plan.id,
+            mpPreapprovalId: proContext.planId,
             amount: planAmount,
             plan: 'pro',
           }).catch(() => {});
         }
 
-        const planCurrency = plan.currency || 'COP';
-        const priceText = language === 'en'
-          ? `$${planAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })} ${planCurrency}`
-          : `$${planAmount.toLocaleString('es-CO', { maximumFractionDigits: 0 })} ${planCurrency}`;
-        const rawSummary = `💎 *Tu acceso Reminder Pro*\n\n💰 Precio: ${priceText}\n\n💳 Enlace de pago (Mercado Pago): ${checkoutUrl}`;
+        const priceText = planCurrency === 'USD'
+          ? `$${Number(planAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+          : `$${Number(planAmount).toLocaleString(language === 'en' ? 'en-US' : 'es-CO', { maximumFractionDigits: 0 })} ${planCurrency}`;
+
+        const rawSummary = `💎 *Tu acceso Reminder Pro*\n\n💰 Precio: ${priceText}\n\n💳 Enlace de pago (${providerName}): ${checkoutUrl}`;
 
         return {
           success: true,
@@ -48,11 +44,12 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
             amount: planAmount,
             currency: planCurrency,
             plan: 'Reminder Pro',
+            provider: providerName,
             formattedCard: rawSummary,
           },
           ctaUrl: checkoutUrl,
-          ctaHeader: '💎 Reminder Pro',
-          ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
+          ctaHeader: proContext.ctaHeader || '💎 Reminder Pro',
+          ctaButtonText: proContext.ctaButtonText || (language === 'en' ? 'Pay now' : 'Pagar ahora'),
           rawSummary,
           formattedCard: rawSummary,
         };
@@ -61,7 +58,7 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
         return {
           success: false,
           action: 'error',
-          errorCode: 'MERCADOPAGO_ERROR',
+          errorCode: 'SUBSCRIPTION_LINK_ERROR',
           error: 'No se pudo generar el enlace de pago de suscripción.',
           rawSummary: 'No se pudo generar el enlace de pago de suscripción.',
         };

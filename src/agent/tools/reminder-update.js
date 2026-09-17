@@ -26,6 +26,8 @@ import {
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
+  const isLemon = Boolean(checkoutUrl?.includes('lemonsqueezy'));
+  const providerName = isLemon ? 'Lemon Squeezy' : 'Mercado Pago';
   const payNowLabel = language === 'en' ? 'Pay now' : 'Pagar ahora';
   const error = language === 'en'
     ? 'This reminder update requires a Reminder Pro subscription.'
@@ -37,7 +39,7 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
     isProFeature: true,
     error,
     rawSummary: error,
-    formattedCard: `${error}\n\n💳 *Enlace de pago (Mercado Pago):* ${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`,
+    formattedCard: `${error}\n\n💳 *Enlace de pago (${providerName}):* ${checkoutUrl || REMINDER_PRO_FALLBACK.fallbackCheckoutUrl}\n👉 *${payNowLabel}*`,
     data: {
       reason: 'pro_tier_limit',
       ...(targetDate ? { targetDate } : {}),

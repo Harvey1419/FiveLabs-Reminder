@@ -7,7 +7,7 @@ import {
   hasProAccess,
   createPendingSubscription,
 } from '../../infrastructure/database/index.js';
-import { getOrCreateCanonicalPlan } from '../../integrations/mercado-pago/client.js';
+import { resolveReminderProUpgradeContext } from '../tools/reminder-pro.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 import { buildAgentCorePrompt } from '../core/agent-core.js';
 import {
@@ -245,15 +245,22 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
 
   if (finalText.includes('[checkout_url]')) {
     try {
-      const plan = await getOrCreateCanonicalPlan({
-        reason: 'Hermes TempleLabs Pro', amount: 49900, currency: 'COP', phoneNumber: phoneNumber || user.phone_number,
-      });
-      if (user?.id) {
+      const proContext = await resolveReminderProUpgradeContext(
+        phoneNumber || user?.phone_number,
+        'es',
+        { userId: user?.id },
+      );
+      const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
+      if (user?.id && !checkoutUrl?.includes('lemonsqueezy') && proContext?.planId) {
         await createPendingSubscription(user.id, {
-          mpPreapprovalId: plan.id, amount: plan.amount || 49900, plan: 'pro',
+          mpPreapprovalId: proContext.planId,
+          amount: proContext.amount || 49900,
+          plan: 'pro',
         }).catch(() => {});
       }
-      finalText = finalText.replace(/\[checkout_url\]/g, plan.init_point);
+      if (checkoutUrl) {
+        finalText = finalText.replace(/\[checkout_url\]/g, checkoutUrl);
+      }
     } catch (error) {
       console.error('[router] auto-generating checkout_url failed:', error.message);
     }

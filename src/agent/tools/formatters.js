@@ -113,13 +113,15 @@ export function formatReminderCreateOutcomeCard({
     const valuePoints = language === 'en'
       ? ['🗓️ Schedule reminders for any day', '🔁 Repeat them automatically', '🌟 Organize your routine with more flexibility']
       : ['🗓️ Programa recordatorios para cualquier día', '🔁 Repítelos automáticamente', '🌟 Organiza tu rutina con más flexibilidad'];
+    const isLemon = Boolean(proUpgrade?.checkoutUrl?.includes('lemonsqueezy') || proUpgrade?.fallbackCheckoutUrl?.includes('lemonsqueezy'));
+    const providerName = isLemon ? 'Lemon Squeezy' : 'Mercado Pago';
     const payment = proUpgrade?.checkoutUrl
       ? (language === 'en'
-        ? `🔒 *Secure payment link with Mercado Pago:*\n${proUpgrade.checkoutUrl}`
-        : `🔒 *Enlace de pago seguro con Mercado Pago:*\n${proUpgrade.checkoutUrl}`)
+        ? `🔒 *Secure payment link with ${providerName}:*\n${proUpgrade.checkoutUrl}`
+        : `🔒 *Enlace de pago seguro con ${providerName}:*\n${proUpgrade.checkoutUrl}`)
       : (language === 'en'
-        ? '🔒 *Secure payment link:*\nhttps://www.mercadopago.com.co/subscriptions' :
-          '🔒 *Enlace de pago seguro:*\nhttps://www.mercadopago.com.co/subscriptions');
+        ? `🔒 *Secure payment link:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`
+        : `🔒 *Enlace de pago seguro:*\n${proUpgrade?.fallbackCheckoutUrl || 'https://www.mercadopago.com.co/subscriptions'}`);
     const pricing = proUpgrade
       ? `${formatCurrency(proUpgrade.amount, proUpgrade.currency || 'COP', language)}${language === 'en' ? '/month' : '/mes'}`
       : (language === 'en' ? '$49,900 COP/month' : '$49.900 COP/mes');

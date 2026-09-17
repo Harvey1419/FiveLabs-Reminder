@@ -16,7 +16,7 @@ export const REMINDER_PRO_FALLBACK = Object.freeze({
  * shared commercial metadata and checkout-link resolution so create/update
  * cannot drift into different plan configuration or fallback behavior.
  */
-export async function resolveReminderProUpgradeContext(phoneNumber, language = 'es') {
+export async function resolveReminderProUpgradeContext(phoneNumber, language = 'es', { userId = null } = {}) {
   const isInternational = Boolean(
     phoneNumber
     && !String(phoneNumber).startsWith('+57')
@@ -24,8 +24,13 @@ export async function resolveReminderProUpgradeContext(phoneNumber, language = '
     && !String(phoneNumber).startsWith('CO.')
   );
 
-  if (isInternational) {
-    const lemonUrl = buildLemonSqueezyCheckoutUrl({ phoneNumber });
+  const billingProvider = (process.env.BILLING_PROVIDER || '').toLowerCase();
+  const forceLemon = billingProvider === 'lemonsqueezy';
+  const forceMp = billingProvider === 'mercadopago';
+  const useLemon = forceLemon || (!forceMp && isInternational);
+
+  if (useLemon) {
+    const lemonUrl = buildLemonSqueezyCheckoutUrl({ userId, phoneNumber });
     return {
       checkoutUrl: lemonUrl,
       amount: 9.99,
@@ -33,6 +38,8 @@ export async function resolveReminderProUpgradeContext(phoneNumber, language = '
       ctaHeader: REMINDER_PRO_FALLBACK.ctaHeader,
       ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
       fallbackCheckoutUrl: lemonUrl,
+      provider: 'Lemon Squeezy',
+      planId: null,
     };
   }
 
@@ -43,6 +50,8 @@ export async function resolveReminderProUpgradeContext(phoneNumber, language = '
     ctaHeader: REMINDER_PRO_FALLBACK.ctaHeader,
     ctaButtonText: language === 'en' ? 'Pay now' : 'Pagar ahora',
     fallbackCheckoutUrl: REMINDER_PRO_FALLBACK.fallbackCheckoutUrl,
+    provider: 'Mercado Pago',
+    planId: null,
   };
 
   try {
@@ -54,6 +63,7 @@ export async function resolveReminderProUpgradeContext(phoneNumber, language = '
     });
 
     context.checkoutUrl = plan?.init_point || plan?.checkout_url || null;
+    context.planId = plan?.id || null;
     if (plan?.amount) {
       const parsedAmount = Number(plan.amount);
       if (Number.isFinite(parsedAmount)) context.amount = parsedAmount;
