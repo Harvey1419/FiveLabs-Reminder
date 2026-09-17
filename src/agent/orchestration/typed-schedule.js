@@ -144,6 +144,63 @@ export function resolveTypedSchedule(schedule, {
     };
   }
 
+  const isAllDay = normalizedSchedule.allDay === true
+    || (normalizedSchedule.hour == null && isDateBearingSchedule(normalizedSchedule));
+
+  if (isAllDay) {
+    let year;
+    let month;
+    let day;
+    const referenceParts = getLocalDateParts(reference, timezone);
+
+    if (normalizedSchedule.kind === 'calendar_date_time') {
+      if (!Number.isInteger(normalizedSchedule.month) || !Number.isInteger(normalizedSchedule.day)) {
+        return failure('MISSING_CALENDAR_DATE', 'Faltan componentes de la fecha de calendario.');
+      }
+      year = Number.isInteger(normalizedSchedule.year)
+        ? normalizedSchedule.year
+        : referenceParts.year;
+      month = normalizedSchedule.month;
+      day = normalizedSchedule.day;
+    } else if (normalizedSchedule.kind === 'relative_day_time') {
+      if (!Number.isInteger(normalizedSchedule.dayOffset) || normalizedSchedule.dayOffset < 0 || normalizedSchedule.dayOffset > 365) {
+        return failure('INVALID_DAY_OFFSET', 'El desplazamiento de días no es válido.');
+      }
+      const shifted = new Date(Date.UTC(referenceParts.year, referenceParts.month - 1, referenceParts.day + normalizedSchedule.dayOffset));
+      year = shifted.getUTCFullYear();
+      month = shifted.getUTCMonth() + 1;
+      day = shifted.getUTCDate();
+    } else if (normalizedSchedule.kind === 'weekday_time') {
+      const targetWeekday = WEEKDAYS[normalizedSchedule.weekday];
+      if (targetWeekday === undefined) return failure('INVALID_WEEKDAY', 'El día de la semana no es válido.');
+      const weekOffset = normalizedSchedule.weekOffset ?? 0;
+      if (!Number.isInteger(weekOffset) || weekOffset < 0 || weekOffset > 52) {
+        return failure('INVALID_WEEK_OFFSET', 'La semana relativa no es válida.');
+      }
+      const dayOffset = ((targetWeekday - referenceParts.dayOfWeek + 7) % 7) + weekOffset * 7;
+      const shifted = new Date(Date.UTC(referenceParts.year, referenceParts.month - 1, referenceParts.day + dayOffset));
+      year = shifted.getUTCFullYear();
+      month = shifted.getUTCMonth() + 1;
+      day = shifted.getUTCDate();
+    } else {
+      return failure('UNSUPPORTED_ALL_DAY_SCHEDULE', `El tipo temporal ${normalizedSchedule.kind} no admite día completo sin fecha.`);
+    }
+
+    const canonicalDate = [
+      year,
+      String(month).padStart(2, '0'),
+      String(day).padStart(2, '0'),
+    ].join('-');
+    const built = buildLocalDate({ year, month, day, hour: 9, minute: 0 }, timezone);
+    if (!built.valid) return built;
+    return {
+      ...built,
+      canonicalDate,
+      isAllDay: true,
+      temporalKind: normalizedSchedule.kind,
+    };
+  }
+
   if (!validClock(normalizedSchedule)) return failure('MISSING_CLOCK_TIME', 'Falta una hora de reloj completa y válida.');
 
   if (normalizedSchedule.kind === 'calendar_date_time') {
@@ -154,7 +211,13 @@ export function resolveTypedSchedule(schedule, {
       normalizedSchedule.year = getLocalDateParts(reference, timezone).year;
     }
     const built = buildResolvedClockDate(normalizedSchedule, normalizedSchedule, timezone, reference);
-    return built.valid ? { ...built, temporalKind: normalizedSchedule.kind } : built;
+    if (!built.valid) return built;
+    const canonicalDate = [
+      normalizedSchedule.year,
+      String(normalizedSchedule.month).padStart(2, '0'),
+      String(normalizedSchedule.day).padStart(2, '0'),
+    ].join('-');
+    return { ...built, canonicalDate, isAllDay: false, temporalKind: normalizedSchedule.kind };
   }
 
   const referenceParts = getLocalDateParts(reference, timezone);
@@ -195,7 +258,13 @@ export function resolveTypedSchedule(schedule, {
   }
 
   const built = buildResolvedClockDate({ year, month, day }, normalizedSchedule, timezone, reference);
-  return built.valid ? { ...built, temporalKind: normalizedSchedule.kind } : built;
+  if (!built.valid) return built;
+  const canonicalDate = [
+    year,
+    String(month).padStart(2, '0'),
+    String(day).padStart(2, '0'),
+  ].join('-');
+  return { ...built, canonicalDate, isAllDay: false, temporalKind: normalizedSchedule.kind };
 }
 
 function scheduleHasClock(schedule) {

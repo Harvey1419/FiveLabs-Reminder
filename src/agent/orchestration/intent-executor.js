@@ -230,7 +230,7 @@ function buildDomainCall(action, context) {
         if (action.schedule) {
           const temporal = resolveSchedule(action, context, 'task');
           if (!temporal.valid) return temporal;
-          item.dueDate = temporal.canonical;
+          item.dueDate = temporal.canonicalDate || temporal.canonical;
         }
         return {
           valid: true,
@@ -269,7 +269,7 @@ function buildDomainCall(action, context) {
       if (action.schedule) {
         const temporal = resolveSchedule(action, context, 'task');
         if (!temporal.valid) return temporal;
-        updates.dueDate = temporal.canonical;
+        updates.dueDate = temporal.canonicalDate || temporal.canonical;
       }
       if (Object.keys(updates).length === 0) {
         return {
@@ -361,10 +361,20 @@ function buildDomainCall(action, context) {
           startDateTime: temporal.canonical,
           summary: title.value,
         };
+        if (temporal.isAllDay) {
+          params.allDay = true;
+          params.startDate = temporal.canonicalDate;
+        }
+        if (action.recurrence) {
+          params.recurrence = action.recurrence;
+        }
         if (action.endSchedule) {
-          const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone });
+          const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone, baseDate: temporal.date });
           if (!end.valid) return end;
           params.endDateTime = end.canonical;
+          if (end.isAllDay) {
+            params.endDate = end.canonicalDate;
+          }
         } else if (action.durationMinutes) {
           params.durationMinutes = action.durationMinutes;
         }
@@ -382,11 +392,21 @@ function buildDomainCall(action, context) {
           const temporal = resolveSchedule(action, context, 'calendar_event');
           if (!temporal.valid) return temporal;
           params.startDateTime = temporal.canonical;
+          if (temporal.isAllDay) {
+            params.allDay = true;
+            params.startDate = temporal.canonicalDate;
+          }
+        }
+        if (action.recurrence) {
+          params.recurrence = action.recurrence;
         }
         if (action.endSchedule) {
           const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone });
           if (!end.valid) return end;
           params.endDateTime = end.canonical;
+          if (end.isAllDay) {
+            params.endDate = end.canonicalDate;
+          }
         }
         if (action.durationMinutes) params.durationMinutes = action.durationMinutes;
         if (action.description) params.description = action.description;

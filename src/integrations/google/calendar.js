@@ -163,18 +163,54 @@ export async function listCalendarEvents(userId, {
   }
 }
 
+export function mapToGoogleRRule(recurrence) {
+  if (!recurrence) return null;
+  const normalized = String(recurrence).trim().toLowerCase();
+  switch (normalized) {
+    case 'yearly':
+    case 'annual':
+      return 'RRULE:FREQ=YEARLY';
+    case 'monthly':
+      return 'RRULE:FREQ=MONTHLY';
+    case 'weekly':
+      return 'RRULE:FREQ=WEEKLY';
+    case 'daily':
+      return 'RRULE:FREQ=DAILY';
+    case 'weekdays':
+      return 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR';
+    default:
+      return null;
+  }
+}
+
+function computeNextDayIsoDate(dateString) {
+  if (!dateString || typeof dateString !== 'string') return null;
+  const parts = dateString.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+  return [
+    d.getUTCFullYear(),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 /**
- * Create a new event in user's primary Google Calendar with deterministic ID idempotency.
+ * Create a new event in user's primary Google Calendar.
  *
  * @param {string} userId
  * @param {object} params
  * @param {string} params.summary - Event title
  * @param {string} [params.description]
- * @param {string|Date} params.startDateTime - Start ISO string
- * @param {string|Date} [params.endDateTime] - End ISO string (defaults to +1h)
+ * @param {string|Date} [params.startDateTime]
+ * @param {string|Date} [params.endDateTime]
  * @param {string} [params.timezone='America/Bogota']
  * @param {boolean} [params.addGoogleMeet=false] - Whether to generate Google Meet link
  * @param {string|null} [params.customEventId=null]
+ * @param {boolean} [params.allDay=false]
+ * @param {string|null} [params.startDate=null] - ISO date YYYY-MM-DD for all-day events
+ * @param {string|null} [params.endDate=null] - ISO date YYYY-MM-DD for all-day events
+ * @param {string|null} [params.recurrence=null] - 'yearly' | 'monthly' | 'weekly' | 'daily' | 'weekdays'
  * @returns {Promise<object>} Created event details
  */
 export async function createCalendarEvent(userId, {
@@ -185,6 +221,10 @@ export async function createCalendarEvent(userId, {
   timezone = 'America/Bogota',
   addGoogleMeet = false,
   customEventId = null,
+  allDay = false,
+  startDate = null,
+  endDate = null,
+  recurrence = null,
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
   if (!auth) throw googleAuthRequiredError();
@@ -192,26 +232,54 @@ export async function createCalendarEvent(userId, {
   try {
     const calendar = google.calendar({ version: 'v3', auth });
 
-    const startDate = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
-    const endDate = endDateTime
-      ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
-      : new Date(startDate.getTime() + 60 * 60 * 1000);
+    const isEventAllDay = Boolean(allDay || (startDate && !startDateTime));
+    let startObj;
+    let endObj;
+    let seedTime;
 
-    const eventId = customEventId || generateDeterministicCalendarEventId(userId, summary, startDate.toISOString());
+    if (isEventAllDay) {
+      let startIsoDate = startDate;
+      if (!startIsoDate && startDateTime) {
+        const d = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
+        startIsoDate = !Number.isNaN(d.getTime()) ? d.toISOString().split('T')[0] : null;
+      }
+      if (!startIsoDate) {
+        throw new Error('All-day event requires a valid date (YYYY-MM-DD)');
+      }
+      const endIsoDate = endDate || computeNextDayIsoDate(startIsoDate) || startIsoDate;
+      startObj = { date: startIsoDate };
+      endObj = { date: endIsoDate };
+      seedTime = startIsoDate;
+    } else {
+      const startDateVal = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
+      const endDateVal = endDateTime
+        ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
+        : new Date(startDateVal.getTime() + 60 * 60 * 1000);
+      startObj = {
+        dateTime: startDateVal.toISOString(),
+        timeZone: timezone,
+      };
+      endObj = {
+        dateTime: endDateVal.toISOString(),
+        timeZone: timezone,
+      };
+      seedTime = startDateVal.toISOString();
+    }
+
+    const eventId = customEventId || generateDeterministicCalendarEventId(userId, summary, seedTime);
 
     const eventResource = {
       id: eventId,
       summary: summary.trim(),
       description: description ? description.trim() : 'Agendado por Hermes TempleLabs',
-      start: {
-        dateTime: startDate.toISOString(),
-        timeZone: timezone,
-      },
-      end: {
-        dateTime: endDate.toISOString(),
-        timeZone: timezone,
-      },
+      start: startObj,
+      end: endObj,
     };
+
+    const rrule = mapToGoogleRRule(recurrence);
+    if (rrule) {
+      eventResource.recurrence = [rrule];
+    }
 
     const requestParams = {
       calendarId: 'primary',
@@ -284,6 +352,10 @@ export async function updateCalendarEvent(userId, {
   startDateTime,
   endDateTime = null,
   timezone = 'America/Bogota',
+  allDay = false,
+  startDate = null,
+  endDate = null,
+  recurrence = null,
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
   if (!auth) throw googleAuthRequiredError();
@@ -298,13 +370,27 @@ export async function updateCalendarEvent(userId, {
     const eventResource = { ...existing.data };
     if (summary !== undefined) eventResource.summary = summary.trim();
     if (description !== undefined) eventResource.description = description.trim();
-    if (startDateTime) {
-      const startDate = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
-      eventResource.start = { dateTime: startDate.toISOString(), timeZone: timezone };
-      const endDate = endDateTime
+
+    const isEventAllDay = Boolean(allDay || startDate);
+    if (isEventAllDay) {
+      const startIso = startDate || (startDateTime ? new Date(startDateTime).toISOString().split('T')[0] : eventResource.start?.date);
+      const endIso = endDate || computeNextDayIsoDate(startIso) || startIso;
+      eventResource.start = { date: startIso };
+      eventResource.end = { date: endIso };
+    } else if (startDateTime) {
+      const startDateVal = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
+      eventResource.start = { dateTime: startDateVal.toISOString(), timeZone: timezone };
+      const endDateVal = endDateTime
         ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
-        : new Date(startDate.getTime() + 60 * 60 * 1000);
-      eventResource.end = { dateTime: endDate.toISOString(), timeZone: timezone };
+        : new Date(startDateVal.getTime() + 60 * 60 * 1000);
+      eventResource.end = { dateTime: endDateVal.toISOString(), timeZone: timezone };
+    }
+
+    if (recurrence !== null && recurrence !== undefined) {
+      const rrule = mapToGoogleRRule(recurrence);
+      if (rrule) {
+        eventResource.recurrence = [rrule];
+      }
     }
 
     const res = await calendar.events.update({

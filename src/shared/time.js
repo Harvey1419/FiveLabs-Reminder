@@ -961,9 +961,52 @@ export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, l
   } else {
     const weekday = d.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
     const monthName = d.toLocaleDateString('en-US', { timeZone: timezone, month: 'long' });
-    const dayNum = d.toLocaleDateString('en-US', { timeZone: timezone, day: 'numeric' });
     return `${weekday}, ${monthName} ${dayNum} at ${time12}`;
   }
+}
+
+/**
+ * Format a Date object into human-friendly date string (e.g. "Miércoles, 14 de octubre" or "Hoy" / "Mañana").
+ *
+ * @param {string|Date} date
+ * @param {string} [timezone=DEFAULT_TIMEZONE]
+ * @param {string} [language='es']
+ * @returns {string}
+ */
+export function formatHumanFriendlyDate(date, timezone = DEFAULT_TIMEZONE, language = 'es') {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+
+  const now = new Date();
+  const targetDateStr = d.toLocaleDateString('en-CA', { timeZone: timezone });
+  const nowDateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowDateStr = tomorrow.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  const isEs = !language || !language.startsWith('en');
+
+  if (targetDateStr === nowDateStr) {
+    return isEs ? 'Hoy' : 'Today';
+  }
+
+  if (targetDateStr === tomorrowDateStr) {
+    return isEs ? 'Mañana' : 'Tomorrow';
+  }
+
+  if (isEs) {
+    const weekday = d.toLocaleDateString('es-CO', { timeZone: timezone, weekday: 'long' });
+    const dayNum = d.toLocaleDateString('es-CO', { timeZone: timezone, day: 'numeric' });
+    const monthName = d.toLocaleDateString('es-CO', { timeZone: timezone, month: 'long' });
+    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    return `${capitalizedWeekday}, ${dayNum} de ${monthName}`;
+  }
+
+  const weekday = d.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+  const monthName = d.toLocaleDateString('en-US', { timeZone: timezone, month: 'long' });
+  const dayNum = d.toLocaleDateString('en-US', { timeZone: timezone, day: 'numeric' });
+  return `${weekday}, ${monthName} ${dayNum}`;
 }
 
 export function addMinutes(localStr, minutes, timezone = DEFAULT_TIMEZONE) {

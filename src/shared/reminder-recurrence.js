@@ -48,6 +48,8 @@ export function computeNextRecurringSendAt(sendAt, recurrenceRule, now = new Dat
       next.setDate(next.getDate() + 7);
     } else if (rule === 'monthly') {
       next.setMonth(next.getMonth() + 1);
+    } else if (rule === 'yearly' || rule === 'annual') {
+      next.setFullYear(next.getFullYear() + 1);
     } else if (rule === 'weekdays') {
       next.setDate(next.getDate() + 1);
       if (next.getDay() === 6) next.setDate(next.getDate() + 2);

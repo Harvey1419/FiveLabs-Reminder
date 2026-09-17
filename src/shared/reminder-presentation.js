@@ -14,6 +14,8 @@ export function formatRecurrenceLabel(value, language = 'es') {
       weekdays: 'Weekdays',
       weekly: 'Every week',
       monthly: 'Every month',
+      yearly: 'Every year',
+      annual: 'Every year',
       hourly: 'Every hour',
     }
     : {
@@ -21,6 +23,8 @@ export function formatRecurrenceLabel(value, language = 'es') {
       weekdays: 'De lunes a viernes',
       weekly: 'Todas las semanas',
       monthly: 'Todos los meses',
+      yearly: 'Todos los años',
+      annual: 'Todos los años',
       hourly: 'Cada hora',
     };
 

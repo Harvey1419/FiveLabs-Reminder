@@ -22,9 +22,11 @@ import {
   resolveCalendarTemporalScope,
   formatLocalDateTime,
   formatHumanFriendlyDateTime,
+  formatHumanFriendlyDate,
   zonedTimeToUtc,
   DEFAULT_TIMEZONE,
 } from '../../shared/time.js';
+import { formatRecurrenceLabel } from '../../shared/reminder-presentation.js';
 import {
   parseStructuredOrdinal,
   resolveContextReference,
@@ -53,6 +55,8 @@ export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
       location: ev.location || null,
       meetLink: ev.hangoutLink || ev.meetLink || null,
       type: 'all_day',
+      isAllDay: true,
+      recurrence: ev.recurrence || null,
       localDate: `${y}-${m}-${d}`,
       formattedDate: `${d}/${m}/${y}`,
       displayDate: `${d}/${m}/${y} (Todo el día)`,
@@ -71,6 +75,8 @@ export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
     location: ev.location || null,
     meetLink: ev.hangoutLink || ev.meetLink || null,
     type: 'timed',
+    isAllDay: false,
+    recurrence: ev.recurrence || null,
     startIso,
     endIso: typeof ev.end === 'object' ? (ev.end?.dateTime || ev.end?.date) : ev.end,
     localStartTime: dateStr,
@@ -459,7 +465,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      if (!params.summary || !params.startDateTime) {
+      if (!params.summary || (!params.startDateTime && !params.startDate)) {
         const missing = !params.summary
           ? (language === 'en' ? 'What should the event be called?' : '¿Cómo se llama el evento?')
           : (language === 'en' ? 'What date and time should I use for the event?' : '¿Para qué fecha y hora quieres el evento?');
@@ -473,10 +479,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
-      const startDateTime = parseTargetTime(params.startDateTime, tz, referenceTime);
+      const isAllDay = Boolean(params.allDay || (params.startDate && !params.startDateTime));
+      const startDateTime = params.startDateTime ? parseTargetTime(params.startDateTime, tz, referenceTime) : null;
       const endDateTime = params.endDateTime
         ? parseTargetTime(params.endDateTime, tz, referenceTime)
-        : new Date(startDateTime.getTime() + (params.durationMinutes || 60) * 60 * 1000);
+        : (startDateTime ? new Date(startDateTime.getTime() + (params.durationMinutes || 60) * 60 * 1000) : null);
 
       let event;
       try {
@@ -487,6 +494,10 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           endDateTime,
           timezone: tz,
           addGoogleMeet: Boolean(params.addGoogleMeet),
+          allDay: isAllDay,
+          startDate: params.startDate || (isAllDay && startDateTime ? startDateTime.toISOString().split('T')[0] : null),
+          endDate: params.endDate || null,
+          recurrence: params.recurrence || null,
         });
       } catch (err) {
         console.error(`[calendarTools] Failed to create Google event for user ${userId}:`, err.message);
@@ -519,7 +530,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       let reminderCreated = false;
       let reminderSendAt = null;
 
-      if (hasExplicitAdvanceNotice && Number.isFinite(advanceMinutes) && advanceMinutes > 0) {
+      if (hasExplicitAdvanceNotice && Number.isFinite(advanceMinutes) && advanceMinutes > 0 && startDateTime) {
         reminderSendAt = new Date(startDateTime.getTime() - advanceMinutes * 60 * 1000).toISOString();
         if (new Date(reminderSendAt).getTime() > Date.now()) {
           const advContent = `🔔 [Google Calendar] ${event.summary} en ${advanceMinutes} minutos`;
@@ -531,6 +542,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
               sendAt: reminderSendAt,
               deliveryId: `gcal:${event.id}`,
               requiresConfirmation: true,
+              recurrenceRule: params.recurrence || null,
             });
             if (inserted) reminderCreated = true;
           } catch (remErr) {
@@ -540,8 +552,13 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       const meetNotice = event.meetLink ? `\n• 📹 *Google Meet:* ${event.meetLink}` : '';
-      const formattedStartDate = formatHumanFriendlyDateTime(startDateTime, tz, language);
-      let summary = `📅 *Evento agendado en Google Calendar*\n\n• 🏢 *${event.summary}*\n• 📅 ${formattedStartDate}${meetNotice}`;
+      const formattedStartDate = isAllDay
+        ? `${formatHumanFriendlyDate(startDateTime || params.startDate, tz, language)} (${language === 'en' ? 'All day' : 'Todo el día'})`
+        : formatHumanFriendlyDateTime(startDateTime, tz, language);
+      const recurrenceNotice = params.recurrence
+        ? `\n• 🔄 *${language === 'en' ? 'Recurrence' : 'Recurrencia'}:* ${formatRecurrenceLabel(params.recurrence, language)}`
+        : '';
+      let summary = `📅 *${language === 'en' ? 'Event scheduled in Google Calendar' : 'Evento agendado en Google Calendar'}*\n\n• 🏢 *${event.summary}*\n• 📅 ${formattedStartDate}${recurrenceNotice}${meetNotice}`;
 
       if (reminderCreated) {
         summary += `\n\n🔔 *Recordatorio programado en WhatsApp*\n• ${advanceMinutes} minutos antes (${formatHumanFriendlyDateTime(new Date(reminderSendAt), tz, language)})`;
@@ -621,6 +638,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         };
       }
 
+      const isAllDay = Boolean(params.allDay || (params.startDate && !params.startDateTime));
       const startDateTime = params.startDateTime ? parseTargetTime(params.startDateTime, tz, referenceTime) : undefined;
       const endDateTime = params.endDateTime ? parseTargetTime(params.endDateTime, tz, referenceTime) : undefined;
 
@@ -632,6 +650,10 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           startDateTime,
           endDateTime,
           timezone: tz,
+          allDay: isAllDay,
+          startDate: params.startDate || (isAllDay && startDateTime ? startDateTime.toISOString().split('T')[0] : null),
+          endDate: params.endDate || null,
+          recurrence: params.recurrence || null,
         });
 
         let companionUpdated = false;
@@ -650,8 +672,13 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         }
 
         let summary = `✏️ *Google Calendar · ${language === 'en' ? 'Event updated' : 'Evento actualizado'}*\n\n• 📅 *${updated.summary}*`;
-        if (startDateTime) {
+        if (updated.isAllDay) {
+          summary += ` — ${formatHumanFriendlyDate(startDateTime || new Date(updated.start), tz, language)} (${language === 'en' ? 'All day' : 'Todo el día'})`;
+        } else if (startDateTime) {
           summary += ` — ${formatHumanFriendlyDateTime(startDateTime, tz, language)}`;
+        }
+        if (params.recurrence) {
+          summary += `\n• 🔄 *${language === 'en' ? 'Recurrence' : 'Recurrencia'}:* ${formatRecurrenceLabel(params.recurrence, language)}`;
         }
         if (companionUpdated) {
           summary += `\n• 🔔 ${language === 'en' ? 'WhatsApp reminder rescheduled' : 'Recordatorio en WhatsApp reprogramado'}`;

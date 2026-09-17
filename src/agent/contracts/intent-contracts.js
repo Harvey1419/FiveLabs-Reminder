@@ -4,7 +4,7 @@ import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
 ]);
-const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'hourly']);
+const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'yearly', 'hourly']);
 const MISSING_FIELDS = Object.freeze([
   'content', 'target', 'selection', 'scope', 'schedule', 'date', 'time', 'main_time', 'advance_minutes',
 ]);
@@ -45,6 +45,7 @@ export const typedSchedule = {
       enum: ['relative_offset', 'relative_day_time', 'calendar_date_time', 'weekday_time', 'local_time', 'inherit_context'],
       description: 'relative_offset=duration from now; relative_day_time=relative day plus clock; weekday_time=named weekday plus clock; local_time=clock-only delta with no date scope, mainly for merging into a typed pending intent. Never use local_time for a coordinated create action covered by a shared date; repeat that date with its date-bearing kind.',
     },
+    allDay: { type: 'boolean', description: 'True for full-day calendar events, whole-day deadlines or dates without an explicit clock time (e.g. birthdays, holidays, all-day meetings).' },
     offsetMinutes: { type: 'integer', minimum: 1, maximum: 525600 },
     dayOffset: { type: 'integer', minimum: 0, maximum: 365 },
     year: { type: 'integer', minimum: 2020, maximum: 2200 },
@@ -101,11 +102,11 @@ AUTORIDAD DE ESTADO Y READ MODEL: El historial no tiene autoridad sobre compromi
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente y solo deltas pedidos. Un valor a cambiar nunca es identidad.
 Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
 PROYECTOS Y TAREAS: proyectos usan project (o category="project") + task.create por elemento. Listar usa project.list; borrar project.delete(target="Nombre"). Tareas exigen task.list (con entityName si aplica); NUNCA listes tareas en conversation.reply ni inventes conteos. Notas en task.update usan description; title o newName es solo renombrar. Para ordinales emite una acción por elemento (task.delete target="1", target="3").
-CALENDARIO: Fechas/períodos usan calendar.list con scope (today, tomorrow, this_week, upcoming); títulos calendar.search; citas calendar.create (advanceMinutes=30); vincular/desvincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
+CALENDARIO: Fechas/períodos usan calendar.list con scope (today, tomorrow, this_week, upcoming); títulos calendar.search; citas calendar.create (advanceMinutes=30; allDay=true si es todo el día); vincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 PREGUNTAS: Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas de dominio.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas y husos.
 Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
-Mantén recurrencia y advanceMinutes en su recordatorio/evento. Datos personales usan conversation.reply y aprendizaje pasivo; memory.save solo ante petición explícita.
+Mantén recurrencia (ej. yearly) y advanceMinutes en su recordatorio/evento. Datos personales usan conversation.reply y aprendizaje pasivo; memory.save solo ante petición explícita.
 Mensajes mixtos emiten acciones válidas y cláusulas no ejecutables en excluded. Lecturas entregan verdad en su card; NUNCA emitas conversation.reply especulando o duplicando la lectura.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
@@ -211,6 +212,23 @@ function hasCompleteReminderSchedule(schedule) {
   if (kind === 'local_time') return Number.isInteger(schedule.hour);
   return false;
 }
+
+function hasCompleteDateSchedule(schedule) {
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return false;
+  const kind = getEffectiveScheduleKind(schedule);
+  if (kind === 'calendar_date_time') return Number.isInteger(schedule.month) && Number.isInteger(schedule.day);
+  if (kind === 'relative_day_time') return Number.isInteger(schedule.dayOffset);
+  if (kind === 'weekday_time') return typeof schedule.weekday === 'string';
+  return false;
+}
+
+function hasCompleteTemporalSchedule(domain, schedule, action = null) {
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return false;
+  if ((domain === 'calendar' || domain === 'task') && schedule.allDay === true) {
+    return hasCompleteDateSchedule(schedule);
+  }
+  return hasCompleteReminderSchedule(schedule);
+}
 function inferPartialReminderScheduleFields(schedule) {
   if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return [];
   const kind = getEffectiveScheduleKind(schedule);
@@ -289,7 +307,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
         && typedSchedule.properties.kind.enum.includes(schedule.kind)
         && schedule.kind !== 'inherit_context';
       if (!knownKind) return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal no es utilizable.' };
-      if (!hasCompleteReminderSchedule(schedule) && !mayRemainPending) {
+      if (!hasCompleteTemporalSchedule(domain, schedule, action) && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La estructura temporal está incompleta.' };
       }
     }
@@ -314,7 +332,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
         return { valid: false, errorCode: 'MISSING_TARGET', error: 'task.create debe declarar entityName o projectless=true.' };
       }
       if (normalizedRaw.schedule
-        && !hasCompleteReminderSchedule(normalizedRaw.schedule)
+        && !hasCompleteTemporalSchedule('task', normalizedRaw.schedule, 'create')
         && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'task.create incluyó una estructura temporal incompleta.' };
       }
