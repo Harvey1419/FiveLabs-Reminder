@@ -167,5 +167,38 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       expect(result.confirmation).toContain('https://hermes-templelabs.lemonsqueezy.com/checkout/buy/test-plan');
       expect(result.confirmation).not.toContain('[checkout_url]');
     });
+
+    it('extracts Stripe interactive CTA button and sanitizes legacy Lemon Squeezy text when BILLING_PROVIDER is stripe', async () => {
+      process.env.BILLING_PROVIDER = 'stripe';
+      process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/test-stripe';
+
+      const user1916 = {
+        id: 'user-1916',
+        phone_number: '19164158325',
+        timezone: 'America/New_York',
+        locale: 'es',
+      };
+
+      callChatCompletion.mockResolvedValueOnce({
+        role: 'assistant',
+        content: JSON.stringify({
+          actions: [{
+            domain: 'conversation',
+            action: 'reply',
+            content: 'Puedes activar tu suscripción con Lemon Squeezy acá: [checkout_url]',
+          }],
+        }),
+      });
+
+      const result = await routeMessage('Cómo me suscribo', user1916, []);
+
+      expect(result.ctaUrl).toContain('buy.stripe.com');
+      expect(result.ctaHeader).toBe('💎 Reminder Pro');
+      expect(result.ctaButtonText).toBe('Pagar ahora');
+      expect(result.confirmation).toContain('https://buy.stripe.com/test-stripe');
+      expect(result.confirmation).toContain('Stripe');
+      expect(result.confirmation).not.toContain('Lemon Squeezy');
+      expect(result.confirmation).not.toContain('[checkout_url]');
+    });
   });
 });

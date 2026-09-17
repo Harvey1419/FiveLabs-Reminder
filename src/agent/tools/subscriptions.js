@@ -23,9 +23,11 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
         const checkoutUrl = proContext.checkoutUrl || proContext.fallbackCheckoutUrl;
         const planAmount = proContext.amount;
         const planCurrency = proContext.currency;
-        const providerName = proContext.provider || (checkoutUrl?.includes('lemonsqueezy') ? 'Lemon Squeezy' : 'Mercado Pago');
+        const isStripe = Boolean(checkoutUrl?.includes('stripe.com'));
+        const isLemon = Boolean(checkoutUrl?.includes('lemonsqueezy'));
+        const providerName = proContext.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
 
-        if (userId && !checkoutUrl?.includes('lemonsqueezy') && proContext.planId) {
+        if (userId && !checkoutUrl?.includes('lemonsqueezy') && !checkoutUrl?.includes('stripe.com') && proContext.planId) {
           await createPendingSubscription(userId, {
             mpPreapprovalId: proContext.planId,
             amount: planAmount,

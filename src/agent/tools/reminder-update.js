@@ -26,8 +26,9 @@ import {
 
 function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   const checkoutUrl = proUpgrade?.checkoutUrl || proUpgrade?.fallbackCheckoutUrl;
+  const isStripe = Boolean(checkoutUrl?.includes('stripe.com'));
   const isLemon = Boolean(checkoutUrl?.includes('lemonsqueezy'));
-  const providerName = isLemon ? 'Lemon Squeezy' : 'Mercado Pago';
+  const providerName = proUpgrade?.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
   const payNowLabel = language === 'en' ? 'Pay now' : 'Pagar ahora';
   const error = language === 'en'
     ? 'This reminder update requires a Reminder Pro subscription.'

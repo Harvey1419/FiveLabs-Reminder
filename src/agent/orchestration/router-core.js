@@ -260,7 +260,7 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
         { userId: user?.id, timezone: user?.timezone, country: user?.country },
       );
       const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
-      if (user?.id && !checkoutUrl?.includes('lemonsqueezy') && proContext?.planId) {
+      if (user?.id && !checkoutUrl?.includes('lemonsqueezy') && !checkoutUrl?.includes('stripe.com') && proContext?.planId) {
         await createPendingSubscription(user.id, {
           mpPreapprovalId: proContext.planId,
           amount: proContext.amount || 49900,
@@ -274,6 +274,28 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
       console.error('[router] auto-generating checkout_url failed:', error.message);
     }
   }
+
+  // Sanitize any obsolete Lemon Squeezy URLs or text inherited from conversation history turns when on Stripe
+  const isStripeBilling = (process.env.BILLING_PROVIDER || '').toLowerCase() === 'stripe';
+  if (isStripeBilling) {
+    if (finalText.includes('lemonsqueezy.com')) {
+      try {
+        const proContext = await resolveReminderProUpgradeContext(
+          phoneNumber || user?.phone_number,
+          'es',
+          { userId: user?.id, timezone: user?.timezone, country: user?.country },
+        );
+        const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
+        if (checkoutUrl) {
+          finalText = finalText.replace(/https:\/\/[^\s)]*lemonsqueezy\.com[^\s)]*/gi, checkoutUrl);
+        }
+      } catch (error) {
+        console.error('[router] replacing legacy lemonsqueezy link failed:', error.message);
+      }
+    }
+    finalText = finalText.replace(/\bLemon\s+Squeezy\b/gi, 'Stripe');
+  }
+
   return finalText;
 }
 
@@ -377,18 +399,20 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const enforceBilling = shouldEnforceBillingForUser(user);
   let proGuidance = null;
   if (enforceBilling && !isPro) {
+    const isStripe = (process.env.BILLING_PROVIDER || '').toLowerCase() === 'stripe';
+    const proPrice = isStripe ? '$14.99 USD' : '$9.99 USD';
     const recentTurnsMentionedPro = pastTurns.slice(-4).some((turn) =>
-      /lemonsqueezy|mercadopago|suscrip|reminder pro|\$9\.99|checkout/i.test(turn.content || '')
+      /lemonsqueezy|mercadopago|stripe|suscrip|reminder pro|\$9\.99|\$14\.99|checkout/i.test(turn.content || '')
     );
     proGuidance = [
       '- Este usuario está en Plan Free con facturación supervisada.',
-      '- Tu objetivo secundario es orientar de forma elegante y consultiva al usuario hacia Reminder Pro ($9.99 USD/mes), con persuasión suave y CERO invasiva.',
+      `- Tu objetivo secundario es orientar de forma elegante y consultiva al usuario hacia Reminder Pro (${proPrice}/mes), con persuasión suave y CERO invasiva.`,
       '- REGLA DE NO INVASIVIDAD: JAMÁS agregues un pitch de ventas a operaciones rutinarias (crear una tarea rápida, consultar un dato, marcar completado, etc.). Primero cumple y confirma impecablemente lo pedido.',
       recentTurnsMentionedPro
         ? '- Historial reciente ya mencionó Pro o suscripción: NO vuelvas a mencionarlo en este turno a menos que el usuario lo pregunte directamente.'
         : '- Momentos ideales para sembrar Pro suavemente:\n' +
-          '  1. Saludos iniciales o preguntas exploratorias ("Hola", "¿qué puedes hacer?", "¿cómo funcionas?"): preséntate como su asistente personal y segundo cerebro ejecutivo. Explica que en Free puede gestionar su día a día y tareas inmediatas, y menciona con sutileza que con Reminder Pro ($9.99 USD) desbloquea anticipación total (recordatorios para días y semanas futuras, rutinas recurrentes y Google Calendar).\n' +
-          '  2. Preguntas sobre capacidades, planes o límites: responde con claridad y entusiasmo sobre los beneficios de Pro. Si pide el link o muestra interés, usa subscription.link o incluye [checkout_url] en tu respuesta.',
+          `  1. Saludos iniciales o preguntas exploratorias ("Hola", "¿qué puedes hacer?", "¿cómo funcionas?"): preséntate como su asistente personal y segundo cerebro ejecutivo. Explica que en Free puede gestionar su día a día y tareas inmediatas, y menciona con sutileza que con Reminder Pro (${proPrice}) desbloquea anticipación total (recordatorios para días y semanas futuras, rutinas recurrentes y Google Calendar).\n` +
+          `  2. Preguntas sobre capacidades, planes o límites: responde con claridad y entusiasmo sobre los beneficios de Pro. Si pide el link o muestra interés, usa subscription.link o incluye [checkout_url] en tu respuesta.${isStripe ? ' El procesador de pago oficial es Stripe (NUNCA menciones Lemon Squeezy ni Mercado Pago).' : ''}`,
       '- Tono: Asesor ejecutivo de alta confianza. Cero insistencia, cero spam.',
     ].join('\n');
   }

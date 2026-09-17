@@ -113,8 +113,9 @@ export function formatReminderCreateOutcomeCard({
     const valuePoints = language === 'en'
       ? ['🗓️ Schedule reminders for any day', '🔁 Repeat them automatically', '🌟 Organize your routine with more flexibility']
       : ['🗓️ Programa recordatorios para cualquier día', '🔁 Repítelos automáticamente', '🌟 Organiza tu rutina con más flexibilidad'];
+    const isStripe = Boolean(proUpgrade?.checkoutUrl?.includes('stripe.com') || proUpgrade?.fallbackCheckoutUrl?.includes('stripe.com'));
     const isLemon = Boolean(proUpgrade?.checkoutUrl?.includes('lemonsqueezy') || proUpgrade?.fallbackCheckoutUrl?.includes('lemonsqueezy'));
-    const providerName = isLemon ? 'Lemon Squeezy' : 'Mercado Pago';
+    const providerName = proUpgrade?.provider || (isStripe ? 'Stripe' : (isLemon ? 'Lemon Squeezy' : 'Mercado Pago'));
     const payment = proUpgrade?.checkoutUrl
       ? (language === 'en'
         ? `🔒 *Secure payment link with ${providerName}:*\n${proUpgrade.checkoutUrl}`
