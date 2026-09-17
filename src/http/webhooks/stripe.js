@@ -205,7 +205,7 @@ export async function handleStripeWebhook(req, res) {
         .eq('mp_preapproval_id', subId);
 
       console.log(`[stripe-webhook] Subscription marked as cancelled for ${subId}`);
-    } else if (eventType === 'invoice.payment_succeeded') {
+    } else if (eventType === 'invoice.payment_succeeded' || eventType === 'invoice.paid') {
       const subId = dataObject.subscription ? String(dataObject.subscription) : null;
       if (subId) {
         const periodEnd = dataObject.lines?.data?.[0]?.period?.end;
