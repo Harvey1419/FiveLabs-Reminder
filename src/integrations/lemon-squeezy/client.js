@@ -42,12 +42,14 @@ export function verifyLemonSqueezySignature(req) {
 }
 
 /**
- * Build a canonical Lemon Squeezy checkout URL embedding customer identity.
+ * Build a canonical Lemon Squeezy checkout URL embedding customer identity and return callback redirect.
  *
  * @param {object} params
  * @param {string} [params.userId]
  * @param {string} [params.phoneNumber]
  * @param {string} [params.email]
+ * @param {string} [params.country]
+ * @param {string} [params.redirectUrl]
  * @returns {string}
  */
 export function buildLemonSqueezyCheckoutUrl({
@@ -55,6 +57,7 @@ export function buildLemonSqueezyCheckoutUrl({
   phoneNumber = null,
   email = null,
   country = null,
+  redirectUrl = null,
 } = {}) {
   const rawBase = process.env.LEMON_SQUEEZY_CHECKOUT_URL || LEMON_SQUEEZY_DEFAULT_CHECKOUT_URL;
 
@@ -71,6 +74,14 @@ export function buildLemonSqueezyCheckoutUrl({
     }
     if (country) {
       url.searchParams.set('checkout[billing_address][country]', String(country).trim().toUpperCase());
+    }
+    if (!url.searchParams.has('checkout[product_options][redirect_url]')) {
+      const defaultRedirectUrl = redirectUrl
+        || process.env.LEMON_SQUEEZY_REDIRECT_URL
+        || (process.env.APP_BASE_URL
+          ? `${process.env.APP_BASE_URL.replace(/\/$/, '')}/subscription/callback`
+          : 'https://hermes.templelabs.co/subscription/callback');
+      url.searchParams.set('checkout[product_options][redirect_url]', defaultRedirectUrl);
     }
     return url.toString();
   } catch {
