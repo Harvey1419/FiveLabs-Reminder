@@ -7,6 +7,7 @@ import {
   hasProAccess,
   createPendingSubscription,
 } from '../../infrastructure/database/index.js';
+import { shouldEnforceBillingForUser } from '../../infrastructure/database/subscriptions.js';
 import { resolveReminderProUpgradeContext } from '../tools/reminder-pro.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 import { buildAgentCorePrompt } from '../core/agent-core.js';
@@ -358,17 +359,37 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
   console.log(`[router req=${requestId}] context loaded in ${contextElapsedMs}ms memories=${relevantMemories?.length || 0} preferences=${standingPreferences?.length || 0} activeNotices=${dailyOverview?.pendingConfirmationReminders?.length || 0} google=${googleIntegration ? 'present' : 'absent'} pro=${isPro}`);
 
-  const prompt = buildAgentCorePrompt({
-    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
-    workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
-  });
-
   let rawPastTurns = Array.isArray(history) ? history.slice() : [];
   const lastTurn = rawPastTurns.at(-1);
   if (lastTurn?.role === 'user' && (lastTurn.content === messageText || lastTurn.content === trustedMessageText || lastTurn.content === sanitizedUserText)) rawPastTurns.pop();
   const pastTurns = compactHistoryForModel(rawPastTurns);
   const latestAssistantMessage = [...pastTurns].reverse().find((turn) => turn.role === 'assistant')?.content || '';
   const historyChars = pastTurns.reduce((sum, turn) => sum + turn.content.length, 0);
+
+  const enforceBilling = shouldEnforceBillingForUser(user);
+  let proGuidance = null;
+  if (enforceBilling && !isPro) {
+    const recentTurnsMentionedPro = pastTurns.slice(-4).some((turn) =>
+      /lemonsqueezy|mercadopago|suscrip|reminder pro|\$9\.99|checkout/i.test(turn.content || '')
+    );
+    proGuidance = [
+      '- Este usuario está en Plan Free con facturación supervisada.',
+      '- Tu objetivo secundario es orientar de forma elegante y consultiva al usuario hacia Reminder Pro ($9.99 USD/mes), con persuasión suave y CERO invasiva.',
+      '- REGLA DE NO INVASIVIDAD: JAMÁS agregues un pitch de ventas a operaciones rutinarias (crear una tarea rápida, consultar un dato, marcar completado, etc.). Primero cumple y confirma impecablemente lo pedido.',
+      recentTurnsMentionedPro
+        ? '- Historial reciente ya mencionó Pro o suscripción: NO vuelvas a mencionarlo en este turno a menos que el usuario lo pregunte directamente.'
+        : '- Momentos ideales para sembrar Pro suavemente:\n' +
+          '  1. Saludos iniciales o preguntas exploratorias ("Hola", "¿qué puedes hacer?", "¿cómo funcionas?"): preséntate como su asistente personal y segundo cerebro ejecutivo. Explica que en Free puede gestionar su día a día y tareas inmediatas, y menciona con sutileza que con Reminder Pro ($9.99 USD) desbloquea anticipación total (recordatorios para días y semanas futuras, rutinas recurrentes y Google Calendar).\n' +
+          '  2. Preguntas sobre capacidades, planes o límites: responde con claridad y entusiasmo sobre los beneficios de Pro. Si pide el link o muestra interés, usa subscription.link o incluye [checkout_url] en tu respuesta.',
+      '- Tono: Asesor ejecutivo de alta confianza. Cero insistencia, cero spam.',
+    ].join('\n');
+  }
+
+  const prompt = buildAgentCorePrompt({
+    nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
+    workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
+    proGuidance,
+  });
 
   const messages = [
     { role: 'system', content: prompt },
@@ -667,6 +688,24 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       } catch (err) {
         console.warn('[router] generating auth_url in conversation failed:', err.message);
       }
+    } else if (confirmation.includes('[checkout_url]') || confirmation.includes('lemonsqueezy.com') || confirmation.includes('mercadopago.com')) {
+      try {
+        const proContext = await resolveReminderProUpgradeContext(
+          phoneNumber || user?.phone_number,
+          language,
+          { userId: user?.id },
+        );
+        const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
+        if (checkoutUrl) {
+          extractedCta = {
+            ctaUrl: checkoutUrl,
+            ctaHeader: proContext?.ctaHeader || '💎 Reminder Pro',
+            ctaButtonText: proContext?.ctaButtonText || (language === 'en' ? 'Pay now' : 'Pagar ahora'),
+          };
+        }
+      } catch (err) {
+        console.warn('[router] generating checkout_url cta in conversation failed:', err.message);
+      }
     }
     confirmation = await replaceTrustedLinkPlaceholders({ text: confirmation, user, phoneNumber });
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
@@ -753,9 +792,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     }),
     language,
     confirmation: finalReply,
-    ctaUrl: ctaFact?.ctaUrl || ctaRecord?.result?.data?.auth_url || ctaRecord?.result?.data?.checkout_url || null,
-    ctaHeader: ctaFact?.ctaHeader || null,
-    ctaButtonText: ctaFact?.ctaButtonText || null,
+    ctaUrl: ctaFact?.ctaUrl || ctaRecord?.result?.ctaUrl || ctaRecord?.result?.data?.auth_url || ctaRecord?.result?.data?.checkout_url || null,
+    ctaHeader: ctaFact?.ctaHeader || ctaRecord?.result?.ctaHeader || null,
+    ctaButtonText: ctaFact?.ctaButtonText || ctaRecord?.result?.ctaButtonText || null,
     flow: flowFact?.flow || flowRecord?.result?.flow || null,
     plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
     executionFacts: execution.facts,
