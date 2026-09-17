@@ -99,6 +99,7 @@ export async function getUnifiedAgenda({
       // reminder. One-time reminders still require acknowledged_at = null.
       return (data || [])
         .filter((reminder) => Boolean(reminder.recurrence_rule) || !reminder.acknowledged_at)
+        .filter((reminder) => !(reminder.delivery_id?.startsWith('gcal:') || reminder.content?.startsWith('🔔 [Google Calendar]')))
         .map((reminder) => {
           const dateObj = new Date(reminder.send_at);
           const timeFormatter = new Intl.DateTimeFormat(locale, {

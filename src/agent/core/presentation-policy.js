@@ -66,7 +66,10 @@ export const PRESENTATION_KINDS = Object.freeze({
   FAILURE_BATCH: 'failure_batch',
 });
 
-const READ_OPERATIONS = new Set(['list', 'read', 'search', 'next']);
+const READ_OPERATIONS = new Set([
+  'list', 'read', 'search', 'next',
+  'list_events', 'search_events', 'next_event', 'get_next_event', 'get_agenda',
+]);
 
 function isReadFact(fact) {
   return READ_OPERATIONS.has(getFactOperation(fact))

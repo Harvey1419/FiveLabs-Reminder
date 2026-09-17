@@ -7,6 +7,11 @@ import {
 
 function isVisiblePendingReminder(reminder) {
   if (!reminder || reminder.status !== 'pending') return false;
+  // Companion reminders for Google Calendar events are internal delivery jobs;
+  // they belong to the Calendar domain, never user-created reminders.
+  if (reminder.delivery_id?.startsWith('gcal:') || reminder.content?.startsWith('🔔 [Google Calendar]')) {
+    return false;
+  }
   // For a recurring reminder, acknowledged_at describes the most recent
   // execution, while send_at points at the next execution. It therefore stays
   // visible as an active reminder after acknowledging a previous occurrence.

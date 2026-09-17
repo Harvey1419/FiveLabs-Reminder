@@ -212,10 +212,17 @@ describe('turn-level presentation policy', () => {
         data: { reminders: [{ content: 'Llamar a Ana' }] },
         card: '🔔 *Recordatorios pendientes*\n\n• Llamar a Ana',
       }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR,
+        requestedAction: 'list_events',
+        data: { events: [{ summary: 'CCS Daily interna' }] },
+        card: 'Eventos en tu Google Calendar:\n• 📅 CCS Daily interna — Mañana a las 9:00 AM (Google Meet: https://meet.google.com/xck-dzjf-chx)',
+      }),
     ], 'es');
 
     expect(text).toContain('Tareas pendientes');
     expect(text).toContain('Recordatorios pendientes');
+    expect(text).toContain('Google Meet: https://meet.google.com/xck-dzjf-chx');
     expect(text).not.toContain('acciones realizadas');
     expect(text).not.toContain('realizadas');
   });
