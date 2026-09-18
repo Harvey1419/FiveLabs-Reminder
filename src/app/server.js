@@ -4,6 +4,7 @@ import { handleWebhook } from '../http/webhooks/whatsapp.js';
 import { handleMercadoPagoWebhook } from '../http/webhooks/mercado-pago.js';
 import { handleLemonSqueezyWebhook } from '../http/webhooks/lemon-squeezy.js';
 import { handleStripeWebhook } from '../http/webhooks/stripe.js';
+import { handleGoogleCalendarWebhook } from '../http/webhooks/google-calendar.js';
 import { buildStripeCheckoutUrl } from '../integrations/stripe/client.js';
 import { googleAuthRouter } from '../http/routes/google-auth.js';
 import { renderSubscriptionSuccessPage } from '../http/views/landing.js';
@@ -11,6 +12,7 @@ import { renderPrivacyPolicyPage, renderTermsOfServicePage } from '../http/views
 import { renderHomePage } from '../http/views/home.js';
 import { startScheduler } from '../jobs/reminder-scheduler.js';
 import { startMorningBriefingWorker } from '../jobs/morning-briefing.js';
+import { startCalendarWatchWorker } from '../jobs/calendar-watch-renewal.js';
 
 const app = express();
 
@@ -84,6 +86,9 @@ app.post('/webhooks/lemonsqueezy', handleLemonSqueezyWebhook);
 // Stripe Webhook Endpoint
 app.post('/webhooks/stripe', handleStripeWebhook);
 
+// Google Calendar Push Notification Webhook Endpoint
+app.post('/webhooks/google-calendar', handleGoogleCalendarWebhook);
+
 // Subscription Callback Return Page (Browser redirect after payment)
 app.get('/subscription/callback', (req, res) => {
   const theme = req.query.theme || 'obsidian';
@@ -117,6 +122,7 @@ const isBackgroundWorkerHost = process.env.NODE_ENV === 'production'
 if (isBackgroundWorkerHost) {
   startScheduler().catch(console.error);
   startMorningBriefingWorker();
+  startCalendarWatchWorker();
 } else {
   console.log('[workers] local HTTP process connected to shared queue; background jobs remain on Railway');
 }

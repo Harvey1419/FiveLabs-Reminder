@@ -42,8 +42,13 @@ vi.mock('../../../src/infrastructure/database/index.js', async () => {
       if (userId === 'user-no-auth') return null;
       return { access_token: 'valid-token', refresh_token: 'valid-refresh' };
     }),
+    saveMessage: vi.fn(async () => ({ id: 'msg-1' })),
   };
 });
+
+vi.mock('../../../src/integrations/whatsapp/kapso-client.js', () => ({
+  sendWhatsAppText: vi.fn(async () => ({ success: true })),
+}));
 
 vi.mock('../../../src/infrastructure/database/memories.js', () => ({
   getReminderConfirmationPreference: vi.fn(async (userId) => {
@@ -95,8 +100,11 @@ vi.mock('../../../src/integrations/google/calendar.js', () => ({
 const { reconcileCalendarCompanionReminders } = await import(
   '../../../src/features/calendar/reconciliation.js'
 );
-const { saveReminder, updateReminder } = await import(
+const { saveReminder, updateReminder, saveMessage } = await import(
   '../../../src/infrastructure/database/index.js'
+);
+const { sendWhatsAppText } = await import(
+  '../../../src/integrations/whatsapp/kapso-client.js'
 );
 
 describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
@@ -191,5 +199,36 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
       { status: 'cancelled' },
       'user-deleted-event',
     );
+  });
+
+  it('dispatches proactive WhatsApp notification when notifyOnDiscovery is true', async () => {
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-with-events',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Nueva reunión agendada en Google Calendar'),
+      }),
+    );
+    expect(saveMessage).toHaveBeenCalled();
+  });
+
+  it('omits proactive notification when notifyOnDiscovery is false', async () => {
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-with-events',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: false,
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(1);
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
   });
 });

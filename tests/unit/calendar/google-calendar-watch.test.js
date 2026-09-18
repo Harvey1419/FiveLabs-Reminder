@@ -1,0 +1,155 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+const mockWatch = vi.fn();
+const mockStop = vi.fn();
+const mockList = vi.fn();
+
+vi.mock('../../../src/integrations/google/auth.js', () => ({
+  getAuthenticatedGoogleClient: vi.fn(async (userId) => {
+    if (userId === 'user-no-auth') return null;
+    return {};
+  }),
+  isGoogleAuthError: vi.fn(() => false),
+  clearInvalidGoogleIntegration: vi.fn(),
+}));
+
+vi.mock('../../../src/infrastructure/database/integrations.js', () => ({
+  updateUserIntegrationMetadata: vi.fn(async () => ({})),
+}));
+
+vi.mock('googleapis', () => ({
+  google: {
+    calendar: vi.fn(() => ({
+      events: {
+        watch: mockWatch,
+        list: mockList,
+      },
+      channels: {
+        stop: mockStop,
+      },
+    })),
+  },
+}));
+
+const {
+  setupGoogleCalendarWatch,
+  stopGoogleCalendarWatch,
+  listIncrementalCalendarEvents,
+} = await import('../../../src/integrations/google/calendar.js');
+const { updateUserIntegrationMetadata } = await import('../../../src/infrastructure/database/integrations.js');
+
+describe('Google Calendar Watch & Incremental Sync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('setupGoogleCalendarWatch', () => {
+    it('returns null when user has no Google auth', async () => {
+      const res = await setupGoogleCalendarWatch({ userId: 'user-no-auth' });
+      expect(res).toBe(null);
+    });
+
+    it('establishes watch channel with default 7-day TTL and updates metadata', async () => {
+      mockWatch.mockResolvedValue({
+        data: {
+          id: 'chan-uuid-1',
+          resourceId: 'res-id-123',
+          expiration: '1727300000000',
+        },
+      });
+
+      const res = await setupGoogleCalendarWatch({
+        userId: 'user-1',
+        channelId: 'chan-uuid-1',
+      });
+
+      expect(res).toEqual({
+        channelId: 'chan-uuid-1',
+        resourceId: 'res-id-123',
+        expiration: 1727300000000,
+      });
+
+      expect(mockWatch).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        requestBody: expect.objectContaining({
+          id: 'chan-uuid-1',
+          type: 'web_hook',
+          token: 'userId=user-1',
+        }),
+      });
+
+      expect(updateUserIntegrationMetadata).toHaveBeenCalledWith('user-1', 'google', expect.objectContaining({
+        channelId: 'chan-uuid-1',
+        resourceId: 'res-id-123',
+        channelExpiration: 1727300000000,
+      }));
+    });
+  });
+
+  describe('stopGoogleCalendarWatch', () => {
+    it('stops channel on Google and clears metadata', async () => {
+      mockStop.mockResolvedValue({});
+
+      const res = await stopGoogleCalendarWatch({
+        userId: 'user-1',
+        channelId: 'chan-uuid-1',
+        resourceId: 'res-id-123',
+      });
+
+      expect(res).toBe(true);
+      expect(mockStop).toHaveBeenCalledWith({
+        requestBody: {
+          id: 'chan-uuid-1',
+          resourceId: 'res-id-123',
+        },
+      });
+      expect(updateUserIntegrationMetadata).toHaveBeenCalledWith('user-1', 'google', {
+        channelId: null,
+        resourceId: null,
+        channelExpiration: null,
+      });
+    });
+  });
+
+  describe('listIncrementalCalendarEvents', () => {
+    it('fetches incremental events using syncToken', async () => {
+      mockList.mockResolvedValue({
+        data: {
+          items: [{ id: 'evt-1', summary: 'Reunión' }],
+          nextSyncToken: 'sync-token-2',
+        },
+      });
+
+      const res = await listIncrementalCalendarEvents('user-1', {
+        syncToken: 'sync-token-1',
+      });
+
+      expect(res.fullSync).toBe(false);
+      expect(res.items).toHaveLength(1);
+      expect(res.nextSyncToken).toBe('sync-token-2');
+    });
+
+    it('recovers automatically with full sync when Google responds 410 Gone for expired syncToken', async () => {
+      const error410 = new Error('Sync token is no longer valid');
+      error410.code = 410;
+
+      mockList
+        .mockRejectedValueOnce(error410)
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ id: 'evt-full-1', summary: 'Evento Completo' }],
+            nextSyncToken: 'new-sync-token-fresh',
+          },
+        });
+
+      const res = await listIncrementalCalendarEvents('user-1', {
+        syncToken: 'expired-token',
+      });
+
+      expect(res.fullSync).toBe(true);
+      expect(res.items).toHaveLength(1);
+      expect(res.nextSyncToken).toBe('new-sync-token-fresh');
+      expect(mockList).toHaveBeenCalledTimes(2);
+    });
+  });
+});

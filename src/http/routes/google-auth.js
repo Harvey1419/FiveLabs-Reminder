@@ -1,5 +1,6 @@
 import express from 'express';
 import { generateGoogleAuthUrl, exchangeGoogleCode } from '../../integrations/google/auth.js';
+import { setupGoogleCalendarWatch } from '../../integrations/google/calendar.js';
 import { saveUserIntegration } from '../../infrastructure/database/index.js';
 import { saveMessage } from '../../infrastructure/database/messages.js';
 import { sendReminderConfirmation } from '../../integrations/whatsapp/kapso-client.js';
@@ -102,6 +103,11 @@ googleAuthRouter.get('/callback', async (req, res) => {
       scopes: tokens.scope ? tokens.scope.split(' ') : [],
       accountEmail: email,
       metadata: { displayName: name },
+    });
+
+    // Establish push notifications watch channel immediately
+    setupGoogleCalendarWatch({ userId }).catch((watchErr) => {
+      console.warn('[googleAuthRouter] setupGoogleCalendarWatch warning:', watchErr.message);
     });
 
     // Send confirmation message to WhatsApp if phone number is known

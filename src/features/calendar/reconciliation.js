@@ -3,10 +3,13 @@ import {
   saveReminder,
   updateReminder,
   getUserIntegration,
+  saveMessage,
 } from '../../infrastructure/database/index.js';
 import { getReminderConfirmationPreference } from '../../infrastructure/database/memories.js';
 import { hasUsableGoogleCredentials } from '../../integrations/google/auth.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../../integrations/google/calendar.js';
+import { sendWhatsAppText } from '../../integrations/whatsapp/kapso-client.js';
+import { formatHumanFriendlyDateTime } from '../../shared/time.js';
 
 const DEFAULT_RECONCILIATION_HORIZON_HOURS = 48;
 const DEFAULT_ADVANCE_MINUTES = 15;
@@ -36,6 +39,8 @@ export async function reconcileCalendarCompanionReminders({
   timezone = 'America/Bogota',
   defaultAdvanceMinutes = DEFAULT_ADVANCE_MINUTES,
   horizonHours = DEFAULT_RECONCILIATION_HORIZON_HOURS,
+  notifyOnDiscovery = false,
+  language = null,
 }) {
   if (!userId) {
     return { synced: false, createdCount: 0, updatedCount: 0, cancelledCount: 0, reason: 'missing_user_id' };
@@ -48,20 +53,23 @@ export async function reconcileCalendarCompanionReminders({
     }
 
     let targetPhone = phoneNumber;
-    if (!targetPhone) {
-      try {
-        const { data: userRec } = await supabase
-          .from('users')
-          .select('phone_number')
-          .eq('id', userId)
-          .maybeSingle();
-        if (userRec?.phone_number) {
-          targetPhone = userRec.phone_number;
-        }
-      } catch {
-        // Fallback without phone
+    let userLocale = null;
+    try {
+      const { data: userRec } = await supabase
+        .from('users')
+        .select('phone_number, locale')
+        .eq('id', userId)
+        .maybeSingle();
+      if (userRec?.phone_number && !targetPhone) {
+        targetPhone = userRec.phone_number;
       }
+      if (userRec?.locale) {
+        userLocale = userRec.locale;
+      }
+    } catch {
+      // Fallback without phone
     }
+    const userLang = language || (userLocale?.startsWith('en') ? 'en' : 'es');
 
     // Check user confirmation memory preference
     let requiresConfirmation = true;
@@ -156,6 +164,29 @@ export async function reconcileCalendarCompanionReminders({
             maxNudges,
           });
           createdCount += 1;
+
+          if (notifyOnDiscovery && targetPhone) {
+            const friendlyTime = formatHumanFriendlyDateTime(eventStart, timezone, userLang);
+            const noticeText = userLang === 'en'
+              ? `📅 *New meeting scheduled on Google Calendar*\n\n• *${event.summary}*\n⏰ ${friendlyTime}\n\n🔔 I've scheduled a reminder ${defaultAdvanceMinutes} minutes before.`
+              : `📅 *Nueva reunión agendada en Google Calendar*\n\n• *${event.summary}*\n⏰ ${friendlyTime}\n\n🔔 Te programé un recordatorio ${defaultAdvanceMinutes} minutos antes.`;
+
+            await sendWhatsAppText({
+              phoneNumber: targetPhone,
+              text: noticeText,
+            }).catch((err) => {
+              console.warn(`[calendarReconciliation] Proactive WhatsApp notice failed for ${targetPhone}:`, err.message);
+            });
+
+            await saveMessage({
+              userId,
+              phoneNumber: targetPhone,
+              role: 'assistant',
+              content: noticeText,
+              intent: 'calendar',
+              entities: { action: 'proactive_meeting_notification', eventId: event.id, summary: event.summary },
+            }).catch(() => {});
+          }
         } catch (insertErr) {
           console.warn(`[calendarReconciliation] Failed to insert reminder for event ${event.id}:`, insertErr.message);
         }

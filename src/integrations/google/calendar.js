@@ -5,6 +5,7 @@ import {
   isGoogleAuthError,
   getAuthenticatedGoogleClient,
 } from './auth.js';
+import { updateUserIntegrationMetadata } from '../../infrastructure/database/integrations.js';
 import {
   formatLocalDateTime,
   formatHumanFriendlyDateTime,
@@ -486,4 +487,181 @@ export async function deleteCalendarEvent(userId, eventId) {
     console.warn(`[googleCalendar] deleteCalendarEvent warning (${eventId}):`, err.message);
     return false;
   }
+}
+
+/**
+ * Setup a Google Calendar push notification watch channel.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} [params.webhookUrl]
+ * @param {string} [params.channelId]
+ * @param {number} [params.ttlSeconds=604800] 7 days default
+ * @returns {Promise<{channelId: string, resourceId: string, expiration: number}|null>}
+ */
+export async function setupGoogleCalendarWatch({
+  userId,
+  webhookUrl = null,
+  channelId = null,
+  ttlSeconds = 604800,
+}) {
+  const auth = await getAuthenticatedGoogleClient(userId);
+  if (!auth) return null;
+
+  const appBaseUrl = (process.env.APP_BASE_URL || 'https://hermes.templelabs.co').replace(/\/$/, '');
+  const targetAddress = webhookUrl || `${appBaseUrl}/webhooks/google-calendar`;
+  const targetChannelId = channelId || crypto.randomUUID();
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth });
+    const res = await calendar.events.watch({
+      calendarId: 'primary',
+      requestBody: {
+        id: targetChannelId,
+        type: 'web_hook',
+        address: targetAddress,
+        token: `userId=${userId}`,
+        params: {
+          ttl: String(ttlSeconds),
+        },
+      },
+    });
+
+    const resourceId = res.data.resourceId;
+    const expiration = Number(res.data.expiration);
+
+    await updateUserIntegrationMetadata(userId, 'google', {
+      channelId: targetChannelId,
+      resourceId,
+      channelExpiration: expiration,
+      channelAddress: targetAddress,
+      lastWatchedAt: new Date().toISOString(),
+    }).catch((metaErr) => {
+      console.warn(`[googleCalendar] Failed to update watch metadata for user ${userId}:`, metaErr.message);
+    });
+
+    console.log(`[googleCalendar] Watch established for user ${userId}: channel=${targetChannelId} expiration=${new Date(expiration).toISOString()}`);
+    return {
+      channelId: targetChannelId,
+      resourceId,
+      expiration,
+    };
+  } catch (err) {
+    if (isGoogleAuthError(err)) {
+      await clearInvalidGoogleIntegration(userId, 'calendar-watch');
+    }
+    console.error(`[googleCalendar] setupGoogleCalendarWatch error for user ${userId}:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Stop an existing Google Calendar push notification channel.
+ *
+ * @param {object} params
+ * @param {string} params.userId
+ * @param {string} params.channelId
+ * @param {string} params.resourceId
+ * @returns {Promise<boolean>}
+ */
+export async function stopGoogleCalendarWatch({ userId, channelId, resourceId }) {
+  if (!userId || !channelId || !resourceId) return false;
+
+  const auth = await getAuthenticatedGoogleClient(userId);
+  if (!auth) return false;
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth });
+    await calendar.channels.stop({
+      requestBody: {
+        id: channelId,
+        resourceId,
+      },
+    });
+
+    await updateUserIntegrationMetadata(userId, 'google', {
+      channelId: null,
+      resourceId: null,
+      channelExpiration: null,
+    }).catch(() => {});
+
+    console.log(`[googleCalendar] Watch stopped for user ${userId}: channel=${channelId}`);
+    return true;
+  } catch (err) {
+    if (isGoogleAuthError(err)) {
+      await clearInvalidGoogleIntegration(userId, 'calendar-stop-watch');
+    }
+    console.warn(`[googleCalendar] stopGoogleCalendarWatch warning for user ${userId}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Fetch incremental event changes using syncToken, recovering automatically from 410 Gone.
+ *
+ * @param {string} userId
+ * @param {object} [options]
+ * @param {string|null} [options.syncToken]
+ * @param {string} [options.timezone=DEFAULT_TIMEZONE]
+ * @param {Date|string} [options.timeMin]
+ * @param {Date|string} [options.timeMax]
+ * @returns {Promise<{items: Array<object>, nextSyncToken: string|null, fullSync: boolean}|null>}
+ */
+export async function listIncrementalCalendarEvents(userId, {
+  syncToken = null,
+  timezone = DEFAULT_TIMEZONE,
+  timeMin = null,
+  timeMax = null,
+} = {}) {
+  const auth = await getAuthenticatedGoogleClient(userId);
+  if (!auth) return null;
+
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  if (syncToken) {
+    try {
+      const res = await calendar.events.list({
+        calendarId: 'primary',
+        syncToken,
+        singleEvents: true,
+        timeZone: timezone,
+      });
+
+      return {
+        items: res.data.items || [],
+        nextSyncToken: res.data.nextSyncToken || null,
+        fullSync: false,
+      };
+    } catch (err) {
+      if (err.code === 410 || String(err?.message || '').includes('Sync token is no longer valid')) {
+        console.warn(`[googleCalendar] Sync token expired (410) for user ${userId}; performing full sync recovery.`);
+      } else {
+        if (isGoogleAuthError(err)) {
+          await clearInvalidGoogleIntegration(userId, 'calendar-sync');
+        }
+        throw err;
+      }
+    }
+  }
+
+  // Full sync fallback
+  const now = new Date();
+  const minIso = timeMin ? (timeMin instanceof Date ? timeMin.toISOString() : new Date(timeMin).toISOString()) : now.toISOString();
+  const maxIso = timeMax ? (timeMax instanceof Date ? timeMax.toISOString() : new Date(timeMax).toISOString()) : new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+
+  const fullRes = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: minIso,
+    timeMax: maxIso,
+    singleEvents: true,
+    orderBy: 'startTime',
+    timeZone: timezone,
+    maxResults: 100,
+  });
+
+  return {
+    items: fullRes.data.items || [],
+    nextSyncToken: fullRes.data.nextSyncToken || null,
+    fullSync: true,
+  };
 }

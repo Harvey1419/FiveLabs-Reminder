@@ -120,3 +120,101 @@ export async function deleteUserIntegration(userId, provider = 'google') {
     return false;
   }
 }
+
+/**
+ * Update metadata for an existing user integration.
+ *
+ * @param {string} userId
+ * @param {string} [provider='google']
+ * @param {object} metadataUpdates
+ * @returns {Promise<object|null>}
+ */
+export async function updateUserIntegrationMetadata(userId, provider = 'google', metadataUpdates = {}) {
+  if (!userId) return null;
+
+  try {
+    const existing = await getUserIntegration(userId, provider);
+    if (!existing) return null;
+
+    const mergedMetadata = {
+      ...(existing.metadata || {}),
+      ...metadataUpdates,
+    };
+
+    const { data, error } = await supabase
+      .from('user_integrations')
+      .update({
+        metadata: mergedMetadata,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[integrations] updateUserIntegrationMetadata warning (${provider}):`, error.message);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error(`[integrations] updateUserIntegrationMetadata error (${provider}):`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Get all active user integrations for a provider.
+ *
+ * @param {string} [provider='google']
+ * @returns {Promise<Array<object>>}
+ */
+export async function getAllActiveIntegrations(provider = 'google') {
+  try {
+    const { data, error } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('provider', provider)
+      .not('refresh_token', 'is', null);
+
+    if (error) {
+      console.warn(`[integrations] getAllActiveIntegrations warning (${provider}):`, error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error(`[integrations] getAllActiveIntegrations error (${provider}):`, err.message);
+    return [];
+  }
+}
+
+/**
+ * Find user integration matching a Google webhook channelId.
+ *
+ * @param {string} channelId
+ * @param {string} [provider='google']
+ * @returns {Promise<object|null>}
+ */
+export async function getUserIntegrationByChannelId(channelId, provider = 'google') {
+  if (!channelId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('user_integrations')
+      .select('*')
+      .eq('provider', provider);
+
+    if (error) {
+      console.warn('[integrations] getUserIntegrationByChannelId warning:', error.message);
+      return null;
+    }
+
+    const matched = (data || []).find((row) => row.metadata?.channelId === channelId);
+    return matched || null;
+  } catch (err) {
+    console.error('[integrations] getUserIntegrationByChannelId error:', err.message);
+    return null;
+  }
+}
