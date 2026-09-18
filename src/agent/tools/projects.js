@@ -101,7 +101,8 @@ export async function executeProjectTool({
       const projectIds = Array.isArray(params.projectIds) && params.projectIds.length > 0 ? params.projectIds : null;
       const targetNames = Array.isArray(params.targetNames) && params.targetNames.length > 0 ? params.targetNames : null;
       const targetName = params.targetName || params.target || null;
-      const scope = params.scope || 'single';
+      const rawScope = params.scope || (params.filter === 'no_tasks' ? 'no_tasks' : null);
+      const scope = (rawScope === 'no_tasks' || rawScope === 'empty') ? 'no_tasks' : (rawScope || 'single');
       const preserveNames = Array.isArray(params.preserveNames) ? params.preserveNames : [];
 
       const preview = await deleteProjects({
@@ -115,9 +116,12 @@ export async function executeProjectTool({
       });
 
       if (!preview.success) {
-        const message = preview.errorCode === 'AMBIGUOUS_TARGET'
-          ? (language === 'en' ? 'Several projects match that name. Which one should I delete?' : 'Hay varios proyectos que coinciden con ese nombre. ¿Cuál deseas eliminar?')
-          : (language === 'en' ? 'I could not find projects matching that request.' : 'No encontré proyectos que coincidan con esa solicitud.');
+        let message = language === 'en' ? 'I could not find projects matching that request.' : 'No encontré proyectos que coincidan con esa solicitud.';
+        if (preview.errorCode === 'AMBIGUOUS_TARGET') {
+          message = language === 'en' ? 'Several projects match that name. Which one should I delete?' : 'Hay varios proyectos que coinciden con ese nombre. ¿Cuál deseas eliminar?';
+        } else if (scope === 'no_tasks') {
+          message = language === 'en' ? 'You do not have any projects without pending tasks.' : 'No tienes proyectos sin tareas asociadas.';
+        }
         return {
           success: false,
           action: preview.errorCode === 'AMBIGUOUS_TARGET' ? 'ambiguous_project' : 'project_not_found',
@@ -155,9 +159,12 @@ export async function executeProjectTool({
             : `\n🔕 También se ${preview.activeReminderCount === 1 ? 'cancelará' : 'cancelarán'} ${preview.activeReminderCount} ${preview.activeReminderCount === 1 ? 'recordatorio activo relacionado' : 'recordatorios activos relacionados'}.`)
           : '';
 
+        const emptyScopeNote = scope === 'no_tasks'
+          ? (language === 'en' ? ' without pending tasks' : ' sin tareas asociadas')
+          : '';
         const question = language === 'en'
-          ? `Should I delete ${count === 1 ? '1 project' : `${count} projects`}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`
-          : `¿Quieres que elimine ${count === 1 ? '1 proyecto' : `${count} proyectos`}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`;
+          ? `Should I delete ${count === 1 ? '1 project' : `${count} projects`}${emptyScopeNote}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`
+          : `¿Quieres que elimine ${count === 1 ? '1 proyecto' : `${count} proyectos`}${emptyScopeNote}${projectList}?${preservedText}${taskText}${reminderText}${historyText}`;
 
         const proposedOperation = {
           kind: 'project_delete',
@@ -169,7 +176,11 @@ export async function executeProjectTool({
         };
         const pendingClarifications = [{
           type: 'project_deletion',
-          content: scope === 'all' ? 'Eliminación de proyectos' : (count === 1 ? `Eliminar ${names[0]}` : `Eliminar ${count} proyectos`),
+          content: scope === 'all'
+            ? 'Eliminación de todos los proyectos'
+            : (scope === 'no_tasks'
+              ? 'Eliminación de proyectos sin tareas'
+              : (count === 1 ? `Eliminar ${names[0]}` : `Eliminar ${count} proyectos`)),
           question,
           proposedOperation,
         }];

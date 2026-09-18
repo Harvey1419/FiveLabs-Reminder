@@ -136,6 +136,30 @@ describe('Project domain boundary and presentation', () => {
     expect(selection.projects.map((p) => p.id)).toEqual(['p1', 'p2']);
   });
 
+  it('selects only projects without pending tasks when scope is no_tasks', () => {
+    const projects = [
+      { id: 'p1', name: 'Marketing Digital', taskCount: 0 },
+      { id: 'p2', name: 'Código Sonoro', taskCount: 0 },
+      { id: 'p3', name: 'compras', taskCount: 2 },
+      { id: 'p4', name: 'Archivo Sonoro', taskCount: 7 },
+    ];
+
+    const selection = selectProjectsForDeletion(projects, { scope: 'no_tasks' });
+    expect(selection.status).toBe('RESOLVED');
+    expect(selection.projects.map((p) => p.name)).toEqual(['Marketing Digital', 'Código Sonoro']);
+  });
+
+  it('returns NOT_FOUND when scope is no_tasks but all projects have pending tasks', () => {
+    const projects = [
+      { id: 'p1', name: 'compras', taskCount: 2 },
+      { id: 'p2', name: 'Archivo Sonoro', taskCount: 7 },
+    ];
+
+    const selection = selectProjectsForDeletion(projects, { scope: 'no_tasks' });
+    expect(selection.status).toBe('NOT_FOUND');
+    expect(selection.projects).toEqual([]);
+  });
+
   it('formats batch project deletion result with unified 4-block card', () => {
     const card = formatCanonicalEntityDelete({
       deletedCount: 2,

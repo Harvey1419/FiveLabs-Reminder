@@ -922,6 +922,20 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
       });
 
       if (!rpcErr && rpcRes?.success) {
+        try {
+          await supabase.from('tasks').update({ project_id: target.id }).or(`entity_id.eq.${source.id},project_id.eq.${source.id}`).eq('user_id', userId);
+          await supabase.from('projects').delete().eq('id', source.id).eq('user_id', userId);
+          await supabase.from('projects').delete().ilike('name', cleanSource).eq('user_id', userId);
+          await supabase.from('projects').upsert({
+            id: target.id,
+            user_id: userId,
+            name: target.name,
+            metadata: rpcRes.merged_metadata || {},
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id, name' });
+        } catch {}
+
         console.log(`[entities] Atomically merged entity ${source.name} (${source.id}) -> ${target.name} (${target.id}) via PostgreSQL RPC (tasks moved: ${rpcRes.tasks_reassigned})`);
         return {
           success: true,
@@ -937,8 +951,8 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
     // 1. Move all tasks from source to target
     const { data: movedTasks, error: moveErr } = await supabase
       .from('tasks')
-      .update({ entity_id: target.id, updated_at: new Date().toISOString() })
-      .eq('entity_id', source.id)
+      .update({ entity_id: target.id, project_id: target.id, updated_at: new Date().toISOString() })
+      .or(`entity_id.eq.${source.id},project_id.eq.${source.id}`)
       .eq('user_id', userId)
       .select();
 
@@ -960,6 +974,20 @@ export async function mergeEntities(paramsOrUserId, sourceNameArg, targetNameArg
 
     // 3. Delete source entity
     await supabase.from('entities').delete().eq('id', source.id).eq('user_id', userId);
+
+    // 4. Sync projects table
+    try {
+      await supabase.from('projects').delete().eq('id', source.id).eq('user_id', userId);
+      await supabase.from('projects').delete().ilike('name', cleanSource).eq('user_id', userId);
+      await supabase.from('projects').upsert({
+        id: target.id,
+        user_id: userId,
+        name: target.name,
+        metadata: mergedMetadata,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id, name' });
+    } catch {}
 
     console.log(`[entities] Merged entity "${source.name}" (${source.id}) into "${target.name}" (${target.id}). Tasks moved: ${tasksMovedCount}`);
 

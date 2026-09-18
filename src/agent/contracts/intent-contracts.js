@@ -72,7 +72,7 @@ const actionSchema = {
     category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
-    scope: { type: 'string', description: `For entity.delete: "all" deletes EVERY project/entity across the user account (use ONLY when the user explicitly requests deleting all projects/lists). For single projects, leave scope null/omitted. Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
+    scope: { type: 'string', description: `For entity.delete / project.delete: "all" deletes EVERY project/entity across the user account; "no_tasks" deletes only projects that have zero tasks. For single projects, leave scope null/omitted. Agenda scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today'] },
     query: { type: 'string' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
@@ -97,17 +97,17 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). El significado explícito actual domina; contexto previo solo resuelve referencias. No expongas IDs internos.
-AUTORIDAD DE ESTADO Y READ MODEL: El historial no tiene autoridad sobre compromisos. Consultas de horizonte temporal ('qué tengo hoy/mañana') EXIGEN agenda.read. Consultas de estado EXIGEN lecturas de dominio (agenda.read, calendar.list, reminder.list, task.list). conversation.reply es solo diálogo sin estado. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente y solo deltas pedidos. Un valor a cambiar nunca es identidad.
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito actual domina; contexto previo solo resuelve referencias. No expongas IDs internos.
+AUTORIDAD DE ESTADO Y READ MODEL: Historial no tiene autoridad sobre compromisos. Consultas de horizonte ('qué tengo hoy/mañana') EXIGEN agenda.read. Consultas de estado EXIGEN lecturas de dominio (agenda.read, calendar.list, reminder.list, task.list). conversation.reply es diálogo sin estado. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente y deltas pedidos. Valor a cambiar nunca es identidad.
 Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowledge confirma un seguimiento real completado (Completion is not an update); Node vincula el objetivo autoritativo si es único.
-PROYECTOS Y TAREAS: proyectos usan project (o category="project") + task.create por elemento. Listar usa project.list; borrar project.delete(target="Nombre"). Tareas exigen task.list (con entityName si aplica); NUNCA listes tareas en conversation.reply ni inventes conteos. Notas en task.update usan description; title o newName es solo renombrar. Para ordinales emite una acción por elemento (task.delete target="1", target="3").
-CALENDARIO: Fechas/períodos usan calendar.list con scope (today, tomorrow, this_week, upcoming); títulos calendar.search; citas calendar.create (advanceMinutes=30; allDay=true si es todo el día); vincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
+PROYECTOS Y TAREAS: proyectos usan project (o category="project") + task.create por elemento. Listar usa project.list; borrar usa project.delete(target="Nombre"); sin tareas project.delete(scope="no_tasks"). Confirmaciones destructivas son de Node, NUNCA en conversation.reply. Tareas exigen task.list (con entityName); NUNCA listes tareas en conversation.reply ni inventes conteos. Notas en task.update usan description; title o newName es renombrar. Ordinales: una acción por elemento (task.delete target="1", target="3").
+CALENDARIO: Fechas usan calendar.list con scope (today, tomorrow, this_week, upcoming); títulos calendar.search; citas calendar.create (advanceMinutes=30; allDay=true); vincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 PREGUNTAS: Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas de dominio.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas y husos.
 Para datos faltantes, conserva acciones parciales con missingFields y una sola clarification.request.
-Mantén recurrencia (ej. yearly) y advanceMinutes en su recordatorio/evento. Datos personales usan conversation.reply y aprendizaje pasivo; memory.save solo ante petición explícita.
-Mensajes mixtos emiten acciones válidas y cláusulas no ejecutables en excluded. Lecturas entregan verdad en su card; NUNCA emitas conversation.reply especulando o duplicando la lectura.`;
+Recurrencia (ej. yearly) y advanceMinutes van en su recordatorio/evento. Datos personales usan conversation.reply y aprendizaje pasivo; memory.save solo ante petición explícita.
+Mensajes mixtos emiten acciones válidas y no ejecutables en excluded. Lecturas entregan verdad en su card; NUNCA especules o dupliques lecturas en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);

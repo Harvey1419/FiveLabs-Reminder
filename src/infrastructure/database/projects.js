@@ -60,6 +60,17 @@ export function selectProjectsForDeletion(projects, {
     };
   }
 
+  if (scope === 'no_tasks' || scope === 'empty') {
+    const emptyProjects = candidates.filter((p) => (p.taskCount === 0 || !p.taskCount) && !preserved.has(normalizeProjectName(p.name)));
+    if (emptyProjects.length === 0) {
+      return { status: 'NOT_FOUND', projects: [], candidates: [] };
+    }
+    return {
+      status: 'RESOLVED',
+      projects: emptyProjects,
+    };
+  }
+
   const namesToMatch = Array.isArray(targetNames) && targetNames.length > 0
     ? targetNames
     : (targetName ? [targetName] : []);
@@ -395,17 +406,24 @@ export async function deleteProjects({
 }) {
   const hasExactIds = Array.isArray(projectIds) && projectIds.length > 0;
   const hasNames = (Array.isArray(targetNames) && targetNames.length > 0) || Boolean(targetName);
-  if (!userId || (!hasExactIds && scope !== 'all' && !hasNames)) {
+  const isSpecialScope = scope === 'all' || scope === 'no_tasks' || scope === 'empty';
+  if (!userId || (!hasExactIds && !isSpecialScope && !hasNames)) {
     return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing deletion target.', deletedCount: 0 };
   }
 
   try {
-    let query = supabase.from('projects').select('*').eq('user_id', userId);
+    let projects = [];
     if (hasExactIds) {
-      query = query.in('id', projectIds);
+      const { data, error: fetchError } = await supabase.from('projects').select('*').eq('user_id', userId).in('id', projectIds);
+      if (fetchError) return { success: false, errorCode: 'DATABASE_ERROR', error: fetchError.message, deletedCount: 0 };
+      projects = data || [];
+    } else if (isSpecialScope) {
+      projects = await findProjects({ userId, status: 'active' });
+    } else {
+      const { data, error: fetchError } = await supabase.from('projects').select('*').eq('user_id', userId);
+      if (fetchError) return { success: false, errorCode: 'DATABASE_ERROR', error: fetchError.message, deletedCount: 0 };
+      projects = data || [];
     }
-    const { data: projects, error: fetchError } = await query;
-    if (fetchError) return { success: false, errorCode: 'DATABASE_ERROR', error: fetchError.message, deletedCount: 0 };
 
     const selection = hasExactIds
       ? { status: 'RESOLVED', projects: projects || [], candidates: [] }
