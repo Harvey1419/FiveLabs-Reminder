@@ -214,6 +214,51 @@ export async function reconcileCalendarCompanionReminders({
           try {
             await updateReminder(orphanReminder.id, { status: 'cancelled' }, userId);
             cancelledCount += 1;
+
+            if (notifyOnDiscovery && targetPhone) {
+              let title = (orphanReminder.content || '').replace(/^🔔\s*/, '');
+              const match = title.match(/\[Google Calendar\]\s*(.*?)(?:\s+en\s+\d+\s+minutos)?$/i);
+              if (match && match[1]) {
+                title = match[1].trim();
+              } else {
+                title = title.replace(/^\[Google Calendar\]\s*/i, '').trim();
+              }
+              if (!title) {
+                title = userLang === 'en' ? 'Meeting' : 'Reunión';
+              }
+
+              const estimatedEventStartMs = orphanSendAtMs + defaultAdvanceMinutes * 60 * 1000;
+              const friendlyTime = formatHumanFriendlyDateTime(
+                new Date(estimatedEventStartMs).toISOString(),
+                timezone,
+                userLang,
+              );
+
+              const cancelNoticeText = userLang === 'en'
+                ? `❌ *Meeting cancelled on Google Calendar*\n\n• *${title}*\n⏰ ${friendlyTime}\n\n🗑️ The companion reminder was cancelled automatically.`
+                : `❌ *Reunión cancelada en Google Calendar*\n\n• *${title}*\n⏰ ${friendlyTime}\n\n🗑️ El recordatorio programado fue cancelado automáticamente.`;
+
+              await sendWhatsAppText({
+                phoneNumber: targetPhone,
+                text: cancelNoticeText,
+              }).catch((err) => {
+                console.warn(`[calendarReconciliation] Cancellation WhatsApp notice failed for ${targetPhone}:`, err.message);
+              });
+
+              await saveMessage({
+                userId,
+                phoneNumber: targetPhone,
+                role: 'assistant',
+                content: cancelNoticeText,
+                intent: 'calendar',
+                entities: {
+                  action: 'proactive_meeting_cancellation',
+                  reminderId: orphanReminder.id,
+                  deliveryId,
+                  title,
+                },
+              }).catch(() => {});
+            }
           } catch (cancelErr) {
             console.warn(`[calendarReconciliation] Failed to cancel orphaned reminder ${orphanReminder.id}:`, cancelErr.message);
           }

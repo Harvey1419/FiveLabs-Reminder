@@ -201,6 +201,49 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
     );
   });
 
+  it('dispatches proactive WhatsApp cancellation notification when notifyOnDiscovery is true and event is deleted', async () => {
+    const futureSendAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+    mockState.savedReminders = [
+      {
+        id: 'rem-deleted-2',
+        delivery_id: 'gcal:g-event-cancelled',
+        send_at: futureSendAt,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Reunión de Producto en 15 minutos',
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.cancelledCount).toBe(1);
+    expect(updateReminder).toHaveBeenCalledWith(
+      'rem-deleted-2',
+      { status: 'cancelled' },
+      'user-deleted-event',
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Reunión cancelada en Google Calendar'),
+      }),
+    );
+    expect(saveMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'assistant',
+        entities: expect.objectContaining({
+          action: 'proactive_meeting_cancellation',
+          title: 'Reunión de Producto',
+        }),
+      }),
+    );
+  });
+
   it('dispatches proactive WhatsApp notification when notifyOnDiscovery is true', async () => {
     const res = await reconcileCalendarCompanionReminders({
       userId: 'user-with-events',
