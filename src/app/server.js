@@ -28,7 +28,7 @@ if (missingEnvs.length > 0) {
 app.use(express.static('public'));
 
 app.use(express.json({
-  limit: '10mb',
+  limit: '2mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   },
