@@ -263,6 +263,20 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
     expect(saveMessage).toHaveBeenCalled();
   });
 
+  it('does not announce backfilled events that are outside the changed-event delta', async () => {
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-with-events',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['some-other-event'],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(1);
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
+  });
+
   it('omits proactive notification when notifyOnDiscovery is false', async () => {
     const res = await reconcileCalendarCompanionReminders({
       userId: 'user-with-events',
