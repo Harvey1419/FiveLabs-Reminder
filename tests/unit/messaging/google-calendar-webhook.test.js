@@ -146,6 +146,37 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
     );
   });
 
+  it('does not echo a proactive new-meeting notice for events created by Hermes', async () => {
+    listIncrementalCalendarEvents.mockResolvedValue({
+      items: [
+        { id: 'hermesabc123', status: 'confirmed' },
+        { id: 'external-event-1', status: 'confirmed' },
+      ],
+      nextSyncToken: 'sync-token-3',
+      fullSync: false,
+    });
+
+    const req = {
+      headers: {
+        'x-goog-channel-id': 'chan-1234',
+        'x-goog-resource-state': 'exists',
+        'x-goog-channel-token': 'userId=user-abc-123',
+      },
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    };
+
+    await handleGoogleCalendarWebhook(req, res);
+
+    expect(reconcileCalendarCompanionReminders).toHaveBeenCalledWith({
+      userId: 'user-abc-123',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['external-event-1'],
+    });
+  });
+
   it('excludes cancelled events from proactive new-meeting ids', async () => {
     listIncrementalCalendarEvents.mockResolvedValue({
       items: [
