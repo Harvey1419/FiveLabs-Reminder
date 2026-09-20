@@ -58,19 +58,26 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   };
 }
 
+// Exact prefix written by createCompanionReminder() in calendar.js.
+const GCAL_CONTENT_PREFIX = '🔔 [Google Calendar] ';
+
 /**
- * Strips the gcal companion content noise so the fuzzy scorer can match the
- * user-supplied reference against the underlying event title.
+ * Extracts the underlying event title from a gcal companion content string.
+ * No regex — uses the known fixed prefix and the last ' en ' separator.
  *
  * Input:  "🔔 [Google Calendar] Reunion del CIDIGRAMA en 30 minutos"
  * Output: "Reunion del CIDIGRAMA"
  */
 function normalizeGcalCompanionContent(content) {
   if (!content) return '';
-  return content
-    .replace(/^🔔\s*\[Google Calendar\]\s*/u, '')
-    .replace(/\s+en\s+\d+\s+minutos?\s*$/i, '')
-    .trim();
+  let title = content.startsWith(GCAL_CONTENT_PREFIX)
+    ? content.slice(GCAL_CONTENT_PREFIX.length)
+    : content;
+  // The suffix is always " en N minutos" appended by our own code.
+  // Find the last occurrence of ' en ' and drop everything from there.
+  const enIdx = title.lastIndexOf(' en ');
+  if (enIdx > 0) title = title.slice(0, enIdx);
+  return title.trim();
 }
 
 async function resolveTargetReminder({ target, owner, user }) {
