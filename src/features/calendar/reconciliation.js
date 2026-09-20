@@ -40,6 +40,7 @@ export async function reconcileCalendarCompanionReminders({
   defaultAdvanceMinutes = DEFAULT_ADVANCE_MINUTES,
   horizonHours = DEFAULT_RECONCILIATION_HORIZON_HOURS,
   notifyOnDiscovery = false,
+  notifyEventIds = null,
   language = null,
 }) {
   if (!userId) {
@@ -70,6 +71,9 @@ export async function reconcileCalendarCompanionReminders({
       // Fallback without phone
     }
     const userLang = language || (userLocale?.startsWith('en') ? 'en' : 'es');
+    const proactiveEventIds = Array.isArray(notifyEventIds)
+      ? new Set(notifyEventIds.filter(Boolean))
+      : null;
 
     // Check user confirmation memory preference
     let requiresConfirmation = true;
@@ -165,7 +169,11 @@ export async function reconcileCalendarCompanionReminders({
           });
           createdCount += 1;
 
-          if (notifyOnDiscovery && targetPhone) {
+          const shouldNotifyNewEvent = notifyOnDiscovery
+            && targetPhone
+            && (!proactiveEventIds || proactiveEventIds.has(event.id));
+
+          if (shouldNotifyNewEvent) {
             const friendlyTime = formatHumanFriendlyDateTime(eventStart, timezone, userLang);
             const noticeText = userLang === 'en'
               ? `📅 *New meeting scheduled on Google Calendar*\n\n• *${event.summary}*\n⏰ ${friendlyTime}\n\n🔔 I've scheduled a reminder ${defaultAdvanceMinutes} minutes before.`
