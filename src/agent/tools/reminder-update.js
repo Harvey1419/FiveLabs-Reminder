@@ -58,6 +58,21 @@ function proRequiredResult({ language, proUpgrade, targetDate = null }) {
   };
 }
 
+/**
+ * Strips the gcal companion content noise so the fuzzy scorer can match the
+ * user-supplied reference against the underlying event title.
+ *
+ * Input:  "🔔 [Google Calendar] Reunion del CIDIGRAMA en 30 minutos"
+ * Output: "Reunion del CIDIGRAMA"
+ */
+function normalizeGcalCompanionContent(content) {
+  if (!content) return '';
+  return content
+    .replace(/^🔔\s*\[Google Calendar\]\s*/u, '')
+    .replace(/\s+en\s+\d+\s+minutos?\s*$/i, '')
+    .trim();
+}
+
 async function resolveTargetReminder({ target, owner, user }) {
   if (!target) return { targetId: null, pending: [] };
   if (!owner?.hasOwner) return { targetId: null, pending: [], missingOwner: true };
@@ -110,6 +125,30 @@ async function resolveTargetReminder({ target, owner, user }) {
   if (resolution.status === 'AMBIGUOUS') {
     return { targetId: null, pending, ambiguous: true, candidates: resolution.candidates || [] };
   }
+
+  // Secondary pass: try to match against Google Calendar companion reminders by
+  // normalizing their content (stripping prefix/suffix noise) before scoring.
+  // Companions are hidden from reminder.list but CAN be the user's intended target
+  // when they say "modifica el recordatorio de X" alongside a calendar update.
+  const gcalCompanions = pending.filter((r) => r.delivery_id?.startsWith('gcal:'));
+  if (gcalCompanions.length > 0) {
+    const normalized = gcalCompanions.map((r) => ({
+      ...r,
+      content: normalizeGcalCompanionContent(r.content),
+    }));
+    const companionResolution = resolveContextReference({
+      userOrPhone: user || owner.phoneNumber,
+      reference: targetText,
+      candidates: normalized,
+      preferredType: 'reminder',
+    });
+    if (companionResolution.status === 'RESOLVED') {
+      const resolvedId = companionResolution.item?.internalId || companionResolution.item?.id || null;
+      const companionReminder = pending.find((r) => r.id === resolvedId) || null;
+      return { targetId: null, pending, isCalendarCompanion: true, companionReminder };
+    }
+  }
+
   return { targetId: null, pending, notFound: true };
 }
 
@@ -203,6 +242,22 @@ export async function executeReminderUpdate({
           time: cand.time || cand.send_at || null,
         })),
       },
+    };
+  }
+  if (resolved.isCalendarCompanion) {
+    const eventTitle = resolved.companionReminder
+      ? normalizeGcalCompanionContent(resolved.companionReminder.content)
+      : null;
+    const eventLabel = eventTitle ? ` *"${eventTitle}"*` : '';
+    const msg = language === 'en'
+      ? `📅 The reminder for${eventLabel} belongs to Google Calendar and was already updated automatically when the event was modified.`
+      : `📅 El recordatorio de${eventLabel} pertenece a Google Calendar y ya fue actualizado automáticamente al modificar el evento.`;
+    return {
+      success: true,
+      action: 'calendar_companion_auto_updated',
+      data: { isCalendarCompanion: true, reminderId: resolved.companionReminder?.id || null },
+      rawSummary: msg,
+      formattedCard: msg,
     };
   }
   if (!resolved.targetId) {
