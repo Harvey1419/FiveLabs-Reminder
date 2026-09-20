@@ -111,7 +111,11 @@ export async function handleGoogleCalendarWebhook(req, res) {
     });
 
     const changedEventIds = (delta?.items || [])
-      .filter((event) => event?.id && event.status !== 'cancelled')
+      .filter((event) => (
+        event?.id
+        && event.status !== 'cancelled'
+        && !String(event.id).startsWith('hermes')
+      ))
       .map((event) => event.id);
 
     await reconcileCalendarCompanionReminders({
