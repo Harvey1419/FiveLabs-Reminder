@@ -526,14 +526,11 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       const hasExplicitAdvanceNotice = params.advanceMinutes !== undefined && params.advanceMinutes !== null;
-      const parsedAdvanceMinutes = hasExplicitAdvanceNotice ? Number(params.advanceMinutes) : 15;
-      const advanceMinutes = Number.isFinite(parsedAdvanceMinutes) && parsedAdvanceMinutes > 0
-        ? parsedAdvanceMinutes
-        : 15;
+      const advanceMinutes = hasExplicitAdvanceNotice ? Number(params.advanceMinutes) : null;
       let reminderCreated = false;
       let reminderSendAt = null;
 
-      if (!isAllDay && startDateTime) {
+      if (hasExplicitAdvanceNotice && Number.isFinite(advanceMinutes) && advanceMinutes > 0 && startDateTime) {
         reminderSendAt = new Date(startDateTime.getTime() - advanceMinutes * 60 * 1000).toISOString();
         if (new Date(reminderSendAt).getTime() > Date.now()) {
           const advContent = `🔔 [Google Calendar] ${event.summary} en ${advanceMinutes} minutos`;
