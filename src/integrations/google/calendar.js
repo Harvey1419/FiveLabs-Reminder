@@ -620,16 +620,28 @@ export async function listIncrementalCalendarEvents(userId, {
 
   if (syncToken) {
     try {
-      const res = await calendar.events.list({
-        calendarId: 'primary',
-        syncToken,
-        singleEvents: true,
-        timeZone: timezone,
-      });
+      const items = [];
+      let pageToken = null;
+      let nextSyncToken = null;
+
+      do {
+        const params = {
+          calendarId: 'primary',
+          syncToken,
+          singleEvents: true,
+          timeZone: timezone,
+        };
+        if (pageToken) params.pageToken = pageToken;
+
+        const res = await calendar.events.list(params);
+        items.push(...(res.data.items || []));
+        pageToken = res.data.nextPageToken || null;
+        nextSyncToken = res.data.nextSyncToken || nextSyncToken;
+      } while (pageToken);
 
       return {
-        items: res.data.items || [],
-        nextSyncToken: res.data.nextSyncToken || null,
+        items,
+        nextSyncToken,
         fullSync: false,
       };
     } catch (err) {
@@ -649,19 +661,31 @@ export async function listIncrementalCalendarEvents(userId, {
   const minIso = timeMin ? (timeMin instanceof Date ? timeMin.toISOString() : new Date(timeMin).toISOString()) : now.toISOString();
   const maxIso = timeMax ? (timeMax instanceof Date ? timeMax.toISOString() : new Date(timeMax).toISOString()) : new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
 
-  const fullRes = await calendar.events.list({
-    calendarId: 'primary',
-    timeMin: minIso,
-    timeMax: maxIso,
-    singleEvents: true,
-    orderBy: 'startTime',
-    timeZone: timezone,
-    maxResults: 100,
-  });
+  const items = [];
+  let pageToken = null;
+  let nextSyncToken = null;
+
+  do {
+    const params = {
+      calendarId: 'primary',
+      timeMin: minIso,
+      timeMax: maxIso,
+      singleEvents: true,
+      orderBy: 'startTime',
+      timeZone: timezone,
+      maxResults: 100,
+    };
+    if (pageToken) params.pageToken = pageToken;
+
+    const res = await calendar.events.list(params);
+    items.push(...(res.data.items || []));
+    pageToken = res.data.nextPageToken || null;
+    nextSyncToken = res.data.nextSyncToken || nextSyncToken;
+  } while (pageToken);
 
   return {
-    items: fullRes.data.items || [],
-    nextSyncToken: fullRes.data.nextSyncToken || null,
+    items,
+    nextSyncToken,
     fullSync: true,
   };
 }
