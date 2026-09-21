@@ -413,7 +413,7 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       // From now until the end of next month / year (covers all upcoming items in chronological order)
       const timeMin = now;
       const timeMax = zonedTimeToUtc(year + 1, 1, 1, 0, 0, 0, timezone);
-      return { timeMin, timeMax, isNextEvent: false, maxResults: 50, scope: 'upcoming' };
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 10, scope: 'upcoming' };
     }
 
     case 'today':
@@ -455,7 +455,7 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       const distToNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
       const timeMin = zonedTimeToUtc(year, month, day - distToMonday, 0, 0, 0, timezone);
       const timeMax = zonedTimeToUtc(year, month, day + distToNextMonday, 0, 0, 0, timezone);
-      return { timeMin, timeMax, isNextEvent: false, maxResults: 25, scope: 'this_week' };
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'this_week' };
     }
 
     case 'next_week':
@@ -464,7 +464,7 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
       const distToMondayAfterNext = dayOfWeek === 0 ? 8 : 15 - dayOfWeek;
       const timeMin = zonedTimeToUtc(year, month, day + distToNextMonday, 0, 0, 0, timezone);
       const timeMax = zonedTimeToUtc(year, month, day + distToMondayAfterNext, 0, 0, 0, timezone);
-      return { timeMin, timeMax, isNextEvent: false, maxResults: 25, scope: 'next_week' };
+      return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'next_week' };
     }
 
     case 'this_weekend':
