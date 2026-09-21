@@ -418,7 +418,8 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
 
     case 'today':
     case 'hoy': {
-      const timeMin = zonedTimeToUtc(year, month, day, 0, 0, 0, timezone);
+      // timeMin = now so past events are not shown; timeMax = end of day
+      const timeMin = now;
       const timeMax = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
       return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'today' };
     }
