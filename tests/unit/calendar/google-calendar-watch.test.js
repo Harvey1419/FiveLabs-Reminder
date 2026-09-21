@@ -129,6 +129,69 @@ describe('Google Calendar Watch & Incremental Sync', () => {
       expect(res.nextSyncToken).toBe('sync-token-2');
     });
 
+    it('paginates incremental sync until Google returns the final sync token', async () => {
+      mockList
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ id: 'evt-1' }],
+            nextPageToken: 'page-2',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ id: 'evt-2' }],
+            nextSyncToken: 'sync-token-final',
+          },
+        });
+
+      const res = await listIncrementalCalendarEvents('user-1', {
+        syncToken: 'sync-token-1',
+      });
+
+      expect(res.fullSync).toBe(false);
+      expect(res.items.map((item) => item.id)).toEqual(['evt-1', 'evt-2']);
+      expect(res.nextSyncToken).toBe('sync-token-final');
+      expect(mockList).toHaveBeenNthCalledWith(1, {
+        calendarId: 'primary',
+        syncToken: 'sync-token-1',
+        singleEvents: true,
+        timeZone: 'America/Bogota',
+      });
+      expect(mockList).toHaveBeenNthCalledWith(2, {
+        calendarId: 'primary',
+        syncToken: 'sync-token-1',
+        singleEvents: true,
+        timeZone: 'America/Bogota',
+        pageToken: 'page-2',
+      });
+    });
+
+    it('paginates the initial full sync so the baseline receives nextSyncToken', async () => {
+      mockList
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ id: 'evt-full-1' }],
+            nextPageToken: 'full-page-2',
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            items: [{ id: 'evt-full-2' }],
+            nextSyncToken: 'baseline-sync-token',
+          },
+        });
+
+      const res = await listIncrementalCalendarEvents('user-1');
+
+      expect(res.fullSync).toBe(true);
+      expect(res.items.map((item) => item.id)).toEqual(['evt-full-1', 'evt-full-2']);
+      expect(res.nextSyncToken).toBe('baseline-sync-token');
+      expect(mockList).toHaveBeenCalledTimes(2);
+      expect(mockList.mock.calls[1][0]).toEqual(
+        expect.objectContaining({ pageToken: 'full-page-2' }),
+      );
+    });
+
     it('recovers automatically with full sync when Google responds 410 Gone for expired syncToken', async () => {
       const error410 = new Error('Sync token is no longer valid');
       error410.code = 410;
