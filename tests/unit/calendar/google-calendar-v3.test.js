@@ -94,7 +94,8 @@ describe('Google Calendar current architecture', () => {
       const today = resolveCalendarTemporalScope({ scope: 'today' }, tz, now);
       const tomorrow = resolveCalendarTemporalScope({ scope: 'tomorrow' }, tz, now);
       const nextWeek = resolveCalendarTemporalScope({ scope: 'next_week' }, tz, now);
-      expect(today.timeMin.toISOString()).toBe('2026-09-02T05:00:00.000Z');
+      // 'today' timeMin = now (not midnight) so past events are excluded
+      expect(today.timeMin.toISOString()).toBe('2026-09-02T19:00:00.000Z');
       expect(tomorrow.timeMin.toISOString()).toBe('2026-09-03T05:00:00.000Z');
       expect(nextWeek.timeMin.toISOString()).toBe('2026-09-07T05:00:00.000Z');
     });
