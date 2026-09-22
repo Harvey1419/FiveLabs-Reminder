@@ -662,7 +662,7 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
     entityType: uniform ? firstType : 'all',
     activeEntity,
     activeEntityId,
-    lastAction: toolName,
+    lastAction: result?.action === 'partially_created_reminders' ? 'partially_created' : toolName,
     items: workingItems,
   });
 }

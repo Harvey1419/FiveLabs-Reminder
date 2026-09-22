@@ -114,7 +114,7 @@ export function resolveTypedSchedule(schedule, {
   if (Number.isNaN(reference.getTime())) return failure('INVALID_REFERENCE_TIME', 'La hora de referencia no es válida.');
 
   if (normalizedSchedule.kind === 'relative_offset') {
-    if (!Number.isInteger(normalizedSchedule.offsetMinutes) || normalizedSchedule.offsetMinutes < 1 || normalizedSchedule.offsetMinutes > 525600) {
+    if (!Number.isInteger(normalizedSchedule.offsetMinutes) || normalizedSchedule.offsetMinutes < 0 || normalizedSchedule.offsetMinutes > 525600) {
       return failure('INVALID_RELATIVE_OFFSET', 'El desplazamiento temporal no es válido.');
     }
     const date = new Date(reference.getTime() + normalizedSchedule.offsetMinutes * 60_000);
