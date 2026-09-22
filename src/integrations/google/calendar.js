@@ -78,6 +78,7 @@ export function normalizeCalendarEvent(ev, timezone = DEFAULT_TIMEZONE) {
     displayDate: dateStr,
     sortTimestamp,
     status: ev.status || 'confirmed',
+    recurringEventId: ev.recurringEventId || null,
   };
 }
 

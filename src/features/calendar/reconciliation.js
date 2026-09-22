@@ -33,6 +33,54 @@ const DEFAULT_ADVANCE_MINUTES = 15;
  * @param {number} [params.horizonHours=48]
  * @returns {Promise<{synced: boolean, createdCount: number, updatedCount: number, cancelledCount: number, error?: string, reason?: string}>}
  */
+function formatTimeOnly(isoString, timezone, userLang) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const locale = userLang === 'en' ? 'en-US' : 'es-CO';
+  return d.toLocaleTimeString(locale, {
+    timeZone: timezone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function buildNotificationLines(items, timezone, userLang) {
+  const groups = new Map();
+
+  for (const item of items) {
+    const key = item.recurringEventId || item.summary || item.title || item.id;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        summary: item.summary || item.title || (userLang === 'en' ? 'Meeting' : 'Reunión'),
+        recurringEventId: item.recurringEventId || null,
+        instances: [],
+      });
+    }
+    groups.get(key).instances.push(item);
+  }
+
+  const lines = [];
+  for (const group of groups.values()) {
+    const count = group.instances.length;
+    const firstInstance = group.instances[0];
+    const isRecurring = Boolean(group.recurringEventId || count > 1);
+
+    if (isRecurring) {
+      const timeStr = formatTimeOnly(firstInstance.eventStart || firstInstance.startIso, timezone, userLang);
+      const recurringLabel = userLang === 'en' ? 'recurring series' : 'serie recurrente';
+      const timePart = timeStr ? ` — ${timeStr}` : '';
+      lines.push(`• *${group.summary}* (${recurringLabel}${timePart})`);
+    } else {
+      const friendlyTime = formatHumanFriendlyDateTime(firstInstance.eventStart || firstInstance.startIso, timezone, userLang);
+      lines.push(`• *${group.summary}* — ${friendlyTime}`);
+    }
+  }
+
+  return lines;
+}
+
 export async function reconcileCalendarCompanionReminders({
   userId,
   phoneNumber = null,
@@ -190,6 +238,7 @@ export async function reconcileCalendarCompanionReminders({
               id: event.id,
               summary: event.summary,
               eventStart,
+              recurringEventId: event.recurringEventId || null,
             });
           }
         } catch (insertErr) {
@@ -210,13 +259,27 @@ export async function reconcileCalendarCompanionReminders({
       }
     }
 
-    // Proactive new meeting notification dispatch (individual or consolidated batch)
-    if (newEventsToNotify.length === 1) {
-      const single = newEventsToNotify[0];
-      const friendlyTime = formatHumanFriendlyDateTime(single.eventStart, timezone, userLang);
-      const noticeText = userLang === 'en'
-        ? `📅 *New meeting scheduled on Google Calendar*\n\n• *${single.summary}*\n⏰ ${friendlyTime}\n\n🔔 I've scheduled a reminder ${defaultAdvanceMinutes} minutes before.`
-        : `📅 *Nueva reunión agendada en Google Calendar*\n\n• *${single.summary}*\n⏰ ${friendlyTime}\n\n🔔 Te programé un recordatorio ${defaultAdvanceMinutes} minutos antes.`;
+    // Proactive new meeting notification dispatch (individual or grouped recurring batch)
+    if (newEventsToNotify.length > 0) {
+      const lines = buildNotificationLines(newEventsToNotify, timezone, userLang);
+
+      let noticeText = '';
+      if (lines.length === 1 && newEventsToNotify.length === 1 && !newEventsToNotify[0].recurringEventId) {
+        const single = newEventsToNotify[0];
+        const friendlyTime = formatHumanFriendlyDateTime(single.eventStart, timezone, userLang);
+        noticeText = userLang === 'en'
+          ? `📅 *New meeting scheduled on Google Calendar*\n\n• *${single.summary}*\n⏰ ${friendlyTime}\n\n🔔 I've scheduled a reminder ${defaultAdvanceMinutes} minutes before.`
+          : `📅 *Nueva reunión agendada en Google Calendar*\n\n• *${single.summary}*\n⏰ ${friendlyTime}\n\n🔔 Te programé un recordatorio ${defaultAdvanceMinutes} minutos antes.`;
+      } else {
+        const header = userLang === 'en'
+          ? (lines.length === 1 ? `📅 *New meeting scheduled on Google Calendar*` : `📅 *New meetings scheduled on Google Calendar*`)
+          : (lines.length === 1 ? `📅 *Nueva reunión agendada en Google Calendar*` : `📅 *Nuevas reuniones agendadas en Google Calendar*`);
+        const reminderNote = userLang === 'en'
+          ? `🔔 I've scheduled reminders ${defaultAdvanceMinutes} minutes before.`
+          : `🔔 Te programé recordatorios ${defaultAdvanceMinutes} minutos antes.`;
+
+        noticeText = `${header}\n\n${lines.join('\n')}\n\n${reminderNote}`;
+      }
 
       await sendWhatsAppText({
         phoneNumber: targetPhone,
@@ -231,44 +294,13 @@ export async function reconcileCalendarCompanionReminders({
         role: 'assistant',
         content: noticeText,
         intent: 'calendar',
-        entities: { action: 'proactive_meeting_notification', eventId: single.id, summary: single.summary },
-      }).catch(() => {});
-    } else if (newEventsToNotify.length > 1) {
-      const DISPLAY_LIMIT = 5;
-      const displayed = newEventsToNotify.slice(0, DISPLAY_LIMIT);
-      const remainingCount = newEventsToNotify.length - DISPLAY_LIMIT;
-
-      const lines = displayed.map((item) => {
-        const friendlyTime = formatHumanFriendlyDateTime(item.eventStart, timezone, userLang);
-        return `• *${item.summary}* — ${friendlyTime}`;
-      });
-
-      if (remainingCount > 0) {
-        lines.push(userLang === 'en' ? `_... and ${remainingCount} more_` : `_... y ${remainingCount} más_`);
-      }
-
-      const noticeText = userLang === 'en'
-        ? `📅 *New meetings scheduled on Google Calendar*\n\n${lines.join('\n')}\n\n🔔 I've scheduled reminders ${defaultAdvanceMinutes} minutes before each.`
-        : `📅 *Nuevas reuniones agendadas en Google Calendar*\n\n${lines.join('\n')}\n\n🔔 Te programé recordatorios ${defaultAdvanceMinutes} minutos antes de cada una.`;
-
-      await sendWhatsAppText({
-        phoneNumber: targetPhone,
-        text: noticeText,
-      }).catch((err) => {
-        console.warn(`[calendarReconciliation] Proactive WhatsApp batch notice failed for ${targetPhone}:`, err.message);
-      });
-
-      await saveMessage({
-        userId,
-        phoneNumber: targetPhone,
-        role: 'assistant',
-        content: noticeText,
-        intent: 'calendar',
-        entities: {
-          action: 'proactive_meeting_notification_batch',
-          count: newEventsToNotify.length,
-          eventIds: newEventsToNotify.map((e) => e.id),
-        },
+        entities: newEventsToNotify.length === 1
+          ? { action: 'proactive_meeting_notification', eventId: newEventsToNotify[0].id, summary: newEventsToNotify[0].summary }
+          : {
+              action: 'proactive_meeting_notification_batch',
+              count: newEventsToNotify.length,
+              eventIds: newEventsToNotify.map((e) => e.id),
+            },
       }).catch(() => {});
     }
 
@@ -318,13 +350,27 @@ export async function reconcileCalendarCompanionReminders({
       }
     }
 
-    // Proactive cancellation notification dispatch (individual or consolidated batch)
-    if (cancelledRemindersToNotify.length === 1) {
-      const single = cancelledRemindersToNotify[0];
-      const friendlyTime = formatHumanFriendlyDateTime(single.startIso, timezone, userLang);
-      const cancelNoticeText = userLang === 'en'
-        ? `❌ *Meeting cancelled on Google Calendar*\n\n• *${single.title}*\n⏰ ${friendlyTime}\n\n🗑️ The companion reminder was cancelled automatically.`
-        : `❌ *Reunión cancelada en Google Calendar*\n\n• *${single.title}*\n⏰ ${friendlyTime}\n\n🗑️ El recordatorio programado fue cancelado automáticamente.`;
+    // Proactive cancellation notification dispatch (individual or grouped recurring batch)
+    if (cancelledRemindersToNotify.length > 0) {
+      const lines = buildNotificationLines(cancelledRemindersToNotify, timezone, userLang);
+
+      let cancelNoticeText = '';
+      if (lines.length === 1 && cancelledRemindersToNotify.length === 1) {
+        const single = cancelledRemindersToNotify[0];
+        const friendlyTime = formatHumanFriendlyDateTime(single.startIso, timezone, userLang);
+        cancelNoticeText = userLang === 'en'
+          ? `❌ *Meeting cancelled on Google Calendar*\n\n• *${single.title}*\n⏰ ${friendlyTime}\n\n🗑️ The companion reminder was cancelled automatically.`
+          : `❌ *Reunión cancelada en Google Calendar*\n\n• *${single.title}*\n⏰ ${friendlyTime}\n\n🗑️ El recordatorio programado fue cancelado automáticamente.`;
+      } else {
+        const header = userLang === 'en'
+          ? (lines.length === 1 ? `❌ *Meeting cancelled on Google Calendar*` : `❌ *Meetings cancelled on Google Calendar*`)
+          : (lines.length === 1 ? `❌ *Reunión cancelada en Google Calendar*` : `❌ *Reuniones canceladas en Google Calendar*`);
+        const cleanupNote = userLang === 'en'
+          ? `🗑️ Companion reminders were cancelled automatically.`
+          : `🗑️ Los recordatorios programados fueron cancelados automáticamente.`;
+
+        cancelNoticeText = `${header}\n\n${lines.join('\n')}\n\n${cleanupNote}`;
+      }
 
       await sendWhatsAppText({
         phoneNumber: targetPhone,
@@ -339,49 +385,18 @@ export async function reconcileCalendarCompanionReminders({
         role: 'assistant',
         content: cancelNoticeText,
         intent: 'calendar',
-        entities: {
-          action: 'proactive_meeting_cancellation',
-          reminderId: single.reminderId,
-          deliveryId: single.deliveryId,
-          title: single.title,
-        },
-      }).catch(() => {});
-    } else if (cancelledRemindersToNotify.length > 1) {
-      const DISPLAY_LIMIT = 5;
-      const displayed = cancelledRemindersToNotify.slice(0, DISPLAY_LIMIT);
-      const remainingCount = cancelledRemindersToNotify.length - DISPLAY_LIMIT;
-
-      const lines = displayed.map((item) => {
-        const friendlyTime = formatHumanFriendlyDateTime(item.startIso, timezone, userLang);
-        return `• *${item.title}* — ${friendlyTime}`;
-      });
-
-      if (remainingCount > 0) {
-        lines.push(userLang === 'en' ? `_... and ${remainingCount} more_` : `_... y ${remainingCount} más_`);
-      }
-
-      const cancelNoticeText = userLang === 'en'
-        ? `❌ *Meetings cancelled on Google Calendar*\n\n${lines.join('\n')}\n\n🗑️ Companion reminders were cancelled automatically.`
-        : `❌ *Reuniones canceladas en Google Calendar*\n\n${lines.join('\n')}\n\n🗑️ Los recordatorios programados fueron cancelados automáticamente.`;
-
-      await sendWhatsAppText({
-        phoneNumber: targetPhone,
-        text: cancelNoticeText,
-      }).catch((err) => {
-        console.warn(`[calendarReconciliation] Cancellation WhatsApp batch notice failed for ${targetPhone}:`, err.message);
-      });
-
-      await saveMessage({
-        userId,
-        phoneNumber: targetPhone,
-        role: 'assistant',
-        content: cancelNoticeText,
-        intent: 'calendar',
-        entities: {
-          action: 'proactive_meeting_cancellation_batch',
-          count: cancelledRemindersToNotify.length,
-          reminderIds: cancelledRemindersToNotify.map((r) => r.reminderId),
-        },
+        entities: cancelledRemindersToNotify.length === 1
+          ? {
+              action: 'proactive_meeting_cancellation',
+              reminderId: cancelledRemindersToNotify[0].reminderId,
+              deliveryId: cancelledRemindersToNotify[0].deliveryId,
+              title: cancelledRemindersToNotify[0].title,
+            }
+          : {
+              action: 'proactive_meeting_cancellation_batch',
+              count: cancelledRemindersToNotify.length,
+              reminderIds: cancelledRemindersToNotify.map((r) => r.reminderId),
+            },
       }).catch(() => {});
     }
 

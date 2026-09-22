@@ -449,4 +449,93 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
       }),
     );
   });
+
+  it('groups multiple instances of a recurring event into a single recurring series line', async () => {
+    // 3 daily instances of "Daily Standup"
+    const futureMs1 = new Date('2026-09-22T09:00:00-05:00').getTime();
+    const futureMs2 = new Date('2026-09-23T09:00:00-05:00').getTime();
+    const futureMs3 = new Date('2026-09-24T09:00:00-05:00').getTime();
+
+    const extraEvents = [
+      {
+        id: 'g-recur-1',
+        summary: 'Daily Standup',
+        recurringEventId: 'series-standup',
+        start: { dateTime: new Date(futureMs1).toISOString() },
+        end: { dateTime: new Date(futureMs1 + 1800000).toISOString() },
+      },
+      {
+        id: 'g-recur-2',
+        summary: 'Daily Standup',
+        recurringEventId: 'series-standup',
+        start: { dateTime: new Date(futureMs2).toISOString() },
+        end: { dateTime: new Date(futureMs2 + 1800000).toISOString() },
+      },
+      {
+        id: 'g-recur-3',
+        summary: 'Daily Standup',
+        recurringEventId: 'series-standup',
+        start: { dateTime: new Date(futureMs3).toISOString() },
+        end: { dateTime: new Date(futureMs3 + 1800000).toISOString() },
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['g-recur-1', 'g-recur-2', 'g-recur-3'],
+      extraEvents,
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(3);
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringMatching(/Daily Standup.*\(serie recurrente/i),
+      }),
+    );
+  });
+
+  it('groups multiple cancelled reminders of the same series into a single recurring line', async () => {
+    const futureSendAt1 = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const futureSendAt2 = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
+    mockState.savedReminders = [
+      {
+        id: 'rem-recur-cancel-1',
+        delivery_id: 'gcal:g-recur-cancel-1',
+        send_at: futureSendAt1,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Daily Standup en 15 minutos',
+      },
+      {
+        id: 'rem-recur-cancel-2',
+        delivery_id: 'gcal:g-recur-cancel-2',
+        send_at: futureSendAt2,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Daily Standup en 15 minutos',
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      cancelledEventIds: ['g-recur-cancel-1', 'g-recur-cancel-2'],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.cancelledCount).toBe(2);
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringMatching(/Daily Standup.*\(serie recurrente/i),
+      }),
+    );
+  });
 });
