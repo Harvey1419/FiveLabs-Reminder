@@ -657,9 +657,10 @@ export async function listIncrementalCalendarEvents(userId, {
   }
 
   // Full sync fallback
+  // Google Calendar API invariant: timeMax and orderBy are mutually exclusive with sync tokens.
+  // When timeMax or orderBy is present, Google never emits nextSyncToken.
   const now = new Date();
   const minIso = timeMin ? (timeMin instanceof Date ? timeMin.toISOString() : new Date(timeMin).toISOString()) : now.toISOString();
-  const maxIso = timeMax ? (timeMax instanceof Date ? timeMax.toISOString() : new Date(timeMax).toISOString()) : new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
 
   const items = [];
   let pageToken = null;
@@ -668,13 +669,11 @@ export async function listIncrementalCalendarEvents(userId, {
   do {
     const params = {
       calendarId: 'primary',
-      timeMin: minIso,
-      timeMax: maxIso,
       singleEvents: true,
-      orderBy: 'startTime',
       timeZone: timezone,
-      maxResults: 100,
+      maxResults: 250,
     };
+    if (minIso) params.timeMin = minIso;
     if (pageToken) params.pageToken = pageToken;
 
     const res = await calendar.events.list(params);

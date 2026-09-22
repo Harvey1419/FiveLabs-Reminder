@@ -41,6 +41,8 @@ export async function reconcileCalendarCompanionReminders({
   horizonHours = DEFAULT_RECONCILIATION_HORIZON_HOURS,
   notifyOnDiscovery = false,
   notifyEventIds = null,
+  cancelledEventIds = null,
+  extraEvents = null,
   language = null,
 }) {
   if (!userId) {
@@ -105,6 +107,15 @@ export async function reconcileCalendarCompanionReminders({
     } catch (fetchErr) {
       console.warn(`[calendarReconciliation] Failed to list Google events for user ${userId}:`, fetchErr.message);
       return { synced: false, createdCount: 0, updatedCount: 0, cancelledCount: 0, error: fetchErr.message };
+    }
+
+    if (Array.isArray(extraEvents) && extraEvents.length > 0) {
+      const existingRawIds = new Set((rawEvents || []).map((ev) => ev?.id).filter(Boolean));
+      for (const extra of extraEvents) {
+        if (extra?.id && !existingRawIds.has(extra.id)) {
+          rawEvents.push(extra);
+        }
+      }
     }
 
     const events = (rawEvents || []).map((ev) => normalizeCalendarEvent(ev, timezone));
@@ -213,12 +224,20 @@ export async function reconcileCalendarCompanionReminders({
       }
     }
 
+    const cancelledIdSet = Array.isArray(cancelledEventIds)
+      ? new Set(cancelledEventIds.filter(Boolean))
+      : (cancelledEventIds instanceof Set ? cancelledEventIds : null);
+
     // 4. Cancel orphaned companion reminders (events deleted or cancelled externally in Google)
     for (const [deliveryId, orphanReminder] of reminderMap.entries()) {
       if (orphanReminder.status === 'pending') {
         const orphanSendAtMs = new Date(orphanReminder.send_at).getTime();
-        // Only cancel if the scheduled notification is in the future within the horizon window
-        if (orphanSendAtMs > Date.now() && orphanSendAtMs <= futureLimit.getTime()) {
+        const eventId = deliveryId.startsWith('gcal:') ? deliveryId.slice(5) : null;
+        const isExplicitlyCancelled = Boolean(eventId && cancelledIdSet?.has(eventId));
+
+        // Cancel if the scheduled notification is in the future within the horizon window,
+        // or if explicitly identified as cancelled in the incremental delta.
+        if (orphanSendAtMs > Date.now() && (isExplicitlyCancelled || orphanSendAtMs <= futureLimit.getTime())) {
           try {
             await updateReminder(orphanReminder.id, { status: 'cancelled' }, userId);
             cancelledCount += 1;

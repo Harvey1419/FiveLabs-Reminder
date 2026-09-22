@@ -135,6 +135,8 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
       userId: 'user-abc-123',
       notifyOnDiscovery: true,
       notifyEventIds: ['event-new-1'],
+      cancelledEventIds: [],
+      extraEvents: [{ id: 'event-new-1', status: 'confirmed' }],
     });
     expect(updateUserIntegrationMetadata).toHaveBeenCalledWith(
       'user-abc-123',
@@ -174,6 +176,8 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
       userId: 'user-abc-123',
       notifyOnDiscovery: true,
       notifyEventIds: ['external-event-1'],
+      cancelledEventIds: [],
+      extraEvents: [{ id: 'external-event-1', status: 'confirmed' }],
     });
   });
 
@@ -205,6 +209,8 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
       userId: 'user-abc-123',
       notifyOnDiscovery: true,
       notifyEventIds: ['event-created'],
+      cancelledEventIds: ['event-cancelled'],
+      extraEvents: [{ id: 'event-created', status: 'confirmed' }],
     });
   });
 
@@ -269,6 +275,45 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
       userId: 'user-db-789',
       notifyOnDiscovery: true,
       notifyEventIds: ['event-db-1'],
+      cancelledEventIds: [],
+      extraEvents: [{ id: 'event-db-1', status: 'confirmed' }],
     });
+  });
+
+  it('suppresses proactive notifications during full sync recovery after 410 Gone', async () => {
+    listIncrementalCalendarEvents.mockResolvedValue({
+      items: [{ id: 'recovered-event-1', status: 'confirmed' }],
+      nextSyncToken: 'new-token-after-410',
+      fullSync: true,
+    });
+
+    const req = {
+      headers: {
+        'x-goog-channel-id': 'chan-1234',
+        'x-goog-resource-state': 'exists',
+        'x-goog-channel-token': 'userId=user-abc-123',
+      },
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    };
+
+    await handleGoogleCalendarWebhook(req, res);
+
+    expect(reconcileCalendarCompanionReminders).toHaveBeenCalledWith({
+      userId: 'user-abc-123',
+      notifyOnDiscovery: false,
+      notifyEventIds: [],
+      cancelledEventIds: [],
+      extraEvents: [],
+    });
+    expect(updateUserIntegrationMetadata).toHaveBeenCalledWith(
+      'user-abc-123',
+      'google',
+      expect.objectContaining({
+        calendarSyncToken: 'new-token-after-410',
+      }),
+    );
   });
 });

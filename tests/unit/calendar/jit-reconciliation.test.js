@@ -288,4 +288,68 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
     expect(res.createdCount).toBe(1);
     expect(sendWhatsAppText).not.toHaveBeenCalled();
   });
+
+  it('cancels companion reminder beyond 48h horizon when explicitly in cancelledEventIds', async () => {
+    // 5 days in the future (well beyond the 48-hour default horizon)
+    const farFutureSendAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    mockState.savedReminders = [
+      {
+        id: 'rem-far-future-1',
+        delivery_id: 'gcal:g-event-far-cancelled',
+        send_at: farFutureSendAt,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Reunión de Estrategia en 15 minutos',
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      cancelledEventIds: ['g-event-far-cancelled'],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.cancelledCount).toBe(1);
+    expect(updateReminder).toHaveBeenCalledWith(
+      'rem-far-future-1',
+      { status: 'cancelled' },
+      'user-deleted-event',
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Reunión cancelada en Google Calendar'),
+      }),
+    );
+  });
+
+  it('creates companion reminder and notifies for extraEvents from incremental delta', async () => {
+    const futureMs = Date.now() + 5 * 24 * 60 * 60 * 1000;
+    const extraEvent = {
+      id: 'g-event-delta-1',
+      summary: 'Demo con Cliente Internacional',
+      start: { dateTime: new Date(futureMs).toISOString() },
+      end: { dateTime: new Date(futureMs + 3600000).toISOString() },
+    };
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event', // returns empty rawEvents
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['g-event-delta-1'],
+      extraEvents: [extraEvent],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Nueva reunión agendada en Google Calendar'),
+      }),
+    );
+  });
 });
