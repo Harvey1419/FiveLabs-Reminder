@@ -352,4 +352,101 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
       }),
     );
   });
+
+  it('batches multiple new events into a single consolidated WhatsApp message listing each', async () => {
+    const futureMs1 = Date.now() + 2 * 60 * 60 * 1000;
+    const futureMs2 = Date.now() + 24 * 60 * 60 * 1000;
+    const extraEvents = [
+      {
+        id: 'g-batch-1',
+        summary: 'Daily Standup',
+        start: { dateTime: new Date(futureMs1).toISOString() },
+        end: { dateTime: new Date(futureMs1 + 1800000).toISOString() },
+      },
+      {
+        id: 'g-batch-2',
+        summary: 'Sprint Review',
+        start: { dateTime: new Date(futureMs2).toISOString() },
+        end: { dateTime: new Date(futureMs2 + 3600000).toISOString() },
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['g-batch-1', 'g-batch-2'],
+      extraEvents,
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(2);
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Nuevas reuniones agendadas en Google Calendar'),
+      }),
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Daily Standup'),
+      }),
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Sprint Review'),
+      }),
+    );
+  });
+
+  it('batches multiple cancelled events into a single consolidated WhatsApp message listing each', async () => {
+    const futureSendAt1 = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+    const futureSendAt2 = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    mockState.savedReminders = [
+      {
+        id: 'rem-batch-cancel-1',
+        delivery_id: 'gcal:g-cancel-1',
+        send_at: futureSendAt1,
+        status: 'pending',
+        content: '🔔 [Google Calendar] One-on-One con Lider en 15 minutos',
+      },
+      {
+        id: 'rem-batch-cancel-2',
+        delivery_id: 'gcal:g-cancel-2',
+        send_at: futureSendAt2,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Retrospectiva de Equipo en 15 minutos',
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      cancelledEventIds: ['g-cancel-1', 'g-cancel-2'],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.cancelledCount).toBe(2);
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: '+573001234567',
+        text: expect.stringContaining('Reuniones canceladas en Google Calendar'),
+      }),
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('One-on-One con Lider'),
+      }),
+    );
+    expect(sendWhatsAppText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Retrospectiva de Equipo'),
+      }),
+    );
+  });
 });
