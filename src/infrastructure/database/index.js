@@ -65,13 +65,17 @@ export async function saveReminder({
       return existing;
     }
 
-    // 2. If creating a persistent reminder, cancel/supersede any older active unacknowledged nudge loop for the same content
-    if (isPersistent) {
+    // 2. If creating a persistent reminder, cancel/supersede any older active unacknowledged nudge loop for the same content.
+    // Never cancel external companion reminders (deliveryId) or future pending reminders with the same text.
+    // Only supersede reminders that were already sent and are actively in an unacknowledged nudge loop.
+    if (isPersistent && !deliveryId) {
       let activeQ = supabase
         .from('reminders')
         .update({ status: 'cancelled', acknowledged_at: new Date().toISOString() })
         .eq('requires_confirmation', true)
+        .eq('status', 'sent')
         .is('acknowledged_at', null)
+        .is('delivery_id', null)
         .ilike('content', content.trim());
 
       if (userId) activeQ = activeQ.eq('user_id', userId);
