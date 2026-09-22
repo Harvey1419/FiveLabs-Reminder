@@ -33,43 +33,55 @@ const DEFAULT_ADVANCE_MINUTES = 15;
  * @param {number} [params.horizonHours=48]
  * @returns {Promise<{synced: boolean, createdCount: number, updatedCount: number, cancelledCount: number, error?: string, reason?: string}>}
  */
-function formatTimeOnly(isoString, timezone, userLang) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return '';
-  const locale = userLang === 'en' ? 'en-US' : 'es-CO';
-  return d.toLocaleTimeString(locale, {
-    timeZone: timezone,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
+function formatRecurringTime(friendlyTime, userLang) {
+  if (!friendlyTime) return '';
+  const isEs = userLang !== 'en';
+  const lower = friendlyTime.charAt(0).toLowerCase() + friendlyTime.slice(1);
+  if (isEs) {
+    const prefix = (lower.startsWith('hoy') || lower.startsWith('mañana')) ? 'desde ' : 'desde el ';
+    return `${prefix}${lower}`;
+  }
+  return `starting ${lower}`;
 }
 
 function buildNotificationLines(items, timezone, userLang) {
   const groups = new Map();
 
   for (const item of items) {
-    const key = item.recurringEventId || item.summary || item.title || item.id;
+    const summary = item.summary || item.title || (userLang === 'en' ? 'Meeting' : 'Reunión');
+    const normalizedKey = summary.trim().toLowerCase();
+    const key = normalizedKey || item.recurringEventId || item.id;
+
     if (!groups.has(key)) {
       groups.set(key, {
-        summary: item.summary || item.title || (userLang === 'en' ? 'Meeting' : 'Reunión'),
+        summary,
         recurringEventId: item.recurringEventId || null,
         instances: [],
       });
     }
-    groups.get(key).instances.push(item);
+    const group = groups.get(key);
+    if (!group.recurringEventId && item.recurringEventId) {
+      group.recurringEventId = item.recurringEventId;
+    }
+    group.instances.push(item);
   }
 
   const lines = [];
   for (const group of groups.values()) {
+    group.instances.sort((a, b) => {
+      const timeA = new Date(a.eventStart || a.startIso || 0).getTime();
+      const timeB = new Date(b.eventStart || b.startIso || 0).getTime();
+      return timeA - timeB;
+    });
+
     const count = group.instances.length;
     const firstInstance = group.instances[0];
     const isRecurring = Boolean(group.recurringEventId || count > 1);
 
     if (isRecurring) {
-      const timeStr = formatTimeOnly(firstInstance.eventStart || firstInstance.startIso, timezone, userLang);
+      const friendlyTime = formatHumanFriendlyDateTime(firstInstance.eventStart || firstInstance.startIso, timezone, userLang);
       const recurringLabel = userLang === 'en' ? 'recurring series' : 'serie recurrente';
+      const timeStr = formatRecurringTime(friendlyTime, userLang);
       const timePart = timeStr ? ` — ${timeStr}` : '';
       lines.push(`• *${group.summary}* (${recurringLabel}${timePart})`);
     } else {

@@ -5,7 +5,10 @@ import {
   isGoogleAuthError,
   getAuthenticatedGoogleClient,
 } from './auth.js';
-import { updateUserIntegrationMetadata } from '../../infrastructure/database/integrations.js';
+import {
+  getUserIntegration,
+  updateUserIntegrationMetadata,
+} from '../../infrastructure/database/integrations.js';
 import {
   formatLocalDateTime,
   formatHumanFriendlyDateTime,
@@ -512,6 +515,21 @@ export async function setupGoogleCalendarWatch({
   const appBaseUrl = (process.env.APP_BASE_URL || 'https://hermes.templelabs.co').replace(/\/$/, '');
   const targetAddress = webhookUrl || `${appBaseUrl}/webhooks/google-calendar`;
   const targetChannelId = channelId || crypto.randomUUID();
+
+  // Enforce single active watch channel: stop previous channel if registered in metadata
+  try {
+    const existingIntegration = await getUserIntegration(userId, 'google');
+    const oldChannelId = existingIntegration?.metadata?.channelId;
+    const oldResourceId = existingIntegration?.metadata?.resourceId;
+    if (oldChannelId && oldResourceId && oldChannelId !== targetChannelId) {
+      console.log(`[googleCalendar] Stopping previous watch channel before establishing new one for user ${userId}: channel=${oldChannelId}`);
+      await stopGoogleCalendarWatch({ userId, channelId: oldChannelId, resourceId: oldResourceId }).catch((stopErr) => {
+        console.warn(`[googleCalendar] Failed to stop previous watch channel ${oldChannelId}:`, stopErr.message);
+      });
+    }
+  } catch (err) {
+    console.warn(`[googleCalendar] Warning checking existing watch for user ${userId}:`, err.message);
+  }
 
   try {
     const calendar = google.calendar({ version: 'v3', auth });
