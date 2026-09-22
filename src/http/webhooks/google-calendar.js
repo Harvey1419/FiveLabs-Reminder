@@ -4,7 +4,10 @@ import {
   updateUserIntegrationMetadata,
 } from '../../infrastructure/database/integrations.js';
 import { reconcileCalendarCompanionReminders } from '../../features/calendar/reconciliation.js';
-import { listIncrementalCalendarEvents } from '../../integrations/google/calendar.js';
+import {
+  listIncrementalCalendarEvents,
+  stopGoogleCalendarWatch,
+} from '../../integrations/google/calendar.js';
 
 async function resolveWebhookIntegration({ channelId, channelToken }) {
   let userId = null;
@@ -81,6 +84,20 @@ export async function handleGoogleCalendarWebhook(req, res) {
 
     if (!userId) {
       console.warn(`[googleCalendarWebhook] No user found for channelId=${channelId}`);
+      return;
+    }
+
+    // Invariant: Enforce single active channel per user.
+    // Drop notifications from obsolete/zombie channels and proactively stop them on Google.
+    const activeChannelId = integration?.metadata?.channelId;
+    if (activeChannelId && activeChannelId !== channelId) {
+      console.warn(`[googleCalendarWebhook] Dropping obsolete watch channel notification for user ${userId}: received=${channelId}, active=${activeChannelId}`);
+      const headerResourceId = req.headers['x-goog-resource-id'];
+      if (headerResourceId) {
+        stopGoogleCalendarWatch({ userId, channelId, resourceId: headerResourceId }).catch((stopErr) => {
+          console.warn(`[googleCalendarWebhook] Failed to stop obsolete channel ${channelId}:`, stopErr.message);
+        });
+      }
       return;
     }
 

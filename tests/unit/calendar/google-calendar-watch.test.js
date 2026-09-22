@@ -14,6 +14,7 @@ vi.mock('../../../src/integrations/google/auth.js', () => ({
 }));
 
 vi.mock('../../../src/infrastructure/database/integrations.js', () => ({
+  getUserIntegration: vi.fn(async () => null),
   updateUserIntegrationMetadata: vi.fn(async () => ({})),
 }));
 
@@ -36,7 +37,10 @@ const {
   stopGoogleCalendarWatch,
   listIncrementalCalendarEvents,
 } = await import('../../../src/integrations/google/calendar.js');
-const { updateUserIntegrationMetadata } = await import('../../../src/infrastructure/database/integrations.js');
+const {
+  getUserIntegration,
+  updateUserIntegrationMetadata,
+} = await import('../../../src/infrastructure/database/integrations.js');
 
 describe('Google Calendar Watch & Incremental Sync', () => {
   beforeEach(() => {
@@ -83,6 +87,38 @@ describe('Google Calendar Watch & Incremental Sync', () => {
         resourceId: 'res-id-123',
         channelExpiration: 1727300000000,
       }));
+    });
+
+    it('stops previous watch channel if user already has an active channel before establishing new one', async () => {
+      getUserIntegration.mockResolvedValueOnce({
+        user_id: 'user-1',
+        metadata: {
+          channelId: 'old-chan-999',
+          resourceId: 'old-res-999',
+        },
+      });
+
+      mockWatch.mockResolvedValue({
+        data: {
+          id: 'new-chan-111',
+          resourceId: 'new-res-111',
+          expiration: '1727300000000',
+        },
+      });
+      mockStop.mockResolvedValue({});
+
+      const res = await setupGoogleCalendarWatch({
+        userId: 'user-1',
+        channelId: 'new-chan-111',
+      });
+
+      expect(mockStop).toHaveBeenCalledWith({
+        requestBody: {
+          id: 'old-chan-999',
+          resourceId: 'old-res-999',
+        },
+      });
+      expect(res.channelId).toBe('new-chan-111');
     });
   });
 

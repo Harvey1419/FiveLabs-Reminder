@@ -12,6 +12,7 @@ vi.mock('../../../src/features/calendar/reconciliation.js', () => ({
 
 vi.mock('../../../src/integrations/google/calendar.js', () => ({
   listIncrementalCalendarEvents: vi.fn(),
+  stopGoogleCalendarWatch: vi.fn(async () => true),
 }));
 
 const {
@@ -20,7 +21,7 @@ const {
   updateUserIntegrationMetadata,
 } = await import('../../../src/infrastructure/database/integrations.js');
 const { reconcileCalendarCompanionReminders } = await import('../../../src/features/calendar/reconciliation.js');
-const { listIncrementalCalendarEvents } = await import('../../../src/integrations/google/calendar.js');
+const { listIncrementalCalendarEvents, stopGoogleCalendarWatch } = await import('../../../src/integrations/google/calendar.js');
 const { handleGoogleCalendarWebhook } = await import('../../../src/http/webhooks/google-calendar.js');
 
 describe('Google Calendar Push Notification Webhook Handler', () => {
@@ -315,5 +316,40 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
         calendarSyncToken: 'new-token-after-410',
       }),
     );
+  });
+
+  it('drops notifications from obsolete watch channels and requests Google to stop them', async () => {
+    getUserIntegration.mockResolvedValue({
+      user_id: 'user-abc-123',
+      metadata: {
+        channelId: 'active-chan-new',
+        calendarSyncToken: 'sync-token-1',
+      },
+    });
+
+    const req = {
+      headers: {
+        'x-goog-channel-id': 'obsolete-chan-old',
+        'x-goog-resource-id': 'res-old-999',
+        'x-goog-resource-state': 'exists',
+        'x-goog-channel-token': 'userId=user-abc-123',
+      },
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    };
+
+    await handleGoogleCalendarWebhook(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith('OK');
+    expect(stopGoogleCalendarWatch).toHaveBeenCalledWith({
+      userId: 'user-abc-123',
+      channelId: 'obsolete-chan-old',
+      resourceId: 'res-old-999',
+    });
+    expect(listIncrementalCalendarEvents).not.toHaveBeenCalled();
+    expect(reconcileCalendarCompanionReminders).not.toHaveBeenCalled();
   });
 });

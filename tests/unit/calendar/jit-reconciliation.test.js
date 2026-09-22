@@ -451,10 +451,10 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
   });
 
   it('groups multiple instances of a recurring event into a single recurring series line', async () => {
-    // 3 daily instances of "Daily Standup"
-    const futureMs1 = new Date('2026-09-22T09:00:00-05:00').getTime();
-    const futureMs2 = new Date('2026-09-23T09:00:00-05:00').getTime();
-    const futureMs3 = new Date('2026-09-24T09:00:00-05:00').getTime();
+    // 3 daily instances of "Daily Standup" within 48h horizon
+    const futureMs1 = Date.now() + 2 * 60 * 60 * 1000;
+    const futureMs2 = Date.now() + 20 * 60 * 60 * 1000;
+    const futureMs3 = Date.now() + 40 * 60 * 60 * 1000;
 
     const extraEvents = [
       {
@@ -537,5 +537,41 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
         text: expect.stringMatching(/Daily Standup.*\(serie recurrente/i),
       }),
     );
+  });
+
+  it('merges master recurring event and expanded instances into a single line without duplicate entries', async () => {
+    const futureMs1 = Date.now() + 2 * 60 * 60 * 1000;
+    const futureMs2 = Date.now() + 26 * 60 * 60 * 1000;
+
+    const extraEvents = [
+      {
+        id: 'master-event-id',
+        summary: 'Pausas Ergónomicas',
+        start: { dateTime: new Date(futureMs1).toISOString() },
+        end: { dateTime: new Date(futureMs1 + 1800000).toISOString() },
+      },
+      {
+        id: 'instance-event-id',
+        summary: 'Pausas Ergónomicas',
+        recurringEventId: 'master-event-id',
+        start: { dateTime: new Date(futureMs2).toISOString() },
+        end: { dateTime: new Date(futureMs2 + 1800000).toISOString() },
+      },
+    ];
+
+    await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['master-event-id', 'instance-event-id'],
+      extraEvents,
+      language: 'es',
+    });
+
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
+    const text = sendWhatsAppText.mock.calls[0][0].text;
+    const bulletMatches = text.match(/• \*Pausas Ergónomicas\*/g);
+    expect(bulletMatches).toHaveLength(1);
+    expect(text).toMatch(/• \*Pausas Ergónomicas\* \(serie recurrente — desde/i);
   });
 });

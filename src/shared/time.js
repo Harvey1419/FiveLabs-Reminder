@@ -961,6 +961,7 @@ export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, l
     return `${capitalizedWeekday}, ${dayNum} de ${monthName} a las ${time12}`;
   } else {
     const weekday = d.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+    const dayNum = d.toLocaleDateString('en-US', { timeZone: timezone, day: 'numeric' });
     const monthName = d.toLocaleDateString('en-US', { timeZone: timezone, month: 'long' });
     return `${weekday}, ${monthName} ${dayNum} at ${time12}`;
   }
