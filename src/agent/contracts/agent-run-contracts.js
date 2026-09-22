@@ -63,6 +63,13 @@ continuationSchedule.properties.clockMode = {
   enum: ['explicit_24h', 'ambiguous_12h'],
   description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
 };
+// Document immediate-time shortcuts: "ya", "ahora", "de una", "right now", "now", "immediately"
+// must resolve to { kind: "relative_offset", offsetMinutes: 0 } — starting from the current moment.
+// Never ask the user again when they express an immediate temporal intent.
+continuationSchedule.description = [
+  continuationSchedule.description,
+  'Immediate-time expressions ("ya", "ahora", "de una vez", "en este momento", "right now", "now", "immediately") resolve to: { "kind": "relative_offset", "offsetMinutes": 0 }.',
+].filter(Boolean).join(' ');
 
 export const CONTINUATION_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
   type: 'object',

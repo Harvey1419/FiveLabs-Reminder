@@ -4,7 +4,13 @@ import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
 ]);
+// Core named recurrence rules. The scheduler also accepts interval extensions:
+//   "hourly:N"   — every N hours (e.g. "hourly:6" = every 6 hours)
+//   "interval:Xm" — every X minutes (e.g. "interval:30m")
+//   "interval:Xh" — every X hours (e.g. "interval:6h")
+// These are validated separately via RECURRENCE_INTERVAL_RE below.
 const RECURRENCES = Object.freeze(['daily', 'weekdays', 'weekly', 'monthly', 'yearly', 'hourly']);
+const RECURRENCE_INTERVAL_RE = /^(hourly:\d+|interval:\d+[mh])$/;
 const MISSING_FIELDS = Object.freeze([
   'content', 'target', 'selection', 'scope', 'schedule', 'date', 'time', 'main_time', 'advance_minutes',
 ]);
@@ -46,7 +52,7 @@ export const typedSchedule = {
       description: 'relative_offset=duration from now; relative_day_time=relative day plus clock; weekday_time=named weekday plus clock; local_time=clock-only delta with no date scope, mainly for merging into a typed pending intent. Never use local_time for a coordinated create action covered by a shared date; repeat that date with its date-bearing kind.',
     },
     allDay: { type: 'boolean', description: 'True for full-day calendar events, whole-day deadlines or dates without an explicit clock time (e.g. birthdays, holidays, all-day meetings).' },
-    offsetMinutes: { type: 'integer', minimum: 1, maximum: 525600 },
+    offsetMinutes: { type: 'integer', minimum: 0, maximum: 525600 },
     dayOffset: { type: 'integer', minimum: 0, maximum: 365 },
     year: { type: 'integer', minimum: 2020, maximum: 2200 },
     month: { type: 'integer', minimum: 1, maximum: 12 },
@@ -78,7 +84,7 @@ const actionSchema = {
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
     schedule: typedSchedule, endSchedule: typedSchedule,
     advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080 },
-    recurrence: { type: 'string', enum: RECURRENCES },
+    recurrence: { type: 'string', description: 'Named rule: daily|weekdays|weekly|monthly|yearly|hourly. For sub-daily intervals use "hourly:N" (every N hours, e.g. "hourly:6") or "interval:Xm" / "interval:Xh" (every X minutes/hours). Never use plain "hourly" for anything other than exactly every 1 hour.' },
     requiresConfirmation: { type: 'boolean' },
     nudgeIntervalMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, maxNudges: { type: 'integer', minimum: 1, maximum: 100 },
     durationMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, addGoogleMeet: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 50 },
@@ -337,7 +343,7 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'task.create incluyó una estructura temporal incompleta.' };
       }
     }
-    if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
+    if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence) && !RECURRENCE_INTERVAL_RE.test(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
     // Groq's provider-facing schema cannot enforce this canonical constraint.
     if (Array.isArray(normalizedRaw.missingFields)
       && actionSchema.properties.missingFields.uniqueItems

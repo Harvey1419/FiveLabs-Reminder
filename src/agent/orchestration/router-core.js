@@ -468,11 +468,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
       console.warn(`[router req=${requestId}] active run model call failed:`, err.message);
     }
 
+    let resolvedRelation = null;
     if (runModelResponse?.content) {
       const parsedArgs = parseIntentArguments(runModelResponse.content);
       const validation = isApproval ? validateApprovalDecision(parsedArgs) : validateContinuationDecision(parsedArgs);
 
       if (validation.valid) {
+        resolvedRelation = validation.decision.relation;
         const { relation } = validation.decision;
         if (isApproval) {
           if (relation === 'approval') {
@@ -586,9 +588,35 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
         }
       }
     }
+
+    // Architectural safety gate:
+    // If the model call failed or produced an unparseable response, never fall through
+    // to execute a normal turn while a sensitive run is pending.
+    // However, if the model explicitly resolved relation === 'unrelated', the user
+    // intentionally changed the topic, so falling through to normal execution is expected.
+    if (!resolvedRelation) {
+      const pendingKind = activeAgentRun.status === 'waiting_for_approval' ? 'approval' : 'input';
+      console.warn(`[router req=${requestId}] active run model call failed or invalid — blocking normal turn. kind=${pendingKind} runId=${activeAgentRun.id}`);
+      const safeFallback = language === 'en'
+        ? 'I could not process your response to the pending action. Could you send it again?'
+        : 'No pude procesar tu respuesta a la acción pendiente. ¿Podés enviarlo de nuevo?';
+      return {
+        intent: 'clarification',
+        entities: conversationStateEntities(user, { _turnMetadata: { kind: 'active_run_unresolved' } }),
+        language,
+        confirmation: safeFallback,
+        ctaUrl: null,
+        ctaHeader: null,
+        ctaButtonText: null,
+        plan: { type: 'active_run_unresolved', pendingKind, runId: activeAgentRun.id },
+        executionFacts: [],
+        memoryDisposition: 'skip_operational',
+      };
+    }
   }
 
   const turnResponseFormat = {
+
     type: 'json_schema',
     json_schema: {
       name: 'hermes_turn_intent',

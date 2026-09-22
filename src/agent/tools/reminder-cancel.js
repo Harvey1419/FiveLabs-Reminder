@@ -15,6 +15,7 @@ import {
   buildReminderReferenceCandidates,
   resolveReminderByScore,
 } from './reminder-reference.js';
+import { isStrictUUID } from '../../shared/entity-resolution.js';
 
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
@@ -186,8 +187,48 @@ export async function executeSingleReminderCancellation({
     }
   }
 
+  if (!base && (isStrictUUID(target) || (target.length >= 8 && /^[0-9a-f-]+$/i.test(target)))) {
+    let directQ = supabase
+      .from('reminders')
+      .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
+    if (isStrictUUID(target)) {
+      directQ = directQ.eq('id', target);
+    } else {
+      directQ = directQ.ilike('id', `${target}%`);
+    }
+    directQ = scopeReminderQueryToOwner(directQ, owner);
+    const { data: directRows } = await directQ.limit(5);
+    const directOwned = (directRows || []).filter((r) => isReminderOwned(r, owner));
+    if (directOwned.length === 1) {
+      base = directOwned[0];
+      console.log(`${reqId} target resolved via direct DB id lookup id=${base.id}`);
+    }
+  }
+
+  if (!base && typeof target === 'string' && target.trim().length >= 3 && !/^\d+$/.test(target.trim())) {
+    let textQ = supabase
+      .from('reminders')
+      .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
+      .ilike('content', `%${target.trim()}%`);
+    textQ = scopeReminderQueryToOwner(textQ, owner);
+    const { data: textRows } = await textQ.order('created_at', { ascending: false }).limit(20);
+    const textOwned = (textRows || []).filter((r) => isReminderOwned(r, owner) && isActive(r) && !isAdvanceNotice(r));
+    if (textOwned.length === 1) {
+      base = textOwned[0];
+      console.log(`${reqId} target resolved via direct DB content lookup id=${base.id}`);
+    } else if (textOwned.length > 1) {
+      const scored = resolveReminderByScore(target, textOwned);
+      if (scored.status === 'RESOLVED') {
+        base = scored.reminder;
+        console.log(`${reqId} target resolved via direct DB scored content lookup id=${base.id}`);
+      }
+    }
+  }
+
   if (!base) {
-    console.warn(`${reqId} target not found`);
+    const ownedSample = owned.slice(0, 5).map((r) => r.id).join(',');
+    const activeSample = active.slice(0, 5).map((r) => r.id).join(',');
+    console.warn(`${reqId} target not found. target=${JSON.stringify(target)} owned=${owned.length} active=${active.length} ownedSample=[${ownedSample}] activeSample=[${activeSample}]`);
     return {
       success: false,
       action: 'reminder_not_found',

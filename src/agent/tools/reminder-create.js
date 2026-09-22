@@ -22,6 +22,7 @@ import {
 } from './formatters.js';
 import { resolveReminderProUpgradeContext } from './reminder-pro.js';
 import { buildAdvanceNoticeContent } from './reminder-advance.js';
+import { computeNextRecurringSendAt } from '../../shared/reminder-recurrence.js';
 
 function localDateKey(date, timezone) {
   return date.toLocaleDateString('sv-SE', { timeZone: timezone });
@@ -177,8 +178,31 @@ export async function executeReminderCreate({
       continue;
     }
 
-    if (mainDate.getTime() <= referenceDate.getTime()) {
+    const timeDiffMs = mainDate.getTime() - referenceDate.getTime();
+    if (timeDiffMs < -60_000) {
+      // Past time (more than 1 minute ago)
       const sameLocalDay = localDateKey(mainDate, timezone) === localDateKey(referenceDate, timezone);
+      // For recurring reminders, compute the next future occurrence dynamically
+      // across any frequency (daily, weekly, weekdays, hourly, hourly:N, etc.)
+      if (recurrenceRule) {
+        const rolledDate = computeNextRecurringSendAt(mainDate, recurrenceRule, referenceDate);
+        if (rolledDate && rolledDate.getTime() > referenceDate.getTime()) {
+          console.log(`[reminder-create] TIME_IN_PAST auto-rollforward content="${content}" rule=${recurrenceRule} from=${mainDate.toISOString()} to=${rolledDate.toISOString()}`);
+          validatedItems.push({
+            content,
+            mainDate: rolledDate,
+            advDate: advanceMinutes ? new Date(rolledDate.getTime() - advanceMinutes * 60 * 1000) : null,
+            advanceMinutes,
+            recurrenceRule,
+            requiresConfirmation,
+            nudgeIntervalMinutes,
+            maxNudges,
+            replacePending,
+            checklist,
+          });
+          continue;
+        }
+      }
       const proposedDate = sameLocalDay ? shiftZonedCalendarDays(mainDate, 1, timezone) : null;
       rejectedItems.push(buildTemporalRejection({
         content,
@@ -199,6 +223,10 @@ export async function executeReminderCreate({
         }, proposedDate),
       }));
       continue;
+    } else if (timeDiffMs <= 0) {
+      // Immediate time intent ("ya", "ahora", or execution latency <= 60 seconds)
+      // Normalize by 1 second to ensure it is strictly future for any clock comparisons
+      mainDate = new Date(referenceDate.getTime() + 1000);
     }
 
     if (enforceBilling) {
