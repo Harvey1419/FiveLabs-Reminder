@@ -110,18 +110,26 @@ export async function handleGoogleCalendarWebhook(req, res) {
       syncToken: currentSyncToken,
     });
 
-    const changedEventIds = (delta?.items || [])
-      .filter((event) => (
-        event?.id
-        && event.status !== 'cancelled'
-        && !String(event.id).startsWith('hermes')
-      ))
+    const isFullSyncRecovery = Boolean(delta?.fullSync);
+
+    const changedEvents = (delta?.items || []).filter((event) => (
+      event?.id
+      && event.status !== 'cancelled'
+      && !String(event.id).startsWith('hermes')
+    ));
+
+    const changedEventIds = changedEvents.map((event) => event.id);
+
+    const cancelledEventIds = (delta?.items || [])
+      .filter((event) => event?.id && event.status === 'cancelled')
       .map((event) => event.id);
 
     await reconcileCalendarCompanionReminders({
       userId,
-      notifyOnDiscovery: true,
-      notifyEventIds: changedEventIds,
+      notifyOnDiscovery: !isFullSyncRecovery,
+      notifyEventIds: !isFullSyncRecovery ? changedEventIds : [],
+      cancelledEventIds: !isFullSyncRecovery ? cancelledEventIds : [],
+      extraEvents: !isFullSyncRecovery ? changedEvents : [],
     });
 
     await updateUserIntegrationMetadata(userId, 'google', {

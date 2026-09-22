@@ -187,6 +187,9 @@ describe('Google Calendar Watch & Incremental Sync', () => {
       expect(res.items.map((item) => item.id)).toEqual(['evt-full-1', 'evt-full-2']);
       expect(res.nextSyncToken).toBe('baseline-sync-token');
       expect(mockList).toHaveBeenCalledTimes(2);
+      expect(mockList.mock.calls[0][0].orderBy).toBeUndefined();
+      expect(mockList.mock.calls[0][0].timeMax).toBeUndefined();
+      expect(mockList.mock.calls[0][0].timeMin).toEqual(expect.any(String));
       expect(mockList.mock.calls[1][0]).toEqual(
         expect.objectContaining({ pageToken: 'full-page-2' }),
       );
