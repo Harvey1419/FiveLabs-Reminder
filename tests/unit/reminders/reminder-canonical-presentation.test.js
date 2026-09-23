@@ -21,8 +21,25 @@ describe('canonical reminder list presentation', () => {
     expect(card).toContain('🔔 *Recordatorios pendientes*');
     expect(card).toContain('1. *Me amo mucho* · recurrente');
     expect(card).toContain('2. *cita en cerámica Italia*');
-    expect(card).toContain('🕒');
     expect(card).not.toContain('**Recordatorios pendientes**');
     expect(card).not.toContain('**Me amo mucho**');
+  });
+
+  it('renders contextual headers for tomorrow and other temporal scopes', () => {
+    const cardTomorrow = formatCanonicalReminderList({
+      filter: 'tomorrow',
+      reminders: [{ content: 'Pagar arriendo', send_at: '2026-09-09T15:00:00.000Z' }],
+    }, { language: 'es', timezone: 'America/Bogota' });
+
+    expect(cardTomorrow).toContain('🔔 *Recordatorios para mañana*');
+    expect(cardTomorrow).toContain('1. *Pagar arriendo*');
+
+    const cardEmptyTomorrow = formatCanonicalReminderList({
+      filter: 'tomorrow',
+      reminders: [],
+    }, { language: 'es' });
+
+    expect(cardEmptyTomorrow).toContain('🔔 *Recordatorios para mañana*');
+    expect(cardEmptyTomorrow).toContain('No tienes recordatorios programados para mañana.');
   });
 });

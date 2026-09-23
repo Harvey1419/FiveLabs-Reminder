@@ -418,8 +418,8 @@ export function resolveCalendarTemporalScope(params = {}, timezone = DEFAULT_TIM
 
     case 'today':
     case 'hoy': {
-      // timeMin = now so past events are not shown; timeMax = end of day
-      const timeMin = now;
+      const startOfDay = zonedTimeToUtc(year, month, day, 0, 0, 0, timezone);
+      const timeMin = params.fullDay ? startOfDay : now;
       const timeMax = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, timezone);
       return { timeMin, timeMax, isNextEvent: false, maxResults: 15, scope: 'today' };
     }
@@ -647,7 +647,7 @@ export function getDayBounds(target = 'today', timezone = DEFAULT_TIMEZONE) {
   const t = String(target || 'today').toLowerCase().trim();
   const isDate = /^\d{4}-\d{2}-\d{2}/.test(t);
   const resolved = resolveCalendarTemporalScope(
-    isDate ? { scope: 'explicit_date', date: t } : { scope: t },
+    isDate ? { scope: 'explicit_date', date: t } : { scope: t, fullDay: true },
     timezone
   );
   return { timeMin: resolved.timeMin, timeMax: resolved.timeMax };

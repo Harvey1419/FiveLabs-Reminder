@@ -1,5 +1,10 @@
 import { supabase } from '../../infrastructure/database/index.js';
-import { formatHumanFriendlyDateTime, getDayBounds } from '../../shared/time.js';
+import {
+  formatHumanFriendlyDateTime,
+  getDayBounds,
+  resolveCalendarTemporalScope,
+} from '../../shared/time.js';
+import { parseReminderScope } from '../../shared/agenda-scopes.js';
 import {
   buildReminderOwnerContext,
   scopeReminderQueryToOwner,
@@ -31,10 +36,13 @@ export async function executeReminderReadTool({
   const reference = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
   const now = Number.isNaN(reference.getTime()) ? new Date() : reference;
   const nowIso = now.toISOString();
-  const rawFilter = String(params.filter || params.scope || '').toLowerCase().trim();
-  const bounds = getDayBounds('today', timezone);
-  const todayStartIso = bounds.timeMin.toISOString();
-  const todayEndIso = bounds.timeMax.toISOString();
+  const rawInput = String(params.filter || params.scope || '').toLowerCase().trim();
+  const parsedScope = parseReminderScope(rawInput, 'upcoming');
+  const filter = parsedScope.scope;
+
+  const todayBounds = getDayBounds('today', timezone);
+  const todayStartIso = todayBounds.timeMin.toISOString();
+  const todayEndIso = todayBounds.timeMax.toISOString();
 
   let query = scopeReminderQueryToOwner(supabase.from('reminders').select('*'), owner);
   if (!query) {
@@ -46,40 +54,50 @@ export async function executeReminderReadTool({
     };
   }
 
-  let filter = 'upcoming';
-
-  if (rawFilter === 'completed_today') {
-    filter = 'completed_today';
+  if (filter === 'completed_today') {
     query = query
       .not('acknowledged_at', 'is', null)
       .gte('acknowledged_at', todayStartIso)
       .lt('acknowledged_at', todayEndIso)
       .order('acknowledged_at', { ascending: true });
-  } else if (rawFilter === 'created_today') {
-    filter = 'created_today';
+  } else if (filter === 'created_today') {
     query = query
       .neq('status', 'cancelled')
       .gte('created_at', todayStartIso)
       .lt('created_at', todayEndIso)
       .order('created_at', { ascending: true });
-  } else if (['remaining_today', 'pending_remaining_today', 'rest_of_today'].includes(rawFilter)) {
-    filter = 'remaining_today';
+  } else if (filter === 'remaining_today') {
     query = query
       .eq('status', 'pending')
       .gte('send_at', nowIso)
       .lt('send_at', todayEndIso)
       .order('send_at', { ascending: true });
-  } else if (rawFilter === 'pending_today' || rawFilter === 'today') {
-    filter = 'pending_today';
+  } else if (filter === 'pending_today' || filter === 'today') {
     query = query
       .eq('status', 'pending')
       .gte('send_at', todayStartIso)
       .lt('send_at', todayEndIso)
       .order('send_at', { ascending: true });
-  } else {
+  } else if (filter === 'upcoming' || filter === 'all_pending') {
     query = query
       .eq('status', 'pending')
       .gte('send_at', nowIso)
+      .order('send_at', { ascending: true })
+      .limit(50);
+  } else {
+    // Dynamic temporal scope (tomorrow, day_after_tomorrow, this_week, next_week, weekdays, explicit_date, etc.)
+    const temporal = resolveCalendarTemporalScope({
+      scope: parsedScope.scope,
+      ...(parsedScope.date ? { date: parsedScope.date } : {}),
+    }, timezone, now);
+
+    const minIso = temporal.timeMin instanceof Date ? temporal.timeMin.toISOString() : String(temporal.timeMin);
+    const maxIso = temporal.timeMax instanceof Date ? temporal.timeMax.toISOString() : String(temporal.timeMax);
+
+    query = query
+      .eq('status', 'pending')
+      .gte('send_at', minIso)
+      .lt('send_at', maxIso)
       .order('send_at', { ascending: true })
       .limit(50);
   }
@@ -96,7 +114,7 @@ export async function executeReminderReadTool({
   }
 
   let reminders = data || [];
-  if (['upcoming', 'remaining_today', 'pending_today'].includes(filter)) {
+  if (filter !== 'completed_today') {
     reminders = reminders.filter(isVisiblePendingReminder);
   }
 

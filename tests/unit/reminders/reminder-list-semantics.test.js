@@ -134,4 +134,73 @@ describe('reminder list delivery-state semantics', () => {
     expect(result.formattedCard).toContain('Recordatorios anteriores eliminados');
     expect(result).not.toHaveProperty('pendingClarifications');
   });
+
+  it('bounds tomorrow scope strictly to [tomorrowStart, tomorrowEnd)', async () => {
+    const query = queryResult([]);
+    supabase.from.mockReturnValue(query);
+
+    // 2026-09-05 in Bogota is UTC-5
+    // tomorrow is 2026-09-06: 05:00:00Z to 2026-09-07: 05:00:00Z
+    const result = await executeReminderReadTool({
+      params: { filter: 'tomorrow' },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
+      language: 'es',
+      referenceTime: new Date('2026-09-05T20:34:12.000Z'),
+    });
+
+    expect(result).toMatchObject({ success: true, action: 'listed_reminders' });
+    expect(query.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-06T05:00:00.000Z');
+    expect(query.lt).toHaveBeenCalledWith('send_at', '2026-09-07T05:00:00.000Z');
+    expect(result.data).toMatchObject({ filter: 'tomorrow' });
+  });
+
+  it('bounds dynamic weekday scope (e.g. martes) to that specific local day without hardcoding', async () => {
+    const query = queryResult([]);
+    supabase.from.mockReturnValue(query);
+
+    // Reference: Saturday 2026-09-05 in Bogota. Next Tuesday is 2026-09-08
+    const result = await executeReminderReadTool({
+      params: { scope: 'martes' },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
+      language: 'es',
+      referenceTime: new Date('2026-09-05T20:34:12.000Z'),
+    });
+
+    expect(result).toMatchObject({ success: true, action: 'listed_reminders' });
+    expect(query.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-08T05:00:00.000Z');
+    expect(query.lt).toHaveBeenCalledWith('send_at', '2026-09-09T05:00:00.000Z');
+  });
+
+  it('bounds this_week and explicit_date scopes dynamically', async () => {
+    const query = queryResult([]);
+    supabase.from.mockReturnValue(query);
+
+    // Reference: Saturday 2026-09-05 in Bogota. This week is Mon 2026-08-31 to Mon 2026-09-07
+    const resultWeek = await executeReminderReadTool({
+      params: { filter: 'this_week' },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
+      language: 'es',
+      referenceTime: new Date('2026-09-05T20:34:12.000Z'),
+    });
+
+    expect(resultWeek.success).toBe(true);
+    expect(query.gte).toHaveBeenCalledWith('send_at', '2026-08-31T05:00:00.000Z');
+    expect(query.lt).toHaveBeenCalledWith('send_at', '2026-09-07T05:00:00.000Z');
+
+    // Explicit date: 2026-10-09
+    const queryDate = queryResult([]);
+    supabase.from.mockReturnValue(queryDate);
+    const resultDate = await executeReminderReadTool({
+      params: { scope: '2026-10-09' },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
+      language: 'es',
+      referenceTime: new Date('2026-09-05T20:34:12.000Z'),
+    });
+
+    expect(resultDate.success).toBe(true);
+    expect(queryDate.gte).toHaveBeenCalledWith('send_at', '2026-10-09T05:00:00.000Z');
+    expect(queryDate.lt).toHaveBeenCalledWith('send_at', '2026-10-10T05:00:00.000Z');
+  });
 });

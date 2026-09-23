@@ -122,4 +122,67 @@ describe('recurring reminder runtime normalization', () => {
       kind: 'relative_day_time', dayOffset: 1, hour: 10, minute: 15,
     });
   });
+
+  it('normalizes reminder.list scope and filter dynamically', () => {
+    const intent = {
+      actions: [
+        { domain: 'reminder', action: 'list', scope: 'tomorrow' },
+        { domain: 'reminder', action: 'list', filter: 'mañana' },
+        { domain: 'reminder', action: 'list', scope: 'martes' },
+      ],
+    };
+
+    const result = normalizeTurnIntentForRuntime(intent, {
+      user,
+      timezone: 'America/Bogota',
+      referenceTime: new Date('2026-09-08T20:28:00.000Z'),
+    });
+
+    expect(result.actions[0]).toMatchObject({
+      domain: 'reminder',
+      action: 'list',
+      filter: 'tomorrow',
+      scope: 'tomorrow',
+    });
+    expect(result.actions[1]).toMatchObject({
+      domain: 'reminder',
+      action: 'list',
+      filter: 'tomorrow',
+      scope: 'tomorrow',
+    });
+    expect(result.actions[2]).toMatchObject({
+      domain: 'reminder',
+      action: 'list',
+      filter: 'tuesday',
+      scope: 'tuesday',
+    });
+  });
+
+  it('normalizes calendar search and list with query and scope combined', () => {
+    const intent = {
+      actions: [
+        { domain: 'calendar', action: 'list', scope: 'tomorrow', query: 'daily' },
+        { domain: 'calendar', action: 'search', scope: 'tomorrow', query: 'daily' },
+      ],
+    };
+
+    const result = normalizeTurnIntentForRuntime(intent, {
+      user,
+      timezone: 'America/Bogota',
+      referenceTime: new Date('2026-09-08T20:28:00.000Z'),
+    });
+
+    expect(result.actions[0]).toMatchObject({
+      domain: 'calendar',
+      action: 'list',
+      scope: 'tomorrow',
+      query: 'daily',
+    });
+    expect(result.actions[1]).toMatchObject({
+      domain: 'calendar',
+      action: 'search',
+      scope: 'tomorrow',
+      query: 'daily',
+    });
+  });
 });

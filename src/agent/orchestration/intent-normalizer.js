@@ -6,6 +6,7 @@ import {
   normalizeAgendaScope,
   normalizeTaskScope,
   buildExplicitTaskDateScope,
+  parseReminderScope,
 } from '../../shared/agenda-scopes.js';
 import { sanitizeCalendarQueryAndScope } from '../tools/calendar.js';
 
@@ -86,6 +87,19 @@ function normalizeReadScope(action, context) {
         ...(sanitized.query ? { query: sanitized.query } : {}),
       };
     }
+  }
+
+  if (action.domain === 'reminder' && action.action === 'list') {
+    const raw = action.filter || action.scope;
+    if (raw) {
+      const parsed = parseReminderScope(raw, 'upcoming');
+      return {
+        ...action,
+        filter: parsed.scope,
+        scope: parsed.runtimeScope,
+      };
+    }
+    return action;
   }
 
   if (action.domain !== 'task' || action.action !== 'list') return action;
