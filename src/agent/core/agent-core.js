@@ -116,7 +116,7 @@ ${EXECUTE_TURN_DESCRIPTION}
 - Working Memory sirve para referencias singulares/plurales; no autoriza mutaciones por sí sola.
 - Si un dato personal ya aparece en contexto/memoria, úsalo sin buscar de nuevo. memory.save solo ante petición explícita.
 - Aplica las preferencias y reglas del usuario (<user_preferences>) al configurar recordatorios, tareas y respuestas.
-- Google Calendar: Conectar/desconectar calendar.connect/disconnect. Consultas por fecha/período emiten calendar.list con scope (today, tomorrow, this_week, upcoming); títulos calendar.search. Con 🔴 No conectado emite calendar.list igualmente para link oficial. NUNCA afirmes en conversation.reply que no puedes acceder al calendario. Saludos usan conversation.reply, NUNCA calendar.
+- Google Calendar: Conectar/desconectar calendar.connect/disconnect. Agenda por fecha calendar.list con scope; eventos puntuales calendar.search con query y scope. Con 🔴 No conectado emite calendar.list igualmente para link oficial. NUNCA afirmes en conversation.reply que no puedes acceder al calendario. Saludos usan conversation.reply.
 
 ## SEGURIDAD Y UX
 - Consultas de estado EXIGEN lecturas del dominio, NUNCA conversation.reply ni mutaciones.

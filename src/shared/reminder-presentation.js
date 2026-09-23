@@ -176,15 +176,60 @@ export function formatCanonicalReminderList(data, {
   timezone = 'UTC',
 } = {}) {
   const reminders = Array.isArray(data?.reminders) ? data.reminders : [];
-  if (reminders.length === 0) {
-    return language === 'en'
-      ? '🔔 *Pending reminders*\n\nYou have no pending reminders.'
-      : '🔔 *Recordatorios pendientes*\n\nNo tienes recordatorios pendientes.';
-  }
+  const filter = String(data?.filter || '').toLowerCase();
+  const isEn = language === 'en';
 
-  const header = language === 'en'
-    ? '🔔 *Pending reminders*'
-    : '🔔 *Recordatorios pendientes*';
+  const getHeader = (filterName) => {
+    switch (filterName) {
+      case 'tomorrow':
+        return isEn ? '🔔 *Tomorrow\'s reminders*' : '🔔 *Recordatorios para mañana*';
+      case 'day_after_tomorrow':
+        return isEn ? '🔔 *Day after tomorrow\'s reminders*' : '🔔 *Recordatorios para pasado mañana*';
+      case 'today':
+      case 'pending_today':
+      case 'remaining_today':
+        return isEn ? '🔔 *Today\'s reminders*' : '🔔 *Recordatorios de hoy*';
+      case 'this_week':
+        return isEn ? '🔔 *This week\'s reminders*' : '🔔 *Recordatorios de esta semana*';
+      case 'next_week':
+        return isEn ? '🔔 *Next week\'s reminders*' : '🔔 *Recordatorios de la próxima semana*';
+      case 'this_weekend':
+        return isEn ? '🔔 *Weekend reminders*' : '🔔 *Recordatorios del fin de semana*';
+      case 'completed_today':
+        return isEn ? '🔔 *Reminders completed today*' : '🔔 *Recordatorios completados hoy*';
+      default:
+        return isEn ? '🔔 *Pending reminders*' : '🔔 *Recordatorios pendientes*';
+    }
+  };
+
+  const header = getHeader(filter);
+
+  if (reminders.length === 0) {
+    let emptyMsg;
+    switch (filter) {
+      case 'tomorrow':
+        emptyMsg = isEn ? 'You have no reminders scheduled for tomorrow.' : 'No tienes recordatorios programados para mañana.';
+        break;
+      case 'day_after_tomorrow':
+        emptyMsg = isEn ? 'You have no reminders scheduled for the day after tomorrow.' : 'No tienes recordatorios programados para pasado mañana.';
+        break;
+      case 'today':
+      case 'pending_today':
+      case 'remaining_today':
+        emptyMsg = isEn ? 'You have no pending reminders for today.' : 'No tienes recordatorios pendientes para hoy.';
+        break;
+      case 'this_week':
+        emptyMsg = isEn ? 'You have no reminders scheduled for this week.' : 'No tienes recordatorios programados para esta semana.';
+        break;
+      case 'next_week':
+        emptyMsg = isEn ? 'You have no reminders scheduled for next week.' : 'No tienes recordatorios programados para la próxima semana.';
+        break;
+      default:
+        emptyMsg = isEn ? 'You have no pending reminders.' : 'No tienes recordatorios pendientes.';
+        break;
+    }
+    return `${header}\n\n${emptyMsg}`;
+  }
 
   const blocks = reminders.map((reminder, index) => {
     const content = reminder.content || reminder.title || (language === 'en' ? 'Reminder' : 'Recordatorio');
