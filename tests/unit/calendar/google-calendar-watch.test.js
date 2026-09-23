@@ -123,8 +123,12 @@ describe('Google Calendar Watch & Incremental Sync', () => {
   });
 
   describe('stopGoogleCalendarWatch', () => {
-    it('stops channel on Google and clears metadata', async () => {
+    it('stops channel on Google and clears metadata when stopping active channel', async () => {
       mockStop.mockResolvedValue({});
+      getUserIntegration.mockResolvedValueOnce({
+        user_id: 'user-1',
+        metadata: { channelId: 'chan-uuid-1', resourceId: 'res-id-123' },
+      });
 
       const res = await stopGoogleCalendarWatch({
         userId: 'user-1',
@@ -144,6 +148,29 @@ describe('Google Calendar Watch & Incremental Sync', () => {
         resourceId: null,
         channelExpiration: null,
       });
+    });
+
+    it('stops channel on Google but does NOT clear metadata when stopping an obsolete channel', async () => {
+      mockStop.mockResolvedValue({});
+      getUserIntegration.mockResolvedValueOnce({
+        user_id: 'user-1',
+        metadata: { channelId: 'active-chan-new', resourceId: 'res-active-new' },
+      });
+
+      const res = await stopGoogleCalendarWatch({
+        userId: 'user-1',
+        channelId: 'obsolete-chan-old',
+        resourceId: 'res-old-999',
+      });
+
+      expect(res).toBe(true);
+      expect(mockStop).toHaveBeenCalledWith({
+        requestBody: {
+          id: 'obsolete-chan-old',
+          resourceId: 'res-old-999',
+        },
+      });
+      expect(updateUserIntegrationMetadata).not.toHaveBeenCalled();
     });
   });
 

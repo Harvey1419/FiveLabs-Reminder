@@ -62,7 +62,25 @@ export async function saveReminder({
     const { data: existing } = await checkQ.maybeSingle();
     if (existing) {
       console.log(`[reminders] Identical pending reminder already exists (${existing.id}), returning existing.`);
-      return existing;
+      return { ...existing, isExisting: true };
+    }
+
+    // 1b. If deliveryId is specified (e.g. companion reminder), guard against duplicate insertion
+    if (deliveryId) {
+      let deliveryQ = supabase
+        .from('reminders')
+        .select('*')
+        .eq('delivery_id', deliveryId)
+        .in('status', ['pending', 'sent']);
+
+      if (userId) deliveryQ = deliveryQ.eq('user_id', userId);
+      else deliveryQ = deliveryQ.eq('phone_number', phoneNumber);
+
+      const { data: existingByDelivery } = await deliveryQ.maybeSingle();
+      if (existingByDelivery) {
+        console.log(`[reminders] Reminder with delivery_id already exists (${existingByDelivery.id}), returning existing.`);
+        return { ...existingByDelivery, isExisting: true };
+      }
     }
 
     // 2. If creating a persistent reminder, cancel/supersede any older active unacknowledged nudge loop for the same content.

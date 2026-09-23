@@ -49,6 +49,26 @@ async function establishCalendarSyncBaseline(userId) {
   return nextSyncToken;
 }
 
+const userWebhookLocks = new Map();
+
+async function runSerializedForUser(userId, task) {
+  if (!userId) return task();
+  const prev = userWebhookLocks.get(userId) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  userWebhookLocks.set(userId, prev.then(() => current, () => current));
+
+  try {
+    await prev;
+    return await task();
+  } finally {
+    release();
+    if (userWebhookLocks.get(userId) === current) {
+      userWebhookLocks.delete(userId);
+    }
+  }
+}
+
 /**
  * Handle incoming Google Calendar push notification webhooks.
  *
@@ -80,78 +100,83 @@ export async function handleGoogleCalendarWebhook(req, res) {
   console.log(`[googleCalendarWebhook] Received notification: channel=${channelId} state=${resourceState}`);
 
   try {
-    const { userId, integration } = await resolveWebhookIntegration({ channelId, channelToken });
+    const { userId, integration: initialIntegration } = await resolveWebhookIntegration({ channelId, channelToken });
 
     if (!userId) {
       console.warn(`[googleCalendarWebhook] No user found for channelId=${channelId}`);
       return;
     }
 
-    // Invariant: Enforce single active channel per user.
-    // Drop notifications from obsolete/zombie channels and proactively stop them on Google.
-    const activeChannelId = integration?.metadata?.channelId;
-    if (activeChannelId && activeChannelId !== channelId) {
-      console.warn(`[googleCalendarWebhook] Dropping obsolete watch channel notification for user ${userId}: received=${channelId}, active=${activeChannelId}`);
-      const headerResourceId = req.headers['x-goog-resource-id'];
-      if (headerResourceId) {
-        stopGoogleCalendarWatch({ userId, channelId, resourceId: headerResourceId }).catch((stopErr) => {
-          console.warn(`[googleCalendarWebhook] Failed to stop obsolete channel ${channelId}:`, stopErr.message);
-        });
-      }
-      return;
-    }
+    await runSerializedForUser(userId, async () => {
+      // Re-read latest user integration metadata under the lock to prevent token race conditions
+      const integration = (await getUserIntegration(userId, 'google')) || initialIntegration;
 
-    // The initial sync handshake establishes a silent baseline. Existing events
-    // are backfilled with companion reminders but are never announced as new.
-    if (resourceState === 'sync') {
-      if (!integration?.metadata?.calendarSyncToken) {
+      // Invariant: Enforce single active channel per user.
+      // Drop notifications from obsolete/zombie channels and proactively stop them on Google.
+      const activeChannelId = integration?.metadata?.channelId;
+      if (activeChannelId && activeChannelId !== channelId) {
+        console.warn(`[googleCalendarWebhook] Dropping obsolete watch channel notification for user ${userId}: received=${channelId}, active=${activeChannelId}`);
+        const headerResourceId = req.headers['x-goog-resource-id'];
+        if (headerResourceId) {
+          stopGoogleCalendarWatch({ userId, channelId, resourceId: headerResourceId }).catch((stopErr) => {
+            console.warn(`[googleCalendarWebhook] Failed to stop obsolete channel ${channelId}:`, stopErr.message);
+          });
+        }
+        return;
+      }
+
+      // The initial sync handshake establishes a silent baseline. Existing events
+      // are backfilled with companion reminders but are never announced as new.
+      if (resourceState === 'sync') {
+        if (!integration?.metadata?.calendarSyncToken) {
+          await establishCalendarSyncBaseline(userId);
+        }
+
+        console.log(`[googleCalendarWebhook] Channel sync handshake verified: ${channelId}`);
+        return;
+      }
+
+      if (resourceState !== 'exists') return;
+
+      const currentSyncToken = integration?.metadata?.calendarSyncToken || null;
+
+      // Fail closed against notification storms. If there is no baseline yet,
+      // create it silently and wait for the next real delta before announcing.
+      if (!currentSyncToken) {
         await establishCalendarSyncBaseline(userId);
+        return;
       }
 
-      console.log(`[googleCalendarWebhook] Channel sync handshake verified: ${channelId}`);
-      return;
-    }
+      const delta = await listIncrementalCalendarEvents(userId, {
+        syncToken: currentSyncToken,
+      });
 
-    if (resourceState !== 'exists') return;
+      const isFullSyncRecovery = Boolean(delta?.fullSync);
 
-    const currentSyncToken = integration?.metadata?.calendarSyncToken || null;
+      const changedEvents = (delta?.items || []).filter((event) => (
+        event?.id
+        && event.status !== 'cancelled'
+        && !String(event.id).startsWith('hermes')
+      ));
 
-    // Fail closed against notification storms. If there is no baseline yet,
-    // create it silently and wait for the next real delta before announcing.
-    if (!currentSyncToken) {
-      await establishCalendarSyncBaseline(userId);
-      return;
-    }
+      const changedEventIds = changedEvents.map((event) => event.id);
 
-    const delta = await listIncrementalCalendarEvents(userId, {
-      syncToken: currentSyncToken,
-    });
+      const cancelledEventIds = (delta?.items || [])
+        .filter((event) => event?.id && event.status === 'cancelled')
+        .map((event) => event.id);
 
-    const isFullSyncRecovery = Boolean(delta?.fullSync);
+      await reconcileCalendarCompanionReminders({
+        userId,
+        notifyOnDiscovery: !isFullSyncRecovery,
+        notifyEventIds: !isFullSyncRecovery ? changedEventIds : [],
+        cancelledEventIds: !isFullSyncRecovery ? cancelledEventIds : [],
+        extraEvents: !isFullSyncRecovery ? changedEvents : [],
+      });
 
-    const changedEvents = (delta?.items || []).filter((event) => (
-      event?.id
-      && event.status !== 'cancelled'
-      && !String(event.id).startsWith('hermes')
-    ));
-
-    const changedEventIds = changedEvents.map((event) => event.id);
-
-    const cancelledEventIds = (delta?.items || [])
-      .filter((event) => event?.id && event.status === 'cancelled')
-      .map((event) => event.id);
-
-    await reconcileCalendarCompanionReminders({
-      userId,
-      notifyOnDiscovery: !isFullSyncRecovery,
-      notifyEventIds: !isFullSyncRecovery ? changedEventIds : [],
-      cancelledEventIds: !isFullSyncRecovery ? cancelledEventIds : [],
-      extraEvents: !isFullSyncRecovery ? changedEvents : [],
-    });
-
-    await updateUserIntegrationMetadata(userId, 'google', {
-      calendarSyncToken: delta?.nextSyncToken || currentSyncToken,
-      lastWebhookReceivedAt: new Date().toISOString(),
+      await updateUserIntegrationMetadata(userId, 'google', {
+        calendarSyncToken: delta?.nextSyncToken || currentSyncToken,
+        lastWebhookReceivedAt: new Date().toISOString(),
+      });
     });
   } catch (err) {
     console.error(`[googleCalendarWebhook] Error reconciling calendar for channel ${channelId}:`, err);

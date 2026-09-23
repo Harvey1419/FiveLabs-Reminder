@@ -352,4 +352,77 @@ describe('Google Calendar Push Notification Webhook Handler', () => {
     expect(listIncrementalCalendarEvents).not.toHaveBeenCalled();
     expect(reconcileCalendarCompanionReminders).not.toHaveBeenCalled();
   });
+
+  it('serializes concurrent webhooks for the same user so subsequent calls see the updated syncToken', async () => {
+    let currentSyncToken = 'token-initial';
+    getUserIntegration.mockImplementation(async () => {
+      return {
+        user_id: 'user-abc-123',
+        metadata: {
+          channelId: 'chan-1234',
+          calendarSyncToken: currentSyncToken,
+        },
+      };
+    });
+
+    updateUserIntegrationMetadata.mockImplementation(async (_userId, _provider, updates) => {
+      if (updates?.calendarSyncToken) {
+        currentSyncToken = updates.calendarSyncToken;
+      }
+      return {};
+    });
+
+    listIncrementalCalendarEvents.mockImplementation(async (_userId, opts) => {
+      if (opts.syncToken === 'token-initial') {
+        // First webhook finds an event and yields next token
+        return {
+          items: [{ id: 'event-one', status: 'confirmed' }],
+          nextSyncToken: 'token-updated-by-first',
+          fullSync: false,
+        };
+      }
+      // Second webhook with updated token finds nothing
+      return {
+        items: [],
+        nextSyncToken: 'token-updated-by-first',
+        fullSync: false,
+      };
+    });
+
+    const req1 = {
+      headers: {
+        'x-goog-channel-id': 'chan-1234',
+        'x-goog-resource-state': 'exists',
+        'x-goog-channel-token': 'userId=user-abc-123',
+      },
+    };
+    const res1 = { status: vi.fn().mockReturnThis(), send: vi.fn() };
+
+    const req2 = {
+      headers: {
+        'x-goog-channel-id': 'chan-1234',
+        'x-goog-resource-state': 'exists',
+        'x-goog-channel-token': 'userId=user-abc-123',
+      },
+    };
+    const res2 = { status: vi.fn().mockReturnThis(), send: vi.fn() };
+
+    // Fire both concurrently
+    await Promise.all([
+      handleGoogleCalendarWebhook(req1, res1),
+      handleGoogleCalendarWebhook(req2, res2),
+    ]);
+
+    expect(listIncrementalCalendarEvents).toHaveBeenCalledTimes(2);
+    expect(listIncrementalCalendarEvents).toHaveBeenNthCalledWith(1, 'user-abc-123', { syncToken: 'token-initial' });
+    expect(listIncrementalCalendarEvents).toHaveBeenNthCalledWith(2, 'user-abc-123', { syncToken: 'token-updated-by-first' });
+
+    // First call notified for event-one, second call had empty changed events
+    expect(reconcileCalendarCompanionReminders).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      notifyEventIds: ['event-one'],
+    }));
+    expect(reconcileCalendarCompanionReminders).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      notifyEventIds: [],
+    }));
+  });
 });

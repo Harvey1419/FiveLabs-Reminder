@@ -35,6 +35,7 @@ describe('saveReminder supersede scope invariant', () => {
           builder._filters[field] = val;
           return builder;
         }),
+        in: vi.fn().mockReturnThis(),
         is: vi.fn().mockImplementation((field, val) => {
           builder._filters[`${field}_is`] = val;
           return builder;

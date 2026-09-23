@@ -4,6 +4,7 @@ const mockState = vi.hoisted(() => ({
   savedReminders: [],
   updatedReminders: [],
   calls: [],
+  recentMessages: [],
 }));
 
 vi.mock('../../../src/infrastructure/database/index.js', async () => {
@@ -15,11 +16,17 @@ vi.mock('../../../src/infrastructure/database/index.js', async () => {
           eq: vi.fn(() => chain),
           like: vi.fn(() => chain),
           in: vi.fn(() => chain),
+          gte: vi.fn(() => chain),
+          lte: vi.fn(() => chain),
+          order: vi.fn(() => chain),
           maybeSingle: vi.fn(async () => ({ data: { phone_number: '+573009998877' }, error: null })),
           single: vi.fn(async () => ({ data: { phone_number: '+573009998877' }, error: null })),
           then: (resolve) => {
             if (table === 'reminders') {
               return resolve({ data: mockState.savedReminders, error: null });
+            }
+            if (table === 'messages') {
+              return resolve({ data: mockState.recentMessages, error: null });
             }
             return resolve({ data: [], error: null });
           },
@@ -112,6 +119,7 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
     mockState.savedReminders = [];
     mockState.updatedReminders = [];
     mockState.calls = [];
+    mockState.recentMessages = [];
     vi.clearAllMocks();
   });
 
@@ -573,5 +581,109 @@ describe('JIT Google Calendar Companion Reminders Reconciliation', () => {
     const bulletMatches = text.match(/• \*Pausas Ergónomicas\*/g);
     expect(bulletMatches).toHaveLength(1);
     expect(text).toMatch(/• \*Pausas Ergónomicas\* \(serie recurrente — desde/i);
+  });
+
+  it('does not dispatch notification when saveReminder returns an existing record (isExisting: true)', async () => {
+    saveReminder.mockResolvedValueOnce({
+      id: 'existing-rem-123',
+      delivery_id: 'gcal:g-event-existing',
+      status: 'pending',
+      isExisting: true,
+    });
+
+    const futureMs = Date.now() + 2 * 60 * 60 * 1000;
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['g-event-existing'],
+      extraEvents: [
+        {
+          id: 'g-event-existing',
+          summary: 'Reunión ya existente',
+          start: { dateTime: new Date(futureMs).toISOString() },
+          end: { dateTime: new Date(futureMs + 3600000).toISOString() },
+        },
+      ],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(0);
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
+  });
+
+  it('suppresses duplicate proactive meeting notification if event was already notified in recent messages', async () => {
+    mockState.recentMessages = [
+      {
+        id: 'msg-prev-1',
+        role: 'assistant',
+        intent: 'calendar',
+        entities: {
+          action: 'proactive_meeting_notification',
+          eventId: 'g-event-already-notified',
+        },
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    const futureMs = Date.now() + 3 * 60 * 60 * 1000;
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      notifyEventIds: ['g-event-already-notified'],
+      extraEvents: [
+        {
+          id: 'g-event-already-notified',
+          summary: 'Sync - Grooming',
+          start: { dateTime: new Date(futureMs).toISOString() },
+          end: { dateTime: new Date(futureMs + 3600000).toISOString() },
+        },
+      ],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.createdCount).toBe(1);
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
+  });
+
+  it('suppresses duplicate proactive cancellation if reminder was already cancelled in recent messages', async () => {
+    mockState.recentMessages = [
+      {
+        id: 'msg-cancel-prev',
+        role: 'assistant',
+        intent: 'calendar',
+        entities: {
+          action: 'proactive_meeting_cancellation',
+          reminderId: 'rem-already-cancelled-id',
+        },
+        created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+    ];
+
+    const futureSendAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+    mockState.savedReminders = [
+      {
+        id: 'rem-already-cancelled-id',
+        delivery_id: 'gcal:g-event-cancelled-already',
+        send_at: futureSendAt,
+        status: 'pending',
+        content: '🔔 [Google Calendar] Standup Cancelado en 15 minutos',
+      },
+    ];
+
+    const res = await reconcileCalendarCompanionReminders({
+      userId: 'user-deleted-event',
+      phoneNumber: '+573001234567',
+      notifyOnDiscovery: true,
+      cancelledEventIds: ['g-event-cancelled-already'],
+      language: 'es',
+    });
+
+    expect(res.synced).toBe(true);
+    expect(res.cancelledCount).toBe(1);
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
   });
 });

@@ -598,11 +598,17 @@ export async function stopGoogleCalendarWatch({ userId, channelId, resourceId })
       },
     });
 
-    await updateUserIntegrationMetadata(userId, 'google', {
-      channelId: null,
-      resourceId: null,
-      channelExpiration: null,
-    }).catch(() => {});
+    // Only clear channelId/resourceId in metadata if the channel being stopped
+    // is the CURRENT active channel in the user's metadata.
+    // When stopping an obsolete/zombie channel, we must NOT clear the active channel!
+    const current = await getUserIntegration(userId, 'google');
+    if (current?.metadata?.channelId === channelId) {
+      await updateUserIntegrationMetadata(userId, 'google', {
+        channelId: null,
+        resourceId: null,
+        channelExpiration: null,
+      }).catch(() => {});
+    }
 
     console.log(`[googleCalendar] Watch stopped for user ${userId}: channel=${channelId}`);
     return true;
