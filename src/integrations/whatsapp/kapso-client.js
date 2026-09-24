@@ -553,7 +553,8 @@ export async function sendWhatsAppQuickReplyButtons({
   if (cleanPhone) {
     payload.to = cleanPhone;
   } else {
-    payload.recipient = cleanBsuid;
+    payload.recipient_type = 'individual';
+    payload.to = cleanBsuid;
   }
 
   const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
@@ -581,20 +582,28 @@ export async function sendWhatsAppQuickReplyButtons({
 
     const errText = await response.text();
     console.warn(`[kapso] Interactive buttons rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumberId,
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: bodyText,
-    });
+    try {
+      return await sendWhatsAppText({
+        phoneNumberId,
+        phoneNumber: cleanPhone,
+        bsuid: cleanBsuid,
+        text: bodyText,
+      });
+    } catch (fallbackErr) {
+      return { success: false, error: fallbackErr.message };
+    }
   } catch (err) {
     console.warn(`[kapso] Interactive buttons error: ${err.message}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumberId,
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: bodyText,
-    });
+    try {
+      return await sendWhatsAppText({
+        phoneNumberId,
+        phoneNumber: cleanPhone,
+        bsuid: cleanBsuid,
+        text: bodyText,
+      });
+    } catch (fallbackErr) {
+      return { success: false, error: fallbackErr.message };
+    }
   }
 }
 
@@ -636,46 +645,54 @@ export function stripReminderPrefix(text) {
 }
 
 /**
- * Check if the recipient has sent an inbound message in the last 23.5 hours.
+ * Check if the recipient has sent an inbound message or interacted within the 24-hour window.
+ * Meta WhatsApp Cloud API rules:
+ * - Window opens when the customer sends any message (text, media, button reply, flow submit).
+ * - Window stays open for exactly 24 hours (86,400 seconds) from the last inbound interaction.
+ *
  * @param {string} phoneNumber
  * @returns {Promise<boolean>}
  */
 export async function isWithin24HourWindow(phoneNumber) {
   if (!phoneNumber) return false;
-  const str = String(phoneNumber).trim();
-  const isBsuid = str.includes('.') || str.startsWith('CO.') || str.startsWith('US.') || str.startsWith('AR.');
-  const identifier = isBsuid ? str : (normalizePhoneNumber(str) || str);
+  const rawStr = String(phoneNumber).trim();
+  const isBsuid = rawStr.includes('.') || rawStr.startsWith('CO.') || rawStr.startsWith('US.') || rawStr.startsWith('AR.');
+  const cleanDigits = rawStr.replace(/\D/g, '');
+  const phoneCandidates = isBsuid
+    ? [rawStr]
+    : Array.from(new Set([rawStr, cleanDigits, `+${cleanDigits}`].filter(Boolean)));
 
   // 1. Ultra-fast RAM lookup: Check in-memory userCache (0ms CPU operation)
-  const cached = userCache.get(identifier) || (isBsuid ? null : userCache.get(normalizePhoneNumber(str)));
-  if (cached?.user?.last_user_message_at) {
-    const lastActiveMs = new Date(cached.user.last_user_message_at).getTime();
-    if (!isNaN(lastActiveMs)) {
-      const elapsed = Date.now() - lastActiveMs;
-      if (elapsed < 23.5 * 60 * 60 * 1000) {
-        return true; // Window is definitely OPEN
-      }
-      if (elapsed > 24.5 * 60 * 60 * 1000) {
-        return false; // Window is definitely CLOSED
+  for (const candidate of phoneCandidates) {
+    const cached = userCache.get(candidate);
+    if (cached?.user?.last_user_message_at) {
+      const lastActiveMs = new Date(cached.user.last_user_message_at).getTime();
+      if (!isNaN(lastActiveMs)) {
+        const elapsed = Date.now() - lastActiveMs;
+        if (elapsed <= 24 * 60 * 60 * 1000) {
+          return true; // Window is OPEN
+        }
       }
     }
   }
 
-  // 2. Database verification fallback
+  // 2. Database verification fallback:
+  // Check for any inbound user message OR user-initiated interactive button response (ack/snooze/flow)
+  // in the last 24 hours.
   try {
-    const threshold = new Date(Date.now() - 23.5 * 60 * 60 * 1000).toISOString();
+    const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('messages')
-      .select('created_at')
-      .eq('phone_number', identifier)
-      .eq('role', 'user')
+      .select('id')
+      .in('phone_number', phoneCandidates)
+      .or('role.eq.user,intent.in.(reminder_ack,reminder_snooze,task_complete_flow,reminder_ack_click,reminder_snooze_click,task_complete_flow_submit)')
       .gt('created_at', threshold)
       .limit(1);
 
-    if (error || !data || data.length === 0) {
-      return false;
+    if (!error && data && data.length > 0) {
+      return true;
     }
-    return true;
+    return false;
   } catch (err) {
     console.warn('[kapso] isWithin24HourWindow check failed:', err.message);
     return false;
@@ -849,16 +866,21 @@ export async function sendReminderMessage(recipient, content, {
   if (isInsideWindow) {
     const reminderText = `${reminderPrefix}${cleanContent}`;
     let textRes;
-    if (Array.isArray(buttons) && buttons.length > 0) {
-      textRes = await sendWhatsAppQuickReplyButtons({
-        phoneNumberId,
-        phoneNumber: isBsuid ? null : str,
-        bsuid: isBsuid ? str : null,
-        bodyText: reminderText,
-        buttons,
-      });
-    } else {
-      textRes = await sendReminderConfirmation(recipient, reminderText, { phoneNumberId });
+    try {
+      if (Array.isArray(buttons) && buttons.length > 0) {
+        textRes = await sendWhatsAppQuickReplyButtons({
+          phoneNumberId,
+          phoneNumber: isBsuid ? null : str,
+          bsuid: isBsuid ? str : null,
+          bodyText: reminderText,
+          buttons,
+        });
+      } else {
+        textRes = await sendReminderConfirmation(recipient, reminderText, { phoneNumberId });
+      }
+    } catch (sendErr) {
+      console.warn(`[kapso] Freeform/interactive send threw: ${sendErr.message}. Auto-recovering via template...`);
+      textRes = { success: false, error: sendErr.message };
     }
 
     // If freeform text or interactive buttons succeeded, return immediately

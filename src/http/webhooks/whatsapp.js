@@ -308,6 +308,17 @@ export async function handleWebhook(req, res) {
               : `✅ *${completedTasks.length} tareas completadas*\n\n${taskLines}`;
           }
 
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'user',
+            content: '[Flujo completado: tareas]',
+            messageId: messageId || null,
+            intent: 'task_complete_flow_submit',
+            entities: { completedTaskIds: selectedIds },
+          });
+          touchUserLastActive(user.id, recipientIdentifier);
+
           await sendWhatsAppText({
             phoneNumberId,
             phoneNumber,
@@ -359,6 +370,18 @@ export async function handleWebhook(req, res) {
           const confirmText = isEnglishUser
             ? '✅ Great! I’ve marked this reminder as completed.'
             : '✅ ¡Excelente! He marcado este recordatorio como completado.';
+
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'user',
+            content: buttonReply.title || (isEnglishUser ? 'Done' : 'Listo'),
+            messageId: messageId || null,
+            intent: 'reminder_ack_click',
+            entities: { reminderId },
+          });
+          touchUserLastActive(user.id, recipientIdentifier);
+
           await sendWhatsAppText({
             phoneNumberId,
             phoneNumber,
@@ -398,6 +421,18 @@ export async function handleWebhook(req, res) {
           const confirmText = isEnglishUser
             ? `⏰ Got it, I’ll remind you again in ${minutes} minutes.`
             : `⏰ Listo, te lo recordaré nuevamente en ${minutes} minutos.`;
+
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'user',
+            content: buttonReply.title || `+${minutes} min`,
+            messageId: messageId || null,
+            intent: 'reminder_snooze_click',
+            entities: { reminderId, minutes, newSendAt },
+          });
+          touchUserLastActive(user.id, recipientIdentifier);
+
           await sendWhatsAppText({
             phoneNumberId,
             phoneNumber,
