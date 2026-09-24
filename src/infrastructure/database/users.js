@@ -154,8 +154,19 @@ export async function touchUserLastActive(userId, phoneNumber) {
     if (cached?.user) {
       cached.user.last_user_message_at = nowIso;
       cached.timestamp = Date.now();
+    } else {
+      userCache.set(cleanPhone, {
+        user: { id: userId || null, phone_number: cleanPhone, last_user_message_at: nowIso },
+        timestamp: Date.now(),
+      });
     }
   }
+
+  const handleDbErr = (err) => {
+    if (err?.code !== '42703' && !err?.message?.includes('last_user_message_at')) {
+      console.warn('[users] touchUserLastActive failed:', err.message);
+    }
+  };
 
   // Update Postgres asynchronously (non-blocking)
   if (userId) {
@@ -164,14 +175,14 @@ export async function touchUserLastActive(userId, phoneNumber) {
       .update({ last_user_message_at: nowIso, updated_at: nowIso })
       .eq('id', userId)
       .then(() => {})
-      .catch((err) => console.warn('[users] touchUserLastActive failed:', err.message));
+      .catch(handleDbErr);
   } else if (cleanPhone) {
     supabase
       .from('users')
       .update({ last_user_message_at: nowIso, updated_at: nowIso })
       .eq('phone_number', cleanPhone)
       .then(() => {})
-      .catch((err) => console.warn('[users] touchUserLastActive failed:', err.message));
+      .catch(handleDbErr);
   }
 }
 
