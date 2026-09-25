@@ -218,16 +218,37 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
   return `${icon} *${domainLabel} · ${count} ${opLabel}*${lines.length ? `\n\n${lines.join('\n')}` : ''}`;
 }
 
+function isReadFactEmpty(fact) {
+  const data = fact?.presentationData ?? fact?.data;
+  if (Array.isArray(data) && data.length === 0) return true;
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.events) && data.events.length === 0) return true;
+    if (Array.isArray(data.tasks) && data.tasks.length === 0) return true;
+    if (Array.isArray(data.reminders) && data.reminders.length === 0) return true;
+    if (Array.isArray(data.items) && data.items.length === 0) return true;
+  }
+  const text = String(fact?.card || fact?.summary || '').toLowerCase();
+  return text.includes('no tienes eventos programados')
+    || text.includes('no tienes eventos próximos')
+    || text.includes('no events scheduled')
+    || text.includes('no tienes recordatorios pendientes')
+    || text.includes('no tienes tareas pendientes');
+}
+
 function formatSuccesses(facts, language) {
   if (!facts.length) return '';
   const reads = facts.filter(isReadFact);
   const mutations = facts.filter((fact) => !isReadFact(fact));
   const sections = [];
 
-  // Read results are already canonical, verified cards. They are information
-  // retrieved in this turn, not actions performed by the user or assistant.
-  if (reads.length > 0) {
-    sections.push(reads.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
+  // When mutations are present in the turn, suppress empty read cards (e.g. empty calendar search)
+  // so they do not pollute or prepend the confirmation of the created/updated action.
+  const activeReads = mutations.length > 0
+    ? reads.filter((fact) => !isReadFactEmpty(fact))
+    : reads;
+
+  if (activeReads.length > 0) {
+    sections.push(activeReads.map((fact) => fact.card || fact.summary).filter(Boolean).join('\n\n'));
   }
   if (mutations.length > 0) {
     const homogeneous = mutations.every((fact) => groupKey(fact) === groupKey(mutations[0]));

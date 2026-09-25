@@ -246,4 +246,25 @@ describe('turn-level presentation policy', () => {
     expect(text).toContain('Tareas · 1 completados');
     expect(text).toContain('Llamar a Ana');
   });
+
+  it('suppresses empty read cards when mutations are present in the turn', () => {
+    const text = composeTurnPresentation([
+      fact({
+        tool: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR,
+        requestedAction: 'list_events',
+        data: [],
+        card: '📅 *Google Calendar*\nNo tienes eventos programados en Google Calendar para este período.',
+        summary: 'No tienes eventos programados en Google Calendar para este período.',
+      }),
+      fact({
+        tool: TOOL_NAMES.MANAGE_REMINDER,
+        requestedAction: 'create',
+        data: [{ content: 'Revisar agenda de mañana', sendAt: '2026-09-10T16:39:00.000Z' }],
+        card: '🔔 *Recordatorio creado*\n\n• Revisar agenda de mañana',
+      }),
+    ], 'es');
+
+    expect(text).toContain('Revisar agenda de mañana');
+    expect(text).not.toContain('No tienes eventos programados');
+  });
 });

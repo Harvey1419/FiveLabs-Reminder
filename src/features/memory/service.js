@@ -262,6 +262,64 @@ export async function retrieveStandingPreferences({ userId, limit = 5 }) {
 }
 
 /**
+ * Select proactive anchors (recent episodes and durable anchors like pets, health, family, projects).
+ * These are loaded on zero-query greetings/briefings so Hermes maintains conversational continuity.
+ */
+export function selectProactiveAnchors(memories, { maxEntities = 2, maxRecentEpisodes = 2 } = {}) {
+  if (!Array.isArray(memories) || memories.length === 0) return [];
+
+  const candidates = memories.filter((m) => {
+    const topic = String(m?.topic_key || '').toLowerCase();
+    const category = String(m?.category || '').toLowerCase();
+    return category !== 'preference' && !topic.startsWith('preference/') && !topic.startsWith('profile/');
+  });
+
+  const episodes = candidates
+    .filter((m) => {
+      const topic = String(m?.topic_key || '').toLowerCase();
+      const category = String(m?.category || '').toLowerCase();
+      return category === 'episode' || topic.includes('/episode') || topic.startsWith('episode/');
+    })
+    .slice(0, Math.max(1, Number(maxRecentEpisodes) || 2));
+
+  const episodeIds = new Set(episodes.map((m) => m.id).filter(Boolean));
+
+  const anchorPriority = (m) => {
+    const topic = String(m?.topic_key || '').toLowerCase();
+    const category = String(m?.category || '').toLowerCase();
+    if (topic.startsWith('pet/') || topic.includes('/pet') || category === 'pet') return 40;
+    if (topic.includes('health') || topic.includes('salud') || topic.includes('medico') || topic.includes('veterin')) return 35;
+    if (topic.startsWith('person/') || topic.includes('/person') || category === 'person') return 30;
+    if (topic.startsWith('project/') || category === 'project') return 20;
+    return 10;
+  };
+
+  const entities = candidates
+    .filter((m) => !episodeIds.has(m.id))
+    .sort((a, b) => anchorPriority(b) - anchorPriority(a))
+    .slice(0, Math.max(1, Number(maxEntities) || 2));
+
+  return [...episodes, ...entities];
+}
+
+/**
+ * Retrieve proactive anchors for an incoming turn.
+ * Accepts optional preloaded activeMemories to prevent redundant database queries.
+ */
+export async function getProactiveAnchors({ userId, activeMemories = null, maxEntities = 2, maxRecentEpisodes = 2 } = {}) {
+  if (!userId) return [];
+  try {
+    const active = Array.isArray(activeMemories)
+      ? activeMemories
+      : await getActiveMemories({ userId, limit: 30 });
+    return selectProactiveAnchors(active, { maxEntities, maxRecentEpisodes });
+  } catch (error) {
+    console.warn('[memoryService] getProactiveAnchors failed:', error.message);
+    return [];
+  }
+}
+
+/**
  * Retrieve only query-relevant durable memory for the foreground turn.
  * `limit` is the total prompt budget, not a semantic result count plus an
  * additional always-on profile. Relevance is delegated to the hybrid semantic

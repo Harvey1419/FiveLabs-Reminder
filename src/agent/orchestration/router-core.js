@@ -1,5 +1,6 @@
 import { callChatCompletion, callResponseSynthesis } from '../providers/client.js';
 import { retrieveRelevantMemories, retrieveStandingPreferences } from '../../features/memory/service.js';
+import * as memoryService from '../../features/memory/service.js';
 import {
   getDailyOverview,
   getUserSubscription,
@@ -354,10 +355,15 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   hydrateClarificationStateFromHistory(user, history);
   hydrateWorkingMemoryFromHistory(user, history, requestReferenceTime);
 
+  const getProactive = typeof memoryService.getProactiveAnchors === 'function'
+    ? memoryService.getProactiveAnchors
+    : () => Promise.resolve([]);
+
   const contextStart = Date.now();
-  const [relevantMemories, standingPreferences, dailyOverview, subscription, googleIntegration] = await Promise.all([
+  const [relevantMemories, standingPreferences, proactiveAnchors, dailyOverview, subscription, googleIntegration] = await Promise.all([
     retrieveRelevantMemories({ userId: user.id, queryText: messageText, limit: 3 }),
     user.id ? retrieveStandingPreferences({ userId: user.id, limit: 5 }) : Promise.resolve([]),
+    user.id ? getProactive({ userId: user.id, maxEntities: 2, maxRecentEpisodes: 2 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
     user.id ? getUserSubscription(user.id) : Promise.resolve(null),
     user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
@@ -368,11 +374,16 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const isPro = hasProAccess(effectiveSub, user);
   user.subscription = effectiveSub;
   user.isPro = isPro;
-  user.memories = relevantMemories || [];
+
+  // On zero-query greetings/check-ins, vector search yields 0 matches. Fallback to proactive anchors.
+  const effectiveMemories = (relevantMemories || []).length > 0
+    ? relevantMemories
+    : (proactiveAnchors || []).slice(0, 3);
+  user.memories = effectiveMemories;
   user.preferences = standingPreferences || [];
 
-  const memoryHints = (relevantMemories || []).length > 0
-    ? relevantMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
+  const memoryHints = effectiveMemories.length > 0
+    ? effectiveMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
     : '';
   const preferenceHints = (standingPreferences || []).length > 0
     ? standingPreferences.map((pref) => `- [${pref.category || 'preferencia'}] ${pref.content}`).join('\n')
