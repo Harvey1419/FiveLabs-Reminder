@@ -1002,13 +1002,13 @@ export async function sendWhatsAppTemplate({
         (errText.includes('132001') || errText.includes('does not exist in the translation') || errText.includes('does not exist in'))
       ) {
         console.warn(
-          `[kapso] template "${templateName}" does not exist in "${languageCode}". Falling back to approved language "es"...`
+          `[kapso] template "${templateName}" does not exist in "${languageCode}". Falling back to approved template "reminder_task_one_reminder" (es)...`
         );
         return await sendWhatsAppTemplate({
           phoneNumberId,
           phoneNumber: cleanPhone,
           bsuid: cleanBsuid,
-          templateName,
+          templateName: 'reminder_task_one_reminder',
           languageCode: 'es',
           parameters,
         });
@@ -1082,7 +1082,7 @@ export async function sendReminderMessage(recipient, content, {
   }
 
   const effectiveTemplate = isEnglish
-    ? (process.env.REMINDER_TEMPLATE_NAME_EN || templateName)
+    ? (process.env.REMINDER_TEMPLATE_NAME_EN || 'reminder_task_one_reminder_english')
     : templateName;
 
   // 2. Dispatch via pre-approved Meta Template (e.g. reminder_task_one_reminder)
