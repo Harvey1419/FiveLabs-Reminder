@@ -174,7 +174,7 @@ export function formatCanonicalAgenda(data = {}, {
   }
 
   if (events.length === 0 && reminders.length === 0 && tasks.length === 0) {
-    sections.push(isEn ? '✅ Nothing pending right now. Enjoy your day! ☕' : '✅ No tienes pendientes en este momento. ¡Tenés el día libre de compromisos! ☕');
+    sections.push(isEn ? '✅ Nothing pending right now. Enjoy your day! ☕' : '✅ No tienes pendientes en este momento. ¡Día completamente libre de compromisos! ☕');
   }
 
   return sections.join('\n\n');

@@ -273,7 +273,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
         userId: 'user-uuid-1',
       });
       // Check micro-dopamina celebration feedback
-      expect(mockState.dispatchedMessages.some((m) => m.content.includes('¡Golazo! 🎯 Tachaste'))).toBe(true);
+      expect(mockState.dispatchedMessages.some((m) => m.content.includes('¡Excelente! 🎯 Tachaste'))).toBe(true);
     });
 
     it('executes zero-LLM fast-path for list_reply rem:ack:<id>', async () => {

@@ -426,7 +426,7 @@ export function formatTaskCompletedCard(taskOrCount, language = 'es') {
 
     return language === 'en'
       ? `✅ *Task(s) Completed*\n\nAwesome! 🎯 Marked ${count} task(s) as done.`
-      : `✅ *Tarea(s) completada(s)*\n\n¡Golazo! 🎯 Se marcaron ${count} tarea(s) como realizada(s).`;
+      : `✅ *Tarea(s) completada(s)*\n\n¡Excelente! 🎯 Se marcaron ${count} tarea(s) como realizada(s).`;
   }
 
   const title = taskOrCount?.title || taskOrCount?.content || 'Tarea';
@@ -436,7 +436,7 @@ export function formatTaskCompletedCard(taskOrCount, language = 'es') {
   if (language === 'en') {
     return `✅ *Task completed*\n\nAwesome! 🎯 Crossed off *${title}*${projectTag}.`;
   }
-  return `✅ *Tarea completada*\n\n¡Golazo! 🎯 Tachaste *${title}*${projectTag}.`;
+  return `✅ *Tarea completada*\n\n¡Excelente! 🎯 Tachaste *${title}*${projectTag}.`;
 }
 
 export function formatEntityDeletedCard({

@@ -481,7 +481,7 @@ export async function handleWebhook(req, res) {
             const taskTitle = taskRecord?.title || taskRecord?.content || (isEnglishUser ? 'Task' : 'Tarea');
             const confirmText = isEnglishUser
               ? `✅ *Task completed*\n\nAwesome! 🎯 You crossed off *${taskTitle}*. One less thing on your plate.`
-              : `✅ *Tarea completada*\n\n¡Golazo! 🎯 Tachaste *${taskTitle}*. Un pendiente menos en tu agenda.`;
+              : `✅ *Tarea completada*\n\n¡Excelente! 🎯 Tachaste *${taskTitle}*. Un pendiente menos en tu agenda.`;
 
             await saveMessage({
               userId: user.id,

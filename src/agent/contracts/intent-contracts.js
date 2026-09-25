@@ -110,7 +110,7 @@ Eliminar recordatorios es reminder.cancel (uno por objetivo). reminder.acknowled
 PROYECTOS Y TAREAS: Pedir 'tareas'/'pendientes' fija domain="task"; si nombra contenedor ('tareas en X'/'para X'), emite task.list(entityName="X") aunque X coincida con un dominio (ej. 'reminder'). Proyectos usan project+task.create. Listar usa project.list; borrar project.delete(target="Nombre"); sin tareas project.delete(scope="no_tasks"). Tareas exigen task.list(entityName); NUNCA listes tareas en conversation.reply ni inventes conteos. Notas en task.update usan description; renombrar usa title/newName. Ordinales: task.delete target="1".
 CALENDARIO: Fechas usan calendar.list con scope (today, tomorrow, this_week, upcoming); eventos puntuales calendar.search con query (ej. query="daily") y scope; citas calendar.create (advanceMinutes=30; allDay=true); vincular calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 PREGUNTAS: Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas de dominio.
-Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas y husos.
+Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
 Datos faltantes usan missingFields y clarification.request. Recurrencia y advanceMinutes van en su recordatorio/evento. memory.save solo ante petición explícita.
 Mensajes mixtos emiten acciones válidas y no ejecutables en excluded. Lecturas entregan verdad en su card; NUNCA especules en conversation.reply.`;
 
