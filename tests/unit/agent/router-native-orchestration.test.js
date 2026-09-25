@@ -345,7 +345,7 @@ describe('Hermes direct TurnIntent router', () => {
       params: expect.objectContaining({ action: 'list' }),
     }));
     expect(result.confirmation).toContain('🔔 *Recordatorios pendientes*');
-    expect(result.confirmation).toContain('🕒');
+    expect(result.confirmation).toContain('🗓️');
     expect(result.confirmation).not.toContain('**');
   });
 

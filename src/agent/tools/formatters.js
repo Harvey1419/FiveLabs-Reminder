@@ -111,8 +111,8 @@ export function formatReminderCreateOutcomeCard({
       ? 'With *Reminder Pro* you can organize ahead:'
       : 'Con *Reminder Pro* puedes organizarte con anticipación:';
     const valuePoints = language === 'en'
-      ? ['🗓️ Schedule reminders for any day', '🔁 Repeat them automatically', '🌟 Organize your routine with more flexibility']
-      : ['🗓️ Programa recordatorios para cualquier día', '🔁 Repítelos automáticamente', '🌟 Organiza tu rutina con más flexibilidad'];
+      ? ['🗓️ Schedule reminders for any day', '🔁 Automate recurring routines & habits', '🧠 Your second brain: complete peace of mind']
+      : ['🗓️ Programa recordatorios para cualquier día', '🔁 Automatiza tus rutinas y hábitos recurrentes', '🧠 Tu segundo cerebro: paz mental garantizada'];
     const isStripe = Boolean(
       proUpgrade?.checkoutUrl?.includes('stripe.com')
       || proUpgrade?.fallbackCheckoutUrl?.includes('stripe.com')
@@ -420,13 +420,13 @@ export function formatTaskCompletedCard(taskOrCount, language = 'es') {
 
     if (entName) {
       return language === 'en'
-        ? `Done ✅ List completed: *${entName}* (${count} task${count === 1 ? '' : 's'}).`
-        : `Listo ✅ Lista completada: *${entName}* (${count} ${count === 1 ? 'tarea' : 'tareas'}).`;
+        ? `Done ✅ List completed: *${entName}* (${count} task${count === 1 ? '' : 's'}). Great pace! 🎯`
+        : `Listo ✅ Lista completada: *${entName}* (${count} ${count === 1 ? 'tarea' : 'tareas'}). ¡Excelente ritmo! 🎯`;
     }
 
     return language === 'en'
-      ? `✅ *Task(s) Completed*\n\nMarked ${count} task(s) as done.`
-      : `✅ *Tarea(s) completada(s)*\n\nSe marcaron ${count} tarea(s) como realizada(s).`;
+      ? `✅ *Task(s) Completed*\n\nAwesome! 🎯 Marked ${count} task(s) as done.`
+      : `✅ *Tarea(s) completada(s)*\n\n¡Golazo! 🎯 Se marcaron ${count} tarea(s) como realizada(s).`;
   }
 
   const title = taskOrCount?.title || taskOrCount?.content || 'Tarea';
@@ -434,9 +434,9 @@ export function formatTaskCompletedCard(taskOrCount, language = 'es') {
   const projectTag = entName ? `\n📂 *Proyecto:* ${entName}` : '';
 
   if (language === 'en') {
-    return `✅ *Task completed*\n\n*${title}*${projectTag}`;
+    return `✅ *Task completed*\n\nAwesome! 🎯 Crossed off *${title}*${projectTag}.`;
   }
-  return `✅ *Tarea completada*\n\n*${title}*${projectTag}`;
+  return `✅ *Tarea completada*\n\n¡Golazo! 🎯 Tachaste *${title}*${projectTag}.`;
 }
 
 export function formatEntityDeletedCard({

@@ -1,7 +1,16 @@
 import crypto from 'crypto';
 import { clearWorkingMemory } from '../../agent/core/working-memory.js';
 import { routeMessage } from '../../agent/orchestration/router.js';
-import { sendWhatsAppText, sendWhatsAppCtaUrl, sendWhatsAppFlow, sendTypingIndicator, downloadMedia, normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
+import {
+  sendWhatsAppText,
+  sendWhatsAppCtaUrl,
+  sendWhatsAppFlow,
+  sendWhatsAppQuickReplyButtons,
+  sendWhatsAppListMessage,
+  sendTypingIndicator,
+  downloadMedia,
+  normalizePhoneNumber,
+} from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
 import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
 import {
@@ -456,6 +465,120 @@ export async function handleWebhook(req, res) {
         }
       }
 
+      const listReply = interactiveObj?.list_reply || message.list_reply;
+      if (listReply?.id) {
+        const listId = String(listReply.id || '').trim();
+
+        if (listId.startsWith('task:done:')) {
+          const taskId = listId.replace('task:done:', '').trim();
+          try {
+            const res = await updateTask(taskId, { status: 'completed' }, user.id);
+            const taskRecord = res?.data || res;
+            if (taskRecord?.id) {
+              await acknowledgeRemindersByTaskId(taskRecord.id, user.id);
+            }
+            const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+            const taskTitle = taskRecord?.title || taskRecord?.content || (isEnglishUser ? 'Task' : 'Tarea');
+            const confirmText = isEnglishUser
+              ? `✅ *Task completed*\n\nAwesome! 🎯 You crossed off *${taskTitle}*. One less thing on your plate.`
+              : `✅ *Tarea completada*\n\n¡Golazo! 🎯 Tachaste *${taskTitle}*. Un pendiente menos en tu agenda.`;
+
+            await saveMessage({
+              userId: user.id,
+              phoneNumber: recipientIdentifier,
+              role: 'user',
+              content: listReply.title || taskTitle,
+              messageId: messageId || null,
+              intent: 'task_complete_list_click',
+              entities: { taskId },
+            });
+            touchUserLastActive(user.id, recipientIdentifier);
+
+            await sendWhatsAppText({
+              phoneNumberId,
+              phoneNumber,
+              bsuid,
+              text: confirmText,
+            });
+
+            await saveMessage({
+              userId: user.id,
+              phoneNumber: recipientIdentifier,
+              role: 'assistant',
+              content: confirmText,
+              intent: 'task_complete_list',
+              entities: { taskId },
+            });
+
+            console.log(`[webhook fast-path req=${correlationId}] task ${taskId} completed via list reply in ${Date.now() - queueEnqueueTime}ms`);
+            return;
+          } catch (taskErr) {
+            console.warn(`[webhook fast-path req=${correlationId}] task list click error:`, taskErr.message);
+          }
+        }
+
+        if (listId.startsWith('rem:ack:')) {
+          const reminderId = listId.replace('rem:ack:', '').trim();
+          const ackResult = await acknowledgeReminder(reminderId, user.id);
+          if (ackResult?.task_id) {
+            try {
+              await updateTask(ackResult.task_id, { status: 'completed' }, user.id);
+            } catch (taskErr) {
+              console.warn(`[webhook fast-path req=${correlationId}] task completion cascade warning:`, taskErr.message);
+            }
+          }
+          if (ackResult?.id && isIntradayRecurrence(ackResult.recurrence_rule)) {
+            try {
+              await supabase.from('reminders').update({ status: 'cancelled' }).eq('id', ackResult.id);
+            } catch (cancelErr) {
+              console.warn(`[webhook fast-path req=${correlationId}] intraday recurrence cancel warning:`, cancelErr.message);
+            }
+          }
+          try {
+            clearWorkingMemory(user);
+            if (phoneNumber) clearWorkingMemory(phoneNumber);
+          } catch (memErr) {
+            console.warn(`[webhook fast-path req=${correlationId}] clearWorkingMemory warning:`, memErr.message);
+          }
+          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          const confirmText = isEnglishUser
+            ? '✅ Great! I’ve marked this reminder as completed.'
+            : '✅ ¡Excelente! He marcado este recordatorio como completado.';
+
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'user',
+            content: listReply.title || (isEnglishUser ? 'Done' : 'Listo'),
+            messageId: messageId || null,
+            intent: 'reminder_ack_click',
+            entities: { reminderId },
+          });
+          touchUserLastActive(user.id, recipientIdentifier);
+
+          await sendWhatsAppText({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            text: confirmText,
+          });
+          await saveMessage({
+            userId: user.id,
+            phoneNumber: recipientIdentifier,
+            role: 'assistant',
+            content: confirmText,
+            intent: 'reminder_ack',
+            entities: { reminderId },
+          });
+          console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} acknowledged via list reply in ${Date.now() - queueEnqueueTime}ms`);
+          return;
+        }
+
+        if (listReply.title && !messageText) {
+          messageText = listReply.title;
+        }
+      }
+
       // Show typing indicator immediately
       if (messageId) {
         sendTypingIndicator(messageId, phoneNumberId).catch((err) => {
@@ -677,6 +800,27 @@ export async function handleWebhook(req, res) {
             bodyText: result.confirmation,
             buttonText: result.ctaButtonText || (ctaLanguage === 'en' ? 'Open link' : 'Abrir enlace'),
             url: result.ctaUrl,
+          });
+        } else if (result.buttons && Array.isArray(result.buttons) && result.buttons.length > 0) {
+          deliveryResult = await sendWhatsAppQuickReplyButtons({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            headerText: result.buttonsHeader || null,
+            bodyText: result.confirmation,
+            footerText: result.buttonsFooter || null,
+            buttons: result.buttons,
+          });
+        } else if (result.list && Array.isArray(result.list.sections) && result.list.sections.length > 0) {
+          deliveryResult = await sendWhatsAppListMessage({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            headerText: result.list.headerText || null,
+            bodyText: result.confirmation,
+            footerText: result.list.footerText || null,
+            buttonText: result.list.buttonText || (user?.locale?.startsWith('en') ? 'View options' : 'Ver opciones'),
+            sections: result.list.sections,
           });
         } else {
           deliveryResult = await sendWhatsAppText({

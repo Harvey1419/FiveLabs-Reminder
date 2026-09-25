@@ -348,6 +348,51 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
         global.fetch = originalFetch;
       }
     });
+
+    it('falls back to es template when Meta returns #132001 translation missing error for en_US', async () => {
+      const { sendReminderMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      const calls = [];
+
+      global.fetch = async (url, options) => {
+        const payload = JSON.parse(options.body);
+        calls.push({ url, payload });
+        if (payload.template?.language?.code === 'en_US') {
+          return {
+            ok: false,
+            status: 404,
+            text: async () => JSON.stringify({
+              error: {
+                message: '(#132001) Template name does not exist in the translation',
+                code: 132001,
+                error_data: { details: 'template name (reminder_task_one_reminder) does not exist in en_US' },
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.FALLBACK_ES_DISPATCH' }] }),
+        };
+      };
+
+      try {
+        const res = await sendReminderMessage('19547703868', '⏰ Recordatorio: Noche perfecta para soñar', {
+          forceTemplate: true,
+          language: 'en',
+          phoneNumberId: '597907523413541',
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.messageId).toBe('wamid.FALLBACK_ES_DISPATCH');
+        expect(calls).toHaveLength(2);
+        expect(calls[0].payload.template.language.code).toBe('en_US');
+        expect(calls[1].payload.template.language.code).toBe('es');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
   });
 
   describe('7. WhatsApp Interactive CTA URL Buttons', () => {
@@ -469,6 +514,144 @@ describe('Kapso WhatsApp Integration - Enterprise Test Suite', () => {
         expect(capturedPayloads[0].type).toBe('interactive');
         expect(capturedPayloads[1].type).toBe('text');
         expect(capturedPayloads[1].text.body).toBe('📁 *reminder* · 1 tarea\n\n1. Comprar café');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
+  describe('11. Interactive List Messages (Meta Cloud API Compliance)', () => {
+    it('constructs compliant Meta Cloud API interactive list payload', async () => {
+      const { sendWhatsAppListMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.LIST_OK_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppListMessage({
+          phoneNumber: '573046154163',
+          headerText: '📋 Tareas pendientes',
+          bodyText: 'Aquí tienes tus tareas pendientes para hoy:',
+          buttonText: 'Gestionar tareas',
+          sections: [
+            {
+              title: 'Hoy',
+              rows: [
+                { id: 'task:done:1', title: 'Comprar leche', description: 'Deslactosada' },
+                { id: 'task:done:2', title: 'Revisar PR #42', description: 'En GitHub' },
+              ],
+            },
+          ],
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayload.type).toBe('interactive');
+        expect(capturedPayload.interactive.type).toBe('list');
+        expect(capturedPayload.interactive.action.button).toBe('Gestionar tareas');
+        expect(capturedPayload.interactive.header.text).toBe('📋 Tareas pendientes');
+        expect(capturedPayload.interactive.action.sections).toHaveLength(1);
+        expect(capturedPayload.interactive.action.sections[0].title).toBe('Hoy');
+        expect(capturedPayload.interactive.action.sections[0].rows).toHaveLength(2);
+        expect(capturedPayload.interactive.action.sections[0].rows[0].id).toBe('task:done:1');
+        expect(capturedPayload.interactive.action.sections[0].rows[0].title).toBe('Comprar leche');
+        expect(capturedPayload.interactive.action.sections[0].rows[0].description).toBe('Deslactosada');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('enforces Meta Cloud API limits: truncates button, section titles, row titles, and limits to 10 rows', async () => {
+      const { sendWhatsAppListMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      let capturedPayload = null;
+
+      global.fetch = async (url, options) => {
+        capturedPayload = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.LIST_LIMITS_123' }] }),
+        };
+      };
+
+      try {
+        // Create 15 rows to test 10-row cap
+        const longRows = Array.from({ length: 15 }, (_, i) => ({
+          id: `task:done:${i + 1}`,
+          title: `Esta es una tarea con título extremadamente largo número ${i + 1}`,
+          description: `Esta es una descripción larguísima que sobrepasa con creces los setenta y dos caracteres permitidos por la API oficial de Meta para rows en List Messages.`,
+        }));
+
+        const res = await sendWhatsAppListMessage({
+          phoneNumber: '573046154163',
+          buttonText: 'Este botón supera los 20 caracteres holgadamente',
+          bodyText: 'Tareas con límites estrictos:',
+          sections: [
+            {
+              title: 'Título de sección superlargo que supera los 24 caracteres',
+              rows: longRows,
+            },
+          ],
+        });
+
+        expect(res.success).toBe(true);
+        // Button max 20 chars
+        expect(capturedPayload.interactive.action.button.length).toBeLessThanOrEqual(20);
+        // Section title max 24 chars
+        expect(capturedPayload.interactive.action.sections[0].title.length).toBeLessThanOrEqual(24);
+        // Max 10 rows total
+        expect(capturedPayload.interactive.action.sections[0].rows).toHaveLength(10);
+        // Row title max 24 chars
+        expect(capturedPayload.interactive.action.sections[0].rows[0].title.length).toBeLessThanOrEqual(24);
+        // Row description max 72 chars
+        expect(capturedPayload.interactive.action.sections[0].rows[0].description.length).toBeLessThanOrEqual(72);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('falls back to sendWhatsAppText if List interactive payload is rejected by API', async () => {
+      const { sendWhatsAppListMessage } = await import('../../../src/integrations/whatsapp/kapso-client.js');
+      const originalFetch = global.fetch;
+      const capturedPayloads = [];
+
+      global.fetch = async (url, options) => {
+        const body = JSON.parse(options.body);
+        capturedPayloads.push(body);
+        if (body.type === 'interactive') {
+          return {
+            ok: false,
+            status: 400,
+            text: async () => JSON.stringify({ error: { message: 'List message rejected' } }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: [{ id: 'wamid.LIST_FALLBACK_123' }] }),
+        };
+      };
+
+      try {
+        const res = await sendWhatsAppListMessage({
+          phoneNumber: '573046154163',
+          bodyText: 'Lista de pendientes',
+          sections: [{ title: 'Hoy', rows: [{ id: '1', title: 'Tarea 1' }] }],
+        });
+
+        expect(res.success).toBe(true);
+        expect(capturedPayloads).toHaveLength(2);
+        expect(capturedPayloads[0].type).toBe('interactive');
+        expect(capturedPayloads[1].type).toBe('text');
+        expect(capturedPayloads[1].text.body).toBe('Lista de pendientes');
       } finally {
         global.fetch = originalFetch;
       }

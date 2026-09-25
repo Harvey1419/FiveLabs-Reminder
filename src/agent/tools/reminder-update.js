@@ -13,6 +13,7 @@ import {
 } from '../../shared/time.js';
 import { resolveContextReference } from '../core/context-reference.js';
 import { isStrictUUID } from '../../shared/entity-resolution.js';
+import { PRESENTATION_TOKENS } from '../../shared/presentation-tokens.js';
 import { formatReminderUpdatedCard } from './formatters.js';
 import {
   REMINDER_PRO_FALLBACK,
@@ -221,7 +222,7 @@ export async function executeReminderUpdate({
       const timeVal = cand.time || cand.send_at || cand.localTime || null;
       const timeStr = timeVal ? formatHumanFriendlyDateTime(new Date(timeVal), timezone, language) : '';
       const content = cand.summary || cand.title || cand.content || 'Recordatorio';
-      return `${idx + 1}. *${content}*${timeStr ? `\n   🕒 ${timeStr}` : ''}`;
+      return `${idx + 1}. *${content}*${timeStr ? `\n   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeStr}` : ''}`;
     }).join('\n\n');
 
     const formattedCard = language === 'en'

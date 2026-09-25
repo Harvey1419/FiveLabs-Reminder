@@ -1,4 +1,5 @@
 import { formatHumanFriendlyDateTime } from './time.js';
+import { PRESENTATION_TOKENS } from './presentation-tokens.js';
 
 function normalizeRecurrence(value) {
   return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -81,7 +82,7 @@ function renderCreateGroup({ main, advance }, { language, timezone }) {
   const primaryIcon = recurrence ? '🔁' : (main?.isAdvanceNotice ? '🔔' : '⏰');
   const lines = [`${primaryIcon} *${content}*`];
 
-  if (timeDisplay) lines.push(`   🕒 ${timeDisplay}`);
+  if (timeDisplay) lines.push(`   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
   if (recurrenceLabel) lines.push(`   🔁 ${recurrenceLabel}`);
 
   if (advance) {
@@ -158,7 +159,7 @@ export function formatCanonicalReminderUpdate(data, {
     '',
     `⏰ *${content}*`,
   ];
-  if (timeDisplay) lines.push(`🕒 ${timeDisplay}`);
+  if (timeDisplay) lines.push(`${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
   if (recurrenceLabel) lines.push(`🔁 ${recurrenceLabel}`);
   return lines.join('\n');
 }
@@ -240,7 +241,7 @@ export function formatCanonicalReminderList(data, {
       ? (language === 'en' ? ' · recurring' : ' · recurrente')
       : '';
     const lines = [`${index + 1}. *${content}*${recurrenceSuffix}`];
-    if (timeDisplay) lines.push(`   🕒 ${timeDisplay}`);
+    if (timeDisplay) lines.push(`   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
     return lines.join('\n');
   });
 

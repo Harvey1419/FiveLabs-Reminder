@@ -1,4 +1,5 @@
 import { formatHumanFriendlyDateTime } from './time.js';
+import { PRESENTATION_TOKENS } from './presentation-tokens.js';
 import { formatTaskProjectGroups, getTaskTime, formatTaskNotesBadge } from './task-presentation.js';
 import { isAllPendingScope, normalizeAgendaScope, normalizeTaskScope } from './agenda-scopes.js';
 
@@ -157,7 +158,7 @@ export function formatCanonicalAgenda(data = {}, {
       const recurrent = reminder.recurrenceRule || reminder.recurrence_rule
         ? (isEn ? ' · recurring' : ' · recurrente')
         : '';
-      return `${index + 1}. ${reminder.content || reminder.title || (isEn ? 'Reminder' : 'Recordatorio')}${recurrent}${time ? `\n   🕒 ${time}` : ''}`;
+      return `${index + 1}. ${reminder.content || reminder.title || (isEn ? 'Reminder' : 'Recordatorio')}${recurrent}${time ? `\n   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${time}` : ''}`;
     });
     sections.push(`🔔 *${isEn ? 'Reminders' : 'Recordatorios'} · ${reminders.length}*\n${lines.join('\n')}`);
   }

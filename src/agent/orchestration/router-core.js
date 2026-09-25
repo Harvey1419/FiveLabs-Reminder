@@ -666,6 +666,15 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   }
 
   if (!collected.intent) {
+    if (decision.unavailable || decision.unavailableReason) {
+      saveWorkingMemory(workingMemoryKey, {
+        source: 'system',
+        lastAction: 'provider_failure',
+        infraFault: true,
+        faultReason: decision.unavailableReason || 'provider_unavailable',
+      });
+    }
+
     const confirmation = decision.refused
       ? (language === 'en' ? 'I cannot complete that request. I did not execute any action.' : 'No puedo completar esa solicitud. No ejecuté ninguna acción.')
       : decision.unavailable
@@ -815,6 +824,10 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
   const ctaRecord = execution.records.find(({ result }) => result?.ctaUrl || result?.data?.auth_url || result?.data?.checkout_url) || null;
   const flowFact = execution.facts.find((fact) => fact.flow) || null;
   const flowRecord = execution.records.find(({ result }) => result?.flow) || null;
+  const buttonsFact = execution.facts.find((fact) => Array.isArray(fact.buttons) && fact.buttons.length > 0) || null;
+  const buttonsRecord = execution.records.find(({ result }) => Array.isArray(result?.buttons) && result.buttons.length > 0) || null;
+  const listFact = execution.facts.find((fact) => fact.list?.sections) || null;
+  const listRecord = execution.records.find(({ result }) => result?.list?.sections) || null;
 
   console.log(`[router req=${requestId}] action out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms tools=${toolElapsedMs}ms actions=${runtimeIntent.actions.length})`);
 
@@ -830,6 +843,8 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ctaHeader: ctaFact?.ctaHeader || ctaRecord?.result?.ctaHeader || null,
     ctaButtonText: ctaFact?.ctaButtonText || ctaRecord?.result?.ctaButtonText || null,
     flow: flowFact?.flow || flowRecord?.result?.flow || null,
+    buttons: buttonsFact?.buttons || buttonsRecord?.result?.buttons || null,
+    list: listFact?.list || listRecord?.result?.list || null,
     plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
     executionFacts: execution.facts,
     memoryDisposition: 'skip_operational',

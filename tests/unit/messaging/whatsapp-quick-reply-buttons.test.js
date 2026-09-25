@@ -7,6 +7,8 @@ const mockState = vi.hoisted(() => ({
   updatedReminders: [],
   updatedTasks: [],
   sentTexts: [],
+  sentButtons: [],
+  sentLists: [],
 }));
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
@@ -15,13 +17,14 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
     mockState.acknowledgedReminders.push({ id, userId });
     return { id, user_id: userId, task_id: 'linked-task-uuid-1', status: 'sent', acknowledged_at: new Date().toISOString() };
   }),
+  acknowledgeRemindersByTaskId: vi.fn(async () => []),
   updateReminder: vi.fn(async (id, updates, userId, phone) => {
     mockState.updatedReminders.push({ id, updates, userId, phone });
     return { id, ...updates };
   }),
   updateTask: vi.fn(async (id, updates, userId) => {
     mockState.updatedTasks.push({ id, updates, userId });
-    return { id, ...updates };
+    return { id, title: 'Comprar café', ...updates };
   }),
   getReminderConfirmationPreference: vi.fn(async (userId) => {
     if (userId === 'user-with-pref') {
@@ -55,6 +58,7 @@ vi.mock('../../../src/infrastructure/database/messages.js', () => ({
 vi.mock('../../../src/agent/orchestration/router.js', () => ({
   routeMessage: vi.fn(async () => ({
     text: 'routed response',
+    confirmation: 'routed response',
     state: {},
   })),
 }));
@@ -233,6 +237,147 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
 
       expect(routeMessage).not.toHaveBeenCalled();
       expect(mockState.dispatchedMessages.some((m) => m.content.includes('completed'))).toBe(true);
+    });
+
+    it('executes zero-LLM fast-path for list_reply task:done:<id> with micro-dopamina feedback', async () => {
+      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
+
+      const req = {
+        headers: {},
+        body: {
+          message: {
+            id: 'wamid.LIST_TASK_DONE',
+            from: '573046154163',
+            type: 'interactive',
+            interactive: {
+              type: 'list_reply',
+              list_reply: {
+                id: 'task:done:task-uuid-42',
+                title: 'Comprar café',
+                description: 'Tostado medio',
+              },
+            },
+          },
+          phone_number_id: 'phone-123',
+        },
+      };
+
+      await handleWebhook(req, responseStub());
+
+      expect(routeMessage).not.toHaveBeenCalled();
+      expect(mockState.updatedTasks.length).toBe(1);
+      expect(mockState.updatedTasks[0]).toEqual({
+        id: 'task-uuid-42',
+        updates: { status: 'completed' },
+        userId: 'user-uuid-1',
+      });
+      // Check micro-dopamina celebration feedback
+      expect(mockState.dispatchedMessages.some((m) => m.content.includes('¡Golazo! 🎯 Tachaste'))).toBe(true);
+    });
+
+    it('executes zero-LLM fast-path for list_reply rem:ack:<id>', async () => {
+      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
+
+      const req = {
+        headers: {},
+        body: {
+          message: {
+            id: 'wamid.LIST_REM_ACK',
+            from: '573046154163',
+            type: 'interactive',
+            interactive: {
+              type: 'list_reply',
+              list_reply: {
+                id: 'rem:ack:rem-uuid-99',
+                title: 'Tomar pastilla',
+              },
+            },
+          },
+          phone_number_id: 'phone-123',
+        },
+      };
+
+      await handleWebhook(req, responseStub());
+
+      expect(routeMessage).not.toHaveBeenCalled();
+      expect(mockState.acknowledgedReminders.length).toBe(1);
+      expect(mockState.acknowledgedReminders[0].id).toBe('rem-uuid-99');
+      expect(mockState.dispatchedMessages.some((m) => m.content.includes('¡Excelente! He marcado este recordatorio'))).toBe(true);
+    });
+  });
+
+  describe('Router Buttons & List Outbound Dispatch', () => {
+    it('dispatches sendWhatsAppQuickReplyButtons when router returns buttons', async () => {
+      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
+
+      routeMessage.mockResolvedValueOnce({
+        confirmation: '¿Deseas confirmar la eliminación?',
+        buttons: [
+          { id: 'btn_confirm', title: '✅ Confirmar' },
+          { id: 'btn_cancel', title: '❌ Cancelar' },
+        ],
+      });
+
+      const req = {
+        headers: {},
+        body: {
+          message: {
+            id: 'wamid.INBOUND_DELETE',
+            from: '573046154163',
+            text: { body: 'Eliminar proyectos' },
+          },
+          phone_number_id: 'phone-123',
+        },
+      };
+
+      await handleWebhook(req, responseStub());
+
+      const btnCall = mockState.fetchCalls.find((c) => c.body?.interactive?.type === 'button');
+      expect(btnCall).toBeDefined();
+      expect(btnCall.body.interactive.action.buttons).toHaveLength(2);
+      expect(btnCall.body.interactive.action.buttons[0].reply.title).toBe('✅ Confirmar');
+      expect(btnCall.body.interactive.action.buttons[1].reply.title).toBe('❌ Cancelar');
+    });
+
+    it('dispatches sendWhatsAppListMessage when router returns list', async () => {
+      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
+
+      routeMessage.mockResolvedValueOnce({
+        confirmation: '📋 *Tus tareas pendientes*',
+        list: {
+          buttonText: 'Gestionar tareas',
+          sections: [
+            {
+              title: 'Tareas',
+              rows: [{ id: 'task:done:1', title: 'Comprar café' }],
+            },
+          ],
+        },
+      });
+
+      const req = {
+        headers: {},
+        body: {
+          message: {
+            id: 'wamid.INBOUND_TASKS',
+            from: '573046154163',
+            text: { body: '¿Qué tareas tengo?' },
+          },
+          phone_number_id: 'phone-123',
+        },
+      };
+
+      await handleWebhook(req, responseStub());
+
+      const listCall = mockState.fetchCalls.find((c) => c.body?.interactive?.type === 'list');
+      expect(listCall).toBeDefined();
+      expect(listCall.body.interactive.action.button).toBe('Gestionar tareas');
+      expect(listCall.body.interactive.action.sections[0].rows).toHaveLength(1);
+      expect(listCall.body.interactive.action.sections[0].rows[0].id).toBe('task:done:1');
     });
   });
 

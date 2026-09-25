@@ -22,9 +22,30 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
 
-export function isEnglishReminder(reminder) {
-  if (reminder?.locale) return reminder.locale.startsWith('en');
-  if (reminder?.users?.locale) return reminder.users.locale.startsWith('en');
+export async function resolveReminderLocale(reminder) {
+  if (reminder?.locale) return reminder.locale;
+  if (reminder?.users?.locale) return reminder.users.locale;
+  if (reminder?.user_id) {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('locale')
+        .eq('id', reminder.user_id)
+        .maybeSingle();
+      if (data?.locale) return data.locale;
+    } catch {
+      // ignore and fall back
+    }
+  }
+  if (reminder?.phone_number) {
+    return detectLocaleFromPhone(reminder.phone_number);
+  }
+  return 'es-CO';
+}
+
+export function isEnglishReminder(reminder, resolvedLocale = null) {
+  const loc = resolvedLocale || reminder?.locale || reminder?.users?.locale;
+  if (loc) return loc.startsWith('en');
   if (reminder?.phone_number) return detectLocaleFromPhone(reminder.phone_number) === 'en-US';
   return false;
 }
@@ -222,7 +243,8 @@ export async function checkAndDispatchNudges() {
       const nextCount = (reminder.nudge_count || 0) + 1;
       const cleanText = stripReminderPrefix(reminder.content);
       const isTask = Boolean(reminder.task_id);
-      const isEnglish = isEnglishReminder(reminder);
+      const resolvedLocale = await resolveReminderLocale(reminder);
+      const isEnglish = isEnglishReminder(reminder, resolvedLocale);
       const nudgeMessage = isEnglish
         ? (reminder.task_id
             ? `🔔 Were you able to complete the task: *${cleanText}*? (Notice #${nextCount}). Tap 'Done' or reply when finished.`
@@ -310,7 +332,8 @@ export async function processReminder(reminder) {
       reminder.created_at || null,
     );
 
-    const isEnglish = isEnglishReminder(reminder);
+    const resolvedLocale = await resolveReminderLocale(reminder);
+    const isEnglish = isEnglishReminder(reminder, resolvedLocale);
 
     let includeButtons = true;
     let effectiveRequiresConfirmation = reminder.requires_confirmation;

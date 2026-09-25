@@ -187,7 +187,16 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
 
 export function formatWorkingMemoryPrompt(userOrPhone) {
   const wm = getWorkingMemory(userOrPhone);
-  if (!wm || !wm.items || wm.items.length === 0) return '';
+  if (!wm) return '';
+
+  if (wm.infraFault) {
+    return [
+      '[INCIDENCIA DE RED EN TURNO PREVIO]',
+      'El turno inmediatamente anterior falló debido a una interrupción temporal de red/infraestructura del proveedor LLM. NO inventes causas funcionales (como que no había recordatorios o tareas). Si el usuario pregunta qué pasó, responde con naturalidad y honestidad que hubo un microcorte momentáneo de conexión con la IA y que por favor repita su mensaje.',
+    ].join('\n');
+  }
+
+  if (!wm.items || wm.items.length === 0) return '';
 
   const lines = wm.items.slice(0, 10).map((it) => {
     const typeLabel = it.type === 'calendar_event'

@@ -249,7 +249,7 @@ function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
       stage: 'primary',
       model: config.primary,
       providers: config.primaryProviders,
-      timeoutMs: positiveNumber(process.env.OPENROUTER_PRIMARY_TIMEOUT_MS, 9000),
+      timeoutMs: positiveNumber(process.env.OPENROUTER_PRIMARY_TIMEOUT_MS, 6000),
       reasoning: {
         effort: process.env.OPENROUTER_PRIMARY_REASONING_EFFORT || 'medium',
         exclude: true,
@@ -264,7 +264,7 @@ function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
       stage: 'secondary',
       model: strictStructuredOutput ? config.strictSecondary : config.secondary,
       providers: strictStructuredOutput ? config.strictSecondaryProviders : config.secondaryProviders,
-      timeoutMs: positiveNumber(process.env.OPENROUTER_SECONDARY_TIMEOUT_MS, 15000),
+      timeoutMs: positiveNumber(process.env.OPENROUTER_SECONDARY_TIMEOUT_MS, 3500),
       reasoning: {
         effort: strictStructuredOutput
           ? process.env.OPENROUTER_STRICT_SECONDARY_REASONING_EFFORT || 'medium'
@@ -283,7 +283,7 @@ function createForegroundProfiles({ strictStructuredOutput = false } = {}) {
       providers: strictStructuredOutput ? config.strictLastResortProviders : config.lastResortProviders,
       timeoutMs: positiveNumber(
         strictStructuredOutput ? process.env.OPENROUTER_STRICT_FALLBACK_TIMEOUT_MS : process.env.OPENROUTER_LAST_RESORT_TIMEOUT_MS,
-        20000,
+        3500,
       ),
       reasoning: strictStructuredOutput ? {
         effort: process.env.OPENROUTER_STRICT_FALLBACK_REASONING_EFFORT || 'low',

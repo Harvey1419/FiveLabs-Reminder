@@ -62,11 +62,37 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       };
     }
 
+    let list = null;
+    if (!flow && Array.isArray(data.tasks) && data.tasks.length > 0) {
+      const taskRows = data.tasks.slice(0, 10).map((task) => {
+        const title = String(task.title || task.content || (language === 'en' ? 'Task' : 'Tarea')).trim();
+        const shortTitle = title.length > 24 ? `${title.slice(0, 21)}...` : title;
+        const notes = String(task.description || task.notes || '').trim();
+        return {
+          id: `task:done:${task.id}`.slice(0, 200),
+          title: shortTitle.slice(0, 24),
+          ...(notes ? { description: notes.slice(0, 72) } : {}),
+        };
+      });
+
+      list = {
+        buttonText: (language === 'en' ? 'Manage tasks' : 'Gestionar tareas').slice(0, 20),
+        headerText: (language === 'en' ? '📋 Pending tasks' : '📋 Tareas pendientes').slice(0, 60),
+        sections: [
+          {
+            title: (language === 'en' ? 'Select to complete' : 'Toca para completar').slice(0, 24),
+            rows: taskRows,
+          },
+        ],
+      };
+    }
+
     return {
       success: true,
       action: 'listed_tasks',
       data,
       flow,
+      list,
       rawSummary: language === 'en' ? 'Tasks loaded.' : 'Tareas consultadas.',
     };
   } catch (error) {

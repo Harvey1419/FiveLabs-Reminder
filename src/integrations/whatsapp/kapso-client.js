@@ -608,6 +608,177 @@ export async function sendWhatsAppQuickReplyButtons({
 }
 
 /**
+ * Send WhatsApp Interactive List Message (up to 10 rows total, up to 10 sections).
+ * Follows official Meta Cloud API constraints:
+ * - action.button: max 20 chars
+ * - sections: max 10 sections
+ * - sections[].title: max 24 chars
+ * - rows: max 10 rows total across all sections
+ * - rows[].id: max 200 chars
+ * - rows[].title: max 24 chars
+ * - rows[].description: max 72 chars
+ * - body.text: max 4096 chars
+ * - header.text: max 60 chars
+ * - footer.text: max 60 chars
+ *
+ * @param {object} params
+ * @param {string|null} [params.phoneNumberId]
+ * @param {string|null} [params.phoneNumber]
+ * @param {string|null} [params.bsuid]
+ * @param {string|null} [params.headerText]
+ * @param {string} params.bodyText
+ * @param {string|null} [params.footerText]
+ * @param {string} [params.buttonText='Ver opciones']
+ * @param {Array<{title: string, rows: Array<{id: string, title: string, description?: string}>}>} params.sections
+ * @returns {Promise<{success: boolean, messageId?: string, data?: any, error?: string}>}
+ */
+export async function sendWhatsAppListMessage({
+  phoneNumberId = null,
+  phoneNumber = null,
+  bsuid = null,
+  headerText = null,
+  bodyText,
+  footerText = 'Hermes TempleLabs',
+  buttonText = 'Ver opciones',
+  sections = [],
+}) {
+  const apiKey = process.env.KAPSO_API_KEY;
+  if (!apiKey) {
+    throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
+  }
+
+  const activePhoneId = String(
+    phoneNumberId ||
+    process.env.KAPSO_PHONE_NUMBER_ID ||
+    process.env.KAPSO_PRODUCTION_PHONE_NUMBER_ID ||
+    DEFAULT_PHONE_NUMBER_ID
+  ).trim();
+
+  const cleanPhone = normalizePhoneNumber(phoneNumber);
+  const cleanBsuid = bsuid && typeof bsuid === 'string' && bsuid.trim().length > 0 ? bsuid.trim() : null;
+
+  if (!cleanPhone && !cleanBsuid) {
+    throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
+  }
+
+  // Enforce Meta constraints: max 10 rows total across all sections, max 10 sections
+  let totalRows = 0;
+  const formattedSections = [];
+
+  for (const section of (Array.isArray(sections) ? sections : []).slice(0, 10)) {
+    if (totalRows >= 10) break;
+    const remainingBudget = 10 - totalRows;
+    const sectionRows = (Array.isArray(section.rows) ? section.rows : []).slice(0, remainingBudget).map((row, idx) => ({
+      id: String(row.id || `row_${totalRows + idx + 1}`).slice(0, 200),
+      title: String(row.title || 'Opción').slice(0, 24),
+      ...(row.description ? { description: String(row.description).slice(0, 72) } : {}),
+    }));
+
+    if (sectionRows.length > 0) {
+      formattedSections.push({
+        title: String(section.title || 'Opciones').slice(0, 24),
+        rows: sectionRows,
+      });
+      totalRows += sectionRows.length;
+    }
+  }
+
+  // If no sections or rows, fall back directly to text
+  if (formattedSections.length === 0 || totalRows === 0) {
+    return await sendWhatsAppText({
+      phoneNumberId,
+      phoneNumber: cleanPhone,
+      bsuid: cleanBsuid,
+      text: bodyText,
+    });
+  }
+
+  const interactivePayload = {
+    type: 'list',
+    body: { text: String(bodyText || '').slice(0, 4096) },
+    action: {
+      button: String(buttonText || 'Ver opciones').slice(0, 20),
+      sections: formattedSections,
+    },
+  };
+
+  if (headerText) {
+    interactivePayload.header = {
+      type: 'text',
+      text: String(headerText).slice(0, 60),
+    };
+  }
+
+  if (footerText) {
+    interactivePayload.footer = {
+      text: String(footerText).slice(0, 60),
+    };
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    type: 'interactive',
+    interactive: interactivePayload,
+  };
+
+  if (cleanPhone) {
+    payload.to = cleanPhone;
+  } else {
+    payload.recipient_type = 'individual';
+    payload.to = cleanBsuid;
+  }
+
+  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const messageId = data.messages?.[0]?.id || 'unknown';
+      if (messageId && messageId !== 'unknown') {
+        markAsProcessed(messageId);
+      }
+      console.log(`[kapso] sent interactive list message ok to=${cleanPhone || cleanBsuid} messageId=${messageId} rows=${totalRows}`);
+      return { success: true, messageId, data };
+    }
+
+    const errText = await response.text();
+    console.warn(`[kapso] Interactive list message rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
+    try {
+      return await sendWhatsAppText({
+        phoneNumberId,
+        phoneNumber: cleanPhone,
+        bsuid: cleanBsuid,
+        text: bodyText,
+      });
+    } catch (fallbackErr) {
+      return { success: false, error: fallbackErr.message };
+    }
+  } catch (err) {
+    console.warn(`[kapso] Interactive list message error: ${err.message}, falling back to text...`);
+    try {
+      return await sendWhatsAppText({
+        phoneNumberId,
+        phoneNumber: cleanPhone,
+        bsuid: cleanBsuid,
+        text: bodyText,
+      });
+    } catch (fallbackErr) {
+      return { success: false, error: fallbackErr.message };
+    }
+  }
+}
+
+/**
  * Backward compatibility helper for routers and scheduler.
  */
 export async function sendReminderConfirmation(recipient, message, { phoneNumberId = null } = {}) {
@@ -824,6 +995,25 @@ export async function sendWhatsAppTemplate({
         throw new KapsoAuthError('Invalid or unauthorized KAPSO_API_KEY.', status);
       }
 
+      // Check if template translation is missing (#132001) and we requested a non-default language
+      if (
+        (status === 404 || status === 400) &&
+        languageCode !== 'es' &&
+        (errText.includes('132001') || errText.includes('does not exist in the translation') || errText.includes('does not exist in'))
+      ) {
+        console.warn(
+          `[kapso] template "${templateName}" does not exist in "${languageCode}". Falling back to approved language "es"...`
+        );
+        return await sendWhatsAppTemplate({
+          phoneNumberId,
+          phoneNumber: cleanPhone,
+          bsuid: cleanBsuid,
+          templateName,
+          languageCode: 'es',
+          parameters,
+        });
+      }
+
       console.warn(`[kapso] template dispatch HTTP ${status}:`, errText.slice(0, 150));
       return { success: false, status, error: errText };
 
@@ -891,12 +1081,16 @@ export async function sendReminderMessage(recipient, content, {
     console.log(`[kapso] Recipient ${str} is outside 24h window. Dispatching via approved template "${templateName}"...`);
   }
 
+  const effectiveTemplate = isEnglish
+    ? (process.env.REMINDER_TEMPLATE_NAME_EN || templateName)
+    : templateName;
+
   // 2. Dispatch via pre-approved Meta Template (e.g. reminder_task_one_reminder)
   return await sendWhatsAppTemplate({
     phoneNumberId,
     phoneNumber: isBsuid ? null : str,
     bsuid: isBsuid ? str : null,
-    templateName,
+    templateName: effectiveTemplate,
     languageCode: isEnglish ? 'en_US' : 'es',
     parameters: [cleanContent],
   });

@@ -912,6 +912,12 @@ export async function executeTurnIntent(intent, context) {
           question: result.error || result.rawSummary,
           context: { previewEntities: items, isProject },
         });
+
+        const approvalButtons = [
+          { id: 'btn_confirm', title: context.language === 'en' ? '✅ Confirm' : '✅ Confirmar' },
+          { id: 'btn_cancel', title: context.language === 'en' ? '❌ Cancel' : '❌ Cancelar' },
+        ];
+        result.buttons = approvalButtons;
       }
     }
 
@@ -956,6 +962,17 @@ export async function executeTurnIntent(intent, context) {
       question: questions.join('\n') || (context.language === 'en' ? 'Do you want me to schedule these reminders?' : '¿Deseas programar estos recordatorios?'),
       context: { proposedReminders: allProposedReminders },
       referenceTime: context.referenceTime,
+    });
+
+    const approvalButtons = [
+      { id: 'btn_confirm', title: context.language === 'en' ? '✅ Confirm' : '✅ Confirmar' },
+      { id: 'btn_reschedule', title: context.language === 'en' ? '✏️ Reschedule' : '✏️ Cambiar hora' },
+      { id: 'btn_cancel', title: context.language === 'en' ? '❌ Cancel' : '❌ Cancelar' },
+    ];
+    records.forEach(({ result }) => {
+      if (Array.isArray(result?.data?.pendingClarifications)) {
+        result.buttons = approvalButtons;
+      }
     });
   }
 
