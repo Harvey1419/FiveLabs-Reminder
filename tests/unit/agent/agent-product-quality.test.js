@@ -80,6 +80,20 @@ describe('Hermes product-quality core', () => {
     expect(prompt).not.toContain('manifest');
   });
 
+  it('instructs Hermes with authoritative clock grounding to avoid time and date hallucinations', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-09-24T20:15:33-05:00',
+      nowHumanStr: 'jueves, 24 de septiembre, 8:15 p. m.',
+      timezone: 'America/Bogota',
+      displayName: 'Harvey',
+    });
+
+    expect(prompt).toContain('Reloj y Fecha Actual: Tu única referencia temporal autorizada es la "Hora local"');
+    expect(prompt).toContain('jueves, 24 de septiembre, 8:15 p. m.');
+    expect(prompt).toContain('America/Bogota');
+    expect(prompt).toContain('Jamás calcules, inventes ni asumas una hora o fecha diferente');
+  });
+
   it('renders user preferences and directives into the prompt for standing rules', () => {
     const prompt = buildAgentCorePrompt({
       nowStr: '2026-09-07T10:00:00-05:00',
