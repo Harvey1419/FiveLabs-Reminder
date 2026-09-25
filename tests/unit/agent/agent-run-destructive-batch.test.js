@@ -168,7 +168,10 @@ describe('PR 2: Destructive Batch Entity Deletion via AgentRun (Flows B & C)', (
 
     expect(turn2Result.plan.type).toBe('approval_decision');
     expect(turn2Result.plan.decision).toBe('approve_all');
-    expect(turn2Result.confirmation).toContain('Listo, eliminé los dos proyectos.');
+    expect(turn2Result.confirmation).toContain('2 proyectos eliminados');
+    expect(turn2Result.confirmation).toContain('Proyecto Alfa');
+    expect(turn2Result.confirmation).toContain('Proyecto Beta');
+    expect(turn2Result.confirmation).not.toContain('Listo, eliminé los dos proyectos.');
 
     // Invariant 1: executeTool was called with EXACT frozen UUIDs, not fuzzy text names
     expect(executeTool).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -229,7 +232,9 @@ describe('PR 2: Destructive Batch Entity Deletion via AgentRun (Flows B & C)', (
 
     expect(turn2Result.plan.type).toBe('approval_decision');
     expect(turn2Result.plan.decision).toBe('approve_subset');
-    expect(turn2Result.confirmation).toContain('solo eliminé Proyecto Alfa');
+    expect(turn2Result.confirmation).toContain('Proyecto eliminado');
+    expect(turn2Result.confirmation).toContain('Proyecto Alfa');
+    expect(turn2Result.confirmation).not.toContain('solo eliminé Proyecto Alfa');
 
     // Invariant: ONLY uuid-alfa-123 was passed for deletion; uuid-beta-456 was untouched
     expect(executeTool).toHaveBeenLastCalledWith(expect.objectContaining({

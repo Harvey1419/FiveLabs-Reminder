@@ -485,9 +485,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
 
-            let reply = composeExecutionReply(execResult.facts, language, {
-              framing: validation.decision.reply ? { before: validation.decision.reply, after: '' } : null,
-            });
+            let reply = composeExecutionReply(execResult.facts, language);
             const primaryDomain = activeAgentRun.preparedActions?.[0]?.domain || 'entity';
             if (!execResult.executed || !execResult.success) {
               reply = language === 'en'
@@ -540,9 +538,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
               executionContext: { user, language, isPro, timezone, referenceTime: requestReferenceTime, correlationId: requestId },
             });
             if (execResult.success) {
-              let reply = composeExecutionReply(execResult.facts || (execResult.fact ? [execResult.fact] : []), language, {
-                framing: validation.decision.reply ? { before: validation.decision.reply, after: '' } : null,
-              });
+              let reply = composeExecutionReply(execResult.facts || (execResult.fact ? [execResult.fact] : []), language);
               if (!reply) {
                 reply = validation.decision.reply || (language === 'en' ? 'Reminder created.' : 'Recordatorio creado.');
               }

@@ -64,13 +64,16 @@ function buildTemporalRejection({
   const sameLocalDay = localDateKey(mainDate, timezone) === localDateKey(referenceDate, timezone);
   const clock = localClock(mainDate, timezone, language);
   const isEnglish = language === 'en';
+  const noticePhrase = advanceMinutes
+    ? (isEnglish ? ` with a ${advanceMinutes}-min advance notice` : ` con aviso ${advanceMinutes} min antes`)
+    : '';
   return {
     type: 'reminder',
     content,
     code: 'TIME_IN_PAST',
     reason: isEnglish ? 'the requested time has already passed.' : 'la hora indicada ya pasó.',
     question: sameLocalDay && clock
-      ? (isEnglish ? `Did you mean tomorrow at ${clock}?` : `¿Quieres que lo programe mañana a las ${clock}?`)
+      ? (isEnglish ? `Did you mean tomorrow at ${clock}${noticePhrase}?` : `¿Quieres que lo programe mañana a las ${clock}${noticePhrase}?`)
       : (isEnglish ? 'What new date and time should I use?' : '¿Qué nueva fecha y hora quieres usar?'),
     advanceMinutes: advanceMinutes || null,
     proposedReminder,

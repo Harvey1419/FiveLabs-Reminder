@@ -171,6 +171,29 @@ describe('advance-notice scheduling invariant', () => {
     expect(saveReminder).not.toHaveBeenCalled();
   });
 
+  it('includes advance notice in the clarification proposal question when advanceMinutes is present', async () => {
+    const result = await executeReminderCreate({
+      params: {
+        items: [{
+          content: 'Cita y baño de Borona',
+          targetTime: '2026-09-04T19:00:00.000Z',
+          advanceMinutes: 30,
+        }],
+      },
+      user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
+      isPro: true,
+      language: 'es',
+      referenceTime: new Date('2026-09-04T23:00:00.000Z'),
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'TIME_IN_PAST',
+      requiresClarification: true,
+    });
+    expect(result.pendingClarifications[0].question).toContain('con aviso 30 min antes');
+  });
+
   it('reports an elapsed advance notice without hiding that only the main reminder was created', async () => {
     saveReminder.mockReset();
     saveReminder.mockResolvedValueOnce({ id: 'primary-only' });

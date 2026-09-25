@@ -161,7 +161,8 @@ describe('PR 3: Incomplete Reminders & Continuations via AgentRun (Flow A)', () 
 
     expect(turn2Result.intent).toBe('reminder');
     expect(turn2Result.plan.type).toBe('continuation_decision');
-    expect(turn2Result.confirmation).toContain('Listo, te recordaré comprar boletos de concierto');
+    expect(turn2Result.confirmation).toContain('Recordatorio programado para mañana a las 4:00 PM.');
+    expect(turn2Result.confirmation).not.toContain('Listo, te recordaré comprar boletos de concierto');
 
     // Invariant: executeTool was called with merged payload and canonical ISO targetTime
     expect(executeTool).toHaveBeenCalledTimes(1);
