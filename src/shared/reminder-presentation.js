@@ -209,24 +209,36 @@ export function formatCanonicalReminderList(data, {
     let emptyMsg;
     switch (filter) {
       case 'tomorrow':
-        emptyMsg = isEn ? 'You have no reminders scheduled for tomorrow.' : 'No tienes recordatorios programados para mañana.';
+        emptyMsg = isEn
+          ? 'You have no reminders scheduled for tomorrow. Your day is completely clear! 🚀'
+          : 'No tienes recordatorios programados para mañana. ¡Día completamente despejado! 🚀';
         break;
       case 'day_after_tomorrow':
-        emptyMsg = isEn ? 'You have no reminders scheduled for the day after tomorrow.' : 'No tienes recordatorios programados para pasado mañana.';
+        emptyMsg = isEn
+          ? 'You have no reminders scheduled for the day after tomorrow. Enjoy your clear schedule! ✨'
+          : 'No tienes recordatorios programados para pasado mañana. ¡Panorama despejado! ✨';
         break;
       case 'today':
       case 'pending_today':
       case 'remaining_today':
-        emptyMsg = isEn ? 'You have no pending reminders for today.' : 'No tienes recordatorios pendientes para hoy.';
+        emptyMsg = isEn
+          ? 'You have no pending reminders for today. You are all caught up! ☕'
+          : 'No tienes recordatorios pendientes para hoy. ¡Estás al día por completo! ☕';
         break;
       case 'this_week':
-        emptyMsg = isEn ? 'You have no reminders scheduled for this week.' : 'No tienes recordatorios programados para esta semana.';
+        emptyMsg = isEn
+          ? 'You have no reminders scheduled for this week. Have a relaxed and focused week! 🌟'
+          : 'No tienes recordatorios programados para esta semana. ¡Semana libre de alarmas por ahora! 🌟';
         break;
       case 'next_week':
-        emptyMsg = isEn ? 'You have no reminders scheduled for next week.' : 'No tienes recordatorios programados para la próxima semana.';
+        emptyMsg = isEn
+          ? 'You have no reminders scheduled for next week. Clear schedule ahead! 🎯'
+          : 'No tienes recordatorios programados para la próxima semana. ¡Agenda despejada! 🎯';
         break;
       default:
-        emptyMsg = isEn ? 'You have no pending reminders.' : 'No tienes recordatorios pendientes.';
+        emptyMsg = isEn
+          ? 'You have no pending reminders. Enjoy your peace of mind! ☕'
+          : 'No tienes recordatorios pendientes. ¡Tranquilidad total y todo bajo control! ☕';
         break;
     }
     return `${header}\n\n${emptyMsg}`;

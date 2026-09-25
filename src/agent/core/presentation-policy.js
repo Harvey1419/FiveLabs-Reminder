@@ -5,6 +5,8 @@ import {
   formatCanonicalReminderCreateBatch,
   formatCanonicalReminderCancelBatch,
 } from '../../shared/reminder-presentation.js';
+import { formatHumanFriendlyDateTime } from '../../shared/time.js';
+import { PRESENTATION_TOKENS } from '../../shared/presentation-tokens.js';
 
 const TOOL_DOMAINS = Object.freeze({
   [TOOL_NAMES.MANAGE_REMINDER]: 'reminder',
@@ -150,13 +152,25 @@ function compactFactLines(fact) {
   const domain = getFactDomain(fact);
   const items = logicalItems(fact);
   const lines = [];
+  const timezone = fact?.presentationContext?.timezone || 'UTC';
+  const language = fact?.presentationContext?.language || 'es';
 
   for (const item of items) {
     const name = itemName(item, fact);
     if (!name) continue;
     const recurring = Boolean(item?.recurrenceRule || item?.recurrence_rule || fact?.presentationData?.recurring);
-    const icon = domain === 'reminder' ? (recurring ? '🔁' : '🔔') : '•';
-    lines.push(`${icon} ${name}`);
+    const icon = domain === 'reminder' ? (recurring ? '🔁' : '🔔') : (domain === 'task' ? '☑️' : '•');
+    lines.push(`${icon} *${name}*`);
+
+    const sendAt = item?.sendAt || item?.send_at || null;
+    const timeDisplay = item?.formattedTime || (sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '');
+    if (timeDisplay && domain === 'reminder') {
+      lines.push(`   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
+    }
+    const entName = item?.entityName || item?.projectName || fact?.presentationParams?.entityName || null;
+    if (entName && (domain === 'task' || domain === 'project')) {
+      lines.push(`   📂 ${entName}`);
+    }
   }
 
   if (lines.length > 0) return lines;
