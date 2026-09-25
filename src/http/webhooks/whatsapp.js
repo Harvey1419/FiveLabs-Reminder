@@ -613,7 +613,8 @@ export async function handleWebhook(req, res) {
         const audioBlob = await downloadMedia(mediaId, phoneNumberId, directMediaUrl);
         if (audioBlob) {
           const mimeType = audioObj?.mime_type || 'audio/ogg';
-          const transcribed = await transcribeAudio(audioBlob, mimeType);
+          const audioLang = user?.locale?.startsWith('en') ? 'en' : 'es';
+          const transcribed = await transcribeAudio(audioBlob, mimeType, { language: audioLang });
           if (transcribed) {
             messageText = transcribed;
             console.log(`[webhook req=${correlationId}] Audio transcribed via Whisper: "${messageText}"`);

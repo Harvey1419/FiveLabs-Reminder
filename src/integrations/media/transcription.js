@@ -5,7 +5,7 @@
  * 2. OpenRouter speech-to-text fallback
  */
 
-export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
+export async function transcribeAudio(audioInput, mimeType = 'audio/ogg', { language = 'es', prompt = null } = {}) {
   if (!audioInput) {
     console.warn('[transcription] Empty audio input received.');
     return '';
@@ -24,6 +24,10 @@ export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
     || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY.trim() : null);
 
   const startMs = Date.now();
+  const effectiveLang = language || 'es';
+  const domainPrompt = prompt || (effectiveLang.startsWith('en')
+    ? 'Hermes, reminder, schedule, calendar, tasks, appointments.'
+    : 'Hermes, recordatorio, agenda, tareas, calendario, citas.');
 
   // 1. PRIMARY: Groq Whisper Turbo (Ultra-fast LPUs ~150-250ms)
   if (groqKey) {
@@ -32,7 +36,10 @@ export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
       const formData = new FormData();
       formData.append('file', blob, 'audio.ogg');
       formData.append('model', process.env.AI_AUDIO_MODEL || 'whisper-large-v3-turbo');
-      formData.append('language', 'es');
+      if (effectiveLang && effectiveLang !== 'auto') {
+        formData.append('language', effectiveLang.slice(0, 2));
+      }
+      formData.append('prompt', domainPrompt);
       formData.append('response_format', 'json');
 
       const res = await fetch(endpoint, {
@@ -78,7 +85,7 @@ export async function transcribeAudio(audioInput, mimeType = 'audio/ogg') {
         body: JSON.stringify({
           model,
           input_audio: { data: base64Data, format },
-          language: 'es',
+          language: effectiveLang ? effectiveLang.slice(0, 2) : 'es',
           temperature: 0,
         }),
         signal: AbortSignal.timeout(6000),
