@@ -59,7 +59,7 @@ export function startMorningBriefingWorker() {
 async function checkAndDispatchBriefings() {
   const { data: users, error } = await supabase
     .from('users')
-    .select('*')
+    .select('id, phone_number, display_name, timezone, locale, morning_briefing_time, last_briefing_at')
     .eq('morning_briefing_enabled', true);
 
   if (error || !users || users.length === 0) return;

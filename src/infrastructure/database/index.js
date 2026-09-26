@@ -619,8 +619,8 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     };
   }
 
-  let userRemindersQ = supabase.from('reminders').select('*');
-  let userTasksQ = supabase.from('tasks').select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)');
+  let userRemindersQ = supabase.from('reminders').select('*').neq('status', 'cancelled');
+  let userTasksQ = supabase.from('tasks').select('*, entities:entity_id(id, name, category), projects:project_id(id, name, status)').neq('status', 'cancelled');
 
   if (userId) {
     userRemindersQ = userRemindersQ.eq('user_id', userId);
