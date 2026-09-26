@@ -165,11 +165,11 @@ function compactFactLines(fact) {
     const sendAt = item?.sendAt || item?.send_at || null;
     const timeDisplay = item?.formattedTime || (sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '');
     if (timeDisplay && domain === 'reminder') {
-      lines.push(`   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
+      lines.push(`${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
     }
     const entName = item?.entityName || item?.projectName || fact?.presentationParams?.entityName || null;
     if (entName && (domain === 'task' || domain === 'project')) {
-      lines.push(`   📂 ${entName}`);
+      lines.push(`📂 ${entName}`);
     }
   }
 
