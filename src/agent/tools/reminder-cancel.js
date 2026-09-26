@@ -57,6 +57,7 @@ function localParts(value, timezone) {
 function recurrenceFingerprint(reminder, timezone) {
   const rule = String(reminder?.recurrence_rule || '').trim().toLowerCase();
   if (!rule) return null;
+  if (rule.startsWith('hourly') || rule.startsWith('interval')) return rule;
   const parts = localParts(reminder?.send_at, timezone);
   const clock = parts ? `${parts.hour}:${parts.minute}` : '';
 
@@ -123,6 +124,9 @@ export async function executeSingleReminderCancellation({
     .from('reminders')
     .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
   query = scopeReminderQueryToOwner(query, owner);
+  if (typeof query?.not === 'function') {
+    query = query.not('content', 'ilike', '🔔 [Google Calendar]%');
+  }
 
   const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(200);
   if (error) {
@@ -135,7 +139,12 @@ export async function executeSingleReminderCancellation({
     };
   }
 
-  const owned = (rows || []).filter((row) => isReminderOwned(row, owner));
+  const userRows = (rows || []).filter((row) => (
+    !row.delivery_id?.startsWith('gcal:')
+    && !row.content?.startsWith('🔔 [Google Calendar]')
+  ));
+  const candidateRows = userRows.length > 0 ? userRows : (rows || []);
+  const owned = candidateRows.filter((row) => isReminderOwned(row, owner));
   const active = owned.filter(isActive);
   const activePrimary = active.filter((row) => !isAdvanceNotice(row));
   console.log(`${reqId} candidates owned=${owned.length} active=${active.length} primary=${activePrimary.length}`);
@@ -247,6 +256,30 @@ export async function executeSingleReminderCancellation({
       && row.recurrence_rule === base.recurrence_rule
       && recurrenceFingerprint(row, timezone) === fingerprint
     ));
+    if (isActive(base) && !primaryTargets.some((row) => row.id === base.id)) {
+      primaryTargets.push(base);
+    }
+    if (primaryTargets.length === 0) {
+      try {
+        let seriesQ = supabase
+          .from('reminders')
+          .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
+          .eq('content', base.content)
+          .eq('recurrence_rule', base.recurrence_rule)
+          .in('status', ['pending', 'sent', 'processing']);
+        seriesQ = scopeReminderQueryToOwner(seriesQ, owner);
+        const { data: dbSeries } = await seriesQ.limit(20);
+        const dbActive = (dbSeries || []).filter((row) => isReminderOwned(row, owner) && isActive(row));
+        const matched = dbActive.filter((row) => recurrenceFingerprint(row, timezone) === fingerprint);
+        if (matched.length > 0) {
+          primaryTargets = matched;
+        } else if (dbActive.length > 0) {
+          primaryTargets = dbActive;
+        }
+      } catch (seriesErr) {
+        console.warn(`${reqId} recurring series DB fallback failed:`, seriesErr.message);
+      }
+    }
     console.log(`${reqId} recurring series rule=${base.recurrence_rule} fingerprint=${fingerprint} activeOccurrences=${primaryTargets.length}`);
   } else if (isActive(base)) {
     primaryTargets = [base];
@@ -264,7 +297,7 @@ export async function executeSingleReminderCancellation({
       : (language === 'en' ? 'That reminder is already cancelled or completed.' : 'Ese recordatorio ya está cancelado o completado.');
     console.log(`${reqId} nothing active to cancel baseStatus=${base.status}`);
     return {
-      success: true,
+      success: false,
       complete: true,
       action: 'reminder_already_inactive',
       data: { cancelledCount: 0, recurring, targetId: base.id, content: base.content },
