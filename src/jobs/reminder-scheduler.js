@@ -15,6 +15,7 @@ import { sendReminderMessage, stripReminderPrefix } from '../integrations/whatsa
 import { saveWorkingMemory } from '../agent/core/working-memory.js';
 import { computeNextRecurringSendAt } from '../shared/reminder-recurrence.js';
 import { detectLocaleFromPhone } from '../shared/time.js';
+import { isAdvanceNoticeContent } from '../agent/tools/reminder-advance.js';
 
 const CHECK_INTERVAL_MS = 15 * 1000;
 const MAX_STALE_MS = 2 * 60 * 60 * 1000;
@@ -335,8 +336,9 @@ export async function processReminder(reminder) {
     const resolvedLocale = await resolveReminderLocale(reminder);
     const isEnglish = isEnglishReminder(reminder, resolvedLocale);
 
-    let includeButtons = true;
-    let effectiveRequiresConfirmation = reminder.requires_confirmation;
+    const isAdvance = isAdvanceNoticeContent(reminder?.content);
+    let includeButtons = !isAdvance;
+    let effectiveRequiresConfirmation = isAdvance ? false : reminder.requires_confirmation;
     if (recurring && reminder.user_id) {
       try {
         const policy = await getReminderDispatchPolicy(reminder.user_id);
@@ -383,7 +385,7 @@ export async function processReminder(reminder) {
       });
     } else {
       await markReminderAsDispatched(reminder.id, { deliveryId });
-      if (reminder.requires_confirmation) {
+      if (effectiveRequiresConfirmation) {
         const nowIso = dispatchedAt.toISOString();
         const { error: nudgeStateError } = await supabase.from('reminders').update({
           last_nudged_at: nowIso,
@@ -397,8 +399,8 @@ export async function processReminder(reminder) {
     const wmPayload = {
       source: 'reminder',
       scope: 'today',
-      lastAction: 'reminder_dispatched',
-      notificationReminderId: reminder.id,
+      lastAction: isAdvance ? 'advance_notice_dispatched' : 'reminder_dispatched',
+      notificationReminderId: isAdvance ? null : reminder.id,
       notificationContent: cleanSummary,
       items: [{
         position: 1,
