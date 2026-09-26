@@ -232,5 +232,33 @@ describe('Hierarchical Reminder Dispatch and Dynamic Lifecycle Self-Healing', ()
         last_nudged_at: null,
       }));
     });
+
+    it('dispatches advance notice reminder without interactive buttons and suppresses confirmation', async () => {
+      mockGetReminderDispatchPolicy.mockResolvedValue({});
+
+      mockSendReminderMessage.mockResolvedValue({
+        success: true,
+        messageId: 'wamid-disp-advance',
+      });
+
+      const reminder = {
+        id: 'rem-advance-1',
+        user_id: 'user-hierarchical',
+        phone_number: '+573000000001',
+        content: '🔔 [Aviso Previo] En 30 minutos: Reunión con cliente',
+        recurrence_rule: null,
+        requires_confirmation: false,
+        send_at: new Date().toISOString(),
+      };
+
+      await processReminder(reminder);
+
+      expect(mockSendReminderMessage).toHaveBeenCalledWith(
+        '+573000000001',
+        '🔔 [Aviso Previo] En 30 minutos: Reunión con cliente',
+        expect.not.objectContaining({ buttons: expect.anything() }),
+      );
+    });
   });
 });
+

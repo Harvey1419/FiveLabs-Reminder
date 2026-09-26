@@ -41,7 +41,7 @@ function setupSupabase(rows) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('series-aware reminder cancellation', () => {
@@ -122,6 +122,72 @@ describe('series-aware reminder cancellation', () => {
     expect(result.success).toBe(true);
     expect(result.data.cancelledCount).toBe(1);
     expect(db.updateIn).toHaveBeenCalledWith('id', [targetId]);
+  });
+
+  it('cancels active recurring reminder when base is resolved via fallback DB lookup outside initial slice', async () => {
+    const recurringId = 'bbbbbbbb-1111-4111-8111-111111111111';
+    const initialRows = [
+      {
+        id: 'gcal-1',
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: '🔔 [Google Calendar] Event in 15 minutes',
+        recurrence_rule: null,
+        send_at: '2040-09-09T13:00:00.000Z',
+      },
+    ];
+
+    const fallbackRow = {
+      id: recurringId,
+      user_id: user.id,
+      phone_number: user.phone_number,
+      status: 'pending',
+      acknowledged_at: null,
+      content: 'Medicamento diarrea de Borona',
+      recurrence_rule: 'hourly:6',
+      send_at: '2026-09-26T03:00:00.000Z',
+    };
+
+    const selectBuilder1 = {};
+    selectBuilder1.select = vi.fn(() => selectBuilder1);
+    selectBuilder1.or = vi.fn(() => selectBuilder1);
+    selectBuilder1.eq = vi.fn(() => selectBuilder1);
+    selectBuilder1.in = vi.fn(() => selectBuilder1);
+    selectBuilder1.not = vi.fn(() => selectBuilder1);
+    selectBuilder1.order = vi.fn(() => selectBuilder1);
+    selectBuilder1.limit = vi.fn(async () => ({ data: initialRows, error: null }));
+
+    const selectBuilderFallback = {};
+    selectBuilderFallback.select = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.or = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.eq = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.ilike = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.in = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.not = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.order = vi.fn(() => selectBuilderFallback);
+    selectBuilderFallback.limit = vi.fn(async () => ({ data: [fallbackRow], error: null }));
+
+    const updateSelect = vi.fn(async () => ({ data: [{ id: recurringId }], error: null }));
+    const updateIn = vi.fn(() => ({ select: updateSelect }));
+    const update = vi.fn(() => ({ in: updateIn }));
+
+    supabase.from
+      .mockReturnValueOnce(selectBuilder1)
+      .mockReturnValueOnce(selectBuilderFallback)
+      .mockReturnValueOnce({ update });
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: 'Medicamento diarrea de Borona' },
+      user,
+      language: 'es',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('cancelled_recurring_reminder_series');
+    expect(result.data.cancelledCount).toBe(1);
+    expect(updateIn).toHaveBeenCalledWith('id', [recurringId]);
   });
 
   it('resolves a human target to the main reminder and cancels its linked advance notice', async () => {
@@ -260,4 +326,74 @@ describe('series-aware reminder cancellation', () => {
       expect.objectContaining({ id: secondId, type: 'reminder', content: 'Sacar una cita', time: '2026-09-12T14:00:00.000Z' }),
     ]);
   });
+
+  it('resolves and cancels target using full text search (FTS websearch) for conversational phrasing', async () => {
+    const boronaId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const initialSlice = [
+      {
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Pagar servicio de internet',
+        recurrence_rule: null,
+        send_at: '2026-09-10T12:00:00.000Z',
+      },
+    ];
+    const boronaRow = {
+      id: boronaId,
+      user_id: user.id,
+      phone_number: user.phone_number,
+      status: 'pending',
+      acknowledged_at: null,
+      content: 'Comprar medicamento de Borona',
+      recurrence_rule: null,
+      send_at: '2026-09-12T16:00:00.000Z',
+    };
+
+    const selectBuilder1 = {};
+    selectBuilder1.select = vi.fn(() => selectBuilder1);
+    selectBuilder1.or = vi.fn(() => selectBuilder1);
+    selectBuilder1.eq = vi.fn(() => selectBuilder1);
+    selectBuilder1.in = vi.fn(() => selectBuilder1);
+    selectBuilder1.not = vi.fn(() => selectBuilder1);
+    selectBuilder1.order = vi.fn(() => selectBuilder1);
+    selectBuilder1.limit = vi.fn(async () => ({ data: initialSlice, error: null }));
+
+    const selectBuilderFts = {};
+    selectBuilderFts.select = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.textSearch = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.or = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.eq = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.in = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.not = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.order = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.limit = vi.fn(async () => ({ data: [boronaRow], error: null }));
+
+    const updateSelect = vi.fn(async () => ({ data: [{ id: boronaId }], error: null }));
+    const updateIn = vi.fn(() => ({ select: updateSelect }));
+    const update = vi.fn(() => ({ in: updateIn }));
+
+    supabase.from
+      .mockReturnValueOnce(selectBuilder1)
+      .mockReturnValueOnce(selectBuilderFts)
+      .mockReturnValueOnce({ update });
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: 'lo de borona' },
+      user,
+      language: 'es',
+    });
+
+    expect(selectBuilderFts.textSearch).toHaveBeenCalledWith('content', 'lo de borona', {
+      type: 'websearch',
+      config: 'spanish',
+    });
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('cancelled_reminder');
+    expect(result.data.content).toBe('Comprar medicamento de Borona');
+    expect(updateIn).toHaveBeenCalledWith('id', [boronaId]);
+  });
 });
+

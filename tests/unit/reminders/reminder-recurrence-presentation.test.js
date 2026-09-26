@@ -15,6 +15,7 @@ describe('canonical recurring reminder presentation', () => {
     expect(card).toContain('✅ *Recordatorio programado*');
     expect(card).toContain('🔁 *Me amo mucho*');
     expect(card).toContain('🗓️ Mañana a las 8:00 AM');
+    expect(card).not.toMatch(/^\s+🗓️/m);
     expect(card).toContain('🔁 Todos los días');
   });
 

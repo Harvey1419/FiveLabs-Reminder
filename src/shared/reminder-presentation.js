@@ -82,13 +82,13 @@ function renderCreateGroup({ main, advance }, { language, timezone }) {
   const primaryIcon = recurrence ? '🔁' : (main?.isAdvanceNotice ? '🔔' : '⏰');
   const lines = [`${primaryIcon} *${content}*`];
 
-  if (timeDisplay) lines.push(`   ${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
-  if (recurrenceLabel) lines.push(`   🔁 ${recurrenceLabel}`);
+  if (timeDisplay) lines.push(`${PRESENTATION_TOKENS.ICONS.SCHEDULE_TIME} ${timeDisplay}`);
+  if (recurrenceLabel) lines.push(`🔁 ${recurrenceLabel}`);
 
   if (advance) {
     const advanceTime = reminderTime(advance, timezone, language);
     const advanceLabel = language === 'en' ? 'Advance notice' : 'Aviso previo';
-    lines.push(`   🔔 ${advanceLabel}${advanceTime ? ` · ${advanceTime}` : ''}`);
+    lines.push(`🔔 ${advanceLabel}${advanceTime ? ` · ${advanceTime}` : ''}`);
   }
 
   return lines.join('\n');

@@ -17,6 +17,24 @@ import {
 } from './reminder-reference.js';
 import { isStrictUUID } from '../../shared/entity-resolution.js';
 
+const PG_TS_CONFIGS = Object.freeze({
+  es: 'spanish',
+  en: 'english',
+  pt: 'portuguese',
+  fr: 'french',
+  de: 'german',
+  it: 'italian',
+  ca: 'catalan',
+  ru: 'russian',
+  ar: 'arabic',
+});
+
+function getPostgresTextSearchConfig(lang) {
+  if (!lang || typeof lang !== 'string') return 'spanish';
+  const prefix = lang.trim().toLowerCase().split(/[-_]/)[0];
+  return PG_TS_CONFIGS[prefix] || (prefix === 'en' ? 'english' : 'spanish');
+}
+
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
     && !reminder?.acknowledged_at;
@@ -57,6 +75,7 @@ function localParts(value, timezone) {
 function recurrenceFingerprint(reminder, timezone) {
   const rule = String(reminder?.recurrence_rule || '').trim().toLowerCase();
   if (!rule) return null;
+  if (rule.startsWith('hourly') || rule.startsWith('interval')) return rule;
   const parts = localParts(reminder?.send_at, timezone);
   const clock = parts ? `${parts.hour}:${parts.minute}` : '';
 
@@ -123,6 +142,9 @@ export async function executeSingleReminderCancellation({
     .from('reminders')
     .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
   query = scopeReminderQueryToOwner(query, owner);
+  if (typeof query?.not === 'function') {
+    query = query.not('content', 'ilike', '🔔 [Google Calendar]%');
+  }
 
   const { data: rows, error } = await query.order('send_at', { ascending: false }).limit(200);
   if (error) {
@@ -135,7 +157,12 @@ export async function executeSingleReminderCancellation({
     };
   }
 
-  const owned = (rows || []).filter((row) => isReminderOwned(row, owner));
+  const userRows = (rows || []).filter((row) => (
+    !row.delivery_id?.startsWith('gcal:')
+    && !row.content?.startsWith('🔔 [Google Calendar]')
+  ));
+  const candidateRows = userRows.length > 0 ? userRows : (rows || []);
+  const owned = candidateRows.filter((row) => isReminderOwned(row, owner));
   const active = owned.filter(isActive);
   const activePrimary = active.filter((row) => !isAdvanceNotice(row));
   console.log(`${reqId} candidates owned=${owned.length} active=${active.length} primary=${activePrimary.length}`);
@@ -206,21 +233,57 @@ export async function executeSingleReminderCancellation({
   }
 
   if (!base && typeof target === 'string' && target.trim().length >= 3 && !/^\d+$/.test(target.trim())) {
-    let textQ = supabase
-      .from('reminders')
-      .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
-      .ilike('content', `%${target.trim()}%`);
-    textQ = scopeReminderQueryToOwner(textQ, owner);
-    const { data: textRows } = await textQ.order('created_at', { ascending: false }).limit(20);
+    const cleanSearchTarget = target.trim();
+
+    // 1. Primary DB resolution: PostgreSQL Full-Text Search (websearch) for keyword and natural phrasing,
+    // with graceful fallback to ilike if FTS returns no matches or is not implemented in test mocks.
+    let textRows = null;
+    let usedFts = false;
+    try {
+      let q = supabase
+        .from('reminders')
+        .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
+      if (typeof q?.textSearch === 'function') {
+        usedFts = true;
+        const langConfig = getPostgresTextSearchConfig(language);
+        q = q.textSearch('content', cleanSearchTarget, { type: 'websearch', config: langConfig });
+        q = scopeReminderQueryToOwner(q, owner);
+        const { data } = await q.order('created_at', { ascending: false }).limit(10);
+        textRows = data;
+      } else if (typeof q?.ilike === 'function') {
+        q = q.ilike('content', `%${cleanSearchTarget}%`);
+        q = scopeReminderQueryToOwner(q, owner);
+        const { data } = await q.order('created_at', { ascending: false }).limit(20);
+        textRows = data;
+      }
+    } catch (ftsErr) {
+      console.warn(`${reqId} DB text search caught error:`, ftsErr.message);
+    }
+
+    // Secondary fallback: if FTS was executed but returned zero rows, try ilike substring search
+    if (usedFts && (!textRows || textRows.length === 0)) {
+      try {
+        let ilikeQ = supabase
+          .from('reminders')
+          .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
+          .ilike('content', `%${cleanSearchTarget}%`);
+        ilikeQ = scopeReminderQueryToOwner(ilikeQ, owner);
+        const { data } = await ilikeQ.order('created_at', { ascending: false }).limit(20);
+        textRows = data;
+      } catch (ilikeErr) {
+        console.warn(`${reqId} DB ilike fallback caught error:`, ilikeErr.message);
+      }
+    }
+
     const textOwned = (textRows || []).filter((r) => isReminderOwned(r, owner) && isActive(r) && !isAdvanceNotice(r));
     if (textOwned.length === 1) {
       base = textOwned[0];
-      console.log(`${reqId} target resolved via direct DB content lookup id=${base.id}`);
+      console.log(`${reqId} target resolved via DB content lookup id=${base.id} content="${base.content}"`);
     } else if (textOwned.length > 1) {
-      const scored = resolveReminderByScore(target, textOwned);
+      const scored = resolveReminderByScore(cleanSearchTarget, textOwned);
       if (scored.status === 'RESOLVED') {
         base = scored.reminder;
-        console.log(`${reqId} target resolved via direct DB scored content lookup id=${base.id}`);
+        console.log(`${reqId} target resolved via DB scored content lookup id=${base.id} content="${base.content}"`);
       }
     }
   }
@@ -247,6 +310,30 @@ export async function executeSingleReminderCancellation({
       && row.recurrence_rule === base.recurrence_rule
       && recurrenceFingerprint(row, timezone) === fingerprint
     ));
+    if (isActive(base) && !primaryTargets.some((row) => row.id === base.id)) {
+      primaryTargets.push(base);
+    }
+    if (primaryTargets.length === 0) {
+      try {
+        let seriesQ = supabase
+          .from('reminders')
+          .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
+          .eq('content', base.content)
+          .eq('recurrence_rule', base.recurrence_rule)
+          .in('status', ['pending', 'sent', 'processing']);
+        seriesQ = scopeReminderQueryToOwner(seriesQ, owner);
+        const { data: dbSeries } = await seriesQ.limit(20);
+        const dbActive = (dbSeries || []).filter((row) => isReminderOwned(row, owner) && isActive(row));
+        const matched = dbActive.filter((row) => recurrenceFingerprint(row, timezone) === fingerprint);
+        if (matched.length > 0) {
+          primaryTargets = matched;
+        } else if (dbActive.length > 0) {
+          primaryTargets = dbActive;
+        }
+      } catch (seriesErr) {
+        console.warn(`${reqId} recurring series DB fallback failed:`, seriesErr.message);
+      }
+    }
     console.log(`${reqId} recurring series rule=${base.recurrence_rule} fingerprint=${fingerprint} activeOccurrences=${primaryTargets.length}`);
   } else if (isActive(base)) {
     primaryTargets = [base];
@@ -264,7 +351,7 @@ export async function executeSingleReminderCancellation({
       : (language === 'en' ? 'That reminder is already cancelled or completed.' : 'Ese recordatorio ya está cancelado o completado.');
     console.log(`${reqId} nothing active to cancel baseStatus=${base.status}`);
     return {
-      success: true,
+      success: false,
       complete: true,
       action: 'reminder_already_inactive',
       data: { cancelledCount: 0, recurring, targetId: base.id, content: base.content },
