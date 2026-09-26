@@ -41,7 +41,7 @@ function setupSupabase(rows) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe('series-aware reminder cancellation', () => {
@@ -326,4 +326,74 @@ describe('series-aware reminder cancellation', () => {
       expect.objectContaining({ id: secondId, type: 'reminder', content: 'Sacar una cita', time: '2026-09-12T14:00:00.000Z' }),
     ]);
   });
+
+  it('resolves and cancels target using full text search (FTS websearch) for conversational phrasing', async () => {
+    const boronaId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const initialSlice = [
+      {
+        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        user_id: user.id,
+        phone_number: user.phone_number,
+        status: 'pending',
+        acknowledged_at: null,
+        content: 'Pagar servicio de internet',
+        recurrence_rule: null,
+        send_at: '2026-09-10T12:00:00.000Z',
+      },
+    ];
+    const boronaRow = {
+      id: boronaId,
+      user_id: user.id,
+      phone_number: user.phone_number,
+      status: 'pending',
+      acknowledged_at: null,
+      content: 'Comprar medicamento de Borona',
+      recurrence_rule: null,
+      send_at: '2026-09-12T16:00:00.000Z',
+    };
+
+    const selectBuilder1 = {};
+    selectBuilder1.select = vi.fn(() => selectBuilder1);
+    selectBuilder1.or = vi.fn(() => selectBuilder1);
+    selectBuilder1.eq = vi.fn(() => selectBuilder1);
+    selectBuilder1.in = vi.fn(() => selectBuilder1);
+    selectBuilder1.not = vi.fn(() => selectBuilder1);
+    selectBuilder1.order = vi.fn(() => selectBuilder1);
+    selectBuilder1.limit = vi.fn(async () => ({ data: initialSlice, error: null }));
+
+    const selectBuilderFts = {};
+    selectBuilderFts.select = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.textSearch = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.or = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.eq = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.in = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.not = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.order = vi.fn(() => selectBuilderFts);
+    selectBuilderFts.limit = vi.fn(async () => ({ data: [boronaRow], error: null }));
+
+    const updateSelect = vi.fn(async () => ({ data: [{ id: boronaId }], error: null }));
+    const updateIn = vi.fn(() => ({ select: updateSelect }));
+    const update = vi.fn(() => ({ in: updateIn }));
+
+    supabase.from
+      .mockReturnValueOnce(selectBuilder1)
+      .mockReturnValueOnce(selectBuilderFts)
+      .mockReturnValueOnce({ update });
+
+    const result = await executeSingleReminderCancellation({
+      params: { action: 'cancel', target: 'lo de borona' },
+      user,
+      language: 'es',
+    });
+
+    expect(selectBuilderFts.textSearch).toHaveBeenCalledWith('content', 'lo de borona', {
+      type: 'websearch',
+      config: 'spanish',
+    });
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('cancelled_reminder');
+    expect(result.data.content).toBe('Comprar medicamento de Borona');
+    expect(updateIn).toHaveBeenCalledWith('id', [boronaId]);
+  });
 });
+

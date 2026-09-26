@@ -17,6 +17,24 @@ import {
 } from './reminder-reference.js';
 import { isStrictUUID } from '../../shared/entity-resolution.js';
 
+const PG_TS_CONFIGS = Object.freeze({
+  es: 'spanish',
+  en: 'english',
+  pt: 'portuguese',
+  fr: 'french',
+  de: 'german',
+  it: 'italian',
+  ca: 'catalan',
+  ru: 'russian',
+  ar: 'arabic',
+});
+
+function getPostgresTextSearchConfig(lang) {
+  if (!lang || typeof lang !== 'string') return 'spanish';
+  const prefix = lang.trim().toLowerCase().split(/[-_]/)[0];
+  return PG_TS_CONFIGS[prefix] || (prefix === 'en' ? 'english' : 'spanish');
+}
+
 function isActive(reminder) {
   return ['pending', 'sent', 'processing'].includes(reminder?.status)
     && !reminder?.acknowledged_at;
@@ -215,21 +233,57 @@ export async function executeSingleReminderCancellation({
   }
 
   if (!base && typeof target === 'string' && target.trim().length >= 3 && !/^\d+$/.test(target.trim())) {
-    let textQ = supabase
-      .from('reminders')
-      .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
-      .ilike('content', `%${target.trim()}%`);
-    textQ = scopeReminderQueryToOwner(textQ, owner);
-    const { data: textRows } = await textQ.order('created_at', { ascending: false }).limit(20);
+    const cleanSearchTarget = target.trim();
+
+    // 1. Primary DB resolution: PostgreSQL Full-Text Search (websearch) for keyword and natural phrasing,
+    // with graceful fallback to ilike if FTS returns no matches or is not implemented in test mocks.
+    let textRows = null;
+    let usedFts = false;
+    try {
+      let q = supabase
+        .from('reminders')
+        .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
+      if (typeof q?.textSearch === 'function') {
+        usedFts = true;
+        const langConfig = getPostgresTextSearchConfig(language);
+        q = q.textSearch('content', cleanSearchTarget, { type: 'websearch', config: langConfig });
+        q = scopeReminderQueryToOwner(q, owner);
+        const { data } = await q.order('created_at', { ascending: false }).limit(10);
+        textRows = data;
+      } else if (typeof q?.ilike === 'function') {
+        q = q.ilike('content', `%${cleanSearchTarget}%`);
+        q = scopeReminderQueryToOwner(q, owner);
+        const { data } = await q.order('created_at', { ascending: false }).limit(20);
+        textRows = data;
+      }
+    } catch (ftsErr) {
+      console.warn(`${reqId} DB text search caught error:`, ftsErr.message);
+    }
+
+    // Secondary fallback: if FTS was executed but returned zero rows, try ilike substring search
+    if (usedFts && (!textRows || textRows.length === 0)) {
+      try {
+        let ilikeQ = supabase
+          .from('reminders')
+          .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at')
+          .ilike('content', `%${cleanSearchTarget}%`);
+        ilikeQ = scopeReminderQueryToOwner(ilikeQ, owner);
+        const { data } = await ilikeQ.order('created_at', { ascending: false }).limit(20);
+        textRows = data;
+      } catch (ilikeErr) {
+        console.warn(`${reqId} DB ilike fallback caught error:`, ilikeErr.message);
+      }
+    }
+
     const textOwned = (textRows || []).filter((r) => isReminderOwned(r, owner) && isActive(r) && !isAdvanceNotice(r));
     if (textOwned.length === 1) {
       base = textOwned[0];
-      console.log(`${reqId} target resolved via direct DB content lookup id=${base.id}`);
+      console.log(`${reqId} target resolved via DB content lookup id=${base.id} content="${base.content}"`);
     } else if (textOwned.length > 1) {
-      const scored = resolveReminderByScore(target, textOwned);
+      const scored = resolveReminderByScore(cleanSearchTarget, textOwned);
       if (scored.status === 'RESOLVED') {
         base = scored.reminder;
-        console.log(`${reqId} target resolved via direct DB scored content lookup id=${base.id}`);
+        console.log(`${reqId} target resolved via DB scored content lookup id=${base.id} content="${base.content}"`);
       }
     }
   }
