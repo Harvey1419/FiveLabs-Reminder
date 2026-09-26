@@ -26,8 +26,14 @@ export async function saveReminder({
   requiresConfirmation = false,
   nudgeIntervalMinutes = 15,
   maxNudges = 5,
+  source = null,
 }) {
   const isPersistent = Boolean(requiresConfirmation);
+  const resolvedSource = source
+    || (deliveryId?.startsWith('gcal:') || content?.startsWith('🔔 [Google Calendar]') ? 'gcal_companion' : null)
+    || (content?.startsWith('🔔 [Aviso Previo]') ? 'advance_notice' : null)
+    || 'user';
+
   const insertPayload = {
     phone_number: phoneNumber,
     content,
@@ -36,6 +42,7 @@ export async function saveReminder({
     status: 'pending',
     task_id: taskId || null,
     delivery_id: deliveryId || null,
+    source: resolvedSource,
     requires_confirmation: isPersistent,
     nudge_interval_minutes: isPersistent ? (Number(nudgeIntervalMinutes) || 15) : null,
     max_nudges: isPersistent ? (maxNudges !== undefined ? Number(maxNudges) : 5) : null,

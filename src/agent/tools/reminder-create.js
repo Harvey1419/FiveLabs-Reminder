@@ -292,6 +292,7 @@ export async function executeReminderCreate({
           content: advContent,
           sendAt: item.advDate.toISOString(),
           requiresConfirmation: false,
+          source: 'advance_notice',
         });
         if (advReminder) {
           savedReminders.push({
@@ -324,6 +325,7 @@ export async function executeReminderCreate({
       requiresConfirmation: Boolean(item.requiresConfirmation),
       nudgeIntervalMinutes: item.nudgeIntervalMinutes || (item.requiresConfirmation ? 10 : null),
       maxNudges: item.maxNudges || (item.requiresConfirmation ? 3 : null),
+      source: 'user',
     });
 
     if (!mainReminder) {

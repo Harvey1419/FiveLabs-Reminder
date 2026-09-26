@@ -541,6 +541,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
               content: advContent,
               sendAt: reminderSendAt,
               deliveryId: `gcal:${event.id}`,
+              source: 'gcal_companion',
               requiresConfirmation: true,
               recurrenceRule: params.recurrence || null,
             });

@@ -11,7 +11,7 @@ import { listCalendarEvents, normalizeCalendarEvent } from '../../integrations/g
 import { sendWhatsAppText } from '../../integrations/whatsapp/kapso-client.js';
 import { formatHumanFriendlyDateTime } from '../../shared/time.js';
 
-const DEFAULT_RECONCILIATION_HORIZON_HOURS = 48;
+const DEFAULT_RECONCILIATION_HORIZON_HOURS = 7 * 24; // 168 hours (7 days rolling window)
 const DEFAULT_ADVANCE_MINUTES = 15;
 
 /**
@@ -269,8 +269,8 @@ export async function reconcileCalendarCompanionReminders({
       if (Number.isNaN(eventStartMs)) continue;
 
       const triggerMs = eventStartMs - defaultAdvanceMinutes * 60 * 1000;
-      if (triggerMs <= Date.now()) {
-        // Event notification window has already passed
+      if (triggerMs <= Date.now() || triggerMs > futureLimit.getTime()) {
+        // Event notification window has already passed or lies beyond the rolling horizon (7 days)
         continue;
       }
 
@@ -288,6 +288,7 @@ export async function reconcileCalendarCompanionReminders({
             content,
             sendAt: sendAtIso,
             deliveryId,
+            source: 'gcal_companion',
             requiresConfirmation,
             nudgeIntervalMinutes,
             maxNudges,

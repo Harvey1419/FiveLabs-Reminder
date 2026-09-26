@@ -326,6 +326,7 @@ export async function executeReminderUpdate({
       content,
       sendAt: advanceDate.toISOString(),
       requiresConfirmation: false,
+      source: 'advance_notice',
     });
 
     if (!reminder) {

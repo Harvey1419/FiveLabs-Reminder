@@ -140,9 +140,11 @@ export async function executeSingleReminderCancellation({
 
   let query = supabase
     .from('reminders')
-    .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at');
+    .select('id,user_id,phone_number,status,acknowledged_at,content,recurrence_rule,send_at,created_at,source');
   query = scopeReminderQueryToOwner(query, owner);
-  if (typeof query?.not === 'function') {
+  if (typeof query?.neq === 'function') {
+    query = query.neq('source', 'gcal_companion');
+  } else if (typeof query?.not === 'function') {
     query = query.not('content', 'ilike', '🔔 [Google Calendar]%');
   }
 
@@ -158,7 +160,8 @@ export async function executeSingleReminderCancellation({
   }
 
   const userRows = (rows || []).filter((row) => (
-    !row.delivery_id?.startsWith('gcal:')
+    row.source !== 'gcal_companion'
+    && !row.delivery_id?.startsWith('gcal:')
     && !row.content?.startsWith('🔔 [Google Calendar]')
   ));
   const candidateRows = userRows.length > 0 ? userRows : (rows || []);
