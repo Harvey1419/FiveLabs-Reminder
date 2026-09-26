@@ -270,20 +270,20 @@ export async function acknowledgeReminder(id, userId = null) {
 
 /**
  * Find reminders that need an escalation nudge.
+ * Uses index-backed push-down predicates to avoid loading all sent reminders across the network.
  */
 export async function getRemindersDueForNudge() {
   const { data, error } = await supabase
     .from('reminders')
-    .select('*')
-    .eq('status', 'sent');
+    .select('id, user_id, phone_number, content, task_id, status, requires_confirmation, nudge_interval_minutes, max_nudges, nudge_count, last_nudged_at, sent_at, locale')
+    .eq('status', 'sent')
+    .eq('requires_confirmation', true)
+    .is('acknowledged_at', null);
 
   if (error || !data) return [];
 
   const now = Date.now();
   return data.filter(r => {
-    if (!r.requires_confirmation) return false;
-    if (r.acknowledged_at) return false;
-
     const maxNudges = r.max_nudges ?? 5;
     const nudgeCount = r.nudge_count ?? 0;
     if (nudgeCount >= maxNudges) return false;

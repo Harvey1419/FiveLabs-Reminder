@@ -18,6 +18,8 @@ import { detectLocaleFromPhone } from '../shared/time.js';
 import { isAdvanceNoticeContent } from '../agent/tools/reminder-advance.js';
 
 const CHECK_INTERVAL_MS = 15 * 1000;
+const NUDGE_CHECK_INTERVAL_MS = 60 * 1000; // Check nudges every 60s (nudges are spaced 10-15m)
+const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // Reconcile recurring schedules every 5m
 const MAX_STALE_MS = 2 * 60 * 60 * 1000;
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -167,7 +169,7 @@ export async function reconcileRecurringScheduleState() {
 async function getRecurringPendingNudges() {
   const { data, error } = await supabase
     .from('reminders')
-    .select('*')
+    .select('id, user_id, phone_number, content, task_id, status, requires_confirmation, nudge_interval_minutes, max_nudges, nudge_count, last_nudged_at, sent_at, recurrence_rule, send_at, locale')
     .eq('status', 'pending')
     .eq('requires_confirmation', true)
     .not('recurrence_rule', 'is', null)
@@ -185,9 +187,18 @@ async function getRecurringPendingNudges() {
 export async function startScheduler() {
   console.log(`[scheduler] started worker=${WORKER_ID} (check interval: ${CHECK_INTERVAL_MS / 1000}s with atomic locking, stable recurring IDs & persistent nudges)`);
 
+  let lastNudgeCheckMs = 0;
+  let lastReconcileMs = 0;
+
   while (true) {
     try {
-      await reconcileRecurringScheduleState();
+      const now = Date.now();
+
+      // Only reconcile recurring state every 5 minutes instead of every 15 seconds
+      if (now - lastReconcileMs >= RECONCILE_INTERVAL_MS) {
+        lastReconcileMs = now;
+        await reconcileRecurringScheduleState();
+      }
 
       let claimed = await claimNextDueReminder(WORKER_ID);
       while (claimed) {
@@ -195,7 +206,11 @@ export async function startScheduler() {
         claimed = await claimNextDueReminder(WORKER_ID);
       }
 
-      await checkAndDispatchNudges();
+      // Check nudges every 60 seconds instead of every 15 seconds
+      if (now - lastNudgeCheckMs >= NUDGE_CHECK_INTERVAL_MS) {
+        lastNudgeCheckMs = now;
+        await checkAndDispatchNudges();
+      }
 
       const nextReminder = await getNextPendingReminder();
       if (!nextReminder) {
@@ -204,9 +219,9 @@ export async function startScheduler() {
       }
 
       const sendAtMs = new Date(nextReminder.send_at).getTime();
-      const now = Date.now();
-      if (sendAtMs <= now) continue;
-      await sleep(Math.min(sendAtMs - now, CHECK_INTERVAL_MS));
+      const currentMs = Date.now();
+      if (sendAtMs <= currentMs) continue;
+      await sleep(Math.min(sendAtMs - currentMs, CHECK_INTERVAL_MS));
     } catch (error) {
       console.error(`[scheduler worker=${WORKER_ID}] error in cycle:`, error);
       await sleep(15000);
