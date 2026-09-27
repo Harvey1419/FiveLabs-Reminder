@@ -70,7 +70,9 @@ export function formatTaskProjectGroups(tasks = [], {
       const time = getTaskTime(task, { timezone, language, isMultiDay });
       const notesBadge = formatTaskNotesBadge(task, language === 'en');
       const prefix = numbered ? `${globalIndex++}.` : '•';
-      return `${prefix} ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
+      const desc = String(task?.description || task?.notes || '').trim();
+      const noteLine = desc ? `\n   ↳ 📝 _${desc.replace(/\n+/g, ' · ')}_` : '';
+      return `${prefix} ${title}${time ? ` — ${time}` : ''}${notesBadge}${noteLine}`;
     });
     return `${projectIcon} *${project}*\n${lines.join('\n')}`;
   }).join('\n\n');

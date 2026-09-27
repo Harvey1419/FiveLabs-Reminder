@@ -93,7 +93,9 @@ export function formatCanonicalTaskList(data = {}, {
       const title = task?.title || task?.content || (isEn ? 'Untitled task' : 'Tarea sin título');
       const time = getTaskTime(task, { timezone, language, isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope) });
       const notesBadge = formatTaskNotesBadge(task, isEn);
-      return `${globalIndex++}. ${title}${time ? ` — ${time}` : ''}${notesBadge}`;
+      const desc = String(task?.description || task?.notes || '').trim();
+      const noteLine = desc ? `\n   ↳ 📝 _${desc.replace(/\n+/g, ' · ')}_` : '';
+      return `${globalIndex++}. ${title}${time ? ` — ${time}` : ''}${notesBadge}${noteLine}`;
     });
     return `${header}\n\n${lines.join('\n')}`;
   }
