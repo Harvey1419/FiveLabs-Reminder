@@ -12,7 +12,9 @@ import {
   normalizePhoneNumber,
 } from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
-import { getOrCreateUserByPhone, updateUserTimezone, touchUserLastActive } from '../../infrastructure/database/users.js';
+import { getOrCreateUserByPhone, updateUserTimezone, updateUserLocale, updateUserPreferences, touchUserLastActive } from '../../infrastructure/database/users.js';
+import { detectLanguageFromText } from '../../shared/language-detection.js';
+import { inferUserOnboardingMetadata } from '../../features/users/onboarding.js';
 import {
   supabase,
   updateReminderDeliveryStatus,
@@ -692,6 +694,21 @@ export async function handleWebhook(req, res) {
       const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
       console.log(`[webhook req=${correlationId}] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
 
+      // Initial Onboarding for New Contacts
+      if (user.is_new) {
+        try {
+          await inferUserOnboardingMetadata({
+            user,
+            phoneNumber: recipientIdentifier,
+            messageText,
+            displayName,
+            correlationId,
+          });
+        } catch (onboardingErr) {
+          console.warn(`[webhook req=${correlationId}] Onboarding error:`, onboardingErr?.message || onboardingErr);
+        }
+      }
+
       // Dynamic Timezone Resolution
       if (locationTz && user.timezone !== locationTz) {
         // High-confidence: Native WhatsApp GPS Location Pin
@@ -712,6 +729,22 @@ export async function handleWebhook(req, res) {
             await updateUserTimezone(user.id, textTz);
             user.timezone = textTz;
           }
+        }
+      }
+
+      // Dynamic Language / Locale Resolution
+      const detectedLang = detectLanguageFromText(messageText);
+      if (detectedLang) {
+        const targetLocale = detectedLang === 'en' ? 'en-US' : 'es-CO';
+        const currentLocale = user.locale || 'es-CO';
+        const isExplicitLangDirective = /^(?:habla(?:me)? en (?:español|ingl[eé]s)|speak in (?:english|spanish)|cambia(?:r)? mi idioma a (?:español|ingl[eé]s))/i.test(messageText.trim());
+
+        if (isExplicitLangDirective || targetLocale !== currentLocale) {
+          console.log(`[webhook req=${correlationId}] Dynamic locale switch: ${currentLocale} -> ${targetLocale} (explicit=${isExplicitLangDirective})`);
+          user.locale = targetLocale;
+          updateUserLocale(user.id, targetLocale).catch((err) => {
+            console.warn(`[webhook req=${correlationId}] updateUserLocale background error:`, err?.message || err);
+          });
         }
       }
 

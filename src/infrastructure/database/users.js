@@ -72,6 +72,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
       .single();
 
     if (newUser && !insertError) {
+      newUser.is_new = true;
       userCache.set(cleanPhone, { user: newUser, timestamp: Date.now() });
       return newUser;
     }
@@ -134,6 +135,11 @@ export async function updateUserPreferences(userId, { timezone, locale }) {
 export async function updateUserTimezone(userId, timezone) {
   if (!userId || !timezone) return null;
   return updateUserPreferences(userId, { timezone });
+}
+
+export async function updateUserLocale(userId, locale) {
+  if (!userId || !locale) return null;
+  return updateUserPreferences(userId, { locale });
 }
 
 /**
