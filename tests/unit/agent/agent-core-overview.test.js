@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatActiveFollowups, formatCompactOverview } from '../../../src/agent/core/agent-core.js';
+import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview } from '../../../src/agent/core/agent-core.js';
 
 describe('agent live overview', () => {
   it('exposes counts for orientation but never item content', () => {
@@ -39,5 +39,23 @@ describe('agent live overview', () => {
 
   it('returns no follow-up context when nothing awaits confirmation', () => {
     expect(formatActiveFollowups({ pendingConfirmationReminders: [] })).toBe('');
+  });
+
+
+  it('anchors Hermes identity to Temple Labs and keeps casual conversation open', () => {
+    const text = buildAgentCorePrompt({
+      nowStr: '2026-09-27 22:54',
+      nowHumanStr: 'domingo, 27 de septiembre de 2026, 10:54 p. m.',
+      timezone: 'America/Bogota',
+      memoryHints: '',
+      overview: null,
+      isPro: true,
+    });
+
+    expect(text).toContain('creado por Temple Labs');
+    expect(text).toContain('No te presentes como ChatGPT, OpenAI, Groq, Google, Anthropic');
+    expect(text).toContain('puedes conversar naturalmente');
+    expect(text).toContain('¿En qué puedo ayudarte?');
+    expect(text).toContain('No la repitas mecánicamente');
   });
 });
