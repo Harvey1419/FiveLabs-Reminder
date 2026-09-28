@@ -170,6 +170,42 @@ describe('canonical uniqueness after Groq schema adaptation', () => {
   });
 });
 
+describe('reminder delivery policy contract', () => {
+  it('represents removal of advance delivery as canonical reminder state', () => {
+    const result = validateTurnIntent({
+      actions: [{
+        domain: 'reminder',
+        action: 'update',
+        target: 'Mandar a recargar el extintor',
+        deliveryPolicy: { advanceNotice: 'none' },
+      }],
+    });
+
+    expect(result).toMatchObject({
+      valid: true,
+      intent: {
+        actions: [{
+          domain: 'reminder',
+          action: 'update',
+          target: 'Mandar a recargar el extintor',
+          deliveryPolicy: { advanceNotice: 'none' },
+        }],
+      },
+    });
+  });
+
+  it('requires an explicit offset when advance delivery is desired', () => {
+    expect(validateTurnIntent({
+      actions: [{
+        domain: 'reminder',
+        action: 'update',
+        target: 'Cita',
+        deliveryPolicy: { advanceNotice: 'offset' },
+      }],
+    })).toMatchObject({ valid: false, errorCode: 'INVALID_PARAMETERS' });
+  });
+});
+
 describe('foreground strict Structured Outputs boundary', () => {
   let fetchMock;
 
