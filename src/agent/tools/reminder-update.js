@@ -19,7 +19,11 @@ import {
   REMINDER_PRO_FALLBACK,
   resolveReminderProUpgradeContext,
 } from './reminder-pro.js';
-import { buildAdvanceNoticeContent } from './reminder-advance.js';
+import {
+  buildAdvanceNoticeContent,
+  belongsToMainReminder,
+  getAdvanceNoticeMinutes,
+} from './reminder-advance.js';
 import {
   buildReminderOwnerContext,
   scopeReminderQueryToOwner,
@@ -283,79 +287,52 @@ export async function executeReminderUpdate({
   }
 
   const resolvedTargetId = resolved.targetId;
-  const isAdvanceNotice = params.advanceMinutes !== undefined;
+  const baseReminder = resolved.exactReminder
+    || resolved.pending.find((reminder) => reminder.id === resolvedTargetId)
+    || null;
 
-  if (isAdvanceNotice) {
-    const baseReminder = resolved.exactReminder
-      || resolved.pending.find((reminder) => reminder.id === resolvedTargetId)
-      || null;
-
-    if (!baseReminder?.send_at) {
-      return {
-        success: false,
-        action: 'reminder_not_found',
-        errorCode: 'NOT_FOUND',
-        error: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
-        rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
-      };
-    }
-
-    const advanceMinutes = Number(params.advanceMinutes || 15);
-    const baseDate = new Date(baseReminder.send_at);
-    const advanceDate = new Date(baseDate.getTime() - advanceMinutes * 60 * 1000);
-    const now = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
-
-    if (advanceDate.getTime() <= now.getTime()) {
-      return {
-        success: false,
-        action: 'advance_time_in_past',
-        errorCode: 'ADVANCE_TIME_IN_PAST',
-        error: language === 'en'
-          ? 'The requested advance-notice time has already passed.'
-          : 'El momento solicitado para el aviso previo ya pasó.',
-        rawSummary: language === 'en'
-          ? 'The requested advance-notice time has already passed.'
-          : 'El momento solicitado para el aviso previo ya pasó.',
-      };
-    }
-
-    const content = buildAdvanceNoticeContent(baseReminder.content, advanceMinutes);
-    const reminder = await saveReminder({
-      userId,
-      phoneNumber,
-      content,
-      sendAt: advanceDate.toISOString(),
-      requiresConfirmation: false,
-      source: 'advance_notice',
-    });
-
-    if (!reminder) {
-      return {
-        success: false,
-        action: 'database_error',
-        errorCode: 'DATABASE_ERROR',
-        error: language === 'en' ? 'Could not save the advance notice.' : 'No se pudo guardar el aviso previo.',
-        rawSummary: language === 'en' ? 'Could not save the advance notice.' : 'No se pudo guardar el aviso previo.',
-      };
-    }
-
-    const formattedTime = formatHumanFriendlyDateTime(advanceDate, timezone, language);
-    const summary = language === 'en'
-      ? `🔔 *Advance notice scheduled*\n\n⏰ *${baseReminder.content}*\n📅 ${formattedTime} (${advanceMinutes} minutes before)`
-      : `🔔 *Aviso previo programado*\n\n⏰ *${baseReminder.content}*\n📅 ${formattedTime} (${advanceMinutes} minutos antes)`;
+  if (!baseReminder?.send_at) {
     return {
-      success: true,
-      action: 'created_advance_reminder',
-      data: {
-        ...reminder,
-        displayContent: baseReminder.content,
-        isAdvanceNotice: true,
-        advanceMinutes,
-        formattedTime,
-      },
-      rawSummary: summary,
-      formattedCard: summary,
+      success: false,
+      action: 'reminder_not_found',
+      errorCode: 'NOT_FOUND',
+      error: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
+      rawSummary: language === 'en' ? 'Reminder not found.' : 'No se encontró el recordatorio especificado.',
     };
+  }
+
+  // deliveryPolicy is desired operational state, not language interpretation.
+  // Legacy advanceMinutes is accepted at this boundary only for backwards compatibility.
+  const deliveryPolicy = params.deliveryPolicy
+    || (Number.isInteger(params.advanceMinutes)
+      ? { advanceNotice: 'offset', advanceMinutes: params.advanceMinutes }
+      : null);
+  const explicitDeliveryPolicy = Boolean(deliveryPolicy);
+  const existingAdvanceNotices = (resolved.pending || []).filter((reminder) => (
+    reminder.id !== baseReminder.id
+    && reminder.status === 'pending'
+    && reminder.source === 'advance_notice'
+    && belongsToMainReminder(reminder, baseReminder)
+  ));
+
+  if (deliveryPolicy) {
+    const mode = deliveryPolicy.advanceNotice;
+    if (!['none', 'offset'].includes(mode)) {
+      return {
+        success: false,
+        action: 'invalid_delivery_policy',
+        errorCode: 'INVALID_PARAMETERS',
+        error: language === 'en' ? 'Invalid reminder delivery policy.' : 'La política de entrega del recordatorio no es válida.',
+      };
+    }
+    if (mode === 'offset' && (!Number.isInteger(deliveryPolicy.advanceMinutes) || deliveryPolicy.advanceMinutes <= 0)) {
+      return {
+        success: false,
+        action: 'invalid_delivery_policy',
+        errorCode: 'INVALID_PARAMETERS',
+        error: language === 'en' ? 'Advance notice needs a positive minute offset.' : 'El aviso previo necesita una cantidad válida de minutos.',
+      };
+    }
   }
 
   const dbUpdates = {};
@@ -408,7 +385,7 @@ export async function executeReminderUpdate({
     dbUpdates.recurrence_rule = newRecurrence;
   }
 
-  if (Object.keys(dbUpdates).length === 0) {
+  if (Object.keys(dbUpdates).length === 0 && !explicitDeliveryPolicy) {
     return {
       success: false,
       action: 'no_updates_provided',
@@ -418,7 +395,49 @@ export async function executeReminderUpdate({
     };
   }
 
-  const updated = await updateReminder(resolvedTargetId, dbUpdates, userId, phoneNumber);
+  const prospectiveMain = {
+    ...baseReminder,
+    content: dbUpdates.content || baseReminder.content,
+    send_at: dbUpdates.send_at || baseReminder.send_at,
+  };
+
+  // Validate an explicitly requested advance notice before mutating the primary.
+  // Preserved derived state may simply expire when a primary is moved too close.
+  const preservedAdvanceMinutes = existingAdvanceNotices.length > 0
+    ? getAdvanceNoticeMinutes(existingAdvanceNotices[0], baseReminder)
+    : null;
+  const desiredAdvanceMode = explicitDeliveryPolicy
+    ? deliveryPolicy.advanceNotice
+    : (preservedAdvanceMinutes ? 'offset' : 'none');
+  const desiredAdvanceMinutes = desiredAdvanceMode === 'offset'
+    ? (explicitDeliveryPolicy ? deliveryPolicy.advanceMinutes : preservedAdvanceMinutes)
+    : null;
+  const referenceDate = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
+  const prospectiveAdvanceDate = desiredAdvanceMinutes
+    ? new Date(new Date(prospectiveMain.send_at).getTime() - desiredAdvanceMinutes * 60 * 1000)
+    : null;
+
+  if (
+    explicitDeliveryPolicy
+    && desiredAdvanceMode === 'offset'
+    && (!prospectiveAdvanceDate || prospectiveAdvanceDate.getTime() <= referenceDate.getTime())
+  ) {
+    return {
+      success: false,
+      action: 'advance_time_in_past',
+      errorCode: 'ADVANCE_TIME_IN_PAST',
+      error: language === 'en'
+        ? 'The requested advance-notice time has already passed.'
+        : 'El momento solicitado para el aviso previo ya pasó.',
+      rawSummary: language === 'en'
+        ? 'The requested advance-notice time has already passed.'
+        : 'El momento solicitado para el aviso previo ya pasó.',
+    };
+  }
+
+  const updated = Object.keys(dbUpdates).length > 0
+    ? await updateReminder(resolvedTargetId, dbUpdates, userId, phoneNumber)
+    : baseReminder;
   if (!updated) {
     return {
       success: false,
@@ -431,8 +450,81 @@ export async function executeReminderUpdate({
     };
   }
 
+  const cancelAdvanceNotices = async (notices) => {
+    const ids = notices.map((notice) => notice.id).filter(Boolean);
+    if (ids.length === 0) return 0;
+    let q = supabase.from('reminders').update({ status: 'cancelled' }).in('id', ids);
+    q = scopeReminderQueryToOwner(q, owner);
+    const { data, error } = await q.select('id');
+    if (error) throw error;
+    return data?.length || 0;
+  };
+
+  let activeAdvanceNotice = null;
+  let cancelledAdvanceNotices = 0;
+  if (desiredAdvanceMode === 'none' || !prospectiveAdvanceDate || prospectiveAdvanceDate.getTime() <= referenceDate.getTime()) {
+    cancelledAdvanceNotices = await cancelAdvanceNotices(existingAdvanceNotices);
+  } else {
+    const desiredContent = buildAdvanceNoticeContent(updated.content, desiredAdvanceMinutes);
+    const desiredSendAt = prospectiveAdvanceDate.toISOString();
+    activeAdvanceNotice = existingAdvanceNotices.find((notice) => (
+      notice.content === desiredContent
+      && new Date(notice.send_at).toISOString() === desiredSendAt
+    )) || null;
+
+    const staleNotices = existingAdvanceNotices.filter((notice) => notice.id !== activeAdvanceNotice?.id);
+    cancelledAdvanceNotices = await cancelAdvanceNotices(staleNotices);
+
+    if (activeAdvanceNotice) {
+      if (activeAdvanceNotice.parent_reminder_id !== updated.id) {
+        activeAdvanceNotice = await updateReminder(
+          activeAdvanceNotice.id,
+          { parent_reminder_id: updated.id },
+          userId,
+          phoneNumber,
+        ) || activeAdvanceNotice;
+      }
+    } else {
+      activeAdvanceNotice = await saveReminder({
+        userId,
+        phoneNumber,
+        content: desiredContent,
+        sendAt: desiredSendAt,
+        parentReminderId: updated.id,
+        requiresConfirmation: false,
+        source: 'advance_notice',
+      });
+      if (!activeAdvanceNotice) {
+        return {
+          success: false,
+          complete: false,
+          partialSuccess: Object.keys(dbUpdates).length > 0,
+          action: 'delivery_policy_reconciliation_failed',
+          errorCode: 'DATABASE_ERROR',
+          error: language === 'en'
+            ? 'The reminder was updated, but its advance notice could not be reconciled.'
+            : 'El recordatorio se actualizó, pero no se pudo reconciliar su aviso previo.',
+          data: { reminder: updated },
+        };
+      }
+    }
+  }
+
   const formattedTime = formatHumanFriendlyDateTime(new Date(updated.send_at), timezone, language);
-  const formattedCard = formatReminderUpdatedCard(updated, formattedTime, timezone, language);
+  let formattedCard = formatReminderUpdatedCard(updated, formattedTime, timezone, language);
+  if (explicitDeliveryPolicy) {
+    if (desiredAdvanceMode === 'none') {
+      formattedCard = language === 'en'
+        ? `✅ *Reminder updated*\n\n⏰ *${updated.content}*\n🔕 No advance notice`
+        : `✅ *Recordatorio actualizado*\n\n⏰ *${updated.content}*\n🔕 Sin aviso previo`;
+    } else if (activeAdvanceNotice) {
+      const advanceFormatted = formatHumanFriendlyDateTime(new Date(activeAdvanceNotice.send_at), timezone, language);
+      formattedCard = language === 'en'
+        ? `✅ *Reminder updated*\n\n⏰ *${updated.content}*\n🔔 Advance notice · ${advanceFormatted}`
+        : `✅ *Recordatorio actualizado*\n\n⏰ *${updated.content}*\n🔔 Aviso previo · ${advanceFormatted}`;
+    }
+  }
+
   return {
     success: true,
     action: 'updated_reminder',
@@ -442,6 +534,18 @@ export async function executeReminderUpdate({
       sendAt: updated.send_at,
       formattedTime,
       recurrenceRule: updated.recurrence_rule,
+      deliveryPolicy: {
+        advanceNotice: activeAdvanceNotice ? 'offset' : 'none',
+        advanceMinutes: activeAdvanceNotice ? desiredAdvanceMinutes : null,
+      },
+      advanceNotice: activeAdvanceNotice
+        ? {
+            id: activeAdvanceNotice.id,
+            parentReminderId: updated.id,
+            sendAt: activeAdvanceNotice.send_at,
+          }
+        : null,
+      cancelledAdvanceNotices,
     },
     rawSummary: formattedCard,
     formattedCard,
