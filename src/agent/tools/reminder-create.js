@@ -283,39 +283,8 @@ export async function executeReminderCreate({
       }
     }
 
-    if (item.advDate) {
-      if (item.advDate.getTime() > referenceDate.getTime()) {
-        const advContent = buildAdvanceNoticeContent(item.content, item.advanceMinutes || 15);
-        const advReminder = await saveReminder({
-          userId,
-          phoneNumber,
-          content: advContent,
-          sendAt: item.advDate.toISOString(),
-          requiresConfirmation: false,
-          source: 'advance_notice',
-        });
-        if (advReminder) {
-          savedReminders.push({
-            id: advReminder.id,
-            content: advContent,
-            displayContent: item.content,
-            isAdvanceNotice: true,
-            sendAt: item.advDate.toISOString(),
-            formattedTime: formatHumanFriendlyDateTime(item.advDate, timezone, language),
-          });
-        }
-      } else {
-        rejectedItems.push({
-          type: 'advance_notice',
-          content: language === 'en' ? `Advance notice for ${item.content}` : `Aviso previo de ${item.content}`,
-          code: 'ADVANCE_TIME_IN_PAST',
-          reason: language === 'en'
-            ? 'the requested advance-notice moment has already passed; the main reminder was still scheduled.'
-            : 'el momento del aviso previo ya pasó; el recordatorio principal sí fue programado.',
-        });
-      }
-    }
-
+    // The primary reminder owns every derived delivery effect. Persist it first
+    // so an advance notice can never become an orphan if the primary write fails.
     const mainReminder = await saveReminder({
       userId,
       phoneNumber,
@@ -338,7 +307,7 @@ export async function executeReminderCreate({
       };
     }
 
-    savedReminders.push({
+    const mainSnapshot = {
       id: mainReminder.id,
       content: item.content,
       isAdvanceNotice: false,
@@ -347,7 +316,69 @@ export async function executeReminderCreate({
       recurrenceRule: item.recurrenceRule,
       recurrence_rule: item.recurrenceRule,
       requiresConfirmation: item.requiresConfirmation,
-    });
+    };
+
+    const itemSaved = [];
+    if (item.advDate) {
+      if (item.advDate.getTime() > referenceDate.getTime()) {
+        const advContent = buildAdvanceNoticeContent(item.content, item.advanceMinutes || 15);
+        try {
+          const advReminder = await saveReminder({
+            userId,
+            phoneNumber,
+            content: advContent,
+            sendAt: item.advDate.toISOString(),
+            parentReminderId: mainReminder.id,
+            requiresConfirmation: false,
+            source: 'advance_notice',
+          });
+          if (advReminder) {
+            itemSaved.push({
+              id: advReminder.id,
+              content: advContent,
+              displayContent: item.content,
+              isAdvanceNotice: true,
+              parentReminderId: mainReminder.id,
+              sendAt: item.advDate.toISOString(),
+              formattedTime: formatHumanFriendlyDateTime(item.advDate, timezone, language),
+            });
+          } else {
+            rejectedItems.push({
+              type: 'advance_notice',
+              content: language === 'en' ? `Advance notice for ${item.content}` : `Aviso previo de ${item.content}`,
+              code: 'DATABASE_ERROR',
+              reason: language === 'en'
+                ? 'the main reminder was created, but its advance notice could not be saved.'
+                : 'el recordatorio principal se creó, pero no se pudo guardar su aviso previo.',
+            });
+          }
+        } catch (err) {
+          console.warn('[reminder-create] advance notice persistence error:', err.message);
+          rejectedItems.push({
+            type: 'advance_notice',
+            content: language === 'en' ? `Advance notice for ${item.content}` : `Aviso previo de ${item.content}`,
+            code: 'DATABASE_ERROR',
+            reason: language === 'en'
+              ? 'the main reminder was created, but its advance notice could not be saved.'
+              : 'el recordatorio principal se creó, pero no se pudo guardar su aviso previo.',
+          });
+        }
+      } else {
+        rejectedItems.push({
+          type: 'advance_notice',
+          content: language === 'en' ? `Advance notice for ${item.content}` : `Aviso previo de ${item.content}`,
+          code: 'ADVANCE_TIME_IN_PAST',
+          reason: language === 'en'
+            ? 'the requested advance-notice moment has already passed; the main reminder was still scheduled.'
+            : 'el momento del aviso previo ya pasó; el recordatorio principal sí fue programado.',
+        });
+      }
+    }
+
+    // Keep presentation order stable (advance notice before the primary) while
+    // storage ownership remains primary-first and deterministic.
+    itemSaved.push(mainSnapshot);
+    savedReminders.push(...itemSaved);
 
     if (Array.isArray(item.checklist) && item.checklist.length > 0) {
       for (const checklistItem of item.checklist) {
