@@ -28,12 +28,35 @@ export function isAdvanceNoticeContent(content) {
 }
 
 export function belongsToMainReminder(notice, main) {
-  const parsed = parseAdvanceNoticeContent(notice?.content);
-  if (!parsed || parsed.baseContent !== main?.content) return false;
+  if (!notice || !main) return false;
 
-  const noticeTime = new Date(notice?.send_at || 0).getTime();
-  const mainTime = new Date(main?.send_at || 0).getTime();
+  // Canonical ownership for new rows: delivery effects belong to one primary reminder.
+  if (notice.parent_reminder_id && main.id) {
+    return String(notice.parent_reminder_id) === String(main.id);
+  }
+
+  // Legacy compatibility for rows created before parent_reminder_id was populated.
+  // This is internal protocol reconciliation, never interpretation of user language.
+  const parsed = parseAdvanceNoticeContent(notice.content);
+  if (!parsed || parsed.baseContent !== main.content) return false;
+
+  const noticeTime = new Date(notice.send_at || 0).getTime();
+  const mainTime = new Date(main.send_at || 0).getTime();
   if (!Number.isFinite(noticeTime) || !Number.isFinite(mainTime)) return false;
 
   return noticeTime + (parsed.advanceMinutes * 60 * 1000) === mainTime;
+}
+
+export function getAdvanceNoticeMinutes(notice, main = null) {
+  const parsed = parseAdvanceNoticeContent(notice?.content);
+  if (parsed?.advanceMinutes) return parsed.advanceMinutes;
+
+  if (main?.send_at && notice?.send_at) {
+    const mainTime = new Date(main.send_at).getTime();
+    const noticeTime = new Date(notice.send_at).getTime();
+    const minutes = Math.round((mainTime - noticeTime) / 60000);
+    if (Number.isInteger(minutes) && minutes > 0) return minutes;
+  }
+
+  return null;
 }
