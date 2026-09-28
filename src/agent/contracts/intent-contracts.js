@@ -83,7 +83,17 @@ const actionSchema = {
     query: { type: 'string', description: 'Search term. For calendar.search or calendar.list, use query to filter a specific meeting or event by title/subject (e.g. "daily", "sync cliente"). For task/memory search, the search query.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
     schedule: typedSchedule, endSchedule: typedSchedule,
-    advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080 },
+    advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080, description: 'Advance offset in minutes. For calendar actions this is the event notification offset. For reminders prefer deliveryPolicy so delivery behavior is represented as desired state, not a separate action.' },
+    deliveryPolicy: {
+      type: 'object',
+      additionalProperties: false,
+      description: 'Desired delivery state for a reminder. Use only when the user explicitly changes or requests delivery behavior, or when preserving an already-known state. Never invent an advance notice.',
+      properties: {
+        advanceNotice: { type: 'string', enum: ['none', 'offset'], description: 'none = no advance notice; offset = one advance notice before the primary reminder.' },
+        advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080, description: 'Required only when advanceNotice=offset.' },
+      },
+      required: ['advanceNotice'],
+    },
     recurrence: { type: 'string', description: 'Named rule: daily|weekdays|weekly|monthly|yearly|hourly. For sub-daily intervals use "hourly:N" (every N hours, e.g. "hourly:6") or "interval:Xm" / "interval:Xh" (every X minutes/hours). Never use plain "hourly" for anything other than exactly every 1 hour.' },
     requiresConfirmation: { type: 'boolean' },
     nudgeIntervalMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, maxNudges: { type: 'integer', minimum: 1, maximum: 100 },
@@ -105,13 +115,13 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
 
 export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
 AUTORIDAD DE ESTADO: Historial no manda sobre compromisos. Horizonte ('qué tengo hoy/mañana') EXIGE agenda.read. Consultas de estado EXIGEN lecturas (agenda.read, calendar.list, reminder.list, task.list). conversation.reply es sin estado. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente y deltas pedidos. Cambio nunca es identidad.
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; actualizar/cancelar/completar/eliminar requieren target existente. Cambiar propiedades de un recordatorio es reminder.update sobre el objeto existente, nunca una recreación. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
 TAREAS Y PROYECTOS: 'tareas'/'pendientes' fija domain="task"; contenedor ('tareas en X') emite task.list(entityName="X"). Proyectos: project+task.create. Listar: project.list; borrar: project.delete(target="Nombre"); sin tareas: scope="no_tasks". Tareas: task.list(entityName); NUNCA listes en conversation.reply ni inventes conteos. Montos: actualiza title. Notas: description; renombrar: title/newName. Ordinales: task.delete target="1".
 CALENDARIO: Fechas: calendar.list con scope; eventos: calendar.search con query (ej. query="daily") y scope; citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 ALERTAS VS LECTURAS (CQRS): reminder.create exige orden de alerta diferida ('recuérdame', 'avísame'). Inspección ('revisar agenda de mañana') es lectura viva (agenda.read), NUNCA mutación, con o sin signo de pregunta. Orden con inspección ('recuérdame mañana revisar agenda') va en content de reminder.create sin lecturas espurias. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas de dominio.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
-Faltantes usan missingFields y clarification.request. Recurrencia y advanceMinutes en su acción. memory.save solo ante petición explícita.
+Faltantes usan missingFields y clarification.request. Para recordatorios, deliveryPolicy representa el estado deseado de entrega: advanceNotice="none" o "offset"+advanceMinutes. No inventes propiedades opcionales: si el usuario no pidió un aviso previo y no existe una preferencia/estado explícito que deba preservarse, no lo agregues. Recurrencia, confirmación, nudges y avisos previos solo se emiten con evidencia semántica suficiente. memory.save solo ante petición explícita.
 Mensajes mixtos: acciones válidas y no ejecutables en excluded. Lecturas dan verdad en card; NUNCA especules en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
@@ -343,6 +353,21 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       }
     }
     if (normalizedRaw.recurrence !== undefined && !RECURRENCES.includes(normalizedRaw.recurrence) && !RECURRENCE_INTERVAL_RE.test(normalizedRaw.recurrence)) return { valid: false, errorCode: 'INVALID_RECURRENCE', error: `Recurrencia no soportada: ${normalizedRaw.recurrence}.` };
+    if (normalizedRaw.deliveryPolicy !== undefined) {
+      const policy = normalizedRaw.deliveryPolicy;
+      if (domain !== 'reminder' || !['create', 'update'].includes(action)) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'deliveryPolicy solo aplica a reminder.create/update.' };
+      }
+      if (!policy || typeof policy !== 'object' || Array.isArray(policy) || !['none', 'offset'].includes(policy.advanceNotice)) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'deliveryPolicy no es válido.' };
+      }
+      if (policy.advanceNotice === 'offset' && !Number.isInteger(policy.advanceMinutes)) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'deliveryPolicy requiere advanceMinutes cuando advanceNotice=offset.' };
+      }
+      if (policy.advanceNotice === 'none' && policy.advanceMinutes !== undefined && policy.advanceMinutes !== null) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'deliveryPolicy no admite advanceMinutes cuando advanceNotice=none.' };
+      }
+    }
     // Groq's provider-facing schema cannot enforce this canonical constraint.
     if (Array.isArray(normalizedRaw.missingFields)
       && actionSchema.properties.missingFields.uniqueItems
