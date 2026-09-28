@@ -22,6 +22,7 @@ export async function saveReminder({
   sendAt,
   taskId = null,
   deliveryId = null,
+  parentReminderId = null,
   recurrenceRule = null,
   requiresConfirmation = false,
   nudgeIntervalMinutes = 15,
@@ -42,6 +43,7 @@ export async function saveReminder({
     status: 'pending',
     task_id: taskId || null,
     delivery_id: deliveryId || null,
+    parent_reminder_id: parentReminderId || null,
     source: resolvedSource,
     requires_confirmation: isPersistent,
     nudge_interval_minutes: isPersistent ? (Number(nudgeIntervalMinutes) || 15) : null,
@@ -128,6 +130,7 @@ export async function saveReminder({
         recurrence_rule: recurrenceRule || null,
         status: 'pending',
         task_id: taskId || null,
+        parent_reminder_id: parentReminderId || null,
       };
       if (userId) fallbackPayload.user_id = userId;
 
