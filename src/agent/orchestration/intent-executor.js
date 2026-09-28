@@ -145,7 +145,9 @@ function buildDomainCall(action, context) {
             items: [{
               content: content.value,
               targetTime: temporal.canonical,
-              ...(action.advanceMinutes ? { advanceMinutes: action.advanceMinutes } : {}),
+              ...(action.deliveryPolicy?.advanceNotice === 'offset'
+                ? { advanceMinutes: action.deliveryPolicy.advanceMinutes }
+                : (action.advanceMinutes ? { advanceMinutes: action.advanceMinutes } : {})),
               ...(action.recurrence ? { recurrence: action.recurrence } : {}),
               ...(action.requiresConfirmation ? { requiresConfirmation: true } : {}),
               ...(action.nudgeIntervalMinutes ? { nudgeIntervalMinutes: action.nudgeIntervalMinutes } : {}),
@@ -166,8 +168,9 @@ function buildDomainCall(action, context) {
         }
         if (action.recurrence) updates.recurrence = action.recurrence;
         const params = { action: 'update', target, updates };
-        if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
-        if (Object.keys(updates).length === 0 && !action.advanceMinutes) {
+        if (action.deliveryPolicy) params.deliveryPolicy = action.deliveryPolicy;
+        else if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
+        if (Object.keys(updates).length === 0 && !action.deliveryPolicy && !action.advanceMinutes) {
           return {
             valid: false,
             errorCode: 'MISSING_UPDATES',
@@ -184,7 +187,15 @@ function buildDomainCall(action, context) {
         if (!Number.isInteger(action.advanceMinutes)) {
           return { valid: false, errorCode: 'INVALID_ADVANCE_MINUTES', error: 'Falta indicar cuántos minutos antes.' };
         }
-        return { valid: true, toolName: TOOL_NAMES.MANAGE_REMINDER, params: { action: 'update', target, advanceMinutes: action.advanceMinutes } };
+        return {
+          valid: true,
+          toolName: TOOL_NAMES.MANAGE_REMINDER,
+          params: {
+            action: 'update',
+            target,
+            deliveryPolicy: { advanceNotice: 'offset', advanceMinutes: action.advanceMinutes },
+          },
+        };
       }
       if (action.action === 'cancel') {
         if (['all', 'elapsed'].includes(action.scope)) {
