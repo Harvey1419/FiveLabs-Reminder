@@ -43,12 +43,14 @@ describe('advance-notice scheduling invariant', () => {
     expect(result.success).toBe(true);
     expect(saveReminder).toHaveBeenCalledTimes(2);
     expect(saveReminder.mock.calls[0][0]).toMatchObject({
-      content: expect.stringContaining('[Aviso Previo]'),
-      sendAt: '2099-09-04T20:30:00.000Z',
-    });
-    expect(saveReminder.mock.calls[1][0]).toMatchObject({
       content: 'Cita para radiografías',
       sendAt: '2099-09-04T21:00:00.000Z',
+    });
+    expect(saveReminder.mock.calls[1][0]).toMatchObject({
+      content: expect.stringContaining('[Aviso Previo]'),
+      sendAt: '2099-09-04T20:30:00.000Z',
+      parentReminderId: 'advance-1',
+      source: 'advance_notice',
     });
     expect(result.data).toHaveLength(2);
     expect(result.formattedCard).toContain('✅ *Recordatorios programados*\n\n');
@@ -140,9 +142,13 @@ describe('advance-notice scheduling invariant', () => {
 
     expect(confirmed).toMatchObject({ success: true, action: 'created_reminders_batch' });
     expect(saveReminder.mock.calls.map(([call]) => call.sendAt)).toEqual([
-      '2026-09-05T20:30:00.000Z',
       '2026-09-05T21:00:00.000Z',
+      '2026-09-05T20:30:00.000Z',
     ]);
+    expect(saveReminder.mock.calls[1][0]).toMatchObject({
+      parentReminderId: 'advance-tomorrow',
+      source: 'advance_notice',
+    });
   });
 
   it('keeps typed model evidence free of phrase matching without allowing a past local time', async () => {
