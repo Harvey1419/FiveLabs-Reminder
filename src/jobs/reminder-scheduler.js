@@ -169,7 +169,7 @@ export async function reconcileRecurringScheduleState() {
 async function getRecurringPendingNudges() {
   const { data, error } = await supabase
     .from('reminders')
-    .select('id, user_id, phone_number, content, task_id, status, requires_confirmation, nudge_interval_minutes, max_nudges, nudge_count, last_nudged_at, sent_at, recurrence_rule, send_at, locale')
+    .select('id, user_id, phone_number, content, task_id, status, requires_confirmation, nudge_interval_minutes, max_nudges, nudge_count, last_nudged_at, sent_at, recurrence_rule, send_at')
     .eq('status', 'pending')
     .eq('requires_confirmation', true)
     .not('recurrence_rule', 'is', null)
