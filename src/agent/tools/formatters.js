@@ -492,22 +492,15 @@ export function formatTaskUpdatedCard(task, language = 'es') {
 export function formatMemoryListCard(memories, language = 'es') {
   if (!Array.isArray(memories) || memories.length === 0) {
     return language === 'en'
-      ? `🧠 *Assistant Memory*\n\nI currently have no stored facts or preferences about you. As we chat I will remember your projects and preferences.`
-      : `🧠 *Memoria del Asistente*\n\nActualmente no tengo recuerdos o preferencias guardadas sobre ti. A medida que hablemos iré recordando tus proyectos y contexto importante.`;
+      ? '🧠 *Assistant Memory*\n\nI currently have no stored facts or preferences about you.'
+      : '🧠 *Memoria*\n\nActualmente no tengo recuerdos o preferencias guardadas.';
   }
 
   const header = language === 'en'
-    ? `🧠 *What I know and remember about you:*\n\n`
-    : `🧠 *Lo que sé y recuerdo sobre ti:*\n\n`;
+    ? '🧠 *What I remember:*\n\n'
+    : '🧠 *Lo que tengo en memoria:*\n\n';
 
-  const footer = language === 'en'
-    ? `\n\n💡 _You can ask me to add details or correct any information anytime._`
-    : `\n\n💡 _Puedes pedirme agregar más detalles o corregir cualquier dato cuando quieras._`;
-
-  return header + memories.slice(0, 10).map(m => {
-    const cat = m.category ? m.category.charAt(0).toUpperCase() + m.category.slice(1) : 'Dato';
-    return `• *${cat}:* ${m.content}`;
-  }).join('\n\n') + footer;
+  return header + memories.slice(0, 10).map((m) => `• ${m.content}`).join('\n\n');
 }
 
 export function formatErrorCard(errorCode, userMessage, language = 'es') {

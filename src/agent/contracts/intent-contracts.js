@@ -113,15 +113,15 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
 AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, es estado vivo y EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, cantidad, fecha, estado o dato derivado. conversation.reply es sin estado. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones requieren target existente. Modificar es reminder.update sobre objeto existente, nunca recreación. Cambio nunca es identidad.
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones exigen target existente. Modificar es reminder.update sobre objeto existente. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
 TAREAS Y PROYECTOS: 'tareas'/'pendientes' fija domain="task"; contenedor ('tareas en X') emite task.list(entityName="X"). Proyectos: project+task.create. Listar: project.list; borrar: project.delete(target); sin tareas: scope="no_tasks". Tareas: task.list(entityName); NUNCA listes en conversation.reply ni inventes conteos. Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
 CALENDARIO: Fechas: calendar.list; eventos: calendar.search (query="daily") y scope; citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
-ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame', 'avísame'). Inspección ('revisar agenda') es lectura viva (agenda.read), NUNCA mutación. Orden con inspección va en content de reminder.create sin lecturas. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas.
+ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Orden con inspección va en content de reminder.create sin lecturas. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
-Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Sin evidencia, no inventes avisos, recurrencia ni confirmación. memory.save solo ante petición explícita.
+Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Hechos en <user_memories> van en conversation.reply directamente; memory.search/list solo para inspeccionar memorias. memory.save solo ante petición explícita.
 Mensajes mixtos: acciones en actions y no ejecutables en excluded. Lecturas dan verdad en card; NUNCA especules en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
@@ -135,7 +135,7 @@ export function getConversationToolDefinition() {
     type: 'function',
     function: {
       name: TOOL_NAMES.REPLY_TO_USER,
-      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Never claim or derive task, project, reminder, calendar, memory, subscription, pending proposal, entity, or agenda state here.',
+      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Facts in <user_memories> must be answered directly in conversation.reply. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.',
       parameters: {
         type: 'object',
         additionalProperties: false,

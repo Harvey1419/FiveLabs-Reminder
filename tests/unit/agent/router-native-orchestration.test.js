@@ -534,4 +534,22 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.confirmation).toContain('Enviar reporte');
     expect(result.confirmation).toContain('💡 *Siguiente paso*: Tu próximo recordatorio es *Reunión de balance* a las 4:00 PM.');
   });
+
+  it('answers personal facts from user memories directly via conversation.reply without emitting memory.search', async () => {
+    const memoryService = await import('../../../src/features/memory/service.js');
+    vi.spyOn(memoryService, 'retrieveRelevantMemories').mockResolvedValueOnce([
+      { category: 'fact', content: 'El usuario debe 580000 pesos al proyecto Apartamento' },
+    ]);
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Le debes 580.000 pesos al proyecto Apartamento.' }],
+    }));
+
+    const result = await routeMessage('¿Cuánto debo del apartamento?', user, []);
+
+    expect(result.intent).toBe('chat');
+    expect(result.confirmation).toBe('Le debes 580.000 pesos al proyecto Apartamento.');
+    expect(executeTool).not.toHaveBeenCalled();
+    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('El usuario debe 580000 pesos al proyecto Apartamento');
+  });
 });
