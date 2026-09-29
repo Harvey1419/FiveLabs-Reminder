@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions } from '../../../src/agent/contracts/intent-contracts.js';
+import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
 
 describe('direct TurnIntent contract', () => {
   it('keeps normalization syntactic and rejects semantic aliases', () => {
@@ -42,11 +42,19 @@ describe('direct TurnIntent contract', () => {
     expect(description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
     expect(description).toContain('Completion is not an update');
     expect(description).toContain('Never reconstruct live state from chat history');
+    expect(description).toContain('Si una respuesta puede cambiar porque cambió DB/Calendar');
+    expect(description).toContain('dato derivado de lo que contiene un proyecto');
     expect(description).toContain('relative_day_time');
     expect(scheduleKind).toContain('relative_offset=duration from now');
     expect(description).toContain('CALENDARIO:');
     expect(description).toContain('calendar.list');
-    expect(description.length).toBeLessThan(2600);
+    expect(description.length).toBeLessThan(3000);
+  });
+
+  it('forbids conversation.reply from asserting live operational state', () => {
+    const tool = getConversationToolDefinition();
+    expect(tool.function.description).toContain('If the truth could change because DB/Calendar changed');
+    expect(tool.function.description).toContain('emit the matching live read instead');
   });
 
   it('keeps internal orchestration fields out of the model-facing contract', () => {
