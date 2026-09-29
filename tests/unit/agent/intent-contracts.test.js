@@ -42,13 +42,13 @@ describe('direct TurnIntent contract', () => {
     expect(description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
     expect(description).toContain('Completion is not an update');
     expect(description).toContain('Never reconstruct live state from chat history');
-    expect(description).toContain('Si una respuesta puede cambiar porque cambió DB/Calendar');
-    expect(description).toContain('dato derivado de lo que contiene un proyecto');
+    expect(description).toContain('Si la verdad puede cambiar por DB/Calendar');
+    expect(description).toContain('Dato derivado del contenido de un proyecto');
     expect(description).toContain('relative_day_time');
     expect(scheduleKind).toContain('relative_offset=duration from now');
     expect(description).toContain('CALENDARIO:');
     expect(description).toContain('calendar.list');
-    expect(description.length).toBeLessThan(3000);
+    expect(description.length).toBeLessThan(2600);
   });
 
   it('forbids conversation.reply from asserting live operational state', () => {
