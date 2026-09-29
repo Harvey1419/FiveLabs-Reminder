@@ -777,6 +777,21 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     }
   }
 
+  // Group all pending tasks by entity/project (both dated and undated)
+  const pendingTasksByEntity = {};
+  for (const t of tasks) {
+    if (t.status === 'pending') {
+      const formatted = formatItem(t);
+      const groupKey = formatted.entityName ? formatted.entityName.trim() : null;
+      if (groupKey) {
+        if (!pendingTasksByEntity[groupKey]) {
+          pendingTasksByEntity[groupKey] = [];
+        }
+        pendingTasksByEntity[groupKey].push(formatted);
+      }
+    }
+  }
+
   const pendingToday = [...timedRemindersToday, ...tasksDueToday, ...openTasks];
   const tomorrow = [...tomorrowReminders, ...tomorrowTasks];
   pendingConfirmationReminders.sort((left, right) => (
@@ -794,6 +809,7 @@ export async function getDailyOverview({ userId, phoneNumber, timezone = 'Americ
     tasksDueToday,
     openTasks,
     openTasksByEntity,
+    pendingTasksByEntity,
     openTasksGeneral,
     tomorrow,
     tomorrowReminders,

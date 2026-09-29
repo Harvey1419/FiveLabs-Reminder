@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview } from '../../../src/agent/core/agent-core.js';
+import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
 
 describe('agent live overview', () => {
   it('exposes counts for orientation but never item content', () => {
@@ -57,5 +57,58 @@ describe('agent live overview', () => {
     expect(text).toContain('puedes conversar naturalmente');
     expect(text).toContain('¿En qué puedo ayudarte?');
     expect(text).toContain('No la repitas mecánicamente');
+  });
+
+  it('formats referenced project tasks when user message targets a known entity', () => {
+    const overview = {
+      pendingTasksByEntity: {
+        Apartamento: [
+          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
+          { title: 'comprar escritorio' },
+        ],
+        Trabajo: [
+          { title: 'enviar reporte' },
+        ],
+      },
+    };
+
+    const formatted = formatReferencedProjectTasks(overview, 'Oye, ¿cuánto debo del apartamento?');
+    expect(formatted).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
+    expect(formatted).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
+    expect(formatted).toContain('• comprar escritorio');
+    expect(formatted).not.toContain('Trabajo');
+    expect(formatted).not.toContain('enviar reporte');
+  });
+
+  it('injects referenced project tasks into system prompt context for direct conversational answering', () => {
+    const overview = {
+      pendingTasksByEntity: {
+        Apartamento: [
+          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
+        ],
+      },
+    };
+
+    const promptWithProject = buildAgentCorePrompt({
+      nowStr: '2026-09-29 16:30',
+      nowHumanStr: 'martes, 29 de septiembre de 2026, 4:30 p. m.',
+      timezone: 'America/Bogota',
+      overview,
+      userMessage: 'cuánto debo del apartamento',
+    });
+
+    expect(promptWithProject).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
+    expect(promptWithProject).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
+    expect(promptWithProject).toContain('Preguntas sobre proyectos con tareas vivas en contexto');
+
+    const promptWithoutProject = buildAgentCorePrompt({
+      nowStr: '2026-09-29 16:30',
+      nowHumanStr: 'martes, 29 de septiembre de 2026, 4:30 p. m.',
+      timezone: 'America/Bogota',
+      overview,
+      userMessage: 'hola cómo estás hoy',
+    });
+
+    expect(promptWithoutProject).not.toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
   });
 });

@@ -552,4 +552,28 @@ describe('Hermes direct TurnIntent router', () => {
     const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
     expect(systemPrompt).toContain('El usuario debe 580000 pesos al proyecto Apartamento');
   });
+
+  it('injects live project tasks into context and answers debt questions in conversation.reply without emitting task.list cards', async () => {
+    const dbIndex = await import('../../../src/infrastructure/database/index.js');
+    vi.spyOn(dbIndex, 'getDailyOverview').mockResolvedValueOnce({
+      pendingTasksByEntity: {
+        Apartamento: [
+          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
+          { title: 'comprar escritorio' },
+        ],
+      },
+    });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Del apartamento tienes una tarea de devolver 465.000 pesos programada para mañana a las 12:00 PM.' }],
+    }));
+
+    const result = await routeMessage('Oye, ¿cuánto debo del apartamento?', user, []);
+
+    expect(result.intent).toBe('chat');
+    expect(result.confirmation).toBe('Del apartamento tienes una tarea de devolver 465.000 pesos programada para mañana a las 12:00 PM.');
+    expect(executeTool).not.toHaveBeenCalled();
+    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
+    expect(systemPrompt).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
+  });
 });
