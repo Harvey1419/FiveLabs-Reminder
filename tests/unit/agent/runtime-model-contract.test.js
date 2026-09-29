@@ -274,7 +274,12 @@ describe('foreground strict Structured Outputs boundary', () => {
       content: expect.stringContaining('No es fuente de estado vivo ni de operandos para cálculos'),
     });
     expect(payload.messages[2]).toEqual(history[0]);
-    expect(payload.messages[3]).toEqual(history[1]);
+    expect(payload.messages[3]).toEqual({
+      role: 'assistant',
+      content: expect.stringContaining('SALIDA HISTÓRICA DE HERMES'),
+    });
+    expect(payload.messages[3].content).toContain('NO es evidencia de estado vivo ni insumo para cálculos');
+    expect(payload.messages[3].content).toContain(history[1].content);
     expect(payload.messages.at(-1)).toMatchObject({ role: 'user', content: '¿Cuánto me queda por pagar?' });
   });
 
