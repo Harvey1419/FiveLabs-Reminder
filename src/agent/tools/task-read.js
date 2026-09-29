@@ -15,6 +15,7 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       scope: params.scope || 'all_pending',
       entityId: params.entityId || null,
       entityName: params.entityName || null,
+      query: params.query || params.target || null,
       limit: params.limit || 50,
     });
 

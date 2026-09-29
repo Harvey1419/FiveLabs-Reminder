@@ -203,5 +203,32 @@ describe('semantic intent runtime normalization', () => {
 
     clearWorkingMemory(user);
   });
+
+  it('normalizes task.list query and infers financial query from userMessage when missing', () => {
+    const normalExplicit = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'Apartamento',
+        query: 'devolver',
+      }],
+    }, context);
+
+    expect(normalExplicit.actions[0].query).toBe('devolver');
+
+    const normalInferred = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'Apartamento',
+      }],
+    }, {
+      ...context,
+      userMessage: 'Oye, ¿cuánto dejo del apartamento?',
+    });
+
+    expect(normalInferred.actions[0].query).toBe('debo');
+    expect(normalInferred.actions[0].entityName).toBe('Apartamento');
+  });
 });
 

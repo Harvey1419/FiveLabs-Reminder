@@ -103,21 +103,34 @@ function normalizeReadScope(action, context) {
   }
 
   if (action.domain !== 'task' || action.action !== 'list') return action;
-  if (action.scope) return { ...action, scope: normalizeTaskScope(action.scope, 'all_pending') };
 
-  const schedule = action.schedule;
-  if (!schedule) return { ...action, scope: 'all_pending' };
+  let query = action.query || (action.entityName && action.target ? action.target : null);
+  if (!query && context?.userMessage) {
+    const msg = String(context.userMessage).trim();
+    if (/\b(?:cu[aá]nto\s+(?:deb[oa]|dej[oé]|es|tengo\s+que\s+pagar)|deuda|saldo\s+pendiente|monto\s+pendiente)\b/i.test(msg)) {
+      query = 'debo';
+    }
+  }
+
+  const base = {
+    ...action,
+    ...(query ? { query: String(query).trim() } : {}),
+  };
+  if (base.scope) return { ...base, scope: normalizeTaskScope(base.scope, 'all_pending') };
+
+  const schedule = base.schedule;
+  if (!schedule) return { ...base, scope: 'all_pending' };
 
   if (schedule.kind === 'relative_day_time') {
-    if (schedule.dayOffset === 0) return { ...action, scope: 'today' };
-    if (schedule.dayOffset === 1) return { ...action, scope: 'tomorrow' };
-    if (schedule.dayOffset === 2) return { ...action, scope: 'day_after_tomorrow' };
+    if (schedule.dayOffset === 0) return { ...base, scope: 'today' };
+    if (schedule.dayOffset === 1) return { ...base, scope: 'tomorrow' };
+    if (schedule.dayOffset === 2) return { ...base, scope: 'day_after_tomorrow' };
     const explicit = buildExplicitTaskDateScope(localDateFromOffset(context.referenceTime, context.timezone, schedule.dayOffset));
-    return explicit ? { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
+    return explicit ? { ...base, scope: explicit } : { ...base, scope: 'upcoming' };
   }
 
   if (schedule.kind === 'weekday_time' && schedule.weekday) {
-    return { ...action, scope: normalizeTaskScope(schedule.weekday, 'upcoming') };
+    return { ...base, scope: normalizeTaskScope(schedule.weekday, 'upcoming') };
   }
 
   if (schedule.kind === 'calendar_date_time') {
@@ -129,12 +142,12 @@ function normalizeReadScope(action, context) {
         .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
         .join('-');
       const explicit = buildExplicitTaskDateScope(localDate);
-      return explicit ? { ...action, scope: explicit } : { ...action, scope: 'upcoming' };
+      return explicit ? { ...base, scope: explicit } : { ...base, scope: 'upcoming' };
     }
   }
 
-  if (schedule.kind === 'local_time') return { ...action, scope: 'today' };
-  return { ...action, scope: 'upcoming' };
+  if (schedule.kind === 'local_time') return { ...base, scope: 'today' };
+  return { ...base, scope: 'upcoming' };
 }
 
 /** Natural rename/edit requests map semantic newName to the domain field. */

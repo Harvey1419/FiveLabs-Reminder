@@ -250,6 +250,7 @@ function buildDomainCall(action, context) {
         };
       }
       if (action.action === 'list') {
+        const query = action.query || (action.entityName && action.target ? action.target : null);
         return {
           valid: true,
           toolName: TOOL_NAMES.MANAGE_TASK,
@@ -258,6 +259,7 @@ function buildDomainCall(action, context) {
             ...(action.entityName || action.target ? { entityName: action.entityName || action.target } : {}),
             status: action.status || 'pending',
             ...(action.scope ? { scope: action.scope } : {}),
+            ...(query ? { query: String(query).trim() } : {}),
           },
         };
       }

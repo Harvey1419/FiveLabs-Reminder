@@ -733,6 +733,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     user,
     referenceTime: requestReferenceTime,
     timezone,
+    userMessage: trustedMessageText || messageText,
   });
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 

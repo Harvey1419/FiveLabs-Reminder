@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createExecutionFact } from '../../../src/agent/core/execution-facts.js';
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
+import { taskMatchesQuery } from '../../../src/features/tasks/service.js';
 
 describe('canonical task UX', () => {
   const tasks = [
@@ -162,5 +163,64 @@ describe('canonical task UX', () => {
     });
 
     expect(fact.card).toBe('🎉 *Tareas completadas hoy*\n\nNo has completado tareas hoy todavía.');
+  });
+
+  it('matches debt/amount tasks specifically when query is financial', () => {
+    const taskDebt = { title: 'devolver 465.000 pesos' };
+    const taskDesk = { title: 'comprar escritorio' };
+    const taskDoor = { title: 'Puerta de entrada' };
+    const taskAires = { title: 'comprar Aires LG' };
+
+    expect(taskMatchesQuery(taskDebt, 'debo')).toBe(true);
+    expect(taskMatchesQuery(taskDebt, 'cuánto debo')).toBe(true);
+    expect(taskMatchesQuery(taskDebt, 'cuanto dejo')).toBe(true);
+    expect(taskMatchesQuery(taskDebt, 'monto')).toBe(true);
+
+    expect(taskMatchesQuery(taskDesk, 'debo')).toBe(false);
+    expect(taskMatchesQuery(taskDoor, 'debo')).toBe(false);
+    expect(taskMatchesQuery(taskAires, 'debo')).toBe(false);
+
+    expect(taskMatchesQuery(taskDesk, 'escritorio')).toBe(true);
+    expect(taskMatchesQuery(taskDoor, 'puertas')).toBe(true);
+  });
+
+  it('renders query-filtered task.list with single target item instead of dumping all tasks', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'list', query: 'debo' },
+      result: {
+        success: true,
+        action: 'listed_tasks',
+        data: {
+          tasks: [{ id: '1', title: 'devolver 465.000 pesos', due_date: '2026-09-30 17:00:00+00', localTime: '12:00 PM' }],
+          entityName: 'Apartamento',
+          query: 'debo',
+        },
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toContain('📁 *Apartamento* · 1 tarea');
+    expect(fact.card).toContain('1. devolver 465.000 pesos');
+    expect(fact.card).not.toContain('comprar escritorio');
+  });
+
+  it('renders helpful message when query yields no results in project', () => {
+    const fact = createExecutionFact({
+      toolName: TOOL_NAMES.MANAGE_TASK,
+      params: { action: 'list', query: 'pintura' },
+      result: {
+        success: true,
+        action: 'listed_tasks',
+        data: {
+          tasks: [],
+          entityName: 'Apartamento',
+          query: 'pintura',
+        },
+      },
+      language: 'es',
+    });
+
+    expect(fact.card).toContain('No encontré tareas pendientes sobre "pintura" en este proyecto.');
   });
 });

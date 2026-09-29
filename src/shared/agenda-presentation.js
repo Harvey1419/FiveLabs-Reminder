@@ -68,13 +68,25 @@ export function formatCanonicalTaskList(data = {}, {
     return `${header}\n\n${lines.join('\n')}${footer}`;
   }
 
+  const query = data?.query || null;
+
   if (tasks.length === 0) {
     if (projectName) {
+      if (query) {
+        return language === 'en'
+          ? `☑️ *Tasks · ${projectName}*\n\nNo pending tasks found for "${query}".`
+          : `☑️ *Tareas · ${projectName}*\n\nNo encontré tareas pendientes sobre "${query}" en este proyecto.`;
+      }
       return language === 'en'
         ? `☑️ *Tasks · ${projectName}*\n\nNo pending tasks in this project.`
         : `☑️ *Tareas · ${projectName}*\n\nNo hay tareas pendientes en este proyecto.`;
     }
     if (scope === 'all_pending') {
+      if (query) {
+        return language === 'en'
+          ? `☑️ *Pending tasks*\n\nNo pending tasks found for "${query}".`
+          : `☑️ *Tareas pendientes*\n\nNo encontré tareas pendientes sobre "${query}".`;
+      }
       return language === 'en'
         ? '☑️ *Pending tasks*\n\nYou have no pending tasks.'
         : '☑️ *Tareas pendientes*\n\nNo tienes tareas pendientes.';
