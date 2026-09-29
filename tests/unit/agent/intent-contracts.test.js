@@ -42,6 +42,7 @@ describe('direct TurnIntent contract', () => {
     expect(description).toContain('CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY');
     expect(description).toContain('Completion is not an update');
     expect(description).toContain('Never reconstruct live state from chat history');
+    expect(description).toContain('Historial/memoria: referencias, nunca hechos u operandos vivos');
     expect(description).toContain('Si la verdad puede cambiar al cambiar DB/Calendar');
     expect(description).toContain('relative_day_time');
     expect(scheduleKind).toContain('relative_offset=duration from now');
