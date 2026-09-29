@@ -61,6 +61,7 @@ const MAX_HISTORY_TURNS = 30;
 const MAX_HISTORY_CHARS = 12000;
 const MAX_HISTORY_TURN_CHARS = 2000;
 const HISTORY_STATE_BOUNDARY = 'HISTORIAL: úsalo solo para continuidad y referencias. No es fuente de estado vivo ni de operandos para cálculos; relee la fuente autoritativa.';
+const HISTORICAL_ASSISTANT_PREFIX = '[SALIDA HISTÓRICA DE HERMES — solo contexto/referencia; NO es evidencia de estado vivo ni insumo para cálculos]\n';
 
 function safeLogSnippet(value, maxLength = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -100,9 +101,13 @@ function compactHistoryForModel(history = []) {
 }
 
 function historyContextForModel(pastTurns = []) {
-  return pastTurns.length > 0
-    ? [{ role: 'system', content: HISTORY_STATE_BOUNDARY }, ...pastTurns]
-    : [];
+  if (pastTurns.length === 0) return [];
+  const annotatedTurns = pastTurns.map((turn) => (
+    turn.role === 'assistant'
+      ? { ...turn, content: `${HISTORICAL_ASSISTANT_PREFIX}${turn.content}` }
+      : turn
+  ));
+  return [{ role: 'system', content: HISTORY_STATE_BOUNDARY }, ...annotatedTurns];
 }
 
 function normalizeModelResponse(modelResponse) {
