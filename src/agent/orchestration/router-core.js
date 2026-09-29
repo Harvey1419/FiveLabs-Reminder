@@ -33,6 +33,7 @@ import {
 } from '../contracts/foreground-turn-schema.js';
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
+import { resolveNextBestAction } from './next-best-action.js';
 
 export function sanitizeUserQueryText(text) {
   if (!text || typeof text !== 'string') return '';
@@ -823,6 +824,22 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     modelElapsedMs += Date.now() - synthesisStart;
     const before = [baseFraming, excludedFraming?.before].filter(Boolean).join('\n\n');
     framing = before ? { before, after: '' } : null;
+  }
+
+  const nextAction = resolveNextBestAction({
+    executionFacts: execution.facts,
+    dailyOverview,
+    user,
+    language,
+    referenceTime: requestReferenceTime,
+    timezone,
+  });
+
+  if (nextAction?.recommendationText) {
+    framing = {
+      before: framing?.before || '',
+      after: [framing?.after, nextAction.recommendationText].filter(Boolean).join('\n\n'),
+    };
   }
 
   let finalReply = composeExecutionReply(execution.facts, language, { framing });

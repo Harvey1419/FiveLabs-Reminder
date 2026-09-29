@@ -505,4 +505,33 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.confirmation).toContain('CCS Daily interna');
     expect(result.confirmation).not.toContain('No tienes eventos programados');
   });
+
+  it('appends proactive Next Best Action steering when completing a task with upcoming items', async () => {
+    getDailyOverview.mockResolvedValue({
+      timedRemindersToday: [
+        { id: 'rem-upcoming', title: 'Reunión de balance', localTime: '4:00 PM' },
+      ],
+      tasksDueToday: [],
+    });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'task', action: 'complete', target: 'Enviar reporte' }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'completed_task',
+      data: { id: 'task-1', title: 'Enviar reporte', entities: { name: 'Trabajo' } },
+      formattedCard: '✅ *Tarea completada*\n\n📁 *Trabajo*\n• Enviar reporte',
+    });
+
+    const result = await routeMessage('Completé la tarea de enviar el reporte', user, []);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({ action: 'complete' }),
+    }));
+    expect(result.confirmation).toContain('✅ *Tarea completada*');
+    expect(result.confirmation).toContain('Enviar reporte');
+    expect(result.confirmation).toContain('💡 *Siguiente paso*: Tu próximo recordatorio es *Reunión de balance* a las 4:00 PM.');
+  });
 });
