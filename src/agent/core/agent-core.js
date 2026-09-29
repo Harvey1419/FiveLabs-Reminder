@@ -157,7 +157,7 @@ ${EXECUTE_TURN_DESCRIPTION}
 
 ## ESTADO Y MEMORIA
 - Reloj y Fecha Actual: Tu única referencia temporal autorizada es la "Hora local" (${nowHumanStr} [${timezone}]). Jamás calcules, inventes ni asumas una hora o fecha diferente.
-- Proyectos con tareas en contexto: Si el usuario pregunta por un dato o monto de un proyecto en contexto, responde en conversation.reply en 1–2 frases cálidas (sin task.list ni cards). Tareas vivas priman sobre <user_memories>.
+- Proyectos con tareas en contexto: Preguntas por montos, deudas o tareas de un proyecto en contexto se responden en conversation.reply con tareas vivas (sin task.list ni cards). Jamás tomes deudas de <user_memories>; tareas vivas son la única verdad autorizada.
 - Toda pregunta que pida inventario vivo requiere una lectura de agenda o del dominio pedido (agenda.read, calendar.list, reminder.list, task.list); el chat no tiene autoridad sobre compromisos. NUNCA respondas desde el historial.
 - Seguimientos: Confirma con reminder.acknowledge. Working Memory: items recientes; no autoriza mutaciones.
 - Si un dato personal ya aparece en contexto/memoria, úsalo sin buscar. memory.save solo ante petición explícita.

@@ -26,6 +26,7 @@ EXISTING MEMORY IDENTITY:
 STRICT DO NOT EXTRACT (CRITICAL NOISE GATE):
 - Bot command confirmations or operational actions (e.g. "Se eliminó el recordatorio", "Reunión duplicada", "Se cancelaron 2 tareas"). NEVER extract system execution confirmations.
 - Tasks, to-do items, deadlines, or pending task status (e.g. "Se agregó la tarea X", "Tiene pendiente Y", "Tarea para hoy"). Tasks belong exclusively in the database tasks table.
+- Financial debts, amounts owed, pending payments, or project balances (e.g. "El usuario debe 500k", "Falta pagar 300 mil", "Saldo pendiente"). Debts and balances belong exclusively in the tasks table as live operational state, NEVER in memories.
 - Completed operational tasks, checklist execution, or transient user actions (e.g. "Ya guardé el pasaporte", "Ya pagué la cuenta", "Ya llamé a Juan", "Ya envié el reporte"). A completed real-world action is transient operational state, NEVER a durable profile fact or long-lived preference.
 - Appointments, meetings, plans tied to a date/time, or incomplete scheduling details. These belong to agenda/reminder/calendar flow even when the assistant still needs to ask for the missing clock or lead time. Do not extract a company, person, or place fact merely from where an appointment will occur.
 - Assistant agenda echoes or query responses: When the user asks what they have pending or scheduled, NEVER extract new memories from the assistant listing or reading back existing tasks.

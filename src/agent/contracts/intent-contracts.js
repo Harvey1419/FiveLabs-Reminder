@@ -121,7 +121,7 @@ TAREAS Y PROYECTOS: 'tareas'/'pendientes' fija domain="task"; listar emite task.
 CALENDARIO: Fechas: calendar.list; eventos: calendar.search (query="daily") y scope; citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Orden con inspección va en content sin lecturas. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
-Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Hechos en <user_memories> van en conversation.reply directamente; memory.search/list solo para inspeccionar memorias. memory.save solo ante petición explícita.
+Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Hechos en <user_memories> van en conversation.reply; tareas vivas mandan sobre montos y deudas. memory.search/list solo para inspeccionar memorias. memory.save solo ante petición explícita.
 Mensajes mixtos: acciones en actions y no ejecutables en excluded. Lecturas dan verdad en card; NUNCA especules en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
