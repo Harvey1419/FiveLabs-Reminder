@@ -165,23 +165,21 @@ describe('canonical task UX', () => {
     expect(fact.card).toBe('🎉 *Tareas completadas hoy*\n\nNo has completado tareas hoy todavía.');
   });
 
-  it('matches debt/amount tasks specifically when query is financial', () => {
+  it('matches target tasks using token containment and stemming without regex catalogs', () => {
     const taskDebt = { title: 'devolver 465.000 pesos' };
     const taskDesk = { title: 'comprar escritorio' };
     const taskDoor = { title: 'Puerta de entrada' };
     const taskAires = { title: 'comprar Aires LG' };
 
-    expect(taskMatchesQuery(taskDebt, 'debo')).toBe(true);
-    expect(taskMatchesQuery(taskDebt, 'cuánto debo')).toBe(true);
-    expect(taskMatchesQuery(taskDebt, 'cuanto dejo')).toBe(true);
-    expect(taskMatchesQuery(taskDebt, 'monto')).toBe(true);
-
-    expect(taskMatchesQuery(taskDesk, 'debo')).toBe(false);
-    expect(taskMatchesQuery(taskDoor, 'debo')).toBe(false);
-    expect(taskMatchesQuery(taskAires, 'debo')).toBe(false);
-
+    expect(taskMatchesQuery(taskDebt, 'devolver')).toBe(true);
+    expect(taskMatchesQuery(taskDebt, '465.000')).toBe(true);
     expect(taskMatchesQuery(taskDesk, 'escritorio')).toBe(true);
     expect(taskMatchesQuery(taskDoor, 'puertas')).toBe(true);
+    expect(taskMatchesQuery(taskAires, 'aires')).toBe(true);
+
+    expect(taskMatchesQuery(taskDesk, 'devolver')).toBe(false);
+    expect(taskMatchesQuery(taskDoor, 'devolver')).toBe(false);
+    expect(taskMatchesQuery(taskAires, 'devolver')).toBe(false);
   });
 
   it('renders query-filtered task.list with single target item instead of dumping all tasks', () => {

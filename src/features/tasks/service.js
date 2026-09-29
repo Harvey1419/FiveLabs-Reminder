@@ -61,13 +61,6 @@ export function taskMatchesQuery(task, rawQuery) {
     return true;
   }
 
-  const isFinancialQuery = /\b(deb[oa]|debe|deber|deuda|dejo|dej[oé]|cuanto|cuánto|monto|saldo|pagar|pago|plata|dinero|valor|pesos|costo|precio)\b/i.test(cleanQuery);
-  if (isFinancialQuery) {
-    const hasAmount = /\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?\b|\$\s*\d+|\b\d+\s*(?:k|mil|pesos|cop|usd)\b/i.test(`${title} ${desc}`);
-    const hasFinancialVerb = /\b(devolver|pagar|consignar|transferir|deuda|abono|cuota|cobro|cancelar|giro)\b/i.test(`${title} ${desc}`);
-    if (hasAmount || hasFinancialVerb) return true;
-  }
-
   return false;
 }
 

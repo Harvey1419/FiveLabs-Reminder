@@ -104,13 +104,7 @@ function normalizeReadScope(action, context) {
 
   if (action.domain !== 'task' || action.action !== 'list') return action;
 
-  let query = action.query || (action.entityName && action.target ? action.target : null);
-  if (!query && context?.userMessage) {
-    const msg = String(context.userMessage).trim();
-    if (/\b(?:cu[aá]nto\s+(?:deb[oa]|dej[oé]|es|tengo\s+que\s+pagar)|deuda|saldo\s+pendiente|monto\s+pendiente)\b/i.test(msg)) {
-      query = 'debo';
-    }
-  }
+  const query = action.query || (action.entityName && action.target ? action.target : null);
 
   const base = {
     ...action,
