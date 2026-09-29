@@ -114,7 +114,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
 });
 
 export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado, timezone y confirmaciones. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
-AUTORIDAD DE ESTADO: Historial no manda sobre compromisos. Horizonte ('qué tengo hoy/mañana') EXIGE agenda.read. Consultas de estado EXIGEN lecturas (agenda.read, calendar.list, reminder.list, task.list). conversation.reply es sin estado. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
+AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, es estado vivo y EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, cantidad, fecha, estado o dato derivado. conversation.reply es sin estado. Nunca reconstruyas estado operativo desde el historial (Never reconstruct live state from chat history).
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones requieren target existente. Modificar es reminder.update sobre objeto existente, nunca recreación. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
 TAREAS Y PROYECTOS: 'tareas'/'pendientes' fija domain="task"; contenedor ('tareas en X') emite task.list(entityName="X"). Proyectos: project+task.create. Listar: project.list; borrar: project.delete(target); sin tareas: scope="no_tasks". Tareas: task.list(entityName); NUNCA listes en conversation.reply ni inventes conteos. Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
@@ -135,7 +135,7 @@ export function getConversationToolDefinition() {
     type: 'function',
     function: {
       name: TOOL_NAMES.REPLY_TO_USER,
-      description: 'Reply naturally when the current turn requires no operational read or mutation. Never claim that a task, reminder, calendar, memory, subscription, pending proposal, or agenda operation was executed.',
+      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Never claim or derive task, project, reminder, calendar, memory, subscription, pending proposal, entity, or agenda state here.',
       parameters: {
         type: 'object',
         additionalProperties: false,
