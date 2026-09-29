@@ -60,6 +60,7 @@ import { updateAgentRunInDb } from '../../infrastructure/database/agent-runs.js'
 const MAX_HISTORY_TURNS = 30;
 const MAX_HISTORY_CHARS = 12000;
 const MAX_HISTORY_TURN_CHARS = 2000;
+const HISTORY_STATE_BOUNDARY = 'HISTORIAL: úsalo solo para continuidad y referencias. No es fuente de estado vivo ni de operandos para cálculos; relee la fuente autoritativa.';
 
 function safeLogSnippet(value, maxLength = 120) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -96,6 +97,12 @@ function compactHistoryForModel(history = []) {
     usedChars += size;
   }
   return selected.reverse();
+}
+
+function historyContextForModel(pastTurns = []) {
+  return pastTurns.length > 0
+    ? [{ role: 'system', content: HISTORY_STATE_BOUNDARY }, ...pastTurns]
+    : [];
 }
 
 function normalizeModelResponse(modelResponse) {
@@ -437,7 +444,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   const messages = [
     { role: 'system', content: prompt },
-    ...pastTurns,
+    ...historyContextForModel(pastTurns),
     { role: 'user', content: sanitizedUserText || messageText },
   ];
 
@@ -449,7 +456,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
     const runMessages = [
       { role: 'system', content: `${prompt}\n\n${runPrompt}` },
-      ...pastTurns,
+      ...historyContextForModel(pastTurns),
       { role: 'user', content: sanitizedUserText || messageText },
     ];
 

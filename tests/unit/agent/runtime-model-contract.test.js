@@ -259,6 +259,25 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(prompt).not.toContain('This tool is mandatory');
   });
 
+  it('marks prior chat as reference-only so stale assistant claims cannot become live-state operands', async () => {
+    fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [replyAction] }));
+
+    const history = [
+      { role: 'user', content: '¿Cuánto debo?' },
+      { role: 'assistant', content: 'Debes 580.000 pesos.' },
+    ];
+    await routeMessage('¿Cuánto me queda por pagar?', user, history, turnOptions);
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.messages[1]).toEqual({
+      role: 'system',
+      content: expect.stringContaining('No es fuente de estado vivo ni de operandos para cálculos'),
+    });
+    expect(payload.messages[2]).toEqual(history[0]);
+    expect(payload.messages[3]).toEqual(history[1]);
+    expect(payload.messages.at(-1)).toMatchObject({ role: 'user', content: '¿Cuánto me queda por pagar?' });
+  });
+
   it.each([false, true])('adapts every nested optional field without mutating the canonical schema (admin=%s)', async (isAdmin) => {
     isAdminUser.mockReturnValue(isAdmin);
     fetchMock.mockResolvedValueOnce(structuredResponse({ actions: [replyAction] }));
