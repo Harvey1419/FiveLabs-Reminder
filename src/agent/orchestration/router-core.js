@@ -22,6 +22,7 @@ import {
 } from '../core/working-memory.js';
 import { hydrateClarificationStateFromHistory, getClarificationStateSnapshot } from './clarification-flow.js';
 import { composeExecutionReply } from '../core/execution-facts.js';
+import { presentReadAnswer } from '../core/read-answer.js';
 import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
@@ -445,7 +446,6 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
     proGuidance,
-    userMessage: sanitizedUserText || messageText,
   });
 
   const messages = [
@@ -823,9 +823,9 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
 
   const hasOnlyReadActions = operationalActions.length > 0
     && operationalActions.every((action) => ['list', 'read', 'search', 'next', 'status'].includes(action.action));
-  const baseFraming = hasOnlyReadActions ? null : (conversationReply || null);
+  const baseFraming = hasOnlyReadActions || runtimeIntent.readAnswer ? null : (conversationReply || null);
   let framing = baseFraming ? { before: baseFraming, after: '' } : null;
-  if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
+  if (!runtimeIntent.readAnswer && (execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
     const excludedFraming = await callResponseSynthesis({
       userText: trustedMessageText || messageText,
@@ -855,7 +855,12 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     };
   }
 
-  let finalReply = composeExecutionReply(execution.facts, language, { framing });
+  const readPresentation = presentReadAnswer(runtimeIntent, execution, { userId: user.id, language, timezone });
+  const presentationFacts = readPresentation.facts;
+  if (runtimeIntent.readAnswer) {
+    console.log(`[router req=${requestId}] read-answer source=${readPresentation.evidence?.tool || 'unavailable'} mode=${runtimeIntent.readAnswer.mode} evidenceRecords=${readPresentation.evidence?.recordIds.length || 0} complete=${readPresentation.evidence?.complete === true}`);
+  }
+  let finalReply = composeExecutionReply(presentationFacts, language, { framing });
   if (!finalReply) finalReply = safeIntentError(language);
   finalReply = await replaceTrustedLinkPlaceholders({ text: finalReply, user, phoneNumber });
   finalReply = sanitizeResponseText(finalReply);
@@ -876,6 +881,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     intent: inferIntentFromTool(primary?.toolName),
     entities: conversationStateEntities(user, {
       _turnMetadata: { kind: 'operational_result' },
+      ...(readPresentation.evidence ? { _readAnswerEvidence: readPresentation.evidence } : {}),
       ...(primary?.params && typeof primary.params === 'object' && !Array.isArray(primary.params) ? primary.params : {}),
     }),
     language,
@@ -883,11 +889,13 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     ctaUrl: ctaFact?.ctaUrl || ctaRecord?.result?.ctaUrl || ctaRecord?.result?.data?.auth_url || ctaRecord?.result?.data?.checkout_url || null,
     ctaHeader: ctaFact?.ctaHeader || ctaRecord?.result?.ctaHeader || null,
     ctaButtonText: ctaFact?.ctaButtonText || ctaRecord?.result?.ctaButtonText || null,
-    flow: flowFact?.flow || flowRecord?.result?.flow || null,
+    flow: runtimeIntent.readAnswer ? null : (flowFact?.flow || flowRecord?.result?.flow || null),
     buttons: buttonsFact?.buttons || buttonsRecord?.result?.buttons || null,
     list: listFact?.list || listRecord?.result?.list || null,
-    plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
-    executionFacts: execution.facts,
+    plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })),
+      ...(runtimeIntent.readAnswer ? { readAnswer: runtimeIntent.readAnswer } : {}),
+    },
+    executionFacts: presentationFacts,
     memoryDisposition: 'skip_operational',
   };
 }

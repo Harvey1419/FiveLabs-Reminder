@@ -685,16 +685,16 @@ export async function executeTurnIntent(intent, context) {
   let actions = Array.isArray(intent?.actions) ? intent.actions : [];
   if (actions.length === 0) return { records: [], facts: [], excluded: intent?.excluded || [] };
 
+  const sourceActionIndices = new Map(actions.map((action, index) => [action, index]));
   const expandedActions = [];
   for (const action of actions) {
     if (action.domain === 'task' && ['delete', 'complete'].includes(action.action) && action.target) {
       const ordinals = extractMultipleOrdinals(action.target);
       if (ordinals.length > 1) {
         for (const ord of ordinals) {
-          expandedActions.push({
-            ...action,
-            target: ord,
-          });
+          const expanded = { ...action, target: ord };
+          sourceActionIndices.set(expanded, sourceActionIndices.get(action));
+          expandedActions.push(expanded);
         }
         continue;
       }
@@ -898,7 +898,7 @@ export async function executeTurnIntent(intent, context) {
       callId: `call_${actionIndex + 1}`,
       language: context.language,
     });
-    records.push({ toolName, params, result, fact });
+    records.push({ toolName, params, result, fact, sourceActionIndex: sourceActionIndices.get(action) ?? null, executedAt: new Date().toISOString() });
     facts.push(fact);
 
     if (

@@ -244,7 +244,7 @@ function formatSuccesses(facts, language) {
   // When mutations are present in the turn, suppress empty read cards (e.g. empty calendar search)
   // so they do not pollute or prepend the confirmation of the created/updated action.
   const activeReads = mutations.length > 0
-    ? reads.filter((fact) => !isReadFactEmpty(fact))
+    ? reads.filter((fact) => fact.readAnswerEvidence || !isReadFactEmpty(fact))
     : reads;
 
   if (activeReads.length > 0) {

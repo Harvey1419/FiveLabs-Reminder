@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/agent/**'
       - 'src/features/tasks/**'
+      - 'src/shared/**'
       - 'scripts/evals/live-read-authority.js'
       - 'tests/live/state-authority.eval.js'
       - 'tests/helpers/state-authority.js'
@@ -43,14 +44,10 @@ jobs:
           fi
       - name: Install dependencies
         run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
-      - name: Snapshot tracked source and public dependencies for isolated verification
-        run: |
-          mkdir -p artifacts
-          git archive --format=tar HEAD > artifacts/source.tar
-          tar -czf artifacts/dependencies.tar.gz node_modules
-      - name: Observe provider routing (diagnostic only, not acceptance)
-        run: node scripts/evals/live-read-authority.js --observe
+      - name: Require semantic read-answer routing
+        run: node scripts/evals/live-read-authority.js
       - name: Require grounded router outcomes with synthetic read-only fixtures
+        if: success() || failure()
         run: pnpm exec vitest run --config tests/config/vitest.authority-live.js
       - name: Retain synthetic evaluation results
         if: always()
@@ -60,7 +57,5 @@ jobs:
           path: |
             artifacts/semantic-authority-*.json
             artifacts/state-authority-live.json
-            artifacts/source.tar
-            artifacts/dependencies.tar.gz
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 7

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
+import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatProjectReferences } from '../../../src/agent/core/agent-core.js';
 
 describe('agent live overview', () => {
   it('exposes counts for orientation but never item content', () => {
@@ -59,56 +59,28 @@ describe('agent live overview', () => {
     expect(text).toContain('No la repitas mecánicamente');
   });
 
-  it('formats referenced project tasks when user message targets a known entity', () => {
-    const overview = {
-      pendingTasksByEntity: {
-        Apartamento: [
-          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
-          { title: 'comprar escritorio' },
-        ],
-        Trabajo: [
-          { title: 'enviar reporte' },
-        ],
-      },
-    };
-
-    const formatted = formatReferencedProjectTasks(overview, 'Oye, ¿cuánto debo del apartamento?');
-    expect(formatted).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
-    expect(formatted).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
-    expect(formatted).toContain('• comprar escritorio');
-    expect(formatted).not.toContain('Trabajo');
-    expect(formatted).not.toContain('enviar reporte');
+  it('provides names for semantic resolution, never task values or language matching', () => {
+    const overview = { pendingTasksByEntity: {
+      Taller: [{ title: 'devolver 720.000 pesos', status: 'pending' }],
+      Trabajo: [{ title: 'enviar reporte' }],
+    } };
+    const references = formatProjectReferences(overview);
+    expect(references).toContain('Taller');
+    expect(references).toContain('Trabajo');
+    expect(references).not.toContain('720.000');
+    expect(references).not.toContain('enviar reporte');
+    expect(formatProjectReferences(null)).toBe('');
   });
 
-  it('injects referenced project tasks into system prompt context for direct conversational answering', () => {
-    const overview = {
-      pendingTasksByEntity: {
-        Apartamento: [
-          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
-        ],
-      },
-    };
-
-    const promptWithProject = buildAgentCorePrompt({
-      nowStr: '2026-09-29 16:30',
-      nowHumanStr: 'martes, 29 de septiembre de 2026, 4:30 p. m.',
-      timezone: 'America/Bogota',
-      overview,
-      userMessage: 'cuánto debo del apartamento',
+  it('keeps stateful answers on the read path instead of answering from prefetched prose', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-09-29T18:00:00-05:00', nowHumanStr: '29 de septiembre', timezone: 'America/Bogota',
+      overview: { pendingTasksByEntity: { Taller: [{ title: 'devolver 720.000 pesos' }] } },
     });
-
-    expect(promptWithProject).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
-    expect(promptWithProject).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
-    expect(promptWithProject).toContain('Preguntas sobre proyectos con tareas vivas en contexto');
-
-    const promptWithoutProject = buildAgentCorePrompt({
-      nowStr: '2026-09-29 16:30',
-      nowHumanStr: 'martes, 29 de septiembre de 2026, 4:30 p. m.',
-      timezone: 'America/Bogota',
-      overview,
-      userMessage: 'hola cómo estás hoy',
-    });
-
-    expect(promptWithoutProject).not.toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
+    expect(prompt).toContain('readAnswer');
+    expect(prompt).toContain('task.list(entityName, query?)');
+    expect(prompt).not.toContain('720.000');
+    expect(prompt).not.toContain('sin task.list ni cards');
+    expect(prompt).not.toContain('van directo en conversation.reply');
   });
 });

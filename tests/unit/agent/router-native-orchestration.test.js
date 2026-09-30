@@ -535,45 +535,45 @@ describe('Hermes direct TurnIntent router', () => {
     expect(result.confirmation).toContain('💡 *Siguiente paso*: Tu próximo recordatorio es *Reunión de balance* a las 4:00 PM.');
   });
 
-  it('answers personal facts from user memories directly via conversation.reply without emitting memory.search', async () => {
+  it('recalls only durable personal facts directly without an operational read', async () => {
     const memoryService = await import('../../../src/features/memory/service.js');
     vi.spyOn(memoryService, 'retrieveRelevantMemories').mockResolvedValueOnce([
-      { category: 'fact', content: 'El usuario debe 580000 pesos al proyecto Apartamento' },
+      { category: 'preference', content: 'El usuario prefiere respuestas breves.' },
     ]);
     callChatCompletion.mockResolvedValue(modelToolCall({
-      actions: [{ domain: 'conversation', action: 'reply', content: 'Le debes 580.000 pesos al proyecto Apartamento.' }],
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Prefieres respuestas breves.' }],
     }));
-
-    const result = await routeMessage('¿Cuánto debo del apartamento?', user, []);
-
+    const result = await routeMessage('¿Cómo prefiero que me respondas?', user, []);
     expect(result.intent).toBe('chat');
-    expect(result.confirmation).toBe('Le debes 580.000 pesos al proyecto Apartamento.');
+    expect(result.confirmation).toBe('Prefieres respuestas breves.');
     expect(executeTool).not.toHaveBeenCalled();
-    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
-    expect(systemPrompt).toContain('El usuario debe 580000 pesos al proyecto Apartamento');
   });
 
-  it('injects live project tasks into context and answers debt questions in conversation.reply without emitting task.list cards', async () => {
-    const dbIndex = await import('../../../src/infrastructure/database/index.js');
-    vi.spyOn(dbIndex, 'getDailyOverview').mockResolvedValueOnce({
-      pendingTasksByEntity: {
-        Apartamento: [
-          { title: 'devolver 465.000 pesos', localFormatted: 'Mañana a las 12:00 PM' },
-          { title: 'comprar escritorio' },
-        ],
-      },
-    });
+  it('grounds a concise answer in a read, ignoring stale memory and anticipatory model prose', async () => {
+    const memoryService = await import('../../../src/features/memory/service.js');
+    vi.spyOn(memoryService, 'retrieveRelevantMemories').mockResolvedValueOnce([
+      { category: 'fact', content: 'El usuario debe 910000 pesos al proyecto Taller.' },
+    ]);
     callChatCompletion.mockResolvedValue(modelToolCall({
-      actions: [{ domain: 'conversation', action: 'reply', content: 'Del apartamento tienes una tarea de devolver 465.000 pesos programada para mañana a las 12:00 PM.' }],
+      actions: [
+        { domain: 'conversation', action: 'reply', content: 'Te quedan 190.000 pesos.' },
+        { domain: 'task', action: 'list', entityName: 'Taller' },
+      ],
+      readAnswer: { actionIndex: 1, mode: 'records', fields: ['title', 'status'] },
     }));
-
-    const result = await routeMessage('Oye, ¿cuánto debo del apartamento?', user, []);
-
-    expect(result.intent).toBe('chat');
-    expect(result.confirmation).toBe('Del apartamento tienes una tarea de devolver 465.000 pesos programada para mañana a las 12:00 PM.');
-    expect(executeTool).not.toHaveBeenCalled();
-    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
-    expect(systemPrompt).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
-    expect(systemPrompt).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
+    executeTool.mockResolvedValue({ success: true, action: 'listed_tasks', data: {
+      tasks: [{ id: 'task-current', user_id: user.id, title: 'devolver 720.000 pesos', status: 'pending' }],
+      entityName: 'Taller', readCoverage: { complete: true }, readAt: '2026-09-29T20:00:00Z',
+    } });
+    const result = await routeMessage('¿Cuánto tengo pendiente en Taller?', user, []);
+    expect(result.intent).toBe('task');
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(result.confirmation).toContain('720.000');
+    expect(result.confirmation).toContain('pendiente');
+    expect(result.confirmation).not.toContain('190.000');
+    expect(result.confirmation).not.toContain('910000');
+    expect(result.entities._readAnswerEvidence.recordIds).toEqual(['task-current']);
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callResponseSynthesis).not.toHaveBeenCalled();
   });
 });

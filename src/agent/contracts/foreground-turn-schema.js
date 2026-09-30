@@ -39,6 +39,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   // Cartesian product. Node projects it back to canonical domain/action below.
   const { domain: _domain, action: _action, ...sharedProperties } = action.properties;
   if (attachmentOnly) {
+    delete schema.properties.readAnswer;
     action.properties = {
       operation: {
         type: 'string',

@@ -9,12 +9,12 @@ async function resolveTaskContainer({ userId, entityId = null, entityName = null
   if (entityId) return { id: entityId, name: entityName || null };
   if (!entityName) return { id: null, name: null };
 
-  const [{ data: entitiesData, error }, { data: projectsData }] = await Promise.all([
+  const [{ data: entitiesData, error }, { data: projectsData, error: projectError }] = await Promise.all([
     supabase.from('entities').select('id, name').eq('user_id', userId),
     supabase.from('projects').select('id, name').eq('user_id', userId).eq('status', 'active'),
   ]);
 
-  if (error) throw error;
+  if (error || projectError) throw error || projectError;
   const allContainers = [
     ...(entitiesData || []),
     ...(projectsData || []).map((p) => ({ id: p.id, name: p.name })),
@@ -81,8 +81,9 @@ export async function getTaskList({
   limit = 50,
 }) {
   const cleanQuery = typeof query === 'string' && query.trim() ? query.trim() : null;
+  const safeLimit = Math.min(Math.max(1, Math.floor(Number(limit) || 50)), 100);
   if (!userId) {
-    return { tasks: [], items: [], entityName: entityName || null, query: cleanQuery, scope: 'all_pending', timezone, locale };
+    throw new Error('A task read requires an authenticated owner.');
   }
 
   const tz = timezone || DEFAULT_TIMEZONE;
@@ -103,7 +104,7 @@ export async function getTaskList({
   }
 
   if (container.unresolved) {
-    return { tasks: [], items: [], entityName: entityName || null, query: cleanQuery, scope: parsedScope.runtimeScope, timezone: tz, locale };
+    return { unresolved: true, tasks: [], items: [], entityName: entityName || null, query: cleanQuery, scope: parsedScope.runtimeScope, timezone: tz, locale };
   }
 
   let dbQuery = supabase
@@ -140,7 +141,8 @@ export async function getTaskList({
       .order('due_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
   }
-  dbQuery = dbQuery.limit(Math.min(Math.max(1, Number(limit) || 50), 100));
+  // Overfetch one row to expose truncation; never count a capped sample as a total.
+  dbQuery = dbQuery.limit(safeLimit + 1);
 
   const { data, error } = await dbQuery;
   if (error) {
@@ -148,7 +150,9 @@ export async function getTaskList({
     throw error;
   }
 
-  const allTasks = (data || []).map((task) => {
+  const readCoverage = { complete: (data || []).length <= safeLimit, limit: safeLimit };
+  const readAt = new Date().toISOString();
+  const allTasks = (data || []).slice(0, safeLimit).map((task) => {
     const dueDate = task.due_date || null;
     const relevantDate = status === 'completed' ? (task.completed_at || task.updated_at || dueDate) : dueDate;
     const resolvedEntityName = task.entities?.name || task.projects?.name || container.name || null;
@@ -185,6 +189,9 @@ export async function getTaskList({
   return {
     tasks,
     items,
+    readCoverage,
+    readAt,
+    entityId: container.id || null,
     status: status || 'pending',
     entityName: container.name || entityName || null,
     query: cleanQuery,

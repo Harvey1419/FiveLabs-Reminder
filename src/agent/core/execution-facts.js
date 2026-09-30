@@ -50,7 +50,12 @@ function getCanonicalCard(toolName, params, result, language) {
   }
 
   if (toolName === TOOL_NAMES.MANAGE_TASK) {
-    if (params?.action === 'list' && result?.data) return formatCanonicalTaskList(result.data, presentation);
+    if (params?.action === 'list' && result?.data) {
+      const card = formatCanonicalTaskList(result.data, presentation);
+      if (result.data.readCoverage?.complete !== false) return card;
+      const partial = language === 'en' ? 'Partial read; more matching tasks may exist.' : 'Consulta parcial; puede haber más tareas coincidentes.';
+      return result.data.tasks?.length ? `${card}\n\n${partial}` : partial;
+    }
     if (params?.action === 'create' && result?.data) return formatCanonicalTaskCreate(result.data, presentation);
     if (params?.action === 'complete' && result?.data) return formatCanonicalTaskComplete(result.data, presentation);
     if (params?.action === 'update' && result?.data) return formatCanonicalTaskUpdate(result.data, presentation);

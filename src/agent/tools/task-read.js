@@ -19,6 +19,11 @@ export async function executeTaskReadTool({ params = {}, user = null, language =
       limit: params.limit || 50,
     });
 
+    if (data.unresolved) {
+      const error = language === 'en' ? 'I could not find that project.' : 'No encontré ese proyecto.';
+      return { success: false, action: 'project_not_found', errorCode: 'NOT_FOUND', error, rawSummary: error };
+    }
+
     if (data.ambiguous) {
       const names = (data.candidates || []).slice(0, 5).map((entity) => entity.name).join(', ');
       const question = language === 'en'

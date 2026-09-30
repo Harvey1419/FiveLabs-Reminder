@@ -1,5 +1,6 @@
 import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
+import { READ_ANSWER_SCHEMA, validateReadAnswer } from './read-answer.js';
 
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
@@ -108,6 +109,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
+    readAnswer: READ_ANSWER_SCHEMA,
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
   required: ['actions'],
@@ -117,12 +119,12 @@ export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la a
 AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, es estado vivo y EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, cantidad, fecha, estado o dato derivado. conversation.reply es sin estado. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones exigen target existente. Modificar es reminder.update sobre objeto existente. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
-TAREAS Y PROYECTOS: 'tareas'/'pendientes' fija domain="task"; listar emite task.list(entityName, query?). Preguntas sobre proyectos con tareas vivas en contexto van directo en conversation.reply. Proyectos: project+task.create. Borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
+TAREAS Y PROYECTOS: Contenido y compromisos de un proyecto se consultan con task.list(entityName, query?), aunque no se diga "tareas". Proyectos: project+task.create; listar: project.list; borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
 CALENDARIO: Fechas: calendar.list; eventos: calendar.search (query="daily") y scope; citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Orden con inspección va en content sin lecturas. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
-Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Hechos en <user_memories> van en conversation.reply; tareas vivas mandan sobre montos y deudas. memory.search/list solo para inspeccionar memorias. memory.save solo ante petición explícita.
-Mensajes mixtos: acciones en actions y no ejecutables en excluded. Lecturas dan verdad en card; NUNCA especules en conversation.reply.`;
+Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Memoria durable personal permite charla; estado operativo nunca. memory.search/list inspecciona recuerdos, no compromisos. memory.save solo ante petición explícita.
+Respuesta puntual: lectura en actions + readAnswer(actionIndex, mode, fields). Listas completas: solo lectura. query identifica el tema, nunca el valor viejo consultado; si no conoces el literal, omítelo. Mensajes mixtos: actions y excluded. Nunca anticipes datos en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -135,7 +137,7 @@ export function getConversationToolDefinition() {
     type: 'function',
     function: {
       name: TOOL_NAMES.REPLY_TO_USER,
-      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Facts in <user_memories> must be answered directly in conversation.reply. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.',
+      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Only durable personal facts and preferences in <user_memories> may be recalled directly; operational records always require their domain read, optionally with readAnswer. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -394,12 +396,15 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     }
     normalizedActions.push({ ...normalizedRaw, domain, action });
   }
+  const readAnswerValidation = validateReadAnswer(intent.readAnswer, normalizedActions);
+  if (!readAnswerValidation.valid) return readAnswerValidation;
   const excluded = Array.isArray(intent.excluded) ? intent.excluded.filter((item) => item && typeof item.quote === 'string' && item.quote.trim()) : [];
   return {
     valid: true,
     intent: {
       actions: normalizedActions,
       excluded,
+      ...(readAnswerValidation.readAnswer ? { readAnswer: readAnswerValidation.readAnswer } : {}),
     },
   };
 }
