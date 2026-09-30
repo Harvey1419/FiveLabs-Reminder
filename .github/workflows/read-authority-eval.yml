@@ -43,6 +43,11 @@ jobs:
           fi
       - name: Install dependencies
         run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
+      - name: Snapshot tracked source and public dependencies for isolated verification
+        run: |
+          mkdir -p artifacts
+          git archive --format=tar HEAD > artifacts/source.tar
+          tar -czf artifacts/dependencies.tar.gz node_modules
       - name: Observe provider routing (diagnostic only, not acceptance)
         run: node scripts/evals/live-read-authority.js --observe
       - name: Require grounded router outcomes with synthetic read-only fixtures
@@ -55,5 +60,7 @@ jobs:
           path: |
             artifacts/semantic-authority-*.json
             artifacts/state-authority-live.json
+            artifacts/source.tar
+            artifacts/dependencies.tar.gz
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
