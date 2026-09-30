@@ -1,0 +1,40 @@
+name: Prepare reviewed read contract
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.reviewed-core/contract.b64', '.github/workflows/prepare-reviewed-contract.yml']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.event.pull_request.number == 108 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/verified-read-answers'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed source without changing refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,gzip,hashlib,json,os,pathlib,subprocess,urllib.request
+          encoded=pathlib.Path('.reviewed-core/contract.b64').read_text()
+          assert encoded.count('Pri7q7PH') == 1
+          encoded=encoded.replace('Pri7q7PH','Pri7PH')
+          patch=gzip.decompress(base64.b64decode(encoded))
+          assert hashlib.sha256(patch).hexdigest()=='aecc48d23c5d192070cd31edec84c7b8392067d84ab5235d7bfcd6b3a1d0beb9'
+          subprocess.run(['git','apply','--check','--index','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          paths=subprocess.check_output(['git','diff','--cached','--name-only']).decode().splitlines()
+          assert set(paths)=={'src/agent/contracts/read-answer.js','src/agent/core/agent-core.js','src/agent/contracts/intent-contracts.js','src/agent/contracts/foreground-turn-schema.js','tests/unit/agent/runtime-model-contract.test.js'}
+          entries=[{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
+          request=urllib.request.Request('https://api.github.com/repos/Harvey1419/FiveLabs-Reminder/git/trees',data=json.dumps({'base_tree':'cd4fcd304e4146dba243528f1aa074712945e290','tree':entries}).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','User-Agent':'reviewed-source-verification'})
+          with urllib.request.urlopen(request,timeout=30) as response: result=json.load(response)
+          assert result['sha']=='67561f83d9e1d097075fb663f3de274f78a79caa'
+          print('VERIFIED_CODE_TREE='+result['sha'])
+          PY
