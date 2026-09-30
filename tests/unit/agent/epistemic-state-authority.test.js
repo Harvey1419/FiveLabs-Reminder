@@ -58,6 +58,8 @@ describe('Epistemic State Authority and Pure Architecture Contracts', () => {
       expect(prompt).toContain('el chat no tiene autoridad sobre compromisos');
       expect(prompt).toContain('pregunta que pida inventario vivo');
       expect(prompt).toContain('agenda.read, calendar.list, reminder.list, task.list');
+      expect(prompt).toContain('La deuda o saldo de un proyecto es la suma de montos en [Tareas vivas del proyecto/entidad]');
+      expect(prompt).toContain('NUNCA tomes saldos ni operandos del historial de chat ni de <user_memories>');
       expect(prompt.length).toBeLessThan(6000);
     });
   });
