@@ -52,7 +52,10 @@ export function hasProAccess(subscription, user = null) {
  * @returns {boolean}
  */
 export function shouldEnforceBillingForUser(user) {
-  if (!user) return false;
+  if (!user || user.is_admin === true) return false;
+  if (process.env.ENFORCE_BILLING_FOR_ALL === 'true' || process.env.ENFORCE_BILLING === 'true') {
+    return true;
+  }
   const rawPhone = user.phone_number || '';
   const digits = String(rawPhone).replace(/\D/g, '');
   return digits.includes('19164158325') || rawPhone.includes('19164158325');

@@ -99,6 +99,7 @@ export async function handleStripeWebhook(req, res) {
 
       if (user?.id && subId) {
         const nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const amount = dataObject.amount_total ? Number(dataObject.amount_total) / 100 : 14.99;
 
         const { data: existingSub } = await supabase
           .from('subscriptions')
@@ -115,6 +116,7 @@ export async function handleStripeWebhook(req, res) {
               mp_preapproval_id: subId,
               plan: 'pro',
               status: 'authorized',
+              amount,
               next_payment_date: nextPaymentDate,
               updated_at: new Date().toISOString(),
             })
@@ -127,6 +129,7 @@ export async function handleStripeWebhook(req, res) {
               mp_preapproval_id: subId,
               plan: 'pro',
               status: 'authorized',
+              amount,
               next_payment_date: nextPaymentDate,
             });
         }

@@ -414,8 +414,10 @@ export async function executeReminderCreate({
     rejected: rejectedItems,
     proUpgrade: proUpgrade ? {
       checkoutUrl: proUpgrade.checkoutUrl || proUpgrade.fallbackCheckoutUrl,
+      shortCheckoutUrl: proUpgrade.shortCheckoutUrl,
       amount: proUpgrade.amount,
       currency: proUpgrade.currency,
+      provider: proUpgrade.provider,
     } : null,
   }, timezone, language);
 

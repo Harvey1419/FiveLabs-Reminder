@@ -104,6 +104,17 @@ describe('Experimental Billing Enforcement Target (shouldEnforceBillingForUser)'
     expect(shouldEnforceBillingForUser({ phone_number: null })).toBe(false);
     expect(shouldEnforceBillingForUser(null)).toBe(false);
   });
+
+  it('should enforce billing for all non-admin users when ENFORCE_BILLING=true or ENFORCE_BILLING_FOR_ALL=true', () => {
+    process.env.ENFORCE_BILLING = 'true';
+    expect(shouldEnforceBillingForUser({ phone_number: '573001112233' })).toBe(true);
+    expect(shouldEnforceBillingForUser({ phone_number: '573001112233', is_admin: true })).toBe(false);
+    delete process.env.ENFORCE_BILLING;
+  });
+
+  it('should exempt admin users even if they have the test phone number', () => {
+    expect(shouldEnforceBillingForUser({ phone_number: '19164158325', is_admin: true })).toBe(false);
+  });
 });
 
 describe('MercadoPago Service Client', () => {
