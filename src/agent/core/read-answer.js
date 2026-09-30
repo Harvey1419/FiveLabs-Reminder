@@ -48,11 +48,11 @@ function describeRecord(row, domain, fields, context) {
   const parts = [identity];
   if (fields.includes('description')) {
     const description = text(row.description || row.notes);
-    parts.push(description || (language === 'en' ? 'No description was returned.' : 'La consulta no devolvió una descripción.'));
+    parts.push(description || (language === 'en' ? 'No description was returned' : 'La consulta no devolvió una descripción'));
   }
   if (fields.includes('schedule')) {
     const when = recordedTime(row, domain, context);
-    parts.push(when || (language === 'en' ? 'No date was returned.' : 'La consulta no devolvió una fecha.'));
+    parts.push(when || (language === 'en' ? 'No date was returned' : 'La consulta no devolvió una fecha'));
   }
   return parts.join(' — ');
 }

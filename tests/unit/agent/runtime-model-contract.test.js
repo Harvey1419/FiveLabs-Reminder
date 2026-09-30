@@ -269,17 +269,12 @@ describe('foreground strict Structured Outputs boundary', () => {
     await routeMessage('¿Cuánto me queda por pagar?', user, history, turnOptions);
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(payload.messages[1]).toEqual({
-      role: 'system',
-      content: expect.stringContaining('No es fuente de estado vivo ni de operandos para cálculos'),
+    expect(payload.messages[1].role).toBe('user');
+    const context = JSON.parse(payload.messages[1].content);
+    expect(context).toEqual({ kind: 'historical_dialogue', authority: 'reference_only',
+      turns: history.map((turn) => ({ speaker: turn.role, text: turn.content })),
     });
-    expect(payload.messages[2]).toEqual(history[0]);
-    expect(payload.messages[3]).toEqual({
-      role: 'assistant',
-      content: expect.stringContaining('SALIDA HISTÓRICA DE HERMES'),
-    });
-    expect(payload.messages[3].content).toContain('NO es evidencia de estado vivo ni insumo para cálculos');
-    expect(payload.messages[3].content).toContain(history[1].content);
+    expect(payload.messages.some((message) => message.role === 'assistant')).toBe(false);
     expect(payload.messages.at(-1)).toMatchObject({ role: 'user', content: '¿Cuánto me queda por pagar?' });
   });
 

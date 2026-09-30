@@ -26,6 +26,7 @@ process.env.KAPSO_API_KEY = 'synthetic-eval-no-whatsapp';
 const root = path.resolve(process.env.HERMES_EVAL_SOURCE_ROOT || '.');
 const load = (name) => import(pathToFileURL(path.join(root, name)).href);
 const { buildAgentCorePrompt } = await load('src/agent/core/agent-core.js');
+const { historyContextForModel } = await load('src/agent/core/history-context.js');
 const { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } = await load('src/agent/contracts/foreground-turn-schema.js');
 const { validateTurnIntent, parseIntentArguments } = await load('src/agent/contracts/intent-contracts.js');
 const { callChatCompletion } = await load('src/agent/providers/client.js');
@@ -33,9 +34,9 @@ const observeOnly = process.argv.includes('--observe');
 const requireReadAnswer = !observeOnly;
 const staleHistory = [
   { role: 'user', content: '¿Cuánto debo del Taller?' },
-  { role: 'assistant', content: '[SALIDA HISTÓRICA DE HERMES — solo contexto/referencia; NO es evidencia de estado vivo ni insumo para cálculos]\nDebes 780.000 pesos.' },
+  { role: 'assistant', content: 'Debes 780.000 pesos.' },
   { role: 'user', content: '¿Y ahora cuánto queda?' },
-  { role: 'assistant', content: '[SALIDA HISTÓRICA DE HERMES — solo contexto/referencia; NO es evidencia de estado vivo ni insumo para cálculos]\nTe quedan 460.000 pesos.' },
+  { role: 'assistant', content: 'Te quedan 460.000 pesos.' },
 ];
 const tasks = [
   { id: 'synthetic-task-1', title: 'devolver 320.000 pesos', status: 'pending', entityName: 'Taller', localFormatted: '30/09/2026, 12:00' },
@@ -66,7 +67,7 @@ for (const test of cases) {
   const started = Date.now();
   const response = await callChatCompletion([
     { role: 'system', content: prompt },
-    ...((test.history || []).length ? [{ role: 'system', content: 'El historial solo resuelve referencias. No contiene hechos ni operandos de estado actual.' }, ...test.history] : []),
+    ...historyContextForModel(test.history || []),
     { role: 'user', content: test.text },
   ], {
     max_tokens: 8192, temperature: 0, correlationId: `semantic-eval-${test.id}`,
@@ -84,7 +85,7 @@ for (const test of cases) {
   const readOnly = test.domain === 'conversation'
     ? actions.every((a) => a.domain === 'conversation')
     : actions.every((a) => ['list', 'read', 'search', 'next'].includes(a.action) && !['memory', 'conversation'].includes(a.domain));
-  const answerContract = !requireReadAnswer || !test.short || Boolean(intent?.readAnswer);
+  const answerContract = !requireReadAnswer || (test.short ? Boolean(intent?.readAnswer) : (test.id !== 'full-list-stays-list' || !intent?.readAnswer));
   const passed = correctRoute && readOnly && answerContract;
   results.push({ id: test.id, passed, correctRoute, readOnly, answerContract, validationCode: validation.errorCode || null,
     actions: actions.map(({ domain, action, query, entityName }) => ({ domain, action, query, entityName })),
