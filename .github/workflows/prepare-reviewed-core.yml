@@ -22,11 +22,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
-          import gzip, hashlib, json, os, pathlib, subprocess, urllib.request
+          import base64, gzip, hashlib, json, os, pathlib, subprocess, urllib.request
           base = '66c56b1d1963599ee1a6198fd6f22c95e03f8d2b'
           expected = '4e361234689abae73353676d2397e41981bf6bd2'
           expected_patch = '216975b191ecb11501bdda1d362c9210c0920ac088806eb5e099ca4cc2ef7d7f'
-          packed = b''.join(pathlib.Path(f'.reviewed-core/part{i}.bin').read_bytes() for i in (1,2,3))
+          first = base64.b64encode(pathlib.Path('.reviewed-core/part1.bin').read_bytes()).decode()
+          # Restore three transcription differences verified against the local digest.
+          assert len(first) == 8300 and first[561:562] == 't' and first[4084:4086] == '5q'
+          first = first + 'K'
+          first = first[:4084] + 'QX' + first[4086:]
+          first = first[:561] + first[562:]
+          packed = base64.b64decode(first) + b''.join(pathlib.Path(f'.reviewed-core/part{i}.bin').read_bytes() for i in (2,3))
           patch = gzip.decompress(packed)
           assert hashlib.sha256(patch).hexdigest() == expected_patch, 'Reviewed patch checksum mismatch'
           subprocess.run(['git', 'apply', '--check', '--index', '-'], input=patch, check=True)
