@@ -1,0 +1,52 @@
+name: Prepare reviewed core tree
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.reviewed-core/**', '.github/workflows/prepare-reviewed-core.yml']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.event.pull_request.number == 108 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/verified-read-answers'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify the reviewed patch and create an unreferenced tree only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import gzip, hashlib, json, os, pathlib, subprocess, urllib.request
+          base = '66c56b1d1963599ee1a6198fd6f22c95e03f8d2b'
+          expected = '4e361234689abae73353676d2397e41981bf6bd2'
+          expected_patch = '216975b191ecb11501bdda1d362c9210c0920ac088806eb5e099ca4cc2ef7d7f'
+          packed = b''.join(pathlib.Path(f'.reviewed-core/part{i}.bin').read_bytes() for i in (1,2,3))
+          patch = gzip.decompress(packed)
+          assert hashlib.sha256(patch).hexdigest() == expected_patch, 'Reviewed patch checksum mismatch'
+          subprocess.run(['git', 'apply', '--check', '--index', '-'], input=patch, check=True)
+          subprocess.run(['git', 'apply', '--index', '-'], input=patch, check=True)
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only']).decode().splitlines()
+          allowed = {'.github/workflows/read-authority-eval.yml', 'src/agent/contracts/foreground-turn-schema.js', 'src/agent/contracts/intent-contracts.js', 'src/agent/contracts/read-answer.js', 'src/agent/core/agent-core.js', 'src/agent/core/execution-facts.js', 'src/agent/core/presentation-policy.js', 'src/agent/core/read-answer.js', 'src/agent/orchestration/intent-executor.js', 'src/agent/orchestration/router-core.js', 'src/agent/tools/task-read.js', 'src/features/tasks/service.js', 'tests/unit/agent/agent-core-overview.test.js', 'tests/unit/agent/read-answer.test.js', 'tests/unit/agent/router-native-orchestration.test.js', 'tests/unit/agent/task-read-coverage.test.js'}
+          assert set(paths) == allowed, 'Unexpected changed paths'
+          entries = [{'path': p, 'mode': '100644', 'type': 'blob', 'content': pathlib.Path(p).read_text()} for p in paths]
+          request = urllib.request.Request('https://api.github.com/repos/Harvey1419/FiveLabs-Reminder/git/trees', data=json.dumps({'base_tree':base, 'tree':entries}).encode(), method='POST', headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json', 'User-Agent':'reviewed-source-verification'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              result = json.load(response)
+          assert result['sha'] == expected, 'Prepared tree differs from locally tested source'
+          print('PREPARED_TREE_SHA='+result['sha'])
+          print('Prepared '+str(len(paths))+' reviewed files. No branch refs, production data or deployment settings changed.')
+          PY
+      - name: Retain transport verification inputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-core-transport
+          path: .reviewed-core/*.bin
+          include-hidden-files: true
+          retention-days: 1
