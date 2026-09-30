@@ -26,6 +26,8 @@ describe('Epistemic State Authority and Pure Architecture Contracts', () => {
       expect(EXECUTE_TURN_DESCRIPTION).toContain('AUTORIDAD DE ESTADO');
       expect(EXECUTE_TURN_DESCRIPTION).toContain('Never reconstruct live state from chat history');
       expect(EXECUTE_TURN_DESCRIPTION).toContain('agenda.read, calendar.list, reminder.list, task.list');
+      expect(EXECUTE_TURN_DESCRIPTION).toContain('Completar o pagar es task.complete(target)');
+      expect(EXECUTE_TURN_DESCRIPTION).toContain('NUNCA simules mutaciones (pagar, completar, borrar) solo con texto');
       expect(EXECUTE_TURN_DESCRIPTION.length).toBeLessThan(2600);
     });
 

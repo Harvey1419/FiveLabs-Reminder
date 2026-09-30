@@ -576,4 +576,33 @@ describe('Hermes direct TurnIntent router', () => {
     expect(systemPrompt).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
     expect(systemPrompt).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
   });
+
+  it('routes explicit task or debt completion ("ya los pagué") to task.complete mutation', async () => {
+    executeTool.mockResolvedValueOnce({
+      success: true,
+      action: 'completed_task',
+      data: { id: 'task-123', title: 'devolver 465.000 pesos', entities: { name: 'Apartamento' } },
+    });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [
+        { domain: 'task', action: 'complete', target: 'devolver 465.000 pesos', entityName: 'Apartamento' },
+        { domain: 'conversation', action: 'reply', content: '¡Excelente! Ya marqué como pagada la deuda de 465.000 pesos del apartamento.' },
+      ],
+    }));
+
+    const result = await routeMessage('ya los pagué', user, [
+      { role: 'user', content: '¿Cuánto debo del apartamento?' },
+      { role: 'assistant', content: 'Debes 465.000 pesos del proyecto Apartamento.' },
+    ]);
+
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_task',
+      params: expect.objectContaining({
+        action: 'complete',
+        target: 'devolver 465.000 pesos',
+        entityName: 'Apartamento',
+      }),
+    }));
+    expect(result.confirmation).toContain('Tarea completada');
+  });
 });
