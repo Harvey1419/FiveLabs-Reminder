@@ -1,0 +1,57 @@
+name: Hermes state authority (live model)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - 'src/agent/**'
+      - 'tests/live/state-authority.eval.js'
+      - 'tests/helpers/state-authority.js'
+      - 'tests/config/vitest.authority-live.js'
+      - '.github/workflows/state-authority-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authority-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.title, '[authority-eval]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HERMES_AUTHORITY_LIVE: '1'
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      KAPSO_API_KEY: synthetic-unused-key
+      ENABLE_WHATSAPP_FLOWS: 'false'
+    steps:
+      - name: Require model credentials (never substitute a mock)
+        shell: bash
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo '::error::OPENROUTER_API_KEY is not configured as a GitHub Actions secret. Live evaluation did NOT run.'
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global pnpm@9.15.9
+      - run: pnpm install --frozen-lockfile
+      - name: Evaluate real decisions against synthetic read-only fixtures
+        run: pnpm exec vitest run --config tests/config/vitest.authority-live.js
+      - name: Retain synthetic evidence, not credentials or customer data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-authority-live-${{ github.run_id }}
+          path: artifacts/state-authority-live.json
+          if-no-files-found: ignore
+          retention-days: 7
