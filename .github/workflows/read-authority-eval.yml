@@ -1,0 +1,49 @@
+name: Read Authority Semantic Eval
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/agent/**'
+      - 'src/features/tasks/**'
+      - 'scripts/evals/live-read-authority.js'
+      - '.github/workflows/read-authority-eval.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: read-authority-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semantic:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require evaluation credential (not a production database key)
+        shell: bash
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo '::error::SEMANTIC_EVAL_NOT_RUN: GitHub secret OPENROUTER_API_KEY is missing. No model behavior has been verified. Do not treat unit tests as semantic acceptance.'
+            exit 2
+          fi
+      - name: Install dependencies
+        run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
+      - name: Observe baseline routing without writes
+        run: node scripts/evals/live-read-authority.js --observe
+      - name: Retain synthetic evaluation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-authority-semantic-results
+          path: artifacts/semantic-authority-*.json
+          if-no-files-found: ignore
+          retention-days: 7
