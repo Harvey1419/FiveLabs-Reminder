@@ -7,6 +7,9 @@ on:
       - 'src/agent/**'
       - 'src/features/tasks/**'
       - 'scripts/evals/live-read-authority.js'
+      - 'tests/live/state-authority.eval.js'
+      - 'tests/helpers/state-authority.js'
+      - 'tests/config/vitest.authority-live.js'
       - '.github/workflows/read-authority-eval.yml'
 
 permissions:
@@ -20,30 +23,37 @@ jobs:
   semantic:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      HERMES_AUTHORITY_LIVE: '1'
+      KAPSO_API_KEY: synthetic-unused-key
+      ENABLE_WHATSAPP_FLOWS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Require evaluation credential (not a production database key)
+      - name: Require evaluation credential (never substitute a mock)
         shell: bash
         run: |
           if [ -z "$OPENROUTER_API_KEY" ]; then
-            echo '::error::SEMANTIC_EVAL_NOT_RUN: GitHub secret OPENROUTER_API_KEY is missing. No model behavior has been verified. Do not treat unit tests as semantic acceptance.'
+            echo '::error::SEMANTIC_EVAL_NOT_RUN: GitHub secret OPENROUTER_API_KEY is missing. No model behavior has been verified.'
             exit 2
           fi
       - name: Install dependencies
         run: npm install --global pnpm@9.15.9 && pnpm install --frozen-lockfile
-      - name: Observe baseline routing without writes
+      - name: Observe provider routing (diagnostic only, not acceptance)
         run: node scripts/evals/live-read-authority.js --observe
+      - name: Require grounded router outcomes with synthetic read-only fixtures
+        run: pnpm exec vitest run --config tests/config/vitest.authority-live.js
       - name: Retain synthetic evaluation results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: read-authority-semantic-results
-          path: artifacts/semantic-authority-*.json
+          path: |
+            artifacts/semantic-authority-*.json
+            artifacts/state-authority-live.json
           if-no-files-found: ignore
           retention-days: 7
