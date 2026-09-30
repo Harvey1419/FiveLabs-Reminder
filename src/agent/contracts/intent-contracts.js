@@ -115,16 +115,16 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent is mandatory for every turn. Contexto resuelve referencias. Sin IDs internos.
 AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, es estado vivo y EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, cantidad, fecha, estado o dato derivado. conversation.reply es sin estado. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones exigen target existente. Modificar es reminder.update sobre objeto existente. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
-TAREAS Y PROYECTOS: Contenido y compromisos de un proyecto se consultan con task.list(entityName, query?), aunque no se diga "tareas". Proyectos: project+task.create; listar: project.list; borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
+TAREAS Y PROYECTOS: Compromisos, devoluciones y montos registrados pertenecen a tareas: task.list(entityName, query?) para consultarlos. Proyectos: project+task.create; listar: project.list; borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: title/newName. Ordinales: task.delete target="1".
 CALENDARIO: Fechas: calendar.list; eventos: calendar.search (query="daily") y scope; citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; NUNCA niegues acceso en conversation.reply.
 ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Orden con inspección va en content sin lecturas. Preguntas JAMÁS autorizan mutaciones, solo lecturas vivas.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
 Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset"+advanceMinutes. Memoria durable personal permite charla; estado operativo nunca. memory.search/list inspecciona recuerdos, no compromisos. memory.save solo ante petición explícita.
-Respuesta puntual: lectura en actions + readAnswer(actionIndex, mode, fields). Listas completas: solo lectura. query identifica el tema, nunca el valor viejo consultado; si no conoces el literal, omítelo. Mensajes mixtos: actions y excluded. Nunca anticipes datos en conversation.reply.`;
+Pregunta de dato: actions contiene la lectura; readAnswer={actionIndex:0,mode:"records",fields:["title","status"]}. count cuenta registros. Chat/lista completa: readAnswer=null. query identifica el tema, nunca el valor viejo consultado; omite literales desconocidos. Mixtos: actions/excluded. No anticipes datos en conversation.reply.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);

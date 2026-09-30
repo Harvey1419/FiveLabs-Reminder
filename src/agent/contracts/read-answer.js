@@ -12,7 +12,7 @@ export const READ_ANSWER_OPERATIONS = Object.freeze({
 const FIELDS = Object.freeze(['title', 'description', 'status', 'schedule']);
 export const READ_ANSWER_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
-  description: 'Concise answer to a question about a current record or count. Always include its authoritative read in actions. Node fills values from that read only. Never write an operational answer in conversation.reply or supply amounts here. Omit for an explicitly requested full list. A monetary value stored in a title is reported as recorded, never treated as a payment or recalculated balance.',
+  description: 'Plan for presenting fields from an operational READ that Node will execute AFTER this decision. You do not need to know the answer yet: request the read to discover it. Set null for conversation, durable personal memory, clarifications, mutations without a question, and explicitly requested full lists. For a current property, include the domain read in actions and select its index here. Node supplies every value; do not draft an answer or use old amounts.',
   properties: {
     actionIndex: { type: 'integer', minimum: 0, maximum: 11, description: 'Zero-based index of the source read in actions, including any conversation actions in that indexing.' },
     mode: { type: 'string', enum: ['records', 'count'], description: 'records=report stored fields; count=count matching records, not monetary amounts. No arithmetic over prose or historical values.' },

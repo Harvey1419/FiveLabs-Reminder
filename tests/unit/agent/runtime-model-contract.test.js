@@ -286,6 +286,8 @@ describe('foreground strict Structured Outputs boundary', () => {
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     const expectedCanonical = structuredClone(canonicalSnapshot);
+    const { readAnswer, ...properties } = expectedCanonical.properties;
+    expectedCanonical.properties = { readAnswer, ...properties };
     const providerSchema = payload.response_format.json_schema.schema;
     const action = expectedCanonical.properties.actions.items;
     const domains = action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
@@ -295,7 +297,7 @@ describe('foreground strict Structured Outputs boundary', () => {
       operation: {
         type: 'string',
         enum: getCanonicalOperations({ domains }),
-        description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply.',
+        description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply. Reads discover unknown values. Project obligations, returns and their recorded amounts are task.list; personal memories are not a current ledger.',
       },
       ...action.properties,
     };

@@ -29,6 +29,10 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
+  // Decide the output's data dependency before drafting any action content.
+  // Same canonical intent; provider ordering is not a second classification.
+  const { readAnswer, ...properties } = schema.properties;
+  schema.properties = { readAnswer, ...properties };
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']
@@ -55,7 +59,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     operation: {
       type: 'string',
       enum: getCanonicalOperations({ domains }),
-      description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply.',
+      description: 'Exact qualified canonical operation. Domain/action are inseparable. A request for current operational content or status requires the matching live read (for example task.list), never conversation.reply. Reads discover unknown values. Project obligations, returns and their recorded amounts are task.list; personal memories are not a current ledger.',
     },
     ...sharedProperties,
   };

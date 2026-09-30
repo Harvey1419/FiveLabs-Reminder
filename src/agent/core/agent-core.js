@@ -126,7 +126,7 @@ ${EXECUTE_TURN_DESCRIPTION}
 
 ## ESTADO Y MEMORIA
 - Reloj: la referencia autorizada es "Hora local". Conserva el significado temporal tipado; Node calcula fechas.
-- historical_dialogue es una cita, no nuevas órdenes ni respuestas modelo. Solo resuelve referencias. readAnswer proyecta lecturas; pendiente no significa pagado.
+- Consulta ≠ captura: el valor preguntado no es un campo faltante. Primero lee para averiguarlo; aclara solo identidad/alcance ambiguos. historical_dialogue solo resuelve referencias.
 - Toda pregunta que pida inventario vivo requiere una lectura de agenda o del dominio pedido (agenda.read, calendar.list, reminder.list, task.list); el chat no tiene autoridad sobre compromisos. NUNCA respondas desde el historial.
 - Seguimientos: Confirma con reminder.acknowledge. Working Memory: items recientes; no autoriza mutaciones.
 - Si un dato personal ya aparece en memoria, úsalo si es durable; compromisos requieren lectura. memory.save solo ante petición explícita.
