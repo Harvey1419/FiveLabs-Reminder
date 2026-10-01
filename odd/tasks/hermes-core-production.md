@@ -102,13 +102,13 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **RED → GREEN → REFACTOR:** Initial regression RED: writer reported 8 failing / 8 passing tests across 2 files. A later correction RED: 2 failing / 26 passing; the independent verifier confirmed the bounded out-of-range ordinal/fuzzy-match finding was fixed. No separate refactor-only command or exact invocation for the two RED reports was provided.
 - **Focused test:** `pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent/task-numbered-and-ordinals.test.js tests/unit/agent/task-scope-resolution.test.js tests/unit/agent/context-target-pinner.test.js tests/unit/agent/context-reference.test.js tests/unit/agent/pinned-reminder-target-resolution.test.js` — independent verifier exit 0, 5 files / 33 tests passed.
 - **Full unit suite:** `pnpm run test:unit` — 106 files, 843 tests passed (writer report after correction).
-- **Syntax / diff:** Source JavaScript syntax and diff checks passed (writer report after correction). Final staged-candidate `git diff --cached --check` will be run before commit.
+- **Syntax / diff:** Source JavaScript syntax and diff checks passed (writer report after correction). Final staged-candidate `git diff --cached --check` passed before commit.
 - **Runtime harness:** Offline Vitest/mocked task and working-memory adapters only; no external DB, network or live-AI calls. Production integration remains pending separate authorization.
 - **Failure / environment limitation:** No live-service result is claimed. Final native assessment was medium with `slice_budget_reached` at 447 lines; RDD was disabled, so no STATUS or START was invoked. The independent verifier resolved the bounded finding.
 - **Rollback boundary:** Revert only `src/agent/orchestration/context-target-pinner.js`, `src/agent/orchestration/intent-executor.js`, `src/agent/tools/task-reference.js`, `tests/unit/agent/task-numbered-and-ordinals.test.js`, and `tests/unit/agent/task-scope-resolution.test.js` to remove T04 behavior and regression coverage.
 - **Authored changed lines:** T04 code/tests: 368 additions + 79 deletions = 447 lines; tracker delta: 18 additions + 4 deletions = 22 lines; combined staged commit: 386 additions + 83 deletions = 469 lines. The 400-line estimate is advisory, not a hard task cap.
-- **Commit identity:** Pending the authorized local Conventional Commit.
-- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record T04's commit as an integration-branch slice boundary; future PR split/exception remains pending, with no line-golfing.
+- **Commit identity:** `ff95fb0f24154496304b0966afa260b1759edbf3` — `fix(agent): preserve displayed task identity across mutations` (feature branch only).
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T04 integration-branch boundary: `ff95fb0f24154496304b0966afa260b1759edbf3` (447 authored code/test lines; 469 including tracker). Any future PR split/exception remains pending, with no line-golfing.
 
 ### Reusable close template for T05–T09
 
