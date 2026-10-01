@@ -93,8 +93,8 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **Failure / environment limitation:** No live-service result or production-readiness claim. Native assessment was high/unassessable from untracked inventory; independent verification resolved the bounded Calendar mode finding. RDD remains disabled/unmanaged; no review was started or toggled.
 - **Rollback boundary:** Revert only `src/agent/contracts/intent-contracts.js`, `src/agent/orchestration/domain-call.js`, `src/agent/orchestration/intent-normalizer.js`, `src/agent/tools/calendar.js`, `src/integrations/google/calendar.js`, `tests/unit/agent/domain-call-field-semantics.test.js`, and `tests/unit/calendar/google-calendar-update-patches.test.js` to remove T03 behavior and its regression coverage.
 - **Authored changed lines:** T03 code/tests: 445 additions + 31 deletions = 476 lines; tracker delta: 17 additions + 3 deletions = 20 lines; combined staged commit: 462 additions + 34 deletions = 496 lines. New tests are included. The per-task 400-line estimate is advisory, not a cap.
-- **Commit identity:** Pending the authorized local Conventional Commit.
-- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record the T03 integration-branch commit as a future review-slice boundary; any future PR split/exception remains pending, with no line-golfing.
+- **Commit identity:** `e54a9b2657b61377234cfda067362372908bd17a` — `fix(agent): preserve advertised field update semantics` (feature branch only).
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T03 integration-branch boundary: `e54a9b2657b61377234cfda067362372908bd17a` (476 authored code/test lines; 496 including tracker). Any future PR split/exception remains pending, with no line-golfing.
 
 ### Reusable close template for T04–T09
 
