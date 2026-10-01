@@ -1,9 +1,16 @@
-import { resolveContextReference } from '../core/context-reference.js';
+import { parseStructuredOrdinal, resolveContextReference } from '../core/context-reference.js';
 
 function isSingleReminderTargetAction(action) {
   return action?.domain === 'reminder'
     && ['cancel', 'update'].includes(action?.action)
     && !['all', 'elapsed'].includes(action?.scope)
+    && typeof action?.target === 'string'
+    && action.target.trim().length > 0;
+}
+
+function isSingleTaskMutationAction(action) {
+  return action?.domain === 'task'
+    && ['update', 'complete', 'delete'].includes(action?.action)
     && typeof action?.target === 'string'
     && action.target.trim().length > 0;
 }
@@ -75,6 +82,43 @@ export function pinReminderCancellationTargets(actions = [], workingMemory = nul
   }
 
   return pinned;
+}
+
+/** Freeze task mutation references against the pre-mutation ordered snapshot. */
+export function pinTaskMutationTargets(actions = [], workingMemory = null) {
+  const pinned = new Map();
+  if (!Array.isArray(actions) || !Array.isArray(workingMemory?.items)) return pinned;
+  const taskCount = workingMemory.items.filter((item) => item?.type === 'task').length;
+
+  actions.forEach((action, index) => {
+    if (!isSingleTaskMutationAction(action)) return;
+    const ordinal = parseStructuredOrdinal(action.target);
+    if (taskCount > 0 && ordinal > taskCount) return;
+    const resolved = resolveContextReference({
+      reference: action.target.trim(),
+      preferredType: 'task',
+      workingMemory,
+    });
+    if (resolved.status === 'RESOLVED' && resolved.item?.internalId) {
+      pinned.set(index, resolved.item.internalId);
+    }
+  });
+
+  return pinned;
+}
+
+export function findOutOfRangeTaskOrdinalTargets(actions = [], workingMemory = null) {
+  const invalid = new Set();
+  if (!Array.isArray(actions) || !Array.isArray(workingMemory?.items)) return invalid;
+  const taskCount = workingMemory.items.filter((item) => item?.type === 'task').length;
+  if (taskCount === 0) return invalid;
+
+  actions.forEach((action, index) => {
+    if (!isSingleTaskMutationAction(action)) return;
+    const ordinal = parseStructuredOrdinal(action.target);
+    if (ordinal > taskCount) invalid.add(index);
+  });
+  return invalid;
 }
 
 export const pinReminderTargets = pinReminderCancellationTargets;

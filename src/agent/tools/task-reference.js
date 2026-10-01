@@ -1,6 +1,6 @@
 import { supabase } from '../../infrastructure/database/index.js';
 import { getWorkingMemory } from '../core/working-memory.js';
-import { resolveContextReference } from '../core/context-reference.js';
+import { parseStructuredOrdinal, resolveContextReference } from '../core/context-reference.js';
 import {
   isStrictUUID,
   normalizeTextForMatching,
@@ -46,6 +46,27 @@ async function resolveUserContainer(query, normalizedQuery, userId) {
   return null;
 }
 
+async function loadOwnedTask(taskId, userId, allowedStatuses, scopedEntityId = null) {
+  if (!taskId || !userId) return { status: 'NOT_FOUND' };
+  let query = supabase
+    .from('tasks')
+    .select('id, user_id, status, description, title, entity_id, project_id')
+    .eq('id', taskId);
+  if (scopedEntityId) {
+    if (typeof query.or === 'function') query = query.or(`entity_id.eq.${scopedEntityId},project_id.eq.${scopedEntityId}`);
+    else query = query.eq('entity_id', scopedEntityId);
+  }
+  const { data: task, error } = await query.maybeSingle();
+  if (error || !task || task.user_id !== userId) return { status: 'NOT_FOUND' };
+  if (!allowedStatuses.includes(task.status)) {
+    return {
+      status: 'NOT_FOUND',
+      ...(task.status === 'completed' ? { reason: 'TASK_ALREADY_COMPLETED' } : {}),
+    };
+  }
+  return { status: 'RESOLVED', taskId: task.id, task };
+}
+
 /**
  * Canonical deterministic task reference resolver.
  * Receives a structured target from Hermes/Orchestrator and only resolves that
@@ -78,30 +99,20 @@ export async function resolveTaskTarget({
   }
 
   if (isStrictUUID(rawStr)) {
-    let directTaskQuery = supabase
-        .from('tasks')
-        .select('id, user_id, status, description, title, entity_id, project_id')
-        .eq('id', rawStr);
-    if (scopedEntityId) {
-      if (typeof directTaskQuery.or === 'function') {
-        directTaskQuery = directTaskQuery.or(`entity_id.eq.${scopedEntityId},project_id.eq.${scopedEntityId}`);
-      } else {
-        directTaskQuery = directTaskQuery.eq('entity_id', scopedEntityId);
-      }
-    }
-    const { data: directTask } = await directTaskQuery.maybeSingle();
-    if (operation === 'complete') {
-      if (!directTask || (userId && directTask.user_id !== userId)) return { status: 'NOT_FOUND' };
-      if (directTask.status !== 'pending') return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
-      return { status: 'RESOLVED', taskId: directTask.id, task: directTask };
-    }
-    return { status: 'RESOLVED', taskId: rawStr, task: directTask };
+    return loadOwnedTask(rawStr, userId, statuses, scopedEntityId);
   }
+
+  const workingMemory = getWorkingMemory(userOrPhone);
+  const ordinal = parseStructuredOrdinal(rawStr);
+  const taskCount = Array.isArray(workingMemory?.items)
+    ? workingMemory.items.filter((item) => item?.type === 'task').length
+    : 0;
+  if (ordinal > taskCount && taskCount > 0) return { status: 'NOT_FOUND', reason: 'TASK_ORDINAL_OUT_OF_RANGE' };
 
   const refRes = resolveContextReference({
     reference: rawStr,
     preferredType: 'task',
-    workingMemory: getWorkingMemory(userOrPhone),
+    workingMemory,
   });
 
   const referenceEntityId = refRes.item?.raw?.entity_id || refRes.item?.raw?.entityId || refRes.item?.entityId || null;
@@ -110,22 +121,9 @@ export async function resolveTaskTarget({
     || referenceEntityId === scopedEntityId
     || (entityName && String(referenceEntityName || '').trim().toLowerCase() === String(entityName).trim().toLowerCase());
   if (refRes.status === 'RESOLVED' && refRes.item?.internalId && referenceMatchesScope) {
-    if (operation === 'complete') {
-      const { data: directTask } = await supabase
-        .from('tasks')
-        .select('id, user_id, status, description, title, entity_id, project_id')
-        .eq('id', refRes.item.internalId)
-        .maybeSingle();
-      if (directTask && directTask.status !== 'pending') {
-        return { status: 'NOT_FOUND', reason: 'TASK_ALREADY_COMPLETED' };
-      }
-    }
-    return {
-      status: 'RESOLVED',
-      taskId: refRes.item.internalId,
-      item: refRes.item,
-      task: refRes.item.raw || refRes.item,
-    };
+    const ownedTask = await loadOwnedTask(refRes.item.internalId, userId, statuses, scopedEntityId);
+    if (ownedTask.status !== 'RESOLVED') return ownedTask;
+    return { ...ownedTask, item: refRes.item };
   }
   if (refRes.status === 'AMBIGUOUS') return { status: 'AMBIGUOUS', candidates: refRes.candidates };
 
@@ -157,17 +155,18 @@ export async function resolveTaskTarget({
     return { status: 'NOT_FOUND' };
   }
 
+  const eligibleTasks = dbTasks.filter((task) => task.user_id === userId && statuses.includes(task.status));
   if (rawStr.length >= 8 && /^[0-9a-fA-F-]+$/.test(rawStr)) {
-    const prefixMatches = dbTasks.filter((task) => task.id.toLowerCase().startsWith(rawStr.toLowerCase()));
+    const prefixMatches = eligibleTasks.filter((task) => task.id.toLowerCase().startsWith(rawStr.toLowerCase()));
     if (prefixMatches.length === 1) return { status: 'RESOLVED', taskId: prefixMatches[0].id, task: prefixMatches[0] };
     if (prefixMatches.length > 1) return { status: 'AMBIGUOUS', candidates: prefixMatches };
   }
 
-  const exact = dbTasks.filter((task) => normalizeTextForMatching(task.title) === normalizedQuery);
+  const exact = eligibleTasks.filter((task) => normalizeTextForMatching(task.title) === normalizedQuery);
   if (exact.length === 1) return { status: 'RESOLVED', taskId: exact[0].id, task: exact[0] };
   if (exact.length > 1) return { status: 'AMBIGUOUS', candidates: exact };
 
-  const substringMatches = dbTasks.filter((task) => {
+  const substringMatches = eligibleTasks.filter((task) => {
     const normalizedTitle = normalizeTextForMatching(task.title);
     return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle);
   });
@@ -176,7 +175,7 @@ export async function resolveTaskTarget({
   }
   if (substringMatches.length > 1) return { status: 'AMBIGUOUS', candidates: substringMatches };
 
-  const scored = dbTasks
+  const scored = eligibleTasks
     .map((task) => ({ task, score: calculateMatchScore(rawStr, task.title) }))
     .filter(({ score }) => score >= 0.5)
     .sort((a, b) => b.score - a.score);

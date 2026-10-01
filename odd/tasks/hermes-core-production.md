@@ -14,7 +14,7 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - The repository was reported clean on `fix/hermes-core-production`, based at `5a2cf4398ccd41519f214bf07433861f5970b26b`. Initial reviewed boundary is that base commit; RDD was observed off due to clone-local setting (global on). Do not start or toggle review.
 - **TDD:** Strict TDD is enabled by supplied project instructions. Every implementation task must show RED → GREEN → REFACTOR evidence; do not infer a red result.
 - **Delivery:** `ask-on-risk` with the user-selected `feature-branch-chain` strategy. Accumulate verified work units on integration branch `fix/hermes-core-production`; future review slices target the integration chain, and only final integration would reach `main` after separate authorization. Preliminary whole-feature forecast is about 1,000–1,600 authored changed lines (additions + deletions; generated files excluded). No PR/push is authorized. Forecast is not a cap: no line-golfing or artificial splits. Record actual authored counts and coherent review-slice commit boundaries as work progresses.
-- **Route:** All implementation tasks use delegated direct work. The exploration and cross-boundary preparation are non-trivial, and tasks span multiple files; the parent supplied the bounded read-only map. T01 and T02 are complete; T03–T09 remain pending.
+- **Route:** All implementation tasks use delegated direct work. The exploration and cross-boundary preparation are non-trivial, and tasks span multiple files; the parent supplied the bounded read-only map. T01–T04 are complete; T05–T09 remain pending.
 
 ## Verification contract
 
@@ -32,7 +32,7 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - [x] T01 — Durable pending-storage compatibility
 - [x] T02 — Canonical fresh/resume adapter parity
 - [x] T03 — Lossless advertised-field semantics
-- [ ] T04 — Stable displayed references
+- [x] T04 — Stable displayed references
 - [ ] T05 — Correction and temporal continuity
 - [ ] T06 — Current-input provenance, locale and time
 - [ ] T07 — Truthful business outcomes and lifecycle
@@ -44,7 +44,7 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 | T01 | **Durable pending-storage compatibility.** Preserve existing `input_draft` / `proposal_approval` behavior while normalizing through the existing supported `generic_operation` contract where required. Do not add a DB migration or new kind. Preserve already-staged payloads and pinned UUIDs; production persistence failure must be observable and must not be represented as successful local-only progress. | Delegated; multi-boundary persistence behavior and tests. First. | Complete; see T01 close record below. |
 | T02 | **Canonical fresh/resume adapter parity.** Share dependency-neutral domain-call construction, validation, normalization, parameters and tool selection; inject the executor for resume. Preserve per-action facts immediately, executed-sibling behavior and unknown-write protection. | Delegated; multiple non-trivial integration files. Depends on T01. | Complete; see T02 close record below. |
 | T03 | **Lossless advertised-field semantics.** Preserve false/none/clear/replace semantics; reminder follow-up/update fields; calendar recurrence, duration, advance/end/Meet update behavior; and supported exact-date reads. Align schema, adapter, domain and persistence. Do not add capabilities. Fix or honestly reject unsupported existing advertised parameters. | Delegated; cross-contract changes and tests. Depends on T02. | Complete; see T03 close record below. |
-| T04 | **Stable displayed references.** If task A1 and B2 are displayed, B2 is completed, then A1 is updated, keep the operation bound to A1. Pin identity before mutation; validate owner/state; do not replace the displayed list with the latest mutation result. | Delegated; reference lifecycle spans multiple files. Depends on T02. | Pending. |
+| T04 | **Stable displayed references.** If task A1 and B2 are displayed, B2 is completed, then A1 is updated, keep the operation bound to A1. Pin identity before mutation; validate owner/state; do not replace the displayed list with the latest mutation result. | Delegated; reference lifecycle spans multiple files. Depends on T02. | Complete; see T04 close record below. |
 | T05 | **Correction and temporal continuity.** Retain complete active pending-draft context; support explicit supersede-and-replacement via the canonical path. Preserve the resolved original date/time-zone anchor, but derive a new “now”/duration anchor from a new message. Cover Ana's fixture: Oct 1, LA; existing Tue Oct 6 17:00 appointment and same-day 07:00/16:00 alerts. No wrong today/tomorrow, duplicate, or replay. Cover interruption/restart. | Delegated; state and temporal behavior span multiple files. Depends on T02. | Pending. |
 | T06 | **Current-input provenance, locale and time.** Separate current user utterance from quoted messages/OCR. Preserve explicit language/time-zone choices; keep Spanish/English behavior consistent; use existing typed time handling for DST/dates; avoid silent location/time-zone overrides. No new framework, dependency or feature. | Delegated; provenance and shared time boundaries. Depends on shared-time path in T02/T03. | Pending. |
 | T07 | **Truthful business outcomes and lifecycle.** Confirm only from observed facts; report partial failures accurately; never claim false success. Repair existing task/reminder/Google Calendar links and advance-notice removal/recurrence only; add no automatic relations. | Delegated; outcome facts integrate across execution/persistence. Depends on T02/T03. | Pending. |
@@ -96,7 +96,21 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **Commit identity:** `e54a9b2657b61377234cfda067362372908bd17a` — `fix(agent): preserve advertised field update semantics` (feature branch only).
 - **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T03 integration-branch boundary: `e54a9b2657b61377234cfda067362372908bd17a` (476 authored code/test lines; 496 including tracker). Any future PR split/exception remains pending, with no line-golfing.
 
-### Reusable close template for T04–T09
+### T04 — Stable displayed references
+
+- **Outcome:** Task target identities are pinned from the ordered displayed list before mutations; successful updates remain in their original positions and removals leave tombstones so later ordinal references do not shift. Each pinned UUID still requires a fresh owned-task and allowed-status check; identity alone is not mutation authorization. Out-of-range displayed ordinals fail before fuzzy title matching or any task write, avoiding accidental rebinding to a task whose title is the same number.
+- **RED → GREEN → REFACTOR:** Initial regression RED: writer reported 8 failing / 8 passing tests across 2 files. A later correction RED: 2 failing / 26 passing; the independent verifier confirmed the bounded out-of-range ordinal/fuzzy-match finding was fixed. No separate refactor-only command or exact invocation for the two RED reports was provided.
+- **Focused test:** `pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent/task-numbered-and-ordinals.test.js tests/unit/agent/task-scope-resolution.test.js tests/unit/agent/context-target-pinner.test.js tests/unit/agent/context-reference.test.js tests/unit/agent/pinned-reminder-target-resolution.test.js` — independent verifier exit 0, 5 files / 33 tests passed.
+- **Full unit suite:** `pnpm run test:unit` — 106 files, 843 tests passed (writer report after correction).
+- **Syntax / diff:** Source JavaScript syntax and diff checks passed (writer report after correction). Final staged-candidate `git diff --cached --check` will be run before commit.
+- **Runtime harness:** Offline Vitest/mocked task and working-memory adapters only; no external DB, network or live-AI calls. Production integration remains pending separate authorization.
+- **Failure / environment limitation:** No live-service result is claimed. Final native assessment was medium with `slice_budget_reached` at 447 lines; RDD was disabled, so no STATUS or START was invoked. The independent verifier resolved the bounded finding.
+- **Rollback boundary:** Revert only `src/agent/orchestration/context-target-pinner.js`, `src/agent/orchestration/intent-executor.js`, `src/agent/tools/task-reference.js`, `tests/unit/agent/task-numbered-and-ordinals.test.js`, and `tests/unit/agent/task-scope-resolution.test.js` to remove T04 behavior and regression coverage.
+- **Authored changed lines:** T04 code/tests: 368 additions + 79 deletions = 447 lines; tracker delta: 18 additions + 4 deletions = 22 lines; combined staged commit: 386 additions + 83 deletions = 469 lines. The 400-line estimate is advisory, not a hard task cap.
+- **Commit identity:** Pending the authorized local Conventional Commit.
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record T04's commit as an integration-branch slice boundary; future PR split/exception remains pending, with no line-golfing.
+
+### Reusable close template for T05–T09
 
 - **RED → GREEN → REFACTOR:** commands and observed results:
 - **Focused test:** command and exact result:

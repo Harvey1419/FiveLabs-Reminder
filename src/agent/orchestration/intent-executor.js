@@ -10,7 +10,11 @@ import {
   extractMultipleOrdinals,
 } from '../core/context-reference.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
-import { pinReminderCancellationTargets } from './context-target-pinner.js';
+import {
+  findOutOfRangeTaskOrdinalTargets,
+  pinReminderCancellationTargets,
+  pinTaskMutationTargets,
+} from './context-target-pinner.js';
 import { createApprovalRun, createInputRun } from '../core/agent-run.js';
 import { buildDomainCall, failedResult, intentTarget } from './domain-call.js';
 
@@ -106,6 +110,40 @@ function updateWorkingMemoryFromExecution({ user, action, toolName, params, resu
       notificationReminderId: null,
       notificationContent: null,
       items: remainingItems,
+    });
+    return;
+  }
+
+  if (
+    toolName === TOOL_NAMES.MANAGE_TASK
+    && ['update', 'complete', 'delete'].includes(params.action)
+    && result.success
+    && existingMemory?.items?.length > 0
+    && (existingMemory.entityType === 'task' || existingMemory.items.every((item) => item.type === 'task'))
+  ) {
+    const targetId = String(params.target || '').trim();
+    const matchingIndex = existingMemory.items.findIndex((item) => String(item.internalId || '').trim() === targetId);
+    if (matchingIndex < 0) return;
+
+    const returnedTask = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? (result.data.data && typeof result.data.data === 'object' ? result.data.data : result.data)
+      : {};
+    const items = existingMemory.items.map((item, index) => {
+      if (index !== matchingIndex) return item;
+      const raw = { ...(item.raw || {}), ...returnedTask, id: item.internalId };
+      if (params.action === 'delete') raw.status = 'deleted';
+      return {
+        ...item,
+        title: params.action === 'delete' ? item.title : String(returnedTask.title || returnedTask.content || item.title),
+        summary: params.action === 'delete' ? item.summary : String(returnedTask.title || returnedTask.content || item.summary),
+        raw,
+      };
+    });
+
+    saveWorkingMemory(user, {
+      ...existingMemory,
+      lastAction: result.action || `task_${params.action}`,
+      items,
     });
     return;
   }
@@ -238,10 +276,10 @@ export async function executeTurnIntent(intent, context) {
   // Resolve contextual identities once against the pre-mutation snapshot. This
   // prevents ordinal drift and lets duplicate human labels be paired safely
   // when Hermes emitted one cancellation action per listed reminder.
-  const pinnedReminderTargets = pinReminderCancellationTargets(
-    actions,
-    getWorkingMemory(context.user),
-  );
+  const preMutationMemory = getWorkingMemory(context.user);
+  const pinnedReminderTargets = pinReminderCancellationTargets(actions, preMutationMemory);
+  const pinnedTaskTargets = pinTaskMutationTargets(actions, preMutationMemory);
+  const outOfRangeTaskOrdinals = findOutOfRangeTaskOrdinalTargets(actions, preMutationMemory);
 
   const records = [];
   const facts = [];
@@ -347,40 +385,59 @@ export async function executeTurnIntent(intent, context) {
       });
       index = batchEnd - 1;
     } else {
-      const prepared = buildDomainCall(action, context);
-      if (!prepared.valid) {
-        result = failedResult(prepared.errorCode, prepared.error, context.language, { requiresClarification: prepared.requiresClarification });
-      } else if (prepared.orchestrationOnly) {
-        result = prepared.result;
+      if (outOfRangeTaskOrdinals.has(index)) {
+        result = failedResult(
+          'TASK_ORDINAL_OUT_OF_RANGE',
+          context.language === 'en'
+            ? 'That task number is not in the displayed list. Please choose a listed task.'
+            : 'Ese número no está en la lista de tareas mostrada. Elige una tarea de la lista.',
+          context.language,
+          { requiresClarification: true },
+        );
       } else {
-        toolName = prepared.toolName;
-        params = prepared.params;
-        if (
-          pinnedReminderTargets instanceof Map
-          && pinnedReminderTargets.has(index)
-          && toolName === TOOL_NAMES.MANAGE_REMINDER
-          && ['cancel', 'update'].includes(params.action)
-          && !params.scope
-        ) {
-          const pinnedId = pinnedReminderTargets.get(index);
-          if (pinnedId) {
-            params = {
-              ...params,
-              target: pinnedId,
-              reminderId: pinnedId,
-            };
+        const prepared = buildDomainCall(action, context);
+        if (!prepared.valid) {
+          result = failedResult(prepared.errorCode, prepared.error, context.language, { requiresClarification: prepared.requiresClarification });
+        } else if (prepared.orchestrationOnly) {
+          result = prepared.result;
+        } else {
+          toolName = prepared.toolName;
+          params = prepared.params;
+          if (
+            pinnedReminderTargets instanceof Map
+            && pinnedReminderTargets.has(index)
+            && toolName === TOOL_NAMES.MANAGE_REMINDER
+            && ['cancel', 'update'].includes(params.action)
+            && !params.scope
+          ) {
+            const pinnedId = pinnedReminderTargets.get(index);
+            if (pinnedId) {
+              params = {
+                ...params,
+                target: pinnedId,
+                reminderId: pinnedId,
+              };
+            }
           }
+          if (
+            pinnedTaskTargets instanceof Map
+            && pinnedTaskTargets.has(index)
+            && toolName === TOOL_NAMES.MANAGE_TASK
+            && ['update', 'complete', 'delete'].includes(params.action)
+          ) {
+            params = { ...params, target: pinnedTaskTargets.get(index) };
+          }
+          const runTool = context.executeTool || executeTool;
+          result = await runTool({
+            toolName,
+            params,
+            user: context.user,
+            isPro: context.isPro,
+            language: context.language,
+            correlationId: context.correlationId,
+            referenceTime: context.referenceTime,
+          });
         }
-        const runTool = context.executeTool || executeTool;
-        result = await runTool({
-          toolName,
-          params,
-          user: context.user,
-          isPro: context.isPro,
-          language: context.language,
-          correlationId: context.correlationId,
-          referenceTime: context.referenceTime,
-        });
       }
     }
 
