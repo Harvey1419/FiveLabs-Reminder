@@ -74,13 +74,13 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **RED → GREEN → REFACTOR:** Initial parity RED: 4/4 failed. A later independent verifier exposed a regression where external success followed by result-storage failure could leave a prepared action replayable; its exact failing-test count was not reported. The correction durably fences before execution and retains the fence after result-persistence failure. Final focused and full suites passed after correction; no separate refactor-only invocation was reported.
 - **Focused test:** `pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent/agent-run-domain-parity.test.js tests/unit/agent/agent-run-invariants.test.js tests/unit/agent/core-conversational-intelligence.test.js tests/unit/agent/agent-run-destructive-batch.test.js tests/unit/agent/runtime-model-contract.test.js` — independent verifier exit 0, 5 files / 78 tests passed.
 - **Full unit suite:** `pnpm run test:unit` — 104 files, 815 tests passed (writer report after correction).
-- **Syntax / diff:** Source JavaScript syntax check and diff check passed (writer report after correction). A final staged-candidate `git diff --cached --check` will be run before the commit.
+- **Syntax / diff:** Source JavaScript syntax check and diff check passed (writer report after correction). Final staged-candidate `git diff --cached --check` passed before commit.
 - **Runtime harness:** Offline Vitest/mock executor and storage boundaries only; no external database, network or live-AI call. External DB/AI checks remain pending separate authorization.
 - **Failure / environment limitation:** No live-service result is claimed. Native assessment was high/unassessable from untracked inventory; an independent verifier resolved the bounded finding. RDD remains disabled/unmanaged; no review was started or toggled.
 - **Rollback boundary:** Revert only `src/agent/core/agent-run.js`, `src/agent/orchestration/intent-executor.js`, `src/agent/orchestration/intent-normalizer.js`, `src/agent/orchestration/domain-call.js`, `tests/unit/agent/agent-run-invariants.test.js`, and `tests/unit/agent/agent-run-domain-parity.test.js` to remove T02 behavior and its regression coverage.
 - **Authored changed lines:** T02 code/tests: 954 additions + 575 deletions = 1,529 lines; tracker delta: 19 additions + 5 deletions = 24 lines; combined staged commit: 973 additions + 580 deletions = 1,553 lines. New domain builder/test files are included. The per-task 400-line estimate is advisory, not a cap.
-- **Commit identity:** Pending the authorized local Conventional Commit.
-- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record the T02 integration-branch commit as a future slice boundary; PR slice splitting/exception remains pending and is not a reason for line-golfing.
+- **Commit identity:** `0587b04ab37349a702169152ae378b8505e451d8` — `fix(agent): unify fresh and resumed domain execution` (feature branch only).
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T02 integration-branch boundary: `0587b04ab37349a702169152ae378b8505e451d8` (1,529 authored code/test lines; 1,553 including tracker). PR slice splitting/exception remains pending and is not a reason for line-golfing.
 
 ### Reusable close template for T03–T09
 
