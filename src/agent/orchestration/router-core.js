@@ -446,6 +446,7 @@ export async function routeMessage(messageText, userOrPhone, history = [], optio
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
     proGuidance,
     userMessage: sanitizedUserText || messageText,
+    language,
   });
 
   const messages = [

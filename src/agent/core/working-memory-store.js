@@ -64,7 +64,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
       internalId: String(it.internalId || it.id || '').trim(),
       summary: String(it.summary || rawTitle).trim(),
       title: String(it.title || rawTitle).trim(),
-      time: it.time || it.localTime || it.localStartTime || null,
+      time: it.time || it.formattedTime || it.localTime || it.localStartTime || it.raw?.formattedTime || it.raw?.localFormatted || it.raw?.time || null,
       source: it.source || it.domain || memoryData.source || 'unknown',
       entityName: it.entityName || it.raw?.entities?.name || it.raw?.entityName || null,
       raw: it.raw || it,

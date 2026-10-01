@@ -111,4 +111,32 @@ describe('agent live overview', () => {
 
     expect(promptWithoutProject).not.toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
   });
+
+  it('enforces English prompt directives when user language is English', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30',
+      nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
+      timezone: 'America/New_York',
+      language: 'en',
+    });
+
+    expect(prompt).toContain('Idioma: 🇺🇸 English');
+    expect(prompt).toContain('ENGLISH ONLY');
+    expect(prompt).toContain('How can I help you today?');
+    expect(prompt).toContain('You are Harvey, right? 😉');
+  });
+
+  it('defaults to Spanish prompt directives when user language is Spanish', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30',
+      nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
+      timezone: 'America/Bogota',
+      language: 'es',
+    });
+
+    expect(prompt).toContain('Idioma: 🇨🇴 Español');
+    expect(prompt).toContain('Tuteo cálido colombiano por defecto');
+    expect(prompt).toContain('¿En qué puedo ayudarte?');
+    expect(prompt).toContain('Te llamas Harvey, ¿no? 😉');
+  });
 });

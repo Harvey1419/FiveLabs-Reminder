@@ -7,6 +7,7 @@ vi.mock('../../../src/integrations/whatsapp/kapso-client.js', () => ({
 
 import { supabase } from '../../../src/infrastructure/database/index.js';
 import { executeSingleReminderCancellation } from '../../../src/agent/tools/reminder-cancel.js';
+import { saveWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory-store.js';
 
 const user = { id: 'user-1', phone_number: '573001112233', timezone: 'America/Bogota' };
 
@@ -31,5 +32,21 @@ describe('ambiguous reminder continuity', () => {
     expect(result.data.reminders.map((item) => item.id)).toEqual(rows.map((row) => row.id));
     expect(result.data.reminders.map((item) => item.time)).toEqual(rows.map((row) => row.send_at));
     expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves formattedTime when saving items into working memory store', () => {
+    saveWorkingMemory(user.phone_number, {
+      source: 'reminder',
+      items: [
+        {
+          id: 'rem-1',
+          content: 'Dentist appointment',
+          formattedTime: 'Tuesday, Oct 6 at 7:00 AM',
+        },
+      ],
+    });
+
+    const memory = getWorkingMemory(user.phone_number);
+    expect(memory.items[0].time).toBe('Tuesday, Oct 6 at 7:00 AM');
   });
 });
