@@ -59,16 +59,16 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **RED → GREEN → REFACTOR:** Initial compatibility RED: 5 failed / 1 passed; implementation GREEN: 7 passed. A later independent gap check reproduced 4 failing regressions while 7 tests passed; corrections addressed configured empty active lookup, stale supplied approval actions, and empty/partial/duplicate/mismatched staging responses. No separate refactor-only test invocation was recorded; final focused and full suites were green after correction.
 - **Focused test:** Independent verifier's final focused four-file Vitest run: 33/33 passed. The exact invocation was not retained in the handoff; do not infer it. Writer's earlier initial focus was 4 files / 28 passed before the follow-up correction.
 - **Full unit suite:** `pnpm run test:unit` — 103 files, 808 tests passed (writer report after correction).
-- **Syntax / diff:** Source JavaScript syntax check and `git diff --check` passed (writer report after correction). Parent will run the final pre-commit `git diff --check` on the committed candidate.
+- **Syntax / diff:** Source JavaScript syntax check passed (writer report after correction). `git diff --cached --check` passed on the exact staged T01 candidate before commit; the tracker-only follow-up also passed `git diff --check`.
 - **Runtime harness:** Vitest mocked-storage/offline boundary only; no live Supabase/database, network, or AI calls. Production database integration remains pending separate authorization and an isolated environment.
 - **Failure / environment limitation:** Live database and live-AI behavior were not tested; no production-readiness claim.
 - **Rollback boundary:** Revert only `src/agent/core/agent-run.js`, `src/infrastructure/database/agent-runs.js`, `tests/unit/agent/core-conversational-intelligence.test.js`, and `tests/unit/infrastructure/agent-runs-storage.test.js` to remove T01 behavior and its regression coverage.
 - **Authored changed lines:** T01 behavior/tests: 420 additions + 59 deletions = 479 authored lines; tracker: 82 additions; combined staged snapshot: 502 additions + 59 deletions = 561 lines.
-- **Commit identity:** Pending the authorized local Conventional Commit.
+- **Commit identity:** `9e50e8397387583b3b8a85db1f39e3cd91d86f09` — `fix(agent): enforce durable pending action storage` (feature branch only).
 - **RDD outcome:** Disabled/unmanaged under the observed clone-local setting; no review started or toggled. Native risk was reported high/unassessable from untracked inventory.
-- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record T01's integration-branch commit as a future-slice boundary; any PR slice above 400 lines needs the appropriate split/exception decision before PR creation.
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T01 integration-branch boundary: `9e50e8397387583b3b8a85db1f39e3cd91d86f09` (479 authored behavior/test lines; 561 lines including tracker). Any PR slice above 400 lines needs the appropriate split/exception decision before PR creation.
 
-Complete this per task before checking it off:
+### Reusable close template for T02–T09
 
 - **RED → GREEN → REFACTOR:** commands and observed results:
 - **Focused test:** command and exact result:
