@@ -1,4 +1,5 @@
 import { supabase } from './index.js';
+import { isDeepStrictEqual } from 'node:util';
 
 /**
  * In-memory fallback store for offline unit tests and resilience
@@ -7,6 +8,26 @@ import { supabase } from './index.js';
 const inMemoryRuns = new Map();
 const inMemoryPrepared = new Map();
 const inMemoryEvents = [];
+const SUPPORTED_RUN_KINDS = new Set([
+  'reminder_creation',
+  'entity_destructive_batch',
+  'task_mutation',
+  'generic_operation',
+]);
+const LEGACY_RUN_KINDS = new Set(['input_draft', 'proposal_approval']);
+
+function normalizeRunKind(kind) {
+  if (LEGACY_RUN_KINDS.has(kind)) return 'generic_operation';
+  if (SUPPORTED_RUN_KINDS.has(kind)) return kind;
+  throw new Error(`Unsupported agent run kind: ${String(kind)}`);
+}
+
+function storageError(operation, error) {
+  const detail = error instanceof Error ? error.message : error?.message;
+  const wrapped = new Error(`Could not persist ${operation}${detail ? `: ${detail}` : ''}`);
+  wrapped.code = 'AGENT_RUN_STORAGE_ERROR';
+  return wrapped;
+}
 
 export function resetInMemoryAgentRuns() {
   inMemoryRuns.clear();
@@ -58,11 +79,12 @@ export async function createAgentRunInDb({
   context = {},
   expiresAt,
 }) {
+  const persistedKind = normalizeRunKind(kind);
   const payload = {
     user_id: userId,
     thread_id: String(threadId || userId),
     status: waitingFor ? (waitingFor.type === 'missing_fields' ? 'waiting_for_input' : 'waiting_for_approval') : 'running',
-    kind,
+    kind: persistedKind,
     waiting_for: waitingFor,
     context: context || {},
     expires_at: typeof expiresAt === 'string' ? expiresAt : new Date(expiresAt).toISOString(),
@@ -76,12 +98,11 @@ export async function createAgentRunInDb({
         .select()
         .single();
 
-      if (!error && data) {
-        inMemoryRuns.set(data.id, data);
-        return data;
-      }
-    } catch (_err) {
-      // Fallback to in-memory store
+      if (error || !data) throw storageError('AgentRun', error);
+      inMemoryRuns.set(data.id, data);
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('AgentRun', err);
     }
   }
 
@@ -118,7 +139,8 @@ export async function getActiveRunFromDb(threadId, userId = null, now = new Date
       }
 
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (error || !Array.isArray(data)) throw storageError('active AgentRun lookup', error);
+      if (data.length > 0) {
         const active = data[0];
         if (new Date(active.expires_at) <= new Date(nowIso)) {
           await updateAgentRunInDb(active.id, { status: 'expired' });
@@ -126,8 +148,9 @@ export async function getActiveRunFromDb(threadId, userId = null, now = new Date
         }
         return active;
       }
-    } catch (_err) {
-      // Fallback to in-memory store
+      return null;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('active AgentRun lookup', err);
     }
   }
 
@@ -172,12 +195,11 @@ export async function updateAgentRunInDb(runId, {
         .select()
         .single();
 
-      if (!error && data) {
-        inMemoryRuns.set(runId, data);
-        return data;
-      }
-    } catch (_err) {
-      // Fallback to memory
+      if (error || !data) throw storageError('AgentRun update', error);
+      inMemoryRuns.set(runId, data);
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('AgentRun update', err);
     }
   }
 
@@ -194,8 +216,11 @@ export async function updateAgentRunInDb(runId, {
  * Stage prepared actions for a specific run.
  */
 export async function stagePreparedActionsInDb(runId, preparedActions = []) {
-  if (!runId || !Array.isArray(preparedActions) || preparedActions.length === 0) {
+  if (!runId) {
     return [];
+  }
+  if (!Array.isArray(preparedActions) || preparedActions.length === 0) {
+    throw storageError('prepared actions', new Error('No prepared actions were provided'));
   }
 
   const rows = preparedActions.map((action, index) => ({
@@ -210,6 +235,26 @@ export async function stagePreparedActionsInDb(runId, preparedActions = []) {
     execution_fact: action.executionFact || null,
     created_at: new Date().toISOString(),
   }));
+  const expectedByCallId = new Map(rows.map((row) => [row.call_id, row]));
+  if (expectedByCallId.size !== rows.length) {
+    throw storageError('prepared actions', new Error('Prepared action call IDs must be unique'));
+  }
+
+  const validateStagedRows = (data) => {
+    if (!Array.isArray(data) || data.length !== rows.length) return false;
+    const seenCallIds = new Set();
+    return data.every((row) => {
+      const expected = expectedByCallId.get(row.call_id);
+      if (!row.id || row.run_id !== runId || !expected || seenCallIds.has(row.call_id)) return false;
+      seenCallIds.add(row.call_id);
+      return row.domain === expected.domain
+        && row.action === expected.action
+        && row.target_id === expected.target_id
+        && row.target_name === expected.target_name
+        && row.status === expected.status
+        && isDeepStrictEqual(row.payload, expected.payload);
+    });
+  };
 
   if (isDatabaseConfigured()) {
     try {
@@ -218,12 +263,13 @@ export async function stagePreparedActionsInDb(runId, preparedActions = []) {
         .upsert(rows, { onConflict: 'run_id,call_id' })
         .select();
 
-      if (!error && data) {
-        inMemoryPrepared.set(runId, data);
-        return data;
+      if (error || !validateStagedRows(data)) {
+        throw storageError('complete prepared actions', error || new Error('Storage returned incomplete or mismatched rows'));
       }
-    } catch (_err) {
-      // Fallback to memory
+      inMemoryPrepared.set(runId, data);
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('prepared actions', err);
     }
   }
 
@@ -259,11 +305,10 @@ export async function getPreparedActionsFromDb(runId) {
         .eq('run_id', runId)
         .order('call_id', { ascending: true });
 
-      if (!error && Array.isArray(data)) {
-        return data;
-      }
-    } catch (_err) {
-      // Fallback to memory
+      if (error || !Array.isArray(data)) throw storageError('prepared actions lookup', error);
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('prepared actions lookup', err);
     }
   }
 
@@ -294,14 +339,13 @@ export async function updatePreparedActionInDb(runId, callId, {
         .select()
         .single();
 
-      if (!error && data) {
-        const cached = inMemoryPrepared.get(runId) || [];
-        const idx = cached.findIndex((a) => a.call_id === callId);
-        if (idx >= 0) cached[idx] = data;
-        return data;
-      }
-    } catch (_err) {
-      // Fallback
+      if (error || !data) throw storageError('prepared action update', error);
+      const cached = inMemoryPrepared.get(runId) || [];
+      const idx = cached.findIndex((a) => a.call_id === callId);
+      if (idx >= 0) cached[idx] = data;
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('prepared action update', err);
     }
   }
 
@@ -341,9 +385,10 @@ export async function recordExecutionEventInDb({
         .select()
         .single();
 
-      if (!error && data) return data;
-    } catch (_err) {
-      // Fallback
+      if (error || !data) throw storageError('execution event', error);
+      return data;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR' ? err : storageError('execution event', err);
     }
   }
 

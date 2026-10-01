@@ -224,11 +224,11 @@ describe('Core Conversational Intelligence Upgrade', () => {
 
       await executeTurnIntent(intent, context);
 
-      // Verify proposal_approval run was staged in waiting_for_approval
+      // Legacy proposal approvals retain their behavior through the supported DB kind.
       const activeRun = await getActiveAgentRun(user, context.referenceTime);
       expect(activeRun).not.toBeNull();
       expect(activeRun.status).toBe('waiting_for_approval');
-      expect(activeRun.kind).toBe('proposal_approval');
+      expect(activeRun.kind).toBe('generic_operation');
       expect(activeRun.waiting_for.question).toBe('¿Quieres que lo programe mañana a las 8:00 AM?');
       expect(activeRun.preparedActions).toHaveLength(1);
       expect(activeRun.preparedActions[0].payload.items[0]).toMatchObject({
@@ -369,4 +369,3 @@ describe('Core Conversational Intelligence Upgrade', () => {
     });
   });
 });
-

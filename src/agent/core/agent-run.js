@@ -28,6 +28,19 @@ function resolveUserId(userOrPhone) {
   return null;
 }
 
+async function stagePendingActions(runId, actions) {
+  try {
+    return await stagePreparedActionsInDb(runId, actions);
+  } catch (error) {
+    try {
+      await updateAgentRunInDb(runId, { status: 'failed' });
+    } catch (cleanupError) {
+      error.cleanupError = cleanupError;
+    }
+    throw error;
+  }
+}
+
 /**
  * Retrieve the active AgentRun with its prepared actions.
  */
@@ -81,7 +94,7 @@ export async function createApprovalRun({
     expiresAt,
   });
 
-  const staged = await stagePreparedActionsInDb(run.id, preparedActions);
+  const staged = await stagePendingActions(run.id, preparedActions);
   await recordExecutionEventInDb({
     runId: run.id,
     userId,
@@ -150,7 +163,7 @@ export async function createInputRun({
     status: 'prepared',
   }));
 
-  const staged = await stagePreparedActionsInDb(run.id, prepared);
+  const staged = await stagePendingActions(run.id, prepared);
   await recordExecutionEventInDb({
     runId: run.id,
     userId,
@@ -174,22 +187,7 @@ export async function executeApprovalDecision({
   selectedCallIds = [],
   executionContext = {},
 }) {
-  let preparedActions = run.preparedActions || (await getPreparedActionsFromDb(run.id));
-  if ((!preparedActions || preparedActions.length === 0) && Array.isArray(run.context?.previewEntities) && run.context.previewEntities.length > 0) {
-    const isProj = run.context.isProject ?? false;
-    preparedActions = run.context.previewEntities.map((item, idx) => ({
-      call_id: `call-${idx + 1}`,
-      callId: `call-${idx + 1}`,
-      domain: isProj ? 'project' : 'entity',
-      action: 'delete',
-      target_id: item.id,
-      targetId: item.id,
-      target_name: item.name,
-      targetName: item.name,
-      payload: isProj ? { action: 'delete', projectIds: [item.id] } : { action: 'delete', entityIds: [item.id] },
-      status: 'prepared',
-    }));
-  }
+  const preparedActions = await getPreparedActionsFromDb(run.id);
   const threadId = run.thread_id;
   const userId = run.user_id;
 
@@ -211,6 +209,18 @@ export async function executeApprovalDecision({
       status: 'cancelled',
       facts: [],
       message: 'Operación cancelada por el usuario.',
+    };
+  }
+
+  if (!Array.isArray(preparedActions) || preparedActions.length === 0) {
+    return {
+      success: false,
+      executed: false,
+      status: run.status,
+      executedCount: 0,
+      results: [],
+      facts: [],
+      message: 'No durably prepared actions are available for approval.',
     };
   }
 
