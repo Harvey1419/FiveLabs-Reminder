@@ -74,6 +74,8 @@ const actionSchema = {
     target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For entity.delete, the project or list name to delete (deleting a project automatically deletes all its tasks in cascade; never use scope="all" for one project).' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
     title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
+    descriptionMode: { type: 'string', enum: ['append', 'replace'], description: 'For task.update description: append preserves existing behavior; replace overwrites it. Use clearFields to remove a description.' },
+    clearFields: { type: 'array', uniqueItems: true, maxItems: 3, items: { type: 'string', enum: ['description', 'dueDate', 'recurrence'] }, description: 'Explicit clear intent for supported update fields. Task supports description/dueDate; reminder supports recurrence; calendar supports description/recurrence.' },
     entityName: { type: 'string', description: 'Entity name. For entity.create/upsert, its own name. For task actions (task.list, task.create), the explicit or implicit container/project name (e.g. "reminder", "trabajo"), even if it shares a name with a system domain. For task.complete/update/delete, include the owning container whenever the target belongs to a named project, so duplicate titles cannot cross containers.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
     category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
@@ -368,6 +370,23 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
       if (policy.advanceNotice === 'none' && policy.advanceMinutes !== undefined && policy.advanceMinutes !== null) {
         return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'deliveryPolicy no admite advanceMinutes cuando advanceNotice=none.' };
       }
+    }
+    if (normalizedRaw.clearFields !== undefined) {
+      const allowedClearFields = domain === 'task' && action === 'update'
+        ? new Set(['description', 'dueDate'])
+        : (['reminder', 'calendar'].includes(domain) && action === 'update'
+          ? new Set(domain === 'calendar' ? ['description', 'recurrence'] : ['recurrence'])
+          : new Set());
+      if (!Array.isArray(normalizedRaw.clearFields)
+        || normalizedRaw.clearFields.length === 0
+        || normalizedRaw.clearFields.some((field) => !allowedClearFields.has(field))
+        || new Set(normalizedRaw.clearFields).size !== normalizedRaw.clearFields.length) {
+        return { valid: false, errorCode: 'INVALID_PARAMETERS', error: `clearFields no es compatible con ${domain}.${action}.` };
+      }
+    }
+    if (normalizedRaw.descriptionMode !== undefined
+      && (domain !== 'task' || action !== 'update' || !['append', 'replace'].includes(normalizedRaw.descriptionMode))) {
+      return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'descriptionMode solo admite append o replace para task.update.' };
     }
     // Groq's provider-facing schema cannot enforce this canonical constraint.
     if (Array.isArray(normalizedRaw.missingFields)

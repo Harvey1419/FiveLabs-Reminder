@@ -650,11 +650,13 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           description: params.description,
           startDateTime,
           endDateTime,
+          durationMinutes: params.durationMinutes,
           timezone: tz,
           allDay: isAllDay,
           startDate: params.startDate || (isAllDay && startDateTime ? startDateTime.toISOString().split('T')[0] : null),
           endDate: params.endDate || null,
           recurrence: params.recurrence || null,
+          clearRecurrence: Boolean(params.clearRecurrence),
         });
 
         let companionUpdated = false;
@@ -696,6 +698,18 @@ export async function executeCalendarTool({ action, params = {}, user, language 
           formattedCard: summary,
         };
       } catch (err) {
+        if (['UNSUPPORTED_CALENDAR_DURATION', 'INCOMPATIBLE_CALENDAR_PATCH', 'INVALID_CALENDAR_INTERVAL'].includes(err.code)) {
+          return {
+            success: false,
+            action: 'invalid_parameters',
+            errorCode: err.code,
+            error: language === 'en'
+              ? (err.message || 'The requested calendar update is not compatible with this event.')
+              : (err.code === 'UNSUPPORTED_CALENDAR_DURATION'
+                ? 'No se puede aplicar una duración a un evento de día completo.'
+                : 'La actualización solicitada no es compatible con este evento.'),
+          };
+        }
         if (isGoogleAuthError(err)) {
           const reconnect = buildGoogleReauthSummary(language);
           return {

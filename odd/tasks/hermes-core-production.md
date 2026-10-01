@@ -31,7 +31,7 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 
 - [x] T01 — Durable pending-storage compatibility
 - [x] T02 — Canonical fresh/resume adapter parity
-- [ ] T03 — Lossless advertised-field semantics
+- [x] T03 — Lossless advertised-field semantics
 - [ ] T04 — Stable displayed references
 - [ ] T05 — Correction and temporal continuity
 - [ ] T06 — Current-input provenance, locale and time
@@ -43,7 +43,7 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 |---|---|---|---|
 | T01 | **Durable pending-storage compatibility.** Preserve existing `input_draft` / `proposal_approval` behavior while normalizing through the existing supported `generic_operation` contract where required. Do not add a DB migration or new kind. Preserve already-staged payloads and pinned UUIDs; production persistence failure must be observable and must not be represented as successful local-only progress. | Delegated; multi-boundary persistence behavior and tests. First. | Complete; see T01 close record below. |
 | T02 | **Canonical fresh/resume adapter parity.** Share dependency-neutral domain-call construction, validation, normalization, parameters and tool selection; inject the executor for resume. Preserve per-action facts immediately, executed-sibling behavior and unknown-write protection. | Delegated; multiple non-trivial integration files. Depends on T01. | Complete; see T02 close record below. |
-| T03 | **Lossless advertised-field semantics.** Preserve false/none/clear/replace semantics; reminder follow-up/update fields; calendar recurrence, duration, advance/end/Meet update behavior; and supported exact-date reads. Align schema, adapter, domain and persistence. Do not add capabilities. Fix or honestly reject unsupported existing advertised parameters. | Delegated; cross-contract changes and tests. Depends on T02. | Pending. |
+| T03 | **Lossless advertised-field semantics.** Preserve false/none/clear/replace semantics; reminder follow-up/update fields; calendar recurrence, duration, advance/end/Meet update behavior; and supported exact-date reads. Align schema, adapter, domain and persistence. Do not add capabilities. Fix or honestly reject unsupported existing advertised parameters. | Delegated; cross-contract changes and tests. Depends on T02. | Complete; see T03 close record below. |
 | T04 | **Stable displayed references.** If task A1 and B2 are displayed, B2 is completed, then A1 is updated, keep the operation bound to A1. Pin identity before mutation; validate owner/state; do not replace the displayed list with the latest mutation result. | Delegated; reference lifecycle spans multiple files. Depends on T02. | Pending. |
 | T05 | **Correction and temporal continuity.** Retain complete active pending-draft context; support explicit supersede-and-replacement via the canonical path. Preserve the resolved original date/time-zone anchor, but derive a new “now”/duration anchor from a new message. Cover Ana's fixture: Oct 1, LA; existing Tue Oct 6 17:00 appointment and same-day 07:00/16:00 alerts. No wrong today/tomorrow, duplicate, or replay. Cover interruption/restart. | Delegated; state and temporal behavior span multiple files. Depends on T02. | Pending. |
 | T06 | **Current-input provenance, locale and time.** Separate current user utterance from quoted messages/OCR. Preserve explicit language/time-zone choices; keep Spanish/English behavior consistent; use existing typed time handling for DST/dates; avoid silent location/time-zone overrides. No new framework, dependency or feature. | Delegated; provenance and shared time boundaries. Depends on shared-time path in T02/T03. | Pending. |
@@ -82,7 +82,21 @@ The accepted corrective plan addresses loss of intent and continuity at executio
 - **Commit identity:** `0587b04ab37349a702169152ae378b8505e451d8` — `fix(agent): unify fresh and resumed domain execution` (feature branch only).
 - **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. T02 integration-branch boundary: `0587b04ab37349a702169152ae378b8505e451d8` (1,529 authored code/test lines; 1,553 including tracker). PR slice splitting/exception remains pending and is not a reason for line-golfing.
 
-### Reusable close template for T03–T09
+### T03 — Lossless advertised-field semantics
+
+- **Outcome:** Existing intent contracts preserve `false`, `none`, and clear-field semantics through normalization and domain-call construction, including supported description modes and update patches. Unsupported update fields are rejected before any external write. Exact-date reminder reads retain their date filter. Calendar updates preserve recurrence clearing, end-only changes and original duration; malformed or non-positive intervals and incompatible all-day/timed combinations are rejected before Google Calendar mutation. No capability, model, provider or schema migration added.
+- **RED → GREEN → REFACTOR:** Initial domain-field semantics RED: 5/5 failed. Google Calendar update tests also showed 5 failures before patch support. A later 2-file correction run had 4 failures / 14 tests before the mixed all-day end-only guard and 16 passing after correction. The external verifier found and validated the bounded all-day end-only mode issue; final focused suite passed. No separate refactor-only command/result was reported.
+- **Focused test:** `pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent/domain-call-field-semantics.test.js tests/unit/agent/runtime-model-contract.test.js tests/unit/agent/intent-normalizer.test.js tests/unit/calendar/google-calendar-v3.test.js tests/unit/calendar/google-calendar-update-patches.test.js tests/unit/reminders/reminder-advance-invariant.test.js tests/unit/reminders/reminder-advance-protocol.test.js` — independent verifier exit 0, 7 files / 107 tests passed.
+- **Full unit suite:** `pnpm run test:unit` — 106 files, 831 tests passed (writer report after correction).
+- **Syntax / diff:** Source JavaScript syntax check and diff check passed (writer report after correction). Final staged-candidate `git diff --cached --check` will be run before commit.
+- **Runtime harness:** Offline Vitest fixtures/mocks only; no external database, network, or live-AI calls. External checks remain pending separate authorization.
+- **Failure / environment limitation:** No live-service result or production-readiness claim. Native assessment was high/unassessable from untracked inventory; independent verification resolved the bounded Calendar mode finding. RDD remains disabled/unmanaged; no review was started or toggled.
+- **Rollback boundary:** Revert only `src/agent/contracts/intent-contracts.js`, `src/agent/orchestration/domain-call.js`, `src/agent/orchestration/intent-normalizer.js`, `src/agent/tools/calendar.js`, `src/integrations/google/calendar.js`, `tests/unit/agent/domain-call-field-semantics.test.js`, and `tests/unit/calendar/google-calendar-update-patches.test.js` to remove T03 behavior and its regression coverage.
+- **Authored changed lines:** T03 code/tests: 445 additions + 31 deletions = 476 lines; tracker delta: 17 additions + 3 deletions = 20 lines; combined staged commit: 462 additions + 34 deletions = 496 lines. New tests are included. The per-task 400-line estimate is advisory, not a cap.
+- **Commit identity:** Pending the authorized local Conventional Commit.
+- **Delivery:** User selected `feature-branch-chain`; no PR or push authorized. Record the T03 integration-branch commit as a future review-slice boundary; any future PR split/exception remains pending, with no line-golfing.
+
+### Reusable close template for T04–T09
 
 - **RED → GREEN → REFACTOR:** commands and observed results:
 - **Focused test:** command and exact result:

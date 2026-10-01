@@ -134,9 +134,9 @@ function buildDomainCallForNormalizedAction(action, context) {
               targetTime: temporal.canonical,
               ...(action.deliveryPolicy?.advanceNotice === 'offset'
                 ? { advanceMinutes: action.deliveryPolicy.advanceMinutes }
-                : (action.advanceMinutes ? { advanceMinutes: action.advanceMinutes } : {})),
+                : (action.deliveryPolicy?.advanceNotice === 'none' ? {} : (action.advanceMinutes ? { advanceMinutes: action.advanceMinutes } : {}))),
               ...(action.recurrence ? { recurrence: action.recurrence } : {}),
-              ...(action.requiresConfirmation ? { requiresConfirmation: true } : {}),
+              ...(action.requiresConfirmation !== undefined ? { requiresConfirmation: action.requiresConfirmation } : {}),
               ...(action.nudgeIntervalMinutes ? { nudgeIntervalMinutes: action.nudgeIntervalMinutes } : {}),
               ...(action.maxNudges ? { maxNudges: action.maxNudges } : {}),
             }],
@@ -146,14 +146,18 @@ function buildDomainCallForNormalizedAction(action, context) {
       if (action.action === 'update') {
         const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el recordatorio que quieres cambiar.' };
+        if (action.requiresConfirmation !== undefined || action.nudgeIntervalMinutes !== undefined || action.maxNudges !== undefined) {
+          return { valid: false, errorCode: 'UNSUPPORTED_FIELD', error: 'Los ajustes de seguimiento no se pueden cambiar en un recordatorio existente.' };
+        }
         const updates = {};
-        if (action.content || action.title) updates.content = action.content || action.title;
+        if (action.content !== undefined || action.title !== undefined) updates.content = action.content ?? action.title;
         if (action.schedule) {
           const temporal = resolveSchedule(action, context, 'reminder');
           if (!temporal.valid) return temporal;
           updates.targetTime = temporal.canonical;
         }
-        if (action.recurrence) updates.recurrence = action.recurrence;
+        if (action.recurrence !== undefined) updates.recurrence = action.recurrence;
+        if (action.clearFields?.includes('recurrence')) updates.recurrence = null;
         const params = { action: 'update', target, updates };
         if (action.deliveryPolicy) params.deliveryPolicy = action.deliveryPolicy;
         else if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
@@ -207,10 +211,17 @@ function buildDomainCallForNormalizedAction(action, context) {
           },
         };
       }
+      if (action.query !== undefined) {
+        return { valid: false, errorCode: 'UNSUPPORTED_FIELD', error: 'La lectura de recordatorios no admite una búsqueda por texto.' };
+      }
       return {
         valid: true,
         toolName: TOOL_NAMES.MANAGE_REMINDER,
-        params: { action: 'list', ...(action.filter ? { filter: action.filter } : {}), ...(action.scope ? { scope: action.scope } : {}) },
+        params: {
+          action: 'list',
+          ...((action.scope || action.filter) ? { filter: action.scope || action.filter } : {}),
+          ...(action.scope ? { scope: action.scope } : {}),
+        },
       };
     }
 
@@ -257,12 +268,14 @@ function buildDomainCallForNormalizedAction(action, context) {
       }
       const updates = {};
       if (action.title || action.newName) updates.title = action.title || action.newName;
-      if (action.description) {
-        updates.description = action.description;
-        updates.append = true;
-      } else if (action.content && !action.title && !action.newName) {
-        updates.description = action.content;
-        updates.append = true;
+      const clearsDescription = action.clearFields?.includes('description');
+      if (clearsDescription) {
+        updates.description = null;
+        updates.append = false;
+      } else if (action.description !== undefined || (action.content !== undefined && !action.title && !action.newName)) {
+        const description = action.description !== undefined ? action.description : action.content;
+        updates.description = description === '' ? null : description;
+        updates.append = action.descriptionMode !== 'replace';
       }
       if (action.priority) updates.priority = action.priority;
       if (action.status) updates.status = action.status;
@@ -271,6 +284,7 @@ function buildDomainCallForNormalizedAction(action, context) {
         if (!temporal.valid) return temporal;
         updates.dueDate = temporal.canonicalDate || temporal.canonical;
       }
+      if (action.clearFields?.includes('dueDate')) updates.dueDate = null;
       if (Object.keys(updates).length === 0) {
         return {
           valid: false,
@@ -386,33 +400,45 @@ function buildDomainCallForNormalizedAction(action, context) {
       if (action.action === 'update') {
         const target = action.target;
         if (!target) return { valid: false, errorCode: 'MISSING_TARGET', error: 'Falta identificar el evento.' };
+        if (action.endSchedule && action.durationMinutes !== undefined) {
+          return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'Indica la hora de finalización o la duración, no ambas.' };
+        }
+        if (action.advanceMinutes !== undefined || action.addGoogleMeet !== undefined) {
+          return { valid: false, errorCode: 'UNSUPPORTED_FIELD', error: 'Las notificaciones y Google Meet no se pueden modificar en un evento existente.' };
+        }
         const params = { action: 'update_event', target };
-        if (action.title || action.content) params.summary = action.title || action.content;
+        if (action.title !== undefined || action.content !== undefined) params.summary = action.title ?? action.content;
+        let scheduleIsAllDay = false;
         if (action.schedule) {
           const temporal = resolveSchedule(action, context, 'calendar_event');
           if (!temporal.valid) return temporal;
+          scheduleIsAllDay = temporal.isAllDay;
           params.startDateTime = temporal.canonical;
           if (temporal.isAllDay) {
             params.allDay = true;
             params.startDate = temporal.canonicalDate;
           }
         }
-        if (action.recurrence) {
+        if (action.recurrence !== undefined) {
           params.recurrence = action.recurrence;
         }
+        if (action.clearFields?.includes('recurrence')) params.clearRecurrence = true;
         if (action.endSchedule) {
           const end = resolveTypedSchedule(action.endSchedule, { referenceTime: context.referenceTime, timezone: context.timezone });
           if (!end.valid) return end;
+          if (action.schedule && end.isAllDay !== scheduleIsAllDay) {
+            return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El inicio y el final del evento deben usar el mismo tipo de fecha.' };
+          }
           params.endDateTime = end.canonical;
           if (end.isAllDay) {
+            if (action.schedule) params.allDay = true;
             params.endDate = end.canonicalDate;
           }
         }
-        if (action.durationMinutes) params.durationMinutes = action.durationMinutes;
-        if (action.description) params.description = action.description;
-        if (action.advanceMinutes) params.advanceMinutes = action.advanceMinutes;
-        if (action.addGoogleMeet) params.addGoogleMeet = true;
-        if (!params.summary && !params.startDateTime && !params.endDateTime && !params.durationMinutes && !params.description && !params.advanceMinutes && !params.addGoogleMeet) {
+        if (action.durationMinutes !== undefined) params.durationMinutes = action.durationMinutes;
+        if (action.description !== undefined) params.description = action.description;
+        if (action.clearFields?.includes('description')) params.description = '';
+        if (!params.summary && !params.startDateTime && !params.endDateTime && !params.durationMinutes && params.description === undefined && !params.clearRecurrence && params.recurrence === undefined) {
           return {
             valid: false,
             errorCode: 'MISSING_UPDATES',
@@ -449,6 +475,7 @@ function buildDomainCallForNormalizedAction(action, context) {
         toolName: TOOL_NAMES.MANAGE_GOOGLE_CALENDAR,
         params: {
           action: 'list_events',
+          ...(action.date ? { date: action.date } : {}),
           ...(action.scope ? { scope: action.scope } : {}),
           ...(action.query ? { query: action.query } : {}),
         },
@@ -514,5 +541,27 @@ function buildDomainCallForNormalizedAction(action, context) {
 /** Build the validated canonical tool call used by fresh and resumed actions. */
 export function buildDomainCall(action, context = {}) {
   const normalized = normalizeTurnActionForRuntime(action, context);
+  if (normalized.clearFields !== undefined) {
+    const allowed = normalized.action === 'update' && normalized.domain === 'task'
+      ? new Set(['description', 'dueDate'])
+      : (normalized.action === 'update' && ['reminder', 'calendar'].includes(normalized.domain)
+        ? new Set(normalized.domain === 'calendar' ? ['description', 'recurrence'] : ['recurrence'])
+        : new Set());
+    if (!Array.isArray(normalized.clearFields)
+      || normalized.clearFields.length === 0
+      || normalized.clearFields.some((field) => !allowed.has(field))
+      || new Set(normalized.clearFields).size !== normalized.clearFields.length) {
+      return { valid: false, errorCode: 'INVALID_PARAMETERS', error: `clearFields no es compatible con ${normalized.domain}.${normalized.action}.` };
+    }
+    if ((normalized.clearFields.includes('recurrence') && normalized.recurrence !== undefined)
+      || (normalized.clearFields.includes('description') && (normalized.description !== undefined || (normalized.domain === 'task' && normalized.content !== undefined)))
+      || (normalized.clearFields.includes('dueDate') && normalized.schedule !== undefined)) {
+      return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'Un campo no se puede borrar y reemplazar en la misma acción.' };
+    }
+  }
+  if (normalized.descriptionMode !== undefined
+    && (normalized.domain !== 'task' || normalized.action !== 'update' || !['append', 'replace'].includes(normalized.descriptionMode))) {
+    return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'descriptionMode solo admite append o replace para task.update.' };
+  }
   return buildDomainCallForNormalizedAction(normalized, context);
 }

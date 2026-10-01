@@ -350,6 +350,12 @@ export async function createCalendarEvent(userId, {
  * @param {string} [params.timezone='America/Bogota']
  * @returns {Promise<object>}
  */
+function isValidCalendarDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 export async function updateCalendarEvent(userId, {
   eventId,
   summary,
@@ -361,6 +367,8 @@ export async function updateCalendarEvent(userId, {
   startDate = null,
   endDate = null,
   recurrence = null,
+  clearRecurrence = false,
+  durationMinutes = undefined,
 }) {
   const auth = await getAuthenticatedGoogleClient(userId);
   if (!auth) throw googleAuthRequiredError();
@@ -373,25 +381,93 @@ export async function updateCalendarEvent(userId, {
     });
 
     const eventResource = { ...existing.data };
+    const existingStartIsAllDay = Boolean(eventResource.start?.date && !eventResource.start?.dateTime);
+    const requiresAllDayEndOnly = Boolean(endDate && !startDate && !startDateTime);
+    if (requiresAllDayEndOnly && !existingStartIsAllDay) {
+      const error = new Error('An all-day end date cannot be applied to a timed event without an all-day start date.');
+      error.code = 'INCOMPATIBLE_CALENDAR_PATCH';
+      throw error;
+    }
+    if (allDay && !startDate && !existingStartIsAllDay) {
+      const error = new Error('An all-day update requires an explicit all-day start date.');
+      error.code = 'INCOMPATIBLE_CALENDAR_PATCH';
+      throw error;
+    }
+    if (durationMinutes !== undefined && !eventResource.start?.dateTime && !startDateTime) {
+      const error = new Error('A duration cannot be applied to an all-day event.');
+      error.code = 'UNSUPPORTED_CALENDAR_DURATION';
+      throw error;
+    }
     if (summary !== undefined) eventResource.summary = summary.trim();
-    if (description !== undefined) eventResource.description = description.trim();
+    if (description !== undefined) eventResource.description = description === null ? '' : String(description).trim();
 
-    const isEventAllDay = Boolean(allDay || startDate);
+    const isEventAllDay = Boolean(allDay || startDate || requiresAllDayEndOnly);
     if (isEventAllDay) {
       const startIso = startDate || (startDateTime ? new Date(startDateTime).toISOString().split('T')[0] : eventResource.start?.date);
       const endIso = endDate || computeNextDayIsoDate(startIso) || startIso;
+      if (!isValidCalendarDate(startIso) || !isValidCalendarDate(endIso) || endIso <= startIso) {
+        const error = new Error('The all-day event end date must be after its start date.');
+        error.code = 'INVALID_CALENDAR_INTERVAL';
+        throw error;
+      }
       eventResource.start = { date: startIso };
       eventResource.end = { date: endIso };
-    } else if (startDateTime) {
-      const startDateVal = startDateTime instanceof Date ? startDateTime : new Date(startDateTime);
-      eventResource.start = { dateTime: startDateVal.toISOString(), timeZone: timezone };
-      const endDateVal = endDateTime
-        ? (endDateTime instanceof Date ? endDateTime : new Date(endDateTime))
-        : new Date(startDateVal.getTime() + 60 * 60 * 1000);
-      eventResource.end = { dateTime: endDateVal.toISOString(), timeZone: timezone };
+    } else if (startDateTime || endDateTime || durationMinutes !== undefined) {
+      const existingStart = eventResource.start?.dateTime ? new Date(eventResource.start.dateTime) : null;
+      const existingEnd = eventResource.end?.dateTime ? new Date(eventResource.end.dateTime) : null;
+      const startDateVal = startDateTime
+        ? (startDateTime instanceof Date ? startDateTime : new Date(startDateTime))
+        : existingStart;
+      if (startDateVal && Number.isNaN(startDateVal.getTime())) {
+        const error = new Error('The timed event start must be a valid date.');
+        error.code = 'INVALID_CALENDAR_INTERVAL';
+        throw error;
+      }
+      if (durationMinutes !== undefined && !startDateVal) {
+        const error = new Error('A duration update requires a valid event start.');
+        error.code = 'INVALID_CALENDAR_INTERVAL';
+        throw error;
+      }
+      if (startDateVal && startDateTime) {
+        eventResource.start = { dateTime: startDateVal.toISOString(), timeZone: timezone };
+      }
+      if (endDateTime) {
+        const endDateVal = endDateTime instanceof Date ? endDateTime : new Date(endDateTime);
+        if (Number.isNaN(endDateVal.getTime()) || !startDateVal || Number.isNaN(startDateVal.getTime()) || endDateVal.getTime() <= startDateVal.getTime()) {
+          const error = new Error('The timed event end must be after its start.');
+          error.code = 'INVALID_CALENDAR_INTERVAL';
+          throw error;
+        }
+        eventResource.end = { dateTime: endDateVal.toISOString(), timeZone: timezone };
+      } else if (durationMinutes !== undefined && startDateVal) {
+        if (!Number.isFinite(Number(durationMinutes)) || Number(durationMinutes) <= 0) {
+          const error = new Error('The event duration must be positive.');
+          error.code = 'INVALID_CALENDAR_INTERVAL';
+          throw error;
+        }
+        eventResource.end = {
+          dateTime: new Date(startDateVal.getTime() + Number(durationMinutes) * 60 * 1000).toISOString(),
+          timeZone: timezone,
+        };
+      } else if (startDateTime && startDateVal) {
+        const duration = existingStart && existingEnd
+          ? existingEnd.getTime() - existingStart.getTime()
+          : 60 * 60 * 1000;
+        if (!Number.isFinite(duration) || duration <= 0) {
+          const error = new Error('The fetched event has an invalid start/end interval.');
+          error.code = 'INVALID_CALENDAR_INTERVAL';
+          throw error;
+        }
+        eventResource.end = {
+          dateTime: new Date(startDateVal.getTime() + duration).toISOString(),
+          timeZone: timezone,
+        };
+      }
     }
 
-    if (recurrence !== null && recurrence !== undefined) {
+    if (clearRecurrence) {
+      delete eventResource.recurrence;
+    } else if (recurrence !== null && recurrence !== undefined) {
       const rrule = mapToGoogleRRule(recurrence);
       if (rrule) {
         eventResource.recurrence = [rrule];

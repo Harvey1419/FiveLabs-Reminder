@@ -1,11 +1,12 @@
 import { getWorkingMemory } from '../core/working-memory-store.js';
 import { resolveContextReference, parseStructuredOrdinal } from '../core/context-reference.js';
-import { getLocalDateParts } from '../../shared/time.js';
+import { getLocalDateParts, shiftZonedCalendarDays } from '../../shared/time.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import {
   normalizeAgendaScope,
   normalizeTaskScope,
   buildExplicitTaskDateScope,
+  buildExplicitReminderDateScope,
   parseReminderScope,
 } from '../../shared/agenda-scopes.js';
 import { sanitizeCalendarQueryAndScope } from '../tools/calendar.js';
@@ -30,7 +31,8 @@ function normalizeCalendarYear(action, context) {
 
 function localDateFromOffset(referenceTime, timezone, dayOffset) {
   const base = referenceTime instanceof Date ? referenceTime : new Date(referenceTime || Date.now());
-  const shifted = new Date(base.getTime() + Number(dayOffset || 0) * 24 * 60 * 60 * 1000);
+  const shifted = shiftZonedCalendarDays(base, Number(dayOffset || 0), timezone);
+  if (!shifted) return null;
   const parts = getLocalDateParts(shifted, timezone);
   return [parts.year, parts.month, parts.day]
     .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
@@ -49,16 +51,30 @@ function normalizeReadScope(action, context) {
       const sanitized = sanitizeCalendarQueryAndScope({ query: rawQuery, scope: action.scope });
 
       let scope = sanitized.scope;
+      let date;
       if (!scope && action.schedule) {
         const schedule = action.schedule;
         if (schedule.kind === 'relative_day_time') {
           if (schedule.dayOffset === 0) scope = 'today';
           else if (schedule.dayOffset === 1) scope = 'tomorrow';
           else if (schedule.dayOffset === 2) scope = 'day_after_tomorrow';
+          else if (Number.isInteger(schedule.dayOffset)) {
+            date = localDateFromOffset(context.referenceTime, context.timezone, schedule.dayOffset);
+            scope = 'explicit_date';
+          }
         } else if (schedule.kind === 'weekday_time' && schedule.weekday) {
           scope = schedule.weekday;
         } else if (schedule.kind === 'local_time') {
           scope = 'today';
+        } else if (schedule.kind === 'calendar_date_time'
+          && Number.isInteger(schedule.month) && Number.isInteger(schedule.day)) {
+          const year = Number.isInteger(schedule.year)
+            ? schedule.year
+            : getLocalDateParts(context.referenceTime, context.timezone).year;
+          date = [year, schedule.month, schedule.day]
+            .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+            .join('-');
+          scope = 'explicit_date';
         }
       }
 
@@ -69,6 +85,7 @@ function normalizeReadScope(action, context) {
           const { query: _q, target: _t, ...rest } = action;
           return {
             ...rest,
+            ...(date ? { date } : {}),
             action: 'list',
             scope: normalizedScope || 'today',
           };
@@ -76,6 +93,7 @@ function normalizeReadScope(action, context) {
         return {
           ...action,
           query: sanitized.query,
+          ...(date ? { date } : {}),
           ...(normalizedScope ? { scope: normalizedScope } : {}),
         };
       }
@@ -83,6 +101,7 @@ function normalizeReadScope(action, context) {
       const { query: _q, ...rest } = action;
       return {
         ...rest,
+        ...(date ? { date } : {}),
         ...(normalizedScope ? { scope: normalizedScope } : {}),
         ...(sanitized.query ? { query: sanitized.query } : {}),
       };
@@ -90,7 +109,18 @@ function normalizeReadScope(action, context) {
   }
 
   if (action.domain === 'reminder' && action.action === 'list') {
-    const raw = action.filter || action.scope;
+    let raw = action.filter || action.scope;
+    if (!raw && action.schedule) {
+      const schedule = action.schedule;
+      let date = null;
+      if (schedule.kind === 'calendar_date_time' && Number.isInteger(schedule.month) && Number.isInteger(schedule.day)) {
+        const year = Number.isInteger(schedule.year) ? schedule.year : getLocalDateParts(context.referenceTime, context.timezone).year;
+        date = [year, schedule.month, schedule.day].map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0')).join('-');
+      } else if (schedule.kind === 'relative_day_time' && Number.isInteger(schedule.dayOffset)) {
+        date = localDateFromOffset(context.referenceTime, context.timezone, schedule.dayOffset);
+      }
+      raw = date ? buildExplicitReminderDateScope(date) : undefined;
+    }
     if (raw) {
       const parsed = parseReminderScope(raw, 'upcoming');
       return {
