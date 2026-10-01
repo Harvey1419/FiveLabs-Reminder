@@ -7,7 +7,8 @@ import {
   updatePreparedActionInDb,
   recordExecutionEventInDb,
 } from '../../infrastructure/database/agent-runs.js';
-import { resolveTypedSchedule, mergePendingSchedule } from '../orchestration/typed-schedule.js';
+import { mergePendingSchedule } from '../orchestration/typed-schedule.js';
+import { buildDomainCall } from '../orchestration/domain-call.js';
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { createExecutionFact } from './execution-facts.js';
@@ -39,6 +40,25 @@ async function stagePendingActions(runId, actions) {
     }
     throw error;
   }
+}
+
+function storedDomainCall(action, executionContext) {
+  const call = action.execution_fact?._domainCall;
+  if (call?.toolName && call.params && typeof call.params === 'object') return call;
+  return buildDomainCall(action.payload || {}, executionContext);
+}
+
+function toolResultFromExecutionFact(executionFact) {
+  if (!executionFact || typeof executionFact !== 'object') return executionFact;
+  const { _domainCall: _storedCall, ...toolResult } = executionFact;
+  return toolResult;
+}
+
+function executionFactWithDomainCall(result, toolName, params) {
+  return {
+    ...result,
+    _domainCall: { toolName, params },
+  };
 }
 
 /**
@@ -368,8 +388,9 @@ export async function executeContinuationDecision({
   run,
   suppliedFields = {},
   executionContext = {},
+  executeTool: injectedExecuteTool = executeTool,
 }) {
-  const preparedActions = run.preparedActions || (await getPreparedActionsFromDb(run.id));
+  const preparedActions = await getPreparedActionsFromDb(run.id);
   if (preparedActions.length === 0) {
     return { success: false, error: 'No prepared actions found in run.' };
   }
@@ -385,6 +406,40 @@ export async function executeContinuationDecision({
   let allSucceeded = true;
 
   for (const action of preparedActions) {
+    if (action.status === 'executed' || action.status === 'skipped') {
+      if (action.status === 'executed' && action.execution_fact) {
+        const toolCall = storedDomainCall(action, executionContext);
+        const result = toolResultFromExecutionFact(action.execution_fact);
+        executedFacts.push(createExecutionFact({
+          toolName: toolCall.toolName,
+          params: toolCall.params,
+          result,
+          callId: action.call_id,
+          language: executionContext.language || 'es',
+        }));
+        executedResults.push({ callId: action.call_id, result });
+      }
+      continue;
+    }
+    if (action.status === 'failed') {
+      allSucceeded = false;
+      if (action.execution_fact) {
+        const toolCall = storedDomainCall(action, executionContext);
+        const result = toolResultFromExecutionFact(action.execution_fact);
+        const failedFact = createExecutionFact({
+          toolName: toolCall.toolName,
+          params: toolCall.params,
+          result,
+          callId: action.call_id,
+          language: executionContext.language || 'es',
+        });
+        executedFacts.push(failedFact);
+        executedResults.push({ callId: action.call_id, result });
+      }
+      if (action.execution_fact?.outcome === 'unknown') break;
+      continue;
+    }
+
     const missingFields = action.payload?.missingFields || run.waiting_for?.fields || [];
     const mergedPayload = {
       ...action.payload,
@@ -409,52 +464,82 @@ export async function executeContinuationDecision({
       );
     }
 
-    let toolName = TOOL_NAMES.MANAGE_REMINDER;
-    let params = mergedPayload;
-
-    if (action.domain === 'task') {
-      toolName = TOOL_NAMES.MANAGE_TASK;
-    } else if (action.domain === 'project') {
-      toolName = TOOL_NAMES.MANAGE_PROJECT;
-    } else if (action.domain === 'entity') {
-      toolName = TOOL_NAMES.MANAGE_ENTITY;
-    } else if (action.domain === 'reminder' && action.action === 'create') {
-      const temporal = resolveTypedSchedule(mergedPayload.schedule, {
-        referenceTime: executionContext.referenceTime,
-        timezone: executionContext.timezone || 'UTC',
-      });
-      if (!temporal.valid) {
-        allSucceeded = false;
-        await updatePreparedActionInDb(run.id, action.call_id, {
-          status: 'failed',
-          executionFact: { error: temporal.error, errorCode: temporal.errorCode },
-        });
-        executedResults.push({ callId: action.call_id, result: { success: false, error: temporal.error, errorCode: temporal.errorCode } });
-        continue;
-      }
-      const content = mergedPayload.content || mergedPayload.title || '';
-      params = {
-        ...mergedPayload,
-        action: 'create',
-        items: [{
-          content,
-          targetTime: temporal.canonical,
-          ...(mergedPayload.advanceMinutes ? { advanceMinutes: mergedPayload.advanceMinutes } : {}),
-          ...(mergedPayload.recurrence ? { recurrence: mergedPayload.recurrence } : {}),
-          ...(mergedPayload.requiresConfirmation ? { requiresConfirmation: true } : {}),
-          ...(mergedPayload.nudgeIntervalMinutes ? { nudgeIntervalMinutes: mergedPayload.nudgeIntervalMinutes } : {}),
-          ...(mergedPayload.maxNudges ? { maxNudges: mergedPayload.maxNudges } : {}),
-        }],
+    const prepared = buildDomainCall(mergedPayload, executionContext);
+    if (!prepared.valid || prepared.orchestrationOnly) {
+      const result = {
+        success: false,
+        error: prepared.error || prepared.result?.error || 'The resumed action is not executable.',
+        errorCode: prepared.errorCode || 'INVALID_RESUMED_ACTION',
       };
+      const fact = createExecutionFact({
+        toolName: prepared.toolName || 'orchestrator',
+        params: prepared.params || {},
+        result,
+        callId: action.call_id,
+        language: executionContext.language || 'es',
+      });
+      executedFacts.push(fact);
+      allSucceeded = false;
+      await updatePreparedActionInDb(run.id, action.call_id, {
+        status: 'failed',
+        executionFact: result,
+      });
+      executedResults.push({ callId: action.call_id, result });
+      continue;
     }
 
-    const result = await executeTool({
-      ...executionContext,
-      user: executionUser,
-      toolName,
-      params,
-      clarificationResolution: true,
+    const { toolName, params } = prepared;
+    const writeFence = {
+      success: false,
+      outcome: 'unknown',
+      errorCode: 'WRITE_OUTCOME_UNKNOWN',
+      error: 'The action may have been applied; it will not be replayed automatically.',
+      _domainCall: { toolName, params },
+    };
+    const fencedAction = await updatePreparedActionInDb(run.id, action.call_id, {
+      status: 'failed',
+      executionFact: writeFence,
     });
+    if (!fencedAction) {
+      throw new Error('Could not persist the write fence; the action was not executed.');
+    }
+
+    let result;
+    try {
+      result = await injectedExecuteTool({
+        ...executionContext,
+        user: executionUser,
+        toolName,
+        params,
+        clarificationResolution: true,
+      });
+      if (!result || typeof result !== 'object') {
+        throw new Error('The tool returned no observable execution result.');
+      }
+    } catch (error) {
+      const unknownResult = {
+        success: false,
+        outcome: 'unknown',
+        errorCode: 'UNKNOWN_WRITE_OUTCOME',
+        error: error instanceof Error ? error.message : 'The tool outcome could not be observed.',
+        _domainCall: { toolName, params },
+      };
+      const fact = createExecutionFact({
+        toolName,
+        params,
+        result: toolResultFromExecutionFact(unknownResult),
+        callId: action.call_id,
+        language: executionContext.language || 'es',
+      });
+      executedFacts.push(fact);
+      allSucceeded = false;
+      await updatePreparedActionInDb(run.id, action.call_id, {
+        status: 'failed',
+        executionFact: unknownResult,
+      });
+      executedResults.push({ callId: action.call_id, result: toolResultFromExecutionFact(unknownResult) });
+      break;
+    }
 
     const fact = createExecutionFact({
       toolName,
@@ -465,14 +550,22 @@ export async function executeContinuationDecision({
     });
     executedFacts.push(fact);
 
-    const isSuccess = result.success !== false;
+    const unknownWriteOutcome = result.outcome === 'unknown'
+      || result.errorCode === 'UNKNOWN_WRITE_OUTCOME';
+    const isSuccess = result.success !== false && !unknownWriteOutcome;
     if (!isSuccess) allSucceeded = false;
+    const persistedResult = executionFactWithDomainCall(
+      unknownWriteOutcome ? { ...result, outcome: 'unknown' } : result,
+      toolName,
+      params,
+    );
 
     await updatePreparedActionInDb(run.id, action.call_id, {
       status: isSuccess ? 'executed' : 'failed',
-      executionFact: result,
+      executionFact: persistedResult,
     });
     executedResults.push({ callId: action.call_id, result });
+    if (unknownWriteOutcome) break;
   }
 
   const finalStatus = (allSucceeded && executedResults.length > 0) ? 'completed' : 'failed';

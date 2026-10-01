@@ -89,14 +89,10 @@ describe('AgentRun Architectural Invariants (Section 23)', () => {
     expect(executeTool).toHaveBeenCalledTimes(1);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
       toolName: 'manage_reminder',
-      params: expect.objectContaining({
-        content: 'Llamar a mamá',
-        schedule: expect.objectContaining({
-          dayOffset: 1,
-          hour: 18,
-          minute: 0,
-        }),
-      }),
+      params: {
+        action: 'create',
+        items: [{ content: 'Llamar a mamá', targetTime: '2026-09-13T23:00:00.000Z' }],
+      },
     }));
 
     const postRun = await getActiveAgentRun(mockUser);

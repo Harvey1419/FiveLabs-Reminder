@@ -283,19 +283,20 @@ function normalizeTaskEntityName(action, context) {
  * Add deterministic runtime context only. This layer never changes semantic
  * domain/action and never turns identity/context into patch content.
  */
+export function normalizeTurnActionForRuntime(original, context = {}) {
+  let action = { ...original };
+  action = normalizeCalendarYear(action, context);
+  action = normalizeReadScope(action, context);
+  action = normalizeUpdateFields(action);
+  action = normalizeRecurringReminder(action, context);
+  action = normalizeReminderCreateFromWorkingTarget(action, context);
+  action = normalizeEntityDelete(action);
+  action = normalizeProjectOperations(action);
+  action = normalizeTaskEntityName(action, context);
+  return action;
+}
+
 export function normalizeTurnIntentForRuntime(intent, context) {
   if (!intent || !Array.isArray(intent.actions)) return intent;
-  const actions = intent.actions.map((original) => {
-    let action = { ...original };
-    action = normalizeCalendarYear(action, context);
-    action = normalizeReadScope(action, context);
-    action = normalizeUpdateFields(action);
-    action = normalizeRecurringReminder(action, context);
-    action = normalizeReminderCreateFromWorkingTarget(action, context);
-    action = normalizeEntityDelete(action);
-    action = normalizeProjectOperations(action);
-    action = normalizeTaskEntityName(action, context);
-    return action;
-  });
-  return { ...intent, actions };
+  return { ...intent, actions: intent.actions.map((action) => normalizeTurnActionForRuntime(action, context)) };
 }
