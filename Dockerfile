@@ -6,7 +6,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install pnpm via corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Copy package manifests
 COPY package.json pnpm-lock.yaml ./

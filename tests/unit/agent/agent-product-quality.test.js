@@ -27,7 +27,8 @@ describe('Hermes product-quality core', () => {
     expect(action).not.toHaveProperty('kind');
     expect(action).not.toHaveProperty('sequence');
     expect(action).not.toHaveProperty('sourceQuote');
-    expect(action).not.toHaveProperty('contextRef');
+    expect(Object.keys(action.contextRef.properties).sort()).toEqual(['position', 'source']);
+    expect(action.contextRef.properties.source.enum).toEqual(['working_memory']);
   });
 
   it('keeps action normalization technical and rejects semantic aliases at the Node boundary', () => {

@@ -1,5 +1,7 @@
+import { TURN_CONTEXT_PROPERTIES, validateTurnContext } from './turn-context.js';
+import { matchesSchema } from './schema-value.js';
 import { strictProviderSchema, stripStructuredNulls } from './foreground-turn-schema.js';
-import { typedSchedule } from './intent-contracts.js';
+import { typedSchedule, TURN_INTENT_SCHEMA } from './intent-contracts.js';
 
 export const RUN_STATUSES = Object.freeze([
   'running',
@@ -25,19 +27,20 @@ export const PREPARED_ACTION_STATUSES = Object.freeze([
   'failed',
 ]);
 
-export const APPROVAL_RELATIONS = Object.freeze(['approval', 'unrelated', 'cancel']);
+export const APPROVAL_RELATIONS = Object.freeze(['approval', 'unrelated', 'cancel', 'supersede']);
 export const APPROVAL_DECISIONS = Object.freeze(['approve_all', 'approve_subset', 'reject']);
 
-export const CONTINUATION_RELATIONS = Object.freeze(['resume', 'unrelated', 'cancel']);
+export const CONTINUATION_RELATIONS = Object.freeze(['resume', 'unrelated', 'cancel', 'supersede']);
 
 export const APPROVAL_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
   type: 'object',
   additionalProperties: false,
   properties: {
+    ...TURN_CONTEXT_PROPERTIES,
     relation: {
       type: 'string',
       enum: APPROVAL_RELATIONS,
-      description: 'Relation to the pending approval: "approval" if responding to the prompt, "unrelated" if user changes topic, "cancel" if declining.',
+      description: 'Relation to the pending approval: "approval" if responding to the prompt, "unrelated" if user changes topic, "cancel" if declining; "supersede" when correcting/replacing the proposed operation (never approve its old payload).',
     },
     decision: {
       type: 'string',
@@ -51,10 +54,10 @@ export const APPROVAL_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
     },
     reply: {
       type: 'string',
-      description: 'Direct conversational explanation or acknowledgement to the user. For approvals, write in immediate confirmation/past tense (e.g. "Listo, eliminé los proyectos seleccionados."), never future tense ("eliminaré").',
+      description: 'Direct conversational explanation or acknowledgement to the user. Do not claim execution: the runtime renders the observed result.',
     },
   },
-  required: ['relation'],
+  required: ['relation', 'responseLanguage'],
 }));
 
 const continuationSchedule = structuredClone(typedSchedule);
@@ -75,34 +78,36 @@ export const CONTINUATION_DECISION_SCHEMA = Object.freeze(strictProviderSchema({
   type: 'object',
   additionalProperties: false,
   properties: {
+    ...TURN_CONTEXT_PROPERTIES,
     relation: {
       type: 'string',
       enum: CONTINUATION_RELATIONS,
-      description: 'Relation to the suspended operation: "resume" if providing missing fields, "unrelated" if changing topic, "cancel" if aborting.',
+      description: 'Relation to the suspended operation: "resume" if supplying missing fields or correcting fields within its draft; "supersede" if the current message explicitly replaces that request and must be interpreted as a new canonical turn; "unrelated" if changing topic; "cancel" if aborting.',
     },
-    suppliedFields: {
-      type: 'object',
-      additionalProperties: false,
-      description: 'Structured delta supplied by the user. Node merges these fields deterministically.',
-      properties: {
-        schedule: continuationSchedule,
-        content: { type: 'string', description: 'Updated or supplied text content.' },
-        target: { type: 'string', description: 'Target entity or reference if supplied.' },
-      },
-      required: [],
+    actionInputs: {
+      type: 'array', maxItems: 12,
+      description: 'Delta per exact prepared callId. Use this as the only delta representation. For shared values, repeat them in each affected callId. Include explicit corrections to existing fields as well as missing data. Preserve all other known fields. Never address an executed action; use supersede for a replacement request.',
+      items: { type: 'object', additionalProperties: false, properties: {
+        callId: { type: 'string' },
+        fields: { type: 'object', additionalProperties: false, properties: Object.fromEntries(
+          Object.entries(TURN_INTENT_SCHEMA.properties.actions.items.properties)
+            .filter(([key]) => !['domain', 'action', 'missingFields', 'question'].includes(key))
+            .map(([key, schema]) => [key, key === 'schedule' ? continuationSchedule : schema]),
+        ), required: [] },
+      }, required: ['callId', 'fields'] },
     },
     reply: {
       type: 'string',
       description: 'Direct conversational explanation or acknowledgement to the user.',
     },
   },
-  required: ['relation'],
+  required: ['relation', 'responseLanguage'],
 }));
 
 /**
  * Validate an approval decision produced by the model.
  */
-export function validateApprovalDecision(rawPayload) {
+function validateApprovalDecisionPayload(rawPayload) {
   const payload = stripStructuredNulls(rawPayload);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return { valid: false, errorCode: 'INVALID_APPROVAL_DECISION', error: 'Approval decision must be an object.' };
@@ -142,7 +147,7 @@ export function validateApprovalDecision(rawPayload) {
 /**
  * Validate a continuation decision produced by the model.
  */
-export function validateContinuationDecision(rawPayload) {
+function validateContinuationDecisionPayload(rawPayload) {
   const payload = stripStructuredNulls(rawPayload);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return { valid: false, errorCode: 'INVALID_CONTINUATION_DECISION', error: 'Continuation decision must be an object.' };
@@ -154,10 +159,27 @@ export function validateContinuationDecision(rawPayload) {
   }
 
   if (relation === 'resume') {
-    const suppliedFields = payload.suppliedFields && typeof payload.suppliedFields === 'object' && !Array.isArray(payload.suppliedFields)
-      ? payload.suppliedFields
-      : {};
-    return { valid: true, decision: { relation, suppliedFields, reply: payload.reply || null } };
+    if (payload.actionInputs !== undefined && (!Array.isArray(payload.actionInputs) || payload.actionInputs.length > 12)) {
+      return { valid: false, errorCode: 'INVALID_ACTION_INPUT', error: 'actionInputs must be a bounded list.' };
+    }
+    const suppliedFields = payload.suppliedFields === undefined ? {} : payload.suppliedFields;
+    const actionInputs = Array.isArray(payload.actionInputs) ? payload.actionInputs : [];
+    const fieldSchema = { type: 'object', additionalProperties: false,
+      properties: Object.fromEntries(Object.entries(TURN_INTENT_SCHEMA.properties.actions.items.properties)
+        .filter(([key]) => !['domain', 'action', 'missingFields', 'question'].includes(key))) };
+    const sharedSchema = { type: 'object', additionalProperties: false, properties: Object.fromEntries(
+      Object.entries(fieldSchema.properties).filter(([key]) => ['content', 'target', 'schedule'].includes(key))) };
+    if (!matchesSchema(suppliedFields, sharedSchema)) return { valid: false, errorCode: 'INVALID_ACTION_INPUT', error: 'Invalid shared input fields.' };
+    const ids = new Set();
+    for (const input of actionInputs) {
+      if (!input || typeof input.callId !== 'string' || ids.has(input.callId) || !input.fields || typeof input.fields !== 'object' || Array.isArray(input.fields)
+        || !matchesSchema(input.fields, fieldSchema)) {
+        return { valid: false, errorCode: 'INVALID_ACTION_INPUT', error: 'Each input requires a unique callId and canonical action fields.' };
+      }
+      ids.add(input.callId);
+    }
+    if (actionInputs.length && Object.keys(suppliedFields).length) return { valid: false, errorCode: 'CONFLICTING_ACTION_INPUT', error: 'Use per-action fields or shared fields, not both.' };
+    return { valid: true, decision: { relation, suppliedFields, actionInputs, reply: payload.reply || null } };
   }
 
   return {
@@ -168,4 +190,20 @@ export function validateContinuationDecision(rawPayload) {
       reply: payload.reply || null,
     },
   };
+}
+
+export function validateApprovalDecision(rawPayload) {
+  const payload = stripStructuredNulls(rawPayload);
+  const context = validateTurnContext(payload);
+  if (!context.valid) return context;
+  const result = validateApprovalDecisionPayload(payload);
+  return result.valid ? { ...result, decision: { ...result.decision, ...context.context } } : result;
+}
+
+export function validateContinuationDecision(rawPayload) {
+  const payload = stripStructuredNulls(rawPayload);
+  const context = validateTurnContext(payload);
+  if (!context.valid) return context;
+  const result = validateContinuationDecisionPayload(payload);
+  return result.valid ? { ...result, decision: { ...result.decision, ...context.context } } : result;
 }

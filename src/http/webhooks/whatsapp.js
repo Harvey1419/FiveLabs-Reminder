@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { enqueueInboundTurn } from '../../infrastructure/database/inbound-turns.js';
+import { assertTurnLease, checkpointTurnResponse, withoutTurnLease } from '../../agent/core/turn-lease.js';
 import { clearWorkingMemory } from '../../agent/core/working-memory.js';
 import { routeMessage } from '../../agent/orchestration/router.js';
 import {
@@ -12,9 +14,7 @@ import {
   normalizePhoneNumber,
 } from '../../integrations/whatsapp/kapso-client.js';
 import { saveMessage, getRecentMessages, isMessageAlreadyProcessed, getAssistantMessageById } from '../../infrastructure/database/messages.js';
-import { getOrCreateUserByPhone, updateUserTimezone, updateUserLocale, updateUserPreferences, touchUserLastActive } from '../../infrastructure/database/users.js';
-import { detectLanguageFromText } from '../../shared/language-detection.js';
-import { inferUserOnboardingMetadata } from '../../features/users/onboarding.js';
+import { getOrCreateUserByPhone, touchUserLastActive } from '../../infrastructure/database/users.js';
 import {
   supabase,
   updateReminderDeliveryStatus,
@@ -26,7 +26,8 @@ import {
 import { extractMemoryInBackground } from '../../jobs/memory-extractor.js';
 import { transcribeAudio } from '../../integrations/media/transcription.js';
 import { processDocumentOrImage } from '../../integrations/media/document-processor.js';
-import { detectTimezoneFromLocationText, detectTimezoneFromCoordinates, getNearestCityFromCoordinates } from '../../shared/time.js';
+import { getNearestCityFromCoordinates } from '../../shared/time.js';
+import { extractCurrentUserText } from '../../shared/current-user-input.js';
 import { isIntradayRecurrence } from '../../shared/reminder-recurrence.js';
 
 // In-memory dedup set for message IDs as fast-path optimization (DB is true source of truth).
@@ -66,10 +67,12 @@ export async function enqueueForUser(userIdOrPhone, taskFn) {
   })();
 
   userQueueMap.set(key, currentPromise);
-  currentPromise.finally(() => {
+  currentPromise.then(() => {
     if (userQueueMap.get(key) === currentPromise) {
       userQueueMap.delete(key);
     }
+  }, () => {
+    if (userQueueMap.get(key) === currentPromise) userQueueMap.delete(key);
   });
 
   return currentPromise;
@@ -174,14 +177,42 @@ export function extractDeliveryStatuses(payload = {}) {
     }));
 }
 
+/** Persist all inbound messages before acknowledging them to the provider. */
 export async function handleWebhook(req, res) {
-  const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID();
-  const startTime = Date.now();
+  const body = req.body || {};
+  const correlationId = req.headers?.['x-correlation-id'] || req.headers?.['x-request-id'] || crypto.randomUUID();
+  const requests = [];
+  const changes = (body.entry || []).flatMap(entry => (entry.changes || []).map(change => ({ entry, change })));
+  for (const { entry, change } of changes) {
+    for (const message of change.value?.messages || []) {
+      requests.push({ ...body, entry: [{ ...entry, changes: [{ ...change, value: { ...change.value, messages: [message] } }] }] });
+    }
+  }
+  if (!requests.length) requests.push(body);
+  try {
+    for (const payload of requests) {
+      const { phoneNumber, bsuid, message } = extractContactInfo(payload);
+      if (!message || isOutboundMessage(payload)) {
+        await processWebhookMessage({ body: payload, headers: { 'x-correlation-id': correlationId } });
+        continue;
+      }
+      const messageId = message.id || payload.id || payload.data?.id;
+      if (!messageId || (!phoneNumber && !bsuid)) return res.status(400).send('Missing message identity');
+      await enqueueInboundTurn({ messageId, threadId: phoneNumber || bsuid,
+        request: { body: payload, headers: { 'x-correlation-id': correlationId }, receivedAt: Date.now() } });
+    }
+    return res.status(200).send('OK');
+  } catch (error) {
+    console.error(`[webhook req=${correlationId}] ingress not persisted code=${error.code || 'STORAGE_ERROR'}`);
+    // The provider may retry; uniqueness prevents re-enqueuing already accepted messages.
+    return res.status(503).send('Temporarily unavailable');
+  }
+}
 
-  // Acknowledge immediately. The configured Kapso/Meta webhook uses the
-  // platform verification token during endpoint registration and does not
-  // provide a separate POST-signing secret for this integration.
-  res.status(200).send('OK');
+/** Worker-only processing; the durable inbox owns delivery deduplication and order. */
+export async function processWebhookMessage(req) {
+  const correlationId = req.headers?.['x-correlation-id'] || req.headers?.['x-request-id'] || crypto.randomUUID();
+  const startTime = req.receivedAt || Date.now();
 
   try {
     const body = req.body || {};
@@ -263,14 +294,46 @@ export async function handleWebhook(req, res) {
 
       // 1. Resolve User Record
       const tUser0 = Date.now();
-      const user = await getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName);
+      const user = await getOrCreateUserByPhone(recipientIdentifier, null, 'es-CO', displayName, { fresh: true });
       const userResolveMs = Date.now() - tUser0;
+      if (!user?.id) throw Object.assign(new Error('User persistence unavailable'), { code: 'USER_STORAGE_UNAVAILABLE' });
+      await assertTurnLease();
 
       let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
       const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
       // Fast-path: WhatsApp Interactive Button Replies & Flow Submissions (Zero LLM Turn, Instant Execution)
       const interactiveObj = message.interactive || body.message?.interactive || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.interactive;
+      const interactiveHistory = interactiveObj ? await getRecentMessages(recipientIdentifier, 10) : [];
+      const priorLanguage = [...(interactiveHistory || [])].reverse().find(turn => turn.role === 'assistant' && ['en', 'es'].includes(turn.entities?._responseLanguage))?.entities?._responseLanguage;
+      const interactiveLanguage = priorLanguage || (user?.locale?.startsWith('en') ? 'en' : 'es');
+      const reportUnconfirmedAction = async () => {
+        const text = interactiveLanguage === 'en'
+          ? 'I could not confirm this action. Please check its current status before trying again.'
+          : 'No pude confirmar esta acción. Revisa su estado actual antes de intentarlo de nuevo.';
+        await checkpointTurnResponse({ confirmation: text, intent: 'action_unconfirmed' });
+        await sendWhatsAppText({ phoneNumberId, phoneNumber, bsuid, text });
+        await saveMessage({ userId: user.id, phoneNumber: recipientIdentifier, role: 'assistant', content: text, intent: 'action_unconfirmed', entities: { _responseLanguage: interactiveLanguage } });
+      };
+
+
+      const partialWarning = interactiveLanguage === 'en'
+        ? '\n\n⚠️ I could not confirm all related changes. Please check their current status before retrying.'
+        : '\n\n⚠️ No pude confirmar todos los cambios relacionados. Revisa su estado actual antes de reintentarlos.';
+      const completeReminderDependencies = async reminder => {
+        let incomplete = false;
+        if (reminder.task_id) {
+          const result = await updateTask(reminder.task_id, { status: 'completed' }, user.id);
+          const task = result?.data || result;
+          incomplete = !task?.id || task.status !== 'completed';
+        }
+        if (isIntradayRecurrence(reminder.recurrence_rule)) {
+          const cancelled = await updateReminder(reminder.id, { status: 'cancelled' }, user.id, user.phone_number);
+          incomplete ||= !cancelled?.id || cancelled.status !== 'cancelled';
+        }
+        return incomplete;
+      };
+
 
       // Handle WhatsApp Flow Completion (nfm_reply)
       if (interactiveObj?.type === 'nfm_reply' || interactiveObj?.nfm_reply) {
@@ -284,24 +347,27 @@ export async function handleWebhook(req, res) {
         }
 
         const rawSelected = parsedData.selected_ids || parsedData.selected_tasks || [];
-        const selectedIds = Array.isArray(rawSelected) ? rawSelected : (rawSelected ? [rawSelected] : []);
+        const selectedIds = [...new Set(Array.isArray(rawSelected) ? rawSelected : (rawSelected ? [rawSelected] : []))].slice(0, 10);
 
         if (selectedIds.length > 0) {
           const completedTasks = [];
+          let incomplete = false;
           for (const taskId of selectedIds) {
             try {
               const res = await updateTask(taskId, { status: 'completed' }, user.id);
-              if (res?.data || res?.id) {
-                const taskRecord = res.data || res;
-                completedTasks.push(taskRecord);
-                await acknowledgeRemindersByTaskId(taskRecord.id, user.id);
-              }
+              const taskRecord = res?.data || res;
+              if (!taskRecord?.id || taskRecord.status !== 'completed') { incomplete = true; break; }
+              completedTasks.push(taskRecord);
+              const companions = await acknowledgeRemindersByTaskId(taskRecord.id, user.id);
+              if (companions?.error) { incomplete = true; break; }
             } catch (err) {
               console.warn(`[webhook fast-path req=${correlationId}] Error completing task ${taskId} from flow:`, err.message);
+              incomplete = true;
+              break;
             }
           }
 
-          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          const isEnglishUser = interactiveLanguage === 'en';
           let confirmText;
           if (completedTasks.length === 0) {
             confirmText = isEnglishUser
@@ -319,6 +385,8 @@ export async function handleWebhook(req, res) {
               : `✅ *${completedTasks.length} tareas completadas*\n\n${taskLines}`;
           }
 
+          if (incomplete || completedTasks.length < selectedIds.length) confirmText += partialWarning;
+
           await saveMessage({
             userId: user.id,
             phoneNumber: recipientIdentifier,
@@ -326,7 +394,7 @@ export async function handleWebhook(req, res) {
             content: '[Flujo completado: tareas]',
             messageId: messageId || null,
             intent: 'task_complete_flow_submit',
-            entities: { completedTaskIds: selectedIds },
+            entities: { completedTaskIds: completedTasks.map(task => task.id), _responseLanguage: interactiveLanguage },
           });
           touchUserLastActive(user.id, recipientIdentifier);
 
@@ -343,7 +411,7 @@ export async function handleWebhook(req, res) {
             role: 'assistant',
             content: confirmText,
             intent: 'task_complete_flow',
-            entities: { completedTaskIds: selectedIds },
+            entities: { completedTaskIds: completedTasks.map(task => task.id), _responseLanguage: interactiveLanguage },
           });
 
           console.log(`[webhook fast-path req=${correlationId}] Flow completed ${completedTasks.length}/${selectedIds.length} tasks in ${Date.now() - queueEnqueueTime}ms`);
@@ -357,30 +425,20 @@ export async function handleWebhook(req, res) {
         if (buttonId.startsWith('rem:ack:')) {
           const reminderId = buttonId.replace('rem:ack:', '').trim();
           const ackResult = await acknowledgeReminder(reminderId, user.id);
-          if (ackResult?.task_id) {
-            try {
-              await updateTask(ackResult.task_id, { status: 'completed' }, user.id);
-            } catch (taskErr) {
-              console.warn(`[webhook fast-path req=${correlationId}] task completion cascade warning:`, taskErr.message);
-            }
-          }
-          if (ackResult?.id && isIntradayRecurrence(ackResult.recurrence_rule)) {
-            try {
-              await supabase.from('reminders').update({ status: 'cancelled' }).eq('id', ackResult.id);
-            } catch (cancelErr) {
-              console.warn(`[webhook fast-path req=${correlationId}] intraday recurrence cancel warning:`, cancelErr.message);
-            }
-          }
+          if (!ackResult?.id) { await reportUnconfirmedAction(); return; }
+          let incomplete = false;
+          try { incomplete = await completeReminderDependencies(ackResult); }
+          catch { incomplete = true; }
           try {
             clearWorkingMemory(user);
             if (phoneNumber) clearWorkingMemory(phoneNumber);
           } catch (memErr) {
             console.warn(`[webhook fast-path req=${correlationId}] clearWorkingMemory warning:`, memErr.message);
           }
-          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
-          const confirmText = isEnglishUser
+          const isEnglishUser = interactiveLanguage === 'en';
+          const confirmText = (isEnglishUser
             ? '✅ Great! I’ve marked this reminder as completed.'
-            : '✅ ¡Excelente! He marcado este recordatorio como completado.';
+            : '✅ ¡Excelente! He marcado este recordatorio como completado.') + (incomplete ? partialWarning : '');
 
           await saveMessage({
             userId: user.id,
@@ -389,7 +447,7 @@ export async function handleWebhook(req, res) {
             content: buttonReply.title || (isEnglishUser ? 'Done' : 'Listo'),
             messageId: messageId || null,
             intent: 'reminder_ack_click',
-            entities: { reminderId },
+            entities: { reminderId, _responseLanguage: interactiveLanguage },
           });
           touchUserLastActive(user.id, recipientIdentifier);
 
@@ -405,7 +463,7 @@ export async function handleWebhook(req, res) {
             role: 'assistant',
             content: confirmText,
             intent: 'reminder_ack',
-            entities: { reminderId },
+            entities: { reminderId, _responseLanguage: interactiveLanguage },
           });
           console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} acknowledged via button reply in ${Date.now() - queueEnqueueTime}ms`);
           return;
@@ -413,10 +471,11 @@ export async function handleWebhook(req, res) {
 
         if (buttonId.startsWith('rem:snooze:')) {
           const parts = buttonId.split(':');
-          const minutes = Number(parts[2]) || 15;
+          const minutes = Number(parts[2]);
+          if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) { await reportUnconfirmedAction(); return; }
           const reminderId = parts[3] ? parts.slice(3).join(':').trim() : '';
           const newSendAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-          await updateReminder(
+          const snoozed = await updateReminder(
             reminderId,
             {
               send_at: newSendAt,
@@ -428,7 +487,8 @@ export async function handleWebhook(req, res) {
             user.id,
             user.phone_number
           );
-          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+          if (!snoozed?.id || new Date(snoozed.send_at).getTime() !== new Date(newSendAt).getTime() || snoozed.status !== 'pending') { await reportUnconfirmedAction(); return; }
+          const isEnglishUser = interactiveLanguage === 'en';
           const confirmText = isEnglishUser
             ? `⏰ Got it, I’ll remind you again in ${minutes} minutes.`
             : `⏰ Listo, te lo recordaré nuevamente en ${minutes} minutos.`;
@@ -440,7 +500,7 @@ export async function handleWebhook(req, res) {
             content: buttonReply.title || `+${minutes} min`,
             messageId: messageId || null,
             intent: 'reminder_snooze_click',
-            entities: { reminderId, minutes, newSendAt },
+            entities: { reminderId, minutes, newSendAt, _responseLanguage: interactiveLanguage },
           });
           touchUserLastActive(user.id, recipientIdentifier);
 
@@ -456,7 +516,7 @@ export async function handleWebhook(req, res) {
             role: 'assistant',
             content: confirmText,
             intent: 'reminder_snooze',
-            entities: { reminderId, minutes, newSendAt },
+            entities: { reminderId, minutes, newSendAt, _responseLanguage: interactiveLanguage },
           });
           console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} snoozed by ${minutes}m via button reply in ${Date.now() - queueEnqueueTime}ms`);
           return;
@@ -476,14 +536,16 @@ export async function handleWebhook(req, res) {
           try {
             const res = await updateTask(taskId, { status: 'completed' }, user.id);
             const taskRecord = res?.data || res;
-            if (taskRecord?.id) {
-              await acknowledgeRemindersByTaskId(taskRecord.id, user.id);
-            }
-            const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
+            if (!taskRecord?.id || taskRecord.status !== 'completed') { await reportUnconfirmedAction(); return; }
+            let companions;
+            try { companions = await acknowledgeRemindersByTaskId(taskRecord.id, user.id); }
+            catch { companions = { error: true }; }
+            const isEnglishUser = interactiveLanguage === 'en';
             const taskTitle = taskRecord?.title || taskRecord?.content || (isEnglishUser ? 'Task' : 'Tarea');
-            const confirmText = isEnglishUser
+            let confirmText = isEnglishUser
               ? `✅ *Task completed*\n\nAwesome! 🎯 You crossed off *${taskTitle}*. One less thing on your plate.`
               : `✅ *Tarea completada*\n\n¡Excelente! 🎯 Tachaste *${taskTitle}*. Un pendiente menos en tu agenda.`;
+            if (companions?.error) confirmText += partialWarning;
 
             await saveMessage({
               userId: user.id,
@@ -492,7 +554,7 @@ export async function handleWebhook(req, res) {
               content: listReply.title || taskTitle,
               messageId: messageId || null,
               intent: 'task_complete_list_click',
-              entities: { taskId },
+              entities: { taskId, _responseLanguage: interactiveLanguage },
             });
             touchUserLastActive(user.id, recipientIdentifier);
 
@@ -509,43 +571,34 @@ export async function handleWebhook(req, res) {
               role: 'assistant',
               content: confirmText,
               intent: 'task_complete_list',
-              entities: { taskId },
+              entities: { taskId, _responseLanguage: interactiveLanguage },
             });
 
             console.log(`[webhook fast-path req=${correlationId}] task ${taskId} completed via list reply in ${Date.now() - queueEnqueueTime}ms`);
             return;
           } catch (taskErr) {
             console.warn(`[webhook fast-path req=${correlationId}] task list click error:`, taskErr.message);
+            throw taskErr;
           }
         }
 
         if (listId.startsWith('rem:ack:')) {
           const reminderId = listId.replace('rem:ack:', '').trim();
           const ackResult = await acknowledgeReminder(reminderId, user.id);
-          if (ackResult?.task_id) {
-            try {
-              await updateTask(ackResult.task_id, { status: 'completed' }, user.id);
-            } catch (taskErr) {
-              console.warn(`[webhook fast-path req=${correlationId}] task completion cascade warning:`, taskErr.message);
-            }
-          }
-          if (ackResult?.id && isIntradayRecurrence(ackResult.recurrence_rule)) {
-            try {
-              await supabase.from('reminders').update({ status: 'cancelled' }).eq('id', ackResult.id);
-            } catch (cancelErr) {
-              console.warn(`[webhook fast-path req=${correlationId}] intraday recurrence cancel warning:`, cancelErr.message);
-            }
-          }
+          if (!ackResult?.id) { await reportUnconfirmedAction(); return; }
+          let incomplete = false;
+          try { incomplete = await completeReminderDependencies(ackResult); }
+          catch { incomplete = true; }
           try {
             clearWorkingMemory(user);
             if (phoneNumber) clearWorkingMemory(phoneNumber);
           } catch (memErr) {
             console.warn(`[webhook fast-path req=${correlationId}] clearWorkingMemory warning:`, memErr.message);
           }
-          const isEnglishUser = Boolean(user?.locale?.startsWith('en'));
-          const confirmText = isEnglishUser
+          const isEnglishUser = interactiveLanguage === 'en';
+          const confirmText = (isEnglishUser
             ? '✅ Great! I’ve marked this reminder as completed.'
-            : '✅ ¡Excelente! He marcado este recordatorio como completado.';
+            : '✅ ¡Excelente! He marcado este recordatorio como completado.') + (incomplete ? partialWarning : '');
 
           await saveMessage({
             userId: user.id,
@@ -554,7 +607,7 @@ export async function handleWebhook(req, res) {
             content: listReply.title || (isEnglishUser ? 'Done' : 'Listo'),
             messageId: messageId || null,
             intent: 'reminder_ack_click',
-            entities: { reminderId },
+            entities: { reminderId, _responseLanguage: interactiveLanguage },
           });
           touchUserLastActive(user.id, recipientIdentifier);
 
@@ -570,7 +623,7 @@ export async function handleWebhook(req, res) {
             role: 'assistant',
             content: confirmText,
             intent: 'reminder_ack',
-            entities: { reminderId },
+            entities: { reminderId, _responseLanguage: interactiveLanguage },
           });
           console.log(`[webhook fast-path req=${correlationId}] reminder ${reminderId} acknowledged via list reply in ${Date.now() - queueEnqueueTime}ms`);
           return;
@@ -595,7 +648,6 @@ export async function handleWebhook(req, res) {
       const isDocument = message.type === 'document' || Boolean(message.document);
       const isLocation = message.type === 'location' || Boolean(message.location);
 
-      let locationTz = null;
       let mediaElapsedMs = 0;
       let attachmentOnly = false;
       if (isLocation) {
@@ -605,7 +657,6 @@ export async function handleWebhook(req, res) {
         const locName = loc.name || loc.address || '';
         const nearest = getNearestCityFromCoordinates(lat, lon);
         const placeText = locName || (nearest ? `${nearest.city}, ${nearest.region || nearest.country}` : '');
-        locationTz = detectTimezoneFromCoordinates(lat, lon) || (nearest?.tz || null) || detectTimezoneFromLocationText(locName);
         messageText = `[Ubicación compartida: ${placeText ? `${placeText} ` : ''}(lat ${lat}, lon ${lon})]`;
       } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url || audioObj?.download_url)) {
         const mediaStart = Date.now();
@@ -659,9 +710,14 @@ export async function handleWebhook(req, res) {
         mediaElapsedMs = Date.now() - mediaStart;
       }
 
+      if (!messageText && (isImage || isDocument) && caption.trim()) {
+        messageText = caption.trim();
+      }
       if (!messageText && (isAudio || isImage || isDocument)) {
         const mediaLabel = isAudio ? 'audio' : (isImage ? 'imagen' : 'documento');
-        const failureText = `No pude procesar ese ${mediaLabel} en este momento. No ejecuté ninguna acción basada en su contenido; puedes reenviarlo o escribir la instrucción en texto.`;
+        const failureText = user?.locale?.startsWith('en')
+          ? 'I could not process that attachment. I took no action based on its content; you can resend it or type your request.'
+          : `No pude procesar ese ${mediaLabel} en este momento. No ejecuté ninguna acción basada en su contenido; puedes reenviarlo o escribir la instrucción en texto.`;
         await sendWhatsAppText({
           phoneNumberId,
           phoneNumber,
@@ -683,70 +739,22 @@ export async function handleWebhook(req, res) {
         return;
       }
 
+      // Keep the current user-authored words separate from model-only quoted/OCR context.
+      // Transcripts count as current input; image/document extraction never does.
+      const currentUserText = isLocation
+        ? ''
+        : extractCurrentUserText(messageText, (isImage || isDocument) ? caption : undefined);
+
       // Extract WhatsApp quoted/replied message context (Swipe to Reply)
       const contextObj = message.context || body.message?.context || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.context;
       const quotedText = contextObj?.quoted_content || contextObj?.body || contextObj?.text || contextObj?.message?.text?.body || contextObj?.message?.text || null;
       if (quotedText && typeof quotedText === 'string' && quotedText.trim().length > 0) {
         console.log(`[webhook req=${correlationId}] Quoted message detected: "${quotedText.slice(0, 60)}..."`);
-        messageText = `[Respondiendo a: "${quotedText.trim()}"]\n${messageText}`;
+        messageText = `<untrusted_quoted_message>${quotedText.trim()}</untrusted_quoted_message>\n${messageText}`;
       }
 
       const logContact = displayName ? `"${displayName}" (${recipientIdentifier})` : recipientIdentifier;
       console.log(`[webhook req=${correlationId}] Inbound from ${logContact}: "${messageText.slice(0, 90)}..."`);
-
-      // Initial Onboarding for New Contacts
-      if (user.is_new) {
-        try {
-          await inferUserOnboardingMetadata({
-            user,
-            phoneNumber: recipientIdentifier,
-            messageText,
-            displayName,
-            correlationId,
-          });
-        } catch (onboardingErr) {
-          console.warn(`[webhook req=${correlationId}] Onboarding error:`, onboardingErr?.message || onboardingErr);
-        }
-      }
-
-      // Dynamic Timezone Resolution
-      if (locationTz && user.timezone !== locationTz) {
-        // High-confidence: Native WhatsApp GPS Location Pin
-        console.log(`[webhook req=${correlationId}] Dynamic timezone switch via location pin: ${user.timezone} -> ${locationTz}`);
-        await updateUserTimezone(user.id, locationTz);
-        user.timezone = locationTz;
-      } else {
-        // Strict guard: only switch via conversational text if user EXPLICITLY commands a timezone change or states current residence,
-        // and NEVER if the message is creating a task, list, reminder, or mentioning a future trip/flight/hotel.
-        const isTaskOrFutureContext = /\b(lista|tarea|recuerdame|recuérdame|recordar|comprar|viaje a|viajar a|vuelo a|hotel|itinerario|ir a|visitar)\b/i.test(messageText);
-        const isExplicitLocationDirective = /^(?:estoy viviendo en|ahora vivo en|me mud[eé] a|cambia(?:r)? mi zona horaria a|mi zona horaria es)\s+/i.test(messageText.trim()) ||
-          /\b(?:físicamente me encuentro en|actualmente resido en)\b/i.test(messageText);
-
-        if (!isTaskOrFutureContext && isExplicitLocationDirective) {
-          const textTz = detectTimezoneFromLocationText(messageText);
-          if (textTz && user.timezone !== textTz) {
-            console.log(`[webhook req=${correlationId}] Dynamic timezone switch via explicit directive: ${user.timezone} -> ${textTz}`);
-            await updateUserTimezone(user.id, textTz);
-            user.timezone = textTz;
-          }
-        }
-      }
-
-      // Dynamic Language / Locale Resolution
-      const detectedLang = detectLanguageFromText(messageText);
-      if (detectedLang) {
-        const targetLocale = detectedLang === 'en' ? 'en-US' : 'es-CO';
-        const currentLocale = user.locale || 'es-CO';
-        const isExplicitLangDirective = /^(?:habla(?:me)? en (?:español|ingl[eé]s)|speak in (?:english|spanish)|cambia(?:r)? mi idioma a (?:español|ingl[eé]s))/i.test(messageText.trim());
-
-        if (isExplicitLangDirective || targetLocale !== currentLocale) {
-          console.log(`[webhook req=${correlationId}] Dynamic locale switch: ${currentLocale} -> ${targetLocale} (explicit=${isExplicitLangDirective})`);
-          user.locale = targetLocale;
-          updateUserLocale(user.id, targetLocale).catch((err) => {
-            console.warn(`[webhook req=${correlationId}] updateUserLocale background error:`, err?.message || err);
-          });
-        }
-      }
 
       // 3. PERSIST USER MESSAGE FIRST AND AWAIT (Guarantees chronological order and DB-level deduplication)
       const tSave0 = Date.now();
@@ -765,10 +773,10 @@ export async function handleWebhook(req, res) {
       });
       const dbSaveUserMs = Date.now() - tSave0;
 
-      // If concurrent request won the DB insert on the same message_id, abort duplicate processing
-      if (messageId && !savedUserMsg) {
-        console.warn(`[webhook req=${correlationId}] Duplicate inbound messageId=${messageId} caught by DB unique constraint.`);
-        return;
+      // A storage error must not be mislabeled as deduplication or allow tools without history.
+      if (!savedUserMsg) {
+        if (messageId && await isMessageAlreadyProcessed(messageId)) return;
+        throw Object.assign(new Error('Inbound conversation persistence failed'), { code: 'MESSAGE_STORAGE_UNAVAILABLE' });
       }
       touchUserLastActive(user.id, recipientIdentifier);
 
@@ -789,8 +797,13 @@ export async function handleWebhook(req, res) {
         requestTimeMs,
         inputModality,
         attachmentOnly,
+        currentUserText,
       });
       const routeElapsedMs = Date.now() - routeStart;
+      // Preserve the observed answer before transport; recovery never reexecutes its tools.
+      await checkpointTurnResponse({ confirmation: result.confirmation, intent: result.intent,
+        entities: result.entities, executionFacts: result.executionFacts });
+      await assertTurnLease();
 
       // 6. Send confirmation to user via Kapso WhatsApp API
       let sendElapsedMs = 0;
@@ -799,31 +812,21 @@ export async function handleWebhook(req, res) {
         const sendStart = Date.now();
         if (result.flow) {
           const flowLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
-          try {
-            deliveryResult = await sendWhatsAppFlow({
-              phoneNumberId,
-              phoneNumber,
-              bsuid,
-              headerText: result.flow.headerText || null,
-              bodyText: result.confirmation,
-              footerText: result.flow.footerText || null,
-              buttonText: result.flow.buttonText || (flowLanguage === 'en' ? 'Complete tasks' : 'Completar tareas'),
-              flowId: result.flow.flowId,
-              flowToken: result.flow.flowToken,
-              flowAction: result.flow.flowAction || 'navigate',
-              screen: result.flow.screen || 'TASK_SELECTION',
-              flowData: result.flow.data,
-              mode: result.flow.mode,
-            });
-          } catch (flowError) {
-            console.warn(`[webhook req=${correlationId}] Flow dispatch failed, falling back to text message:`, flowError.message);
-            deliveryResult = await sendWhatsAppText({
-              phoneNumberId,
-              phoneNumber,
-              bsuid,
-              text: result.confirmation,
-            });
-          }
+          deliveryResult = await sendWhatsAppFlow({
+            phoneNumberId,
+            phoneNumber,
+            bsuid,
+            headerText: result.flow.headerText || null,
+            bodyText: result.confirmation,
+            footerText: result.flow.footerText || null,
+            buttonText: result.flow.buttonText || (flowLanguage === 'en' ? 'Complete tasks' : 'Completar tareas'),
+            flowId: result.flow.flowId,
+            flowToken: result.flow.flowToken,
+            flowAction: result.flow.flowAction || 'navigate',
+            screen: result.flow.screen || 'TASK_SELECTION',
+            flowData: result.flow.data,
+            mode: result.flow.mode,
+          });
         } else if (result.ctaUrl) {
           const ctaLanguage = result.language || (user?.locale?.startsWith('en') ? 'en' : 'es');
           deliveryResult = await sendWhatsAppCtaUrl({
@@ -853,7 +856,7 @@ export async function handleWebhook(req, res) {
             headerText: result.list.headerText || null,
             bodyText: result.confirmation,
             footerText: result.list.footerText || null,
-            buttonText: result.list.buttonText || (user?.locale?.startsWith('en') ? 'View options' : 'Ver opciones'),
+            buttonText: result.list.buttonText || (result.language === 'en' ? 'View options' : 'Ver opciones'),
             sections: result.list.sections,
           });
         } else {
@@ -867,6 +870,9 @@ export async function handleWebhook(req, res) {
         sendElapsedMs = Date.now() - sendStart;
       }
 
+      if (result.confirmation && !deliveryResult?.success) {
+        throw Object.assign(new Error('Reply delivery not confirmed'), { code: 'REPLY_DELIVERY_UNKNOWN' });
+      }
       const totalElapsed = Date.now() - startTime;
       console.log(`[webhook req=${correlationId}] Turn delivered in ${totalElapsed}ms (queue: ${queueWaitMs}ms, dbPrep: ${userResolveMs + dbSaveUserMs + dbHistoryMs}ms, media: ${mediaElapsedMs}ms, ai: ${routeElapsedMs}ms, send: ${sendElapsedMs}ms)`);
 
@@ -878,19 +884,19 @@ export async function handleWebhook(req, res) {
         messageId: deliveryResult?.success ? (deliveryResult.messageId || null) : null,
         content: result.confirmation ?? '',
         intent: result.intent,
-        entities: result.entities ?? {},
+        entities: { ...(result.entities || {}), _responseLanguage: result.language || (user?.locale?.startsWith('en') ? 'en' : 'es') },
       });
 
       // 8. Attachment-only observations are not durable user facts. Captioned
       // attachments can still contain trusted user text eligible for learning.
       if (!attachmentOnly) {
-        extractMemoryInBackground({
+        withoutTurnLease(() => extractMemoryInBackground({
           userId: user.id,
-          userText: messageText,
+          userText: currentUserText,
           assistantReply: result.confirmation ?? '',
           executionFacts: result.executionFacts || [],
           memoryDisposition: result.memoryDisposition || 'extract',
-        });
+        }));
       } else {
         console.log(`[memory-extractor req=${correlationId}] skipped attachment-only turn`);
       }
@@ -898,5 +904,6 @@ export async function handleWebhook(req, res) {
 
   } catch (error) {
     console.error(`[webhook req=${correlationId}] Process error:`, error.message || error);
+    throw error;
   }
 }

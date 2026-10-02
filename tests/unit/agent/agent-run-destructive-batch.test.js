@@ -102,7 +102,7 @@ describe('PR 2: Destructive Batch Entity Deletion via AgentRun (Flows B & C)', (
     expect(execution.records).toHaveLength(1);
     expect(execution.records[0].result.action).toBe('entity_deletion_confirmation_required');
 
-    const activeRun = await getActiveAgentRun(user);
+    const activeRun = await getActiveAgentRun(user, context.referenceTime);
     expect(activeRun).not.toBeNull();
     expect(activeRun.status).toBe('waiting_for_approval');
     expect(activeRun.kind).toBe('entity_destructive_batch');
@@ -278,7 +278,7 @@ describe('PR 2: Destructive Batch Entity Deletion via AgentRun (Flows B & C)', (
     const turn2Result = await routeMessage('No, no elimines nada', user, []);
 
     expect(turn2Result.plan.type).toBe('cancelled_run');
-    expect(turn2Result.confirmation).toBe('Entendido, cancelé la operación.');
+    expect(turn2Result.confirmation).toBe('Operación cancelada.');
 
     // Invariant: executeTool was NOT called again to delete anything
     expect(executeTool).toHaveBeenCalledTimes(1); // only the initial preview from Turn 1
@@ -425,9 +425,9 @@ describe('PR 2: Destructive Batch Entity Deletion via AgentRun (Flows B & C)', (
       data: { previewEntities: [previewAlfaBeta[1]] },
     });
 
-    // Model marks unrelated to previous approval, then initiates delete Beta
+    // Model explicitly replaces the previous approval, then initiates delete Beta
     callChatCompletion.mockResolvedValueOnce(modelResponse({
-      relation: 'unrelated',
+      relation: 'supersede',
     }));
     callChatCompletion.mockResolvedValueOnce(modelResponse({
       actions: [{ domain: 'entity', action: 'delete', target: 'Beta', scope: 'single' }],

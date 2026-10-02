@@ -204,7 +204,7 @@ function normalizeRecurringReminder(action, context) {
   const inheritedRecurrence = workingItem?.raw?.recurrence_rule
     || workingItem?.raw?.recurrenceRule
     || null;
-  const recurrence = action.recurrence || inheritedRecurrence;
+  const recurrence = action.clearFields?.includes('recurrence') ? null : action.recurrence || inheritedRecurrence;
 
   if (recurrence !== 'daily' || !action.schedule) return action;
   if (!['local_time', 'relative_day_time'].includes(action.schedule.kind)) return action;
@@ -213,6 +213,7 @@ function normalizeRecurringReminder(action, context) {
   const resolved = resolveTypedSchedule(action.schedule, {
     referenceTime: context.referenceTime,
     timezone: context.timezone,
+    baseDate: workingItem?.raw?.sendAt || workingItem?.raw?.send_at || workingItem?.time || null,
   });
   const reference = context.referenceTime instanceof Date ? context.referenceTime : new Date(context.referenceTime || Date.now());
   if (!resolved.valid || !resolved.date || resolved.date.getTime() > reference.getTime()) return action;
@@ -313,8 +314,21 @@ function normalizeTaskEntityName(action, context) {
  * Add deterministic runtime context only. This layer never changes semantic
  * domain/action and never turns identity/context into patch content.
  */
+function bindTypedContextReference(action, context) {
+  if (!action.contextRef) return action;
+  const expectedType = { reminder: 'reminder', task: 'task', calendar: 'calendar_event' }[action.domain];
+  const item = getWorkingMemory(context.user)?.items?.find(item => item.position === action.contextRef.position);
+  const compatible = item?.type === expectedType;
+  if (action.contextRef.source !== 'working_memory' || !expectedType || !compatible || !item?.internalId || ['deleted', 'cancelled'].includes(item.raw?.status)) {
+    return { ...action, _referenceError: true };
+  }
+  // Freeze the selected identity before any sibling action can replace working memory.
+  const { contextRef, ...bound } = action;
+  return { ...bound, target: item.internalId };
+}
+
 export function normalizeTurnActionForRuntime(original, context = {}) {
-  let action = { ...original };
+  let action = bindTypedContextReference({ ...original }, context);
   action = normalizeCalendarYear(action, context);
   action = normalizeReadScope(action, context);
   action = normalizeUpdateFields(action);

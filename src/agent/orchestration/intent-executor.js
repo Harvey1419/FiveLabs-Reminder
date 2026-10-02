@@ -1,11 +1,8 @@
 import { executeTool } from '../tools/index.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { createExecutionFact } from '../core/execution-facts.js';
-import {
-  getWorkingMemory,
-  saveWorkingMemory,
-  clearWorkingMemory,
-} from '../core/working-memory-store.js';
+import { getWorkingMemory } from '../core/working-memory-store.js';
+import { updateWorkingMemoryFromExecution, updateWorkingMemoryFromFacts } from '../core/working-memory-execution.js';
 import {
   extractMultipleOrdinals,
 } from '../core/context-reference.js';
@@ -15,30 +12,11 @@ import {
   pinReminderCancellationTargets,
   pinTaskMutationTargets,
 } from './context-target-pinner.js';
-import { createApprovalRun, createInputRun } from '../core/agent-run.js';
+import { cancelSupersededInputRun, createApprovalRun, createInputRun } from '../core/agent-run.js';
 import { buildDomainCall, failedResult, intentTarget } from './domain-call.js';
+import { resolveObservedTarget } from './resolve-observed-target.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
-
-function extractWorkingItems(data) {
-  if (!data) return [];
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data.items)) return data.items;
-  if (Array.isArray(data.events)) return data.events;
-  if (Array.isArray(data.reminders)) return data.reminders;
-  if (Array.isArray(data.tasks)) return data.tasks;
-  if (data.id && (data.title || data.content || data.name || data.summary)) return [data];
-  return [];
-}
-
-function inferItemType(toolName) {
-  if (toolName === TOOL_NAMES.MANAGE_TASK) return 'task';
-  if (toolName === TOOL_NAMES.MANAGE_PROJECT) return 'project';
-  if (toolName === TOOL_NAMES.MANAGE_REMINDER) return 'reminder';
-  if (toolName === TOOL_NAMES.MANAGE_GOOGLE_CALENDAR) return 'calendar_event';
-  if (toolName === TOOL_NAMES.MANAGE_ENTITY) return 'entity';
-  return 'all';
-}
 
 const MISSING_FIELD_BY_ERROR = Object.freeze({
   AMBIGUOUS_TARGET: 'selection',
@@ -87,130 +65,6 @@ function defaultPendingQuestion(actions, language = 'es') {
     : '¿Qué dato debo usar para continuar?';
 }
 
-function updateWorkingMemoryFromExecution({ user, action, toolName, params, result }) {
-  const existingMemory = getWorkingMemory(user);
-
-  if (
-    toolName === TOOL_NAMES.MANAGE_REMINDER
-    && params.action === 'acknowledge'
-    && result.success
-  ) {
-    if (!existingMemory) return;
-    const acknowledgedId = String(result.data?.id || params.reminderId || '').trim();
-    const remainingItems = (existingMemory.items || []).filter((item) => (
-      !acknowledgedId || String(item?.internalId || '').trim() !== acknowledgedId
-    ));
-    if (remainingItems.length === 0 && !existingMemory.activeEntity) {
-      clearWorkingMemory(user);
-      return;
-    }
-    saveWorkingMemory(user, {
-      ...existingMemory,
-      lastAction: 'reminder_acknowledged',
-      notificationReminderId: null,
-      notificationContent: null,
-      items: remainingItems,
-    });
-    return;
-  }
-
-  if (
-    toolName === TOOL_NAMES.MANAGE_TASK
-    && ['update', 'complete', 'delete'].includes(params.action)
-    && result.success
-    && existingMemory?.items?.length > 0
-    && (existingMemory.entityType === 'task' || existingMemory.items.every((item) => item.type === 'task'))
-  ) {
-    const targetId = String(params.target || '').trim();
-    const matchingIndex = existingMemory.items.findIndex((item) => String(item.internalId || '').trim() === targetId);
-    if (matchingIndex < 0) return;
-
-    const returnedTask = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
-      ? (result.data.data && typeof result.data.data === 'object' ? result.data.data : result.data)
-      : {};
-    const items = existingMemory.items.map((item, index) => {
-      if (index !== matchingIndex) return item;
-      const raw = { ...(item.raw || {}), ...returnedTask, id: item.internalId };
-      if (params.action === 'delete') raw.status = 'deleted';
-      return {
-        ...item,
-        title: params.action === 'delete' ? item.title : String(returnedTask.title || returnedTask.content || item.title),
-        summary: params.action === 'delete' ? item.summary : String(returnedTask.title || returnedTask.content || item.summary),
-        raw,
-      };
-    });
-
-    saveWorkingMemory(user, {
-      ...existingMemory,
-      lastAction: result.action || `task_${params.action}`,
-      items,
-    });
-    return;
-  }
-
-  const items = extractWorkingItems(result.data);
-  if (items.length === 0) return;
-  const firstType = items[0]?.type || inferItemType(toolName);
-  const uniform = items.every((item) => (item.type || firstType) === firstType);
-  const source = toolName === TOOL_NAMES.GET_UNIFIED_AGENDA
-    ? 'unified'
-    : toolName === TOOL_NAMES.MANAGE_GOOGLE_CALENDAR
-      ? 'calendar'
-      : toolName === TOOL_NAMES.MANAGE_REMINDER
-        ? 'reminder'
-        : toolName === TOOL_NAMES.MANAGE_PROJECT
-          ? 'project'
-          : toolName === TOOL_NAMES.MANAGE_ENTITY ? 'entity' : 'task';
-
-  const uniformEntityName = items.length > 0
-    && items.every((item) => item?.entityName && item.entityName === items[0]?.entityName)
-    ? items[0].entityName
-    : null;
-  const uniformEntityId = items.length > 0
-    ? items
-      .map((item) => item?.entityId || item?.raw?.entity_id || item?.raw?.entityId || item?.raw?.entities?.id || null)
-      .filter(Boolean)
-      .find((id, _index, ids) => ids.every((candidate) => candidate === id)) || null
-    : null;
-  const activeEntity = result.data?.entityName
-    || params.entityName
-    || ((toolName === TOOL_NAMES.MANAGE_PROJECT || toolName === TOOL_NAMES.MANAGE_ENTITY) ? result.data?.name : null)
-    || uniformEntityName;
-  const activeEntityId = result.data?.entityId
-    || ((toolName === TOOL_NAMES.MANAGE_PROJECT || toolName === TOOL_NAMES.MANAGE_ENTITY) ? result.data?.id : null)
-    || uniformEntityId;
-
-  let workingItems = items;
-  const sameContainer = Boolean(
-    existingMemory
-    && toolName === TOOL_NAMES.MANAGE_TASK
-    && params.action === 'create'
-    && (
-      (activeEntityId && existingMemory.activeEntityId === activeEntityId)
-      || (activeEntity && existingMemory.activeEntity === activeEntity)
-    )
-  );
-  if (sameContainer) {
-    const byId = new Map();
-    for (const item of [...(existingMemory.items || []), ...items]) {
-      const id = String(item?.internalId || item?.id || '').trim();
-      if (id) byId.set(id, item);
-    }
-    workingItems = [...byId.values()].slice(-10);
-  }
-
-  saveWorkingMemory(user, {
-    source,
-    scope: params.scope || 'current',
-    semanticQuery: params.query || null,
-    entityType: uniform ? firstType : 'all',
-    activeEntity,
-    activeEntityId,
-    lastAction: result?.action === 'partially_created_reminders' ? 'partially_created' : toolName,
-    items: workingItems,
-  });
-}
-
 /** Execute semantic TurnIntent directly against deterministic domain tools. */
 export async function executeTurnIntent(intent, context) {
   let actions = Array.isArray(intent?.actions) ? intent.actions : [];
@@ -247,6 +101,9 @@ export async function executeTurnIntent(intent, context) {
     if (Array.isArray(action.missingFields) && action.missingFields.length > 0) return true;
     return buildDomainCall(action, context).requiresClarification === true;
   });
+  let supersededInputRunCancellation = 'pending';
+  let pendingInputTransitionFailed = false;
+  let pendingInputTransitionFailureMessage = null;
   if (staged.length > 0) {
     const stagedDrafts = staged.map((action) => action.schedule?.clockMode === 'ambiguous_12h'
       ? { ...action, missingFields: [...new Set([...(action.missingFields || []), 'time'])] }
@@ -258,7 +115,8 @@ export async function executeTurnIntent(intent, context) {
       missingFields: pendingMissingFields(stagedDrafts),
     };
 
-    await createInputRun({
+    const cannotStageAlongsidePending = context.preserveExistingActiveRun === true;
+    const stagedRun = cannotStageAlongsidePending ? null : await createInputRun({
       user: context.user,
       kind: stagedDrafts.every((d) => d.domain === 'reminder') ? 'reminder_creation' : 'input_draft',
       partialActions: stagedDrafts,
@@ -266,11 +124,46 @@ export async function executeTurnIntent(intent, context) {
       question: clarification.question || '',
       context: { drafts: stagedDrafts },
       referenceTime: context.referenceTime,
+      timezone: context.timezone,
+      supersedesRunId: context.supersedesRunId || null,
+      preserveExistingActiveRun: context.preserveExistingActiveRun === true,
     });
+    const replacementCancellationFailed = stagedRun === null && !cannotStageAlongsidePending;
+    const replacementActivationFailed = stagedRun?.activationFailed === true;
+    pendingInputTransitionFailed = replacementCancellationFailed || replacementActivationFailed;
+    if (replacementActivationFailed) {
+      pendingInputTransitionFailureMessage = context.language === 'en'
+        ? 'I saved the replacement draft but could not confirm that it became active, so I did not execute it. The previous request may already have been cancelled; please check your pending request before trying again.'
+        : 'Guardé el borrador de reemplazo, pero no pude confirmar que quedara activo, así que no lo ejecuté. Es posible que la solicitud anterior ya se haya cancelado; revisa tus solicitudes pendientes antes de volver a intentarlo.';
+    }
+    if (context.supersedesRunId) {
+      supersededInputRunCancellation = replacementCancellationFailed ? 'failed' : 'confirmed';
+    }
 
     const stagedSet = new Set(staged);
-    actions = actions.filter((action) => !stagedSet.has(action));
-    if (clarificationActions.length === 0) actions.push(clarification);
+    actions = actions.filter((action) => (
+      !stagedSet.has(action)
+      && (!(cannotStageAlongsidePending || replacementCancellationFailed || replacementActivationFailed) || action.domain !== 'clarification')
+    ));
+    if (cannotStageAlongsidePending || replacementCancellationFailed || replacementActivationFailed) {
+      actions.push({
+        domain: 'clarification',
+        action: 'request',
+        question: context.language === 'en'
+          ? (replacementActivationFailed
+            ? pendingInputTransitionFailureMessage
+            : replacementCancellationFailed
+            ? 'I could not confirm that the pending request was still active, so I did not run or save the replacement. Its status may have changed; please check your pending request before trying again.'
+            : 'You already have a pending request. I did not save this new incomplete request; please finish or cancel the pending one first, then send this request again.' )
+          : (replacementActivationFailed
+            ? pendingInputTransitionFailureMessage
+            : replacementCancellationFailed
+            ? 'No pude confirmar que la solicitud pendiente siguiera activa, así que no ejecuté ni guardé el reemplazo. Su estado pudo haber cambiado; revisa tus solicitudes pendientes antes de volver a intentarlo.'
+            : 'Ya tienes una solicitud pendiente. No guardé esta nueva solicitud incompleta; primero termina o cancela la anterior y después envíame esta solicitud nuevamente.'),
+      });
+    } else if (clarificationActions.length === 0) {
+      actions.push(clarification);
+    }
   }
 
   // Resolve contextual identities once against the pre-mutation snapshot. This
@@ -283,6 +176,46 @@ export async function executeTurnIntent(intent, context) {
 
   const records = [];
   const facts = [];
+  const approvalActions = [];
+  let targetResolutionAttempted = false;
+  const runTool = async (options) => {
+    if (context.supersedesRunId && supersededInputRunCancellation === 'pending') {
+      let cancelled = false;
+      try {
+        cancelled = await cancelSupersededInputRun(
+          context.user,
+          context.supersedesRunId,
+          context.referenceTime || new Date(),
+        );
+      } catch {
+        cancelled = false;
+      }
+      supersededInputRunCancellation = cancelled ? 'confirmed' : 'failed';
+    }
+    if (pendingInputTransitionFailed || supersededInputRunCancellation === 'failed') return {
+      success: false,
+      action: 'clarification_required',
+      errorCode: 'PENDING_REQUEST_CHANGED',
+      error: pendingInputTransitionFailureMessage || (context.language === 'en'
+        ? 'I could not confirm that the pending request was still active, so I did not run the replacement. Its status may have changed; please check your pending request before trying again.'
+        : 'No pude confirmar que la solicitud pendiente siguiera activa, así que no ejecuté el reemplazo. Su estado pudo haber cambiado; revisa tus solicitudes pendientes antes de volver a intentarlo.'),
+    };
+    try {
+      const result = await (context.executeTool || executeTool)(options);
+      if (!result || typeof result.success !== 'boolean') throw new Error('Missing observable tool outcome.');
+      return result;
+    } catch {
+      return {
+        success: false,
+        outcome: 'unknown',
+        action: 'execution_outcome_unknown',
+        errorCode: 'UNKNOWN_WRITE_OUTCOME',
+        error: context.language === 'en'
+          ? 'I could not confirm the outcome of this operation. I stopped the remaining actions; I will not repeat this operation without checking its state.'
+          : 'No pude confirmar el resultado de esta operación. Detuve las acciones restantes; no repetiré esta operación sin comprobar su estado.',
+      };
+    }
+  };
 
   for (let index = 0; index < actions.length; index += 1) {
     const actionIndex = index;
@@ -339,7 +272,6 @@ export async function executeTurnIntent(intent, context) {
         action: 'create',
         items: taskCreateBatch.flatMap((prepared) => prepared.params.items || []),
       };
-      const runTool = context.executeTool || executeTool;
       result = await runTool({
         toolName,
         params,
@@ -356,7 +288,6 @@ export async function executeTurnIntent(intent, context) {
         action: 'delete',
         targetNames: projectDeleteBatch.map((a) => intentTarget(a)).filter(Boolean),
       };
-      const runTool = context.executeTool || executeTool;
       result = await runTool({
         toolName,
         params,
@@ -373,7 +304,6 @@ export async function executeTurnIntent(intent, context) {
         action: 'delete',
         targetNames: entityDeleteBatch.map((a) => intentTarget(a)).filter(Boolean),
       };
-      const runTool = context.executeTool || executeTool;
       result = await runTool({
         toolName,
         params,
@@ -427,7 +357,6 @@ export async function executeTurnIntent(intent, context) {
           ) {
             params = { ...params, target: pinnedTaskTargets.get(index) };
           }
-          const runTool = context.executeTool || executeTool;
           result = await runTool({
             toolName,
             params,
@@ -441,15 +370,42 @@ export async function executeTurnIntent(intent, context) {
       }
     }
 
+    if (!targetResolutionAttempted && result?.errorCode === 'AMBIGUOUS_TARGET' && context.userMessage) {
+      targetResolutionAttempted = true;
+      const resolved = await resolveObservedTarget({ toolName, params, result, userText: context.userMessage,
+        timezone: context.timezone, language: context.language, correlationId: context.correlationId });
+      if (resolved) {
+        params = resolved;
+        result = await runTool({ toolName, params, user: context.user, isPro: context.isPro, language: context.language,
+          correlationId: context.correlationId, referenceTime: context.referenceTime });
+      }
+    }
+
+    if ((context.preserveExistingActiveRun || staged.length > 0) && (
+      result.action === 'entity_deletion_confirmation_required'
+      || result.action === 'project_deletion_confirmation_required'
+      || result.data?.pendingClarifications?.some(item => item?.proposedReminder)
+    )) {
+      const message = context.language === 'en'
+        ? 'Your previous request is still pending. I did not save another approval request; finish or cancel the pending request first.'
+        : 'Tu solicitud anterior sigue pendiente. No guardé otra solicitud de aprobación; primero termina o cancela la pendiente.';
+      result = result.success
+        ? { ...result, partialSuccess: true, complete: false, requiresClarification: false, rawSummary: `${result.rawSummary || ''}\n${message}`, data: { ...result.data, pendingClarifications: [] }, pendingClarifications: [] }
+        : failedResult('PENDING_REQUEST_ACTIVE', message, context.language, { requiresClarification: true });
+    }
+
     const fact = createExecutionFact({
       toolName,
       params,
       result,
       callId: `call_${actionIndex + 1}`,
+      timezone: context.timezone || context.user?.timezone,
       language: context.language,
     });
     records.push({ toolName, params, result, fact });
     facts.push(fact);
+
+    if (fact.outcome === 'unknown') break;
 
     if (
       (result.action === 'entity_deletion_confirmation_required' || result.action === 'project_deletion_confirmation_required')
@@ -458,36 +414,21 @@ export async function executeTurnIntent(intent, context) {
       const isProject = result.action === 'project_deletion_confirmation_required';
       const items = (isProject ? result.data?.previewProjects : result.data?.previewEntities) || [];
       if (items.length > 0) {
-        const preparedActions = items.map((item, idx) => ({
-          callId: `call-${idx + 1}`,
-          domain: isProject ? 'project' : 'entity',
-          action: 'delete',
-          targetId: item.id,
-          targetName: item.name,
+        approvalActions.push(...items.map((item) => ({
+          domain: isProject ? 'project' : 'entity', action: 'delete', targetId: item.id, targetName: item.name,
           payload: isProject ? { action: 'delete', projectIds: [item.id] } : { action: 'delete', entityIds: [item.id] },
           status: 'prepared',
-        }));
+        })));
 
-        await createApprovalRun({
-          user: context.user,
-          kind: 'entity_destructive_batch',
-          preparedActions,
-          question: result.error || result.rawSummary,
-          context: { previewEntities: items, isProject },
-        });
-
-        const approvalButtons = [
-          { id: 'btn_confirm', title: context.language === 'en' ? '✅ Confirm' : '✅ Confirmar' },
-          { id: 'btn_cancel', title: context.language === 'en' ? '❌ Cancel' : '❌ Cancelar' },
-        ];
-        result.buttons = approvalButtons;
       }
     }
 
     if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
-      updateWorkingMemoryFromExecution({ user: context.user, action, toolName, params, result });
+      updateWorkingMemoryFromExecution({ user: context.user, toolName, params, result });
     }
   }
+
+  updateWorkingMemoryFromFacts(context.user, facts, { creationsOnly: true });
 
   const allProposedReminders = records.flatMap(({ result }) => (
     Array.isArray(result?.data?.pendingClarifications)
@@ -496,8 +437,7 @@ export async function executeTurnIntent(intent, context) {
   ));
 
   if (allProposedReminders.length > 0) {
-    const preparedActions = allProposedReminders.map((item, idx) => ({
-      callId: `call-${idx + 1}`,
+    approvalActions.push(...allProposedReminders.map((item) => ({
       domain: 'reminder',
       action: 'create',
       targetId: null,
@@ -515,28 +455,37 @@ export async function executeTurnIntent(intent, context) {
         }],
       },
       status: 'prepared',
-    }));
+    })));
+  }
 
-    const questions = allProposedReminders.map((p) => p.question).filter(Boolean);
-    await createApprovalRun({
-      user: context.user,
-      kind: 'proposal_approval',
-      preparedActions,
-      question: questions.join('\n') || (context.language === 'en' ? 'Do you want me to schedule these reminders?' : '¿Deseas programar estos recordatorios?'),
-      context: { proposedReminders: allProposedReminders },
-      referenceTime: context.referenceTime,
-    });
-
+  if (approvalActions.length > 0) {
+    const isDestructiveBatch = approvalActions.every(action => action.domain === approvalActions[0].domain && action.action === 'delete');
+    let stagedRun = null;
+    try {
+      stagedRun = await createApprovalRun({
+        user: context.user,
+        kind: isDestructiveBatch ? 'entity_destructive_batch' : 'generic_operation',
+        preparedActions: approvalActions.map((action, index) => ({ ...action, callId: `call-${index + 1}` })),
+        question: [...allProposedReminders.map(item => item.question), ...records.filter(({ result }) => result.requiresClarification && !result.data?.pendingClarifications?.length).map(({ result }) => result.error || result.rawSummary)].filter(Boolean).join('\n'),
+        referenceTime: context.referenceTime,
+      });
+    } catch { /* preserve earlier observed results and report staging failure */ }
     const approvalButtons = [
       { id: 'btn_confirm', title: context.language === 'en' ? '✅ Confirm' : '✅ Confirmar' },
-      { id: 'btn_reschedule', title: context.language === 'en' ? '✏️ Reschedule' : '✏️ Cambiar hora' },
+      ...(allProposedReminders.length ? [{ id: 'btn_reschedule', title: context.language === 'en' ? '✏️ Reschedule' : '✏️ Cambiar hora' }] : []),
       { id: 'btn_cancel', title: context.language === 'en' ? '❌ Cancel' : '❌ Cancelar' },
     ];
-    records.forEach(({ result }) => {
-      if (Array.isArray(result?.data?.pendingClarifications)) {
-        result.buttons = approvalButtons;
-      }
-    });
+    if (stagedRun) {
+      records.filter(({ result }) => result.requiresClarification || result.data?.pendingClarifications?.length).forEach(({ result }) => { result.buttons = approvalButtons; });
+    } else {
+      const message = context.language === 'en'
+        ? 'I could not save the pending approval. The proposed actions have not been executed.'
+        : 'No pude guardar la aprobación pendiente. Las acciones propuestas no se ejecutaron.';
+      const result = failedResult('APPROVAL_STORAGE_FAILED', message, context.language);
+      const fact = createExecutionFact({ toolName: 'orchestrator', params: {}, result, callId: 'approval_storage', language: context.language });
+      records.push({ toolName: 'orchestrator', params: {}, result, fact });
+      facts.push(fact);
+    }
   }
 
   return { records, facts, excluded: intent?.excluded || [] };

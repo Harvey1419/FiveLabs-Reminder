@@ -11,6 +11,8 @@ vi.mock('../../../src/agent/providers/client.js', () => ({
 vi.mock('../../../src/features/memory/service.js', () => ({
   retrieveRelevantMemories: vi.fn().mockResolvedValue([]),
   retrieveStandingPreferences: vi.fn().mockResolvedValue([]),
+  retrieveRelevantMemoriesResult: vi.fn().mockResolvedValue({ status: 'available', memories: [] }),
+  retrieveStandingPreferencesResult: vi.fn().mockResolvedValue({ status: 'available', memories: [] }),
   getProactiveAnchors: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
@@ -63,6 +65,13 @@ beforeEach(() => {
 });
 
 describe('Hermes direct TurnIntent router', () => {
+  it('inherits persisted conversation language for ambiguous replies without changing the profile', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({ actions: [{ domain: 'conversation', action: 'reply', content: 'You are welcome.' }] }));
+    const result = await routeMessage('OK', user, [{ role: 'assistant', content: 'Done.', entities: { _responseLanguage: 'en' } }]);
+    expect(result.language).toBe('en');
+    expect(callChatCompletion.mock.calls[0][0][0].content).toContain('Stored language fallback: en');
+    expect(user.locale).toBe('es-CO');
+  });
   it('delivers normal conversation through conversation.reply with one required structured model decision', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Te llamas Juan.' }],
@@ -80,6 +89,93 @@ describe('Hermes direct TurnIntent router', () => {
     expect(executeTool).not.toHaveBeenCalled();
     expect(callPendingTransitionVerification).not.toHaveBeenCalled();
     expect(callResponseSynthesis).not.toHaveBeenCalled();
+  });
+
+  it('rejects a free-text success claim outside the mandatory decision contract', async () => {
+    callChatCompletion.mockResolvedValue({ role: 'assistant', content: 'I scheduled your reminder for 8 AM.', tool_calls: [] });
+    const result = await routeMessage('Please remind me later', user, []);
+    expect(result.executionFacts).toEqual([]);
+    expect(result.confirmation).not.toContain('I scheduled your reminder');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'You wrote "I scheduled your reminder" — was that true?',
+    'Me dijiste: «Ya programé tu recordatorio». ¿Eso sí pasó?',
+  ])('does not mistake a quoted historical mutation claim for the assistant claiming success: %s', async (reply) => {
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: reply }],
+    }));
+
+    const result = await routeMessage('What did I say earlier?', user, []);
+
+    expect(result.confirmation).toBe(reply);
+    expect(result.executionFacts).toEqual([]);
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('renders observed failure instead of a preexecution success claim in a mixed intent', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({ actions: [
+      { domain: 'conversation', action: 'reply', content: 'Ya programé tu recordatorio para las 8.' },
+      { domain: 'reminder', action: 'create', content: 'Llamar', schedule: { kind: 'relative_offset', offsetMinutes: 20 } },
+    ] }));
+    executeTool.mockResolvedValue({ success: false, error: 'No se pudo guardar.', errorCode: 'DATABASE_ERROR' });
+    const result = await routeMessage('Recuérdame llamar en veinte minutos', user, []);
+    expect(result.confirmation).not.toContain('Ya programé');
+    expect(result.executionFacts[0].success).toBe(false);
+  });
+
+  it('marks memory context unavailable instead of telling the model no memory exists', async () => {
+    const memoryService = await import('../../../src/features/memory/service.js');
+    vi.spyOn(memoryService, 'retrieveRelevantMemoriesResult').mockResolvedValueOnce({ status: 'unavailable', memories: [] });
+    vi.spyOn(memoryService, 'retrieveStandingPreferencesResult').mockResolvedValueOnce({ status: 'unavailable', memories: [] });
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }],
+    }));
+
+    await routeMessage('What do you remember about me?', user, []);
+
+    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('Memory retrieval is temporarily unavailable');
+    expect(systemPrompt).not.toContain('(Ninguna memoria relevante para este turno)');
+  });
+
+  it('keeps an English reminder action bound to the current utterance despite Spanish quote and OCR context', async () => {
+    const currentUserText = 'Please remind me to review the report in 30 minutes.';
+    callChatCompletion.mockResolvedValue(modelToolCall({
+      responseLanguage: 'en',
+      actions: [{
+        domain: 'reminder', action: 'create', content: 'Review the report',
+        schedule: { kind: 'relative_offset', offsetMinutes: 30 },
+      }],
+    }));
+    executeTool.mockResolvedValue({
+      success: true,
+      complete: true,
+      action: 'created_reminder',
+      data: { items: [{ id: 'synthetic-reminder-1', content: 'Review the report', sendAt: '2026-10-01T18:55:00.000Z' }] },
+      confirmation: 'Reminder saved.',
+      rawSummary: 'Reminder saved.',
+    });
+
+    const result = await routeMessage(
+      `${currentUserText}\n<untrusted_quoted_message>Recuérdame pagar la factura mañana.</untrusted_quoted_message>\n<untrusted_attachment_content>Reunión a las 5.</untrusted_attachment_content>`,
+      { ...user, timezone: 'America/Los_Angeles', locale: 'es-CO' },
+      [],
+      { currentUserText, requestTimeMs: Date.parse('2026-10-01T18:25:00.000Z') },
+    );
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'manage_reminder',
+      params: expect.objectContaining({ action: 'create', items: [expect.objectContaining({ content: 'Review the report' })] }),
+    }));
+    expect(result.executionFacts).toEqual(expect.arrayContaining([expect.objectContaining({ success: true })]));
+    const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
+    expect(systemPrompt).toContain('Set responseLanguage');
+    expect(result.language).toBe('en');
+    expect(executeTool.mock.calls[0][0].language).toBe('en');
+    expect(systemPrompt).not.toContain('pagar la factura mañana');
   });
 
   it('never trusts prose-only operational output or sends a second semantic recovery call', async () => {
@@ -537,9 +633,9 @@ describe('Hermes direct TurnIntent router', () => {
 
   it('answers personal facts from user memories directly via conversation.reply without emitting memory.search', async () => {
     const memoryService = await import('../../../src/features/memory/service.js');
-    vi.spyOn(memoryService, 'retrieveRelevantMemories').mockResolvedValueOnce([
+    vi.spyOn(memoryService, 'retrieveRelevantMemoriesResult').mockResolvedValueOnce({ status: 'available', memories: [
       { category: 'fact', content: 'El usuario debe 580000 pesos al proyecto Apartamento' },
-    ]);
+    ] });
     callChatCompletion.mockResolvedValue(modelToolCall({
       actions: [{ domain: 'conversation', action: 'reply', content: 'Le debes 580.000 pesos al proyecto Apartamento.' }],
     }));

@@ -29,6 +29,7 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
+  schema.required = [...schema.required, 'responseLanguage'];
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']

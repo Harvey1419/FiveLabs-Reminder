@@ -58,7 +58,7 @@ const {
 } = await import('../../../src/infrastructure/database/messages.js');
 const { getOrCreateUserByPhone } = await import('../../../src/infrastructure/database/users.js');
 const { transcribeAudio } = await import('../../../src/integrations/media/transcription.js');
-const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
 
 function responseStub() {
   return {

@@ -96,7 +96,33 @@ export async function executeTaskDelete({
   }
 
   const resolvedTask = resolution.task || resolution.item?.raw || resolution.item || null;
-  await cancelRemindersByTaskId(resolution.taskId, userId);
+  let companionCleanup = null;
+  try {
+    companionCleanup = await cancelRemindersByTaskId(resolution.taskId, userId);
+  } catch (error) {
+    companionCleanup = { error };
+  }
+
+  if (companionCleanup?.error) {
+    const message = language === 'en'
+      ? 'The task was deleted, but I could not confirm its linked reminders were cancelled; they may remain scheduled.'
+      : 'La tarea se eliminó, pero no pude confirmar la cancelación de sus recordatorios vinculados; podrían seguir programados.';
+    return {
+      success: true,
+      partialSuccess: true,
+      complete: false,
+      action: 'deleted_task_partial',
+      errorCode: 'COMPANION_CLEANUP_FAILED',
+      error: message,
+      rawSummary: message,
+      data: {
+        id: resolution.taskId,
+        title: resolvedTask?.title || resolvedTask?.summary || null,
+        entityName: resolvedTask?.entities?.name || resolvedTask?.entityName || null,
+        companionsCancelled: false,
+      },
+    };
+  }
 
   return {
     success: true,

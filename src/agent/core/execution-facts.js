@@ -33,17 +33,17 @@ function getSafeSummary(result, language) {
   );
 }
 
-function getPresentationContext(result, language) {
+function getPresentationContext(result, language, timezone) {
   return {
     language,
-    timezone: result?.data?.timezone || 'UTC',
+    timezone: timezone || result?.data?.timezone || 'UTC',
     locale: result?.data?.locale || (language === 'en' ? 'en-US' : 'es-CO'),
   };
 }
 
-function getCanonicalCard(toolName, params, result, language) {
+function getCanonicalCard(toolName, params, result, language, timezone) {
   if (!result?.success) return null;
-  const presentation = getPresentationContext(result, language);
+  const presentation = getPresentationContext(result, language, timezone);
 
   if (toolName === TOOL_NAMES.GET_UNIFIED_AGENDA && result?.data) {
     return formatCanonicalAgenda(result.data, presentation);
@@ -58,7 +58,7 @@ function getCanonicalCard(toolName, params, result, language) {
   }
 
   if (toolName === TOOL_NAMES.MANAGE_PROJECT) {
-    if (['create', 'upsert'].includes(params?.action) && result?.data) return formatCanonicalEntityCreate(result.data, presentation);
+    if (['create', 'upsert'].includes(params?.action) && result?.data) return formatCanonicalEntityCreate({ ...result.data, category: result.data.category || 'project' }, presentation);
     if (params?.action === 'rename') return formatCanonicalEntityRename(result?.data, params, presentation);
     if (params?.action === 'list') return formatCanonicalEntityList(result?.data, { ...presentation, category: 'project' });
     if (params?.action === 'delete') return formatCanonicalEntityDelete(result?.data, presentation);
@@ -96,15 +96,22 @@ function getCanonicalCard(toolName, params, result, language) {
   return null;
 }
 
-function getSafeCard(toolName, params, result, language) {
-  const canonical = getCanonicalCard(toolName, params, result, language);
+function getSafeCard(toolName, params, result, language, timezone) {
+  const canonical = getCanonicalCard(toolName, params, result, language, timezone);
   return sanitizeResponseText(
     canonical || result?.formattedCard || result?.confirmation || result?.rawSummary || getSafeSummary(result, language)
   );
 }
 
-export function createExecutionFact({ toolName, params, result, callId = null, language = 'es' }) {
-  const success = Boolean(result?.success);
+export function createExecutionFact({ toolName, params, result, callId = null, language = 'es', timezone = null }) {
+  const unknown = result?.outcome === 'unknown';
+  if (unknown) {
+    result = { ...result, success: false, formattedCard: null, confirmation: null,
+      rawSummary: language === 'en'
+        ? 'I could not confirm the outcome of this action. I stopped the remaining actions and will not repeat it without checking.'
+        : 'No pude confirmar el resultado de esta acción. Detuve las acciones restantes y no la repetiré sin verificarlo.' };
+  }
+  const success = Boolean(result?.success) && !unknown;
   const complete = success && result?.partialSuccess !== true && result?.complete !== false;
   return Object.freeze({
     callId,
@@ -113,18 +120,18 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     requestedAction: params?.action || null,
     success,
     complete,
-    outcome: success ? (complete ? 'success' : 'partial_success') : 'failure',
+    outcome: unknown ? 'unknown' : success ? (complete ? 'success' : 'partial_success') : 'failure',
     errorCode: success ? null : (result?.errorCode || 'TOOL_EXECUTION_ERROR'),
     requiresClarification: Boolean(result?.requiresClarification),
     summary: getSafeSummary(result, language),
-    card: getSafeCard(toolName, params, result, language),
+    card: getSafeCard(toolName, params, result, language, timezone),
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
     flow: result?.flow || null,
     presentationData: result?.data ?? null,
     presentationParams: params && typeof params === 'object' ? { ...params } : {},
-    presentationContext: getPresentationContext(result, language),
+    presentationContext: getPresentationContext(result, language, timezone),
   });
 }
 

@@ -1,3 +1,4 @@
+import { assertTurnLease } from '../../agent/core/turn-lease.js';
 import { supabase } from './index.js';
 import { findOrCreateEntityFuzzy, selectEntityCandidate } from './entities.js';
 
@@ -583,6 +584,7 @@ export async function completeTask({ userId, taskId, entityName, entityId }) {
  * Update an existing task.
  */
 export async function updateTask(taskId, updates = {}, userId = null) {
+  await assertTurnLease();
   if (!taskId) {
     return { data: null, error: { code: 'MISSING_TARGET_ID', message: 'Missing task ID to update.', source: 'validation' } };
   }

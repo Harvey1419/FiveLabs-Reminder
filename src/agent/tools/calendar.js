@@ -452,7 +452,9 @@ export async function executeCalendarTool({ action, params = {}, user, language 
     case 'create_event': {
       if (!isConnected) {
         const authUrl = getGoogleConnectUrl({ userId, phoneNumber });
-        const summary = `Para agendar directamente en Google Calendar, primero debes conectar tu cuenta: ${authUrl}`;
+        const summary = language === 'en'
+          ? `To schedule an event in Google Calendar, first connect your account: ${authUrl}`
+          : `Para agendar directamente en Google Calendar, primero debes conectar tu cuenta: ${authUrl}`;
         return {
           success: false,
           action: 'google_not_connected',
@@ -814,6 +816,7 @@ export async function executeCalendarTool({ action, params = {}, user, language 
       }
 
       let companionCancelled = false;
+      let companionCleanupFailed = false;
       const deletedItemSummary = resolvedRef?.summary || null;
       if (deleted) {
         try {
@@ -823,8 +826,10 @@ export async function executeCalendarTool({ action, params = {}, user, language 
             summary: deletedItemSummary,
           });
           companionCancelled = cancelRes.cancelled > 0;
+          companionCleanupFailed = Boolean(cancelRes?.error);
         } catch (cErr) {
           console.warn('[calendarTools] Companion cancel error:', cErr.message);
+          companionCleanupFailed = true;
         }
       }
 
@@ -835,11 +840,16 @@ export async function executeCalendarTool({ action, params = {}, user, language 
         if (companionCancelled) {
           summary += `\n• 🔔 ${language === 'en' ? 'Associated WhatsApp reminder cancelled' : 'Recordatorio de WhatsApp asociado cancelado'}`;
         }
+        if (companionCleanupFailed) {
+          summary += `\n• ⚠️ ${language === 'en' ? 'The event was deleted, but I could not confirm its linked reminder was cancelled; it may remain scheduled.' : 'El evento se eliminó, pero no pude confirmar la cancelación de su recordatorio vinculado; podría seguir programado.'}`;
+        }
       } else {
         summary = language === 'en' ? 'Could not delete event from Google Calendar.' : 'No se pudo eliminar el evento de Google Calendar.';
       }
       return {
         success: deleted,
+        partialSuccess: Boolean(deleted && companionCleanupFailed),
+        complete: Boolean(deleted && !companionCleanupFailed),
         action: deleted ? 'google_event_deleted' : 'google_api_error',
         data: { eventId, deleted, companionCancelled },
         rawSummary: summary,

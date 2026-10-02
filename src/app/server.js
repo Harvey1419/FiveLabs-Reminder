@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
-import { handleWebhook } from '../http/webhooks/whatsapp.js';
+import { handleWebhook, processWebhookMessage } from '../http/webhooks/whatsapp.js';
+import { assertInboundQueueReady } from '../infrastructure/database/inbound-turns.js';
+import { startInboundTurnWorker } from '../jobs/inbound-turn-worker.js';
 import { handleMercadoPagoWebhook } from '../http/webhooks/mercado-pago.js';
 import { handleLemonSqueezyWebhook } from '../http/webhooks/lemon-squeezy.js';
 import { handleStripeWebhook } from '../http/webhooks/stripe.js';
@@ -20,8 +22,7 @@ const app = express();
 const requiredEnvs = ['SUPABASE_URL', 'SUPABASE_SECRET', 'KAPSO_API_KEY', 'OPENROUTER_API_KEY'];
 const missingEnvs = requiredEnvs.filter(key => !process.env[key]);
 if (missingEnvs.length > 0) {
-  console.warn(`\n⚠️  [CONFIG WARNING] Missing required environment variables: ${missingEnvs.join(', ')}`);
-  console.warn(`👉 Please configure them in your Railway Dashboard -> "Variables" tab.\n`);
+  throw new Error(`Missing required environment variables: ${missingEnvs.join(', ')}`);
 }
 
 // Serve static assets from public/ (brand logo, favicon, etc.)
@@ -108,14 +109,33 @@ app.get(['/pay', '/pro'], (req, res) => {
 
 const PORT = process.env.PORT || 3005;
 
+// Fail before Railway considers the new deployment healthy if its migration is absent.
+await assertInboundQueueReady();
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+
 // Start the HTTP server in every environment.
 const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+const inboundWorker = startInboundTurnWorker(processWebhookMessage);
 
-// Railway is the single background-worker host. A local webhook process writes
-// to the same Supabase queue and Railway consumes it, avoiding scheduler races
-// while keeping local sandbox testing connected to the deployed worker.
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  server.close();
+  // Railway may terminate earlier; leased turns remain durable and cannot be replayed.
+  const deadline = setTimeout(() => process.exit(1), 25000);
+  deadline.unref();
+  await inboundWorker.stop();
+  clearTimeout(deadline);
+  process.exit(0);
+}
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);
+
+// Foreground workers coordinate through Postgres in every environment.
+// Scheduled jobs run only on production hosts.
 const isBackgroundWorkerHost = process.env.NODE_ENV === 'production'
   || Boolean(process.env.RAILWAY_ENVIRONMENT_ID);
 

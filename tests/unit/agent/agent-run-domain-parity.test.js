@@ -35,7 +35,7 @@ const cases = [
     },
     expected: {
       toolName: 'manage_task',
-      params: { action: 'create', items: [{ title: 'Submit invoice', description: 'October invoice', priority: 'high', dueDate: '2026-10-04' }] },
+      params: { action: 'create', items: [{ title: 'Submit invoice', description: 'October invoice', priority: 'high', dueDate: '2026-10-04T14:30:00.000Z' }] },
     },
   },
   {

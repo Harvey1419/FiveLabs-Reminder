@@ -1,4 +1,4 @@
-import { saveMemory, searchMemories, getActiveMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
+import { saveMemory, searchMemories, getActiveMemories, getStandingMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
 const MEMORY_MAX_CANDIDATES = 16;
@@ -217,7 +217,7 @@ export async function extractAndSaveMemories({
  * Structured profile ranking remains available for explicit profile-oriented
  * surfaces, but is not injected unconditionally into every Hermes turn.
  */
-const CORE_PROFILE_ASPECTS = new Set([
+export const CORE_PROFILE_ASPECTS = new Set([
   'identity', 'name', 'residence', 'location', 'occupation', 'work', 'job',
   'language', 'family', 'relationship', 'contact', 'communication', 'notifications',
 ]);
@@ -252,13 +252,18 @@ export function selectCoreProfileMemories(memories, limit = 10) {
  * that should govern the assistant's behavior across all domains.
  */
 export async function retrieveStandingPreferences({ userId, limit = 5 }) {
-  if (!userId) return [];
+  return (await retrieveStandingPreferencesResult({ userId, limit })).memories;
+}
+
+export async function retrieveStandingPreferencesResult({ userId, limit = 5 }) {
+  if (!userId) return { status: 'available', memories: [] };
   try {
-    const active = await getActiveMemories({ userId, limit: 30 });
-    return selectCoreProfileMemories(active, limit);
+    const { data, error } = await getStandingMemories({ userId, limit: 30, legacyFactAspects: CORE_PROFILE_ASPECTS });
+    if (error) return { status: 'unavailable', memories: [] };
+    return { status: 'available', memories: selectCoreProfileMemories(data, limit) };
   } catch (error) {
     console.warn('[memoryService] retrieveStandingPreferences failed:', error.message);
-    return [];
+    return { status: 'unavailable', memories: [] };
   }
 }
 
@@ -328,25 +333,36 @@ export async function getProactiveAnchors({ userId, activeMemories = null, maxEn
  * greetings or other conversational forms.
  */
 export async function retrieveRelevantMemories({ userId, queryText, limit = 5 }) {
-  if (!userId || !queryText) return [];
+  return (await retrieveRelevantMemoriesResult({ userId, queryText, limit })).memories;
+}
+
+export async function retrieveRelevantMemoriesResult({ userId, queryText, limit = 5 }) {
+  if (!userId || !queryText) return { status: 'available', memories: [] };
 
   const hasAttachmentEvidence = /<untrusted_attachment_content>/i.test(queryText);
   const retrievalQuery = String(queryText)
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
     .trim();
-  if (!retrievalQuery) return [];
+  if (!retrievalQuery) return { status: 'available', memories: [] };
 
   // Attachment content is untrusted evidence. With only a tiny trusted caption,
   // avoid allowing the attachment body to drive durable-memory retrieval.
-  if (hasAttachmentEvidence && retrievalQuery.split(/\s+/).length <= 5) return [];
+  if (hasAttachmentEvidence && retrievalQuery.split(/\s+/).length <= 5) return { status: 'available', memories: [] };
 
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 10);
-  const semanticMemories = await searchMemories({
-    userId,
-    query: retrievalQuery,
-    limit: safeLimit,
-  });
-  return (Array.isArray(semanticMemories) ? semanticMemories : []).slice(0, safeLimit);
+  try {
+    const semanticMemories = await searchMemories({
+      userId,
+      query: retrievalQuery,
+      limit: safeLimit,
+      throwOnError: true,
+      withStatus: true,
+    });
+    return { status: semanticMemories?.status || 'available', memories: (Array.isArray(semanticMemories) ? semanticMemories : semanticMemories?.memories || []).slice(0, safeLimit) };
+  } catch (error) {
+    console.warn('[memoryService] retrieveRelevantMemories failed:', error.message);
+    return { status: 'unavailable', memories: [] };
+  }
 }
 
 function parseJsonArray(text) {

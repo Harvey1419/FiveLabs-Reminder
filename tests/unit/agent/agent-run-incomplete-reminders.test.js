@@ -32,7 +32,12 @@ import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { callChatCompletion } from '../../../src/agent/providers/client.js';
 import { clearWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory.js';
-import { getActiveAgentRun } from '../../../src/agent/core/agent-run.js';
+import * as agentRunModule from '../../../src/agent/core/agent-run.js';
+import {
+  executeContinuationDecision,
+  formatActiveRunPrompt,
+  getActiveAgentRun,
+} from '../../../src/agent/core/agent-run.js';
 import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
 
@@ -49,6 +54,7 @@ function modelResponse(payload) {
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   clearWorkingMemory(user);
 });
@@ -106,6 +112,10 @@ describe('PR 3: Incomplete Reminders & Continuations via AgentRun (Flow A)', () 
       payload: expect.objectContaining({
         content: 'Llamar al cardiólogo',
       }),
+    });
+    expect(activeRun.context).toMatchObject({
+      referenceTime: context.referenceTime.toISOString(),
+      timezone: context.timezone,
     });
   });
 
@@ -316,7 +326,7 @@ describe('PR 3: Incomplete Reminders & Continuations via AgentRun (Flow A)', () 
     const turn2Result = await routeMessage('No, olvídalo', user, []);
 
     expect(turn2Result.plan.type).toBe('cancelled_run');
-    expect(turn2Result.confirmation).toBe('Entendido, cancelé el recordatorio.');
+    expect(turn2Result.confirmation).toBe('Operación cancelada.');
 
     // Invariant: No tool calls were made to create a reminder
     expect(executeTool).not.toHaveBeenCalled();
@@ -324,6 +334,262 @@ describe('PR 3: Incomplete Reminders & Continuations via AgentRun (Flow A)', () 
     // Invariant: Run is cancelled, getActiveAgentRun returns null
     const activeRun = await getActiveAgentRun(user);
     expect(activeRun).toBeNull();
+  });
+
+  it('resumes a time-only correction against the original date and timezone after midnight', async () => {
+    const userLA = { ...user, id: 'user-run-anchor-la', phone_number: '573007776656', timezone: 'America/Los_Angeles' };
+    const originalReference = new Date('2026-10-02T06:55:00.000Z'); // Oct 1, 23:55 PDT
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder',
+      action: 'create',
+      content: 'Same day alerts',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 },
+      missingFields: ['time'],
+    }] }, { user: userLA, language: 'en', timezone: userLA.timezone, referenceTime: originalReference });
+
+    const staged = await getActiveAgentRun(userLA, originalReference);
+    expect(staged.context).toMatchObject({ referenceTime: originalReference.toISOString(), timezone: userLA.timezone });
+    expect(formatActiveRunPrompt(staged)).toContain('Same day alerts');
+    expect(formatActiveRunPrompt(staged)).toContain('relative_day_time');
+
+    const resumedAt = new Date('2026-10-02T07:05:00.000Z'); // Oct 2, 00:05 PDT
+    const executeTool = vi.fn().mockResolvedValue({ success: true, action: 'created_reminder', data: { id: 'rem-la-1', content: 'Same day alerts' } });
+    const resumed = await executeContinuationDecision({
+      run: await getActiveAgentRun(userLA, resumedAt),
+      suppliedFields: { schedule: { kind: 'local_time', hour: 7, minute: 0, clockMode: 'explicit_24h' } },
+      executionContext: { user: userLA, language: 'en', timezone: userLA.timezone, referenceTime: resumedAt },
+      executeTool,
+    });
+
+    expect(resumed.results[0].result.data).toBeDefined();
+    expect(executeTool.mock.calls[0][0].params.items[0]).toMatchObject({ targetTime: '2026-10-02T14:00:00.000Z' });
+  });
+
+  it('uses the current request timezone for a fresh explicit calendar replacement', async () => {
+    const userLA = { ...user, id: 'user-run-current-zone', phone_number: '573007776659', timezone: 'America/Los_Angeles' };
+    const originalReference = new Date('2026-10-02T06:55:00.000Z');
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Pending appointment',
+      schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'],
+    }] }, { user: userLA, language: 'en', timezone: userLA.timezone, referenceTime: originalReference });
+    const pending = await getActiveAgentRun(userLA, originalReference);
+    const currentUser = { ...userLA, timezone: 'America/Bogota' };
+    const resumedAt = new Date('2026-10-02T07:05:00.000Z');
+    const executeTool = vi.fn().mockResolvedValue({ success: true, action: 'created_reminder', data: { id: 'rem-zone', content: 'New appointment' } });
+
+    await executeContinuationDecision({
+      run: pending,
+      suppliedFields: { schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 17, minute: 0, clockMode: 'explicit_24h' }, content: 'New appointment' },
+      executionContext: { user: currentUser, language: 'en', timezone: currentUser.timezone, referenceTime: resumedAt },
+      executeTool,
+    });
+
+    expect(executeTool.mock.calls[0][0].params.items[0].targetTime).toBe('2026-10-06T22:00:00.000Z');
+  });
+
+  it('includes the complete canonical pending payload in the continuation prompt', () => {
+    const prompt = formatActiveRunPrompt({
+      id: 'run-complete-prompt', kind: 'reminder_creation', status: 'waiting_for_input',
+      waiting_for: { type: 'missing_fields', fields: ['target'] },
+      preparedActions: [{ call_id: 'call-1', domain: 'task', action: 'update', payload: {
+        target: 'Task A', scope: 'all', newName: 'Task B', deliveryPolicy: { leadMinutes: 15 },
+        context: { reason: 'user-requested' }, missingFields: ['target'],
+      } }],
+    });
+
+    expect(prompt).toContain('"scope":"all"');
+    expect(prompt).toContain('"newName":"Task B"');
+    expect(prompt).toContain('"context":{"reason":"user-requested"}');
+    expect(prompt).toContain('"deliveryPolicy":{"leadMinutes":15}');
+  });
+
+  it('anchors a fresh relative offset to the current resume message, not the original draft time', async () => {
+    const userLA = { ...user, id: 'user-run-current-relative-la', phone_number: '573007776657', timezone: 'America/Los_Angeles' };
+    const originalReference = new Date('2026-10-02T06:55:00.000Z');
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder',
+      action: 'create',
+      content: 'Relative from now',
+      missingFields: ['schedule'],
+    }] }, { user: userLA, language: 'en', timezone: userLA.timezone, referenceTime: originalReference });
+
+    const resumedAt = new Date('2026-10-02T07:05:00.000Z');
+    const executeTool = vi.fn().mockResolvedValue({ success: true, action: 'created_reminder', data: { id: 'rem-now-1', content: 'Relative from now' } });
+    const resumed = await executeContinuationDecision({
+      run: await getActiveAgentRun(userLA, resumedAt),
+      suppliedFields: { schedule: { kind: 'relative_offset', offsetMinutes: 90 } },
+      executionContext: { user: userLA, language: 'en', timezone: userLA.timezone, referenceTime: resumedAt },
+      executeTool,
+    });
+
+    expect(executeTool.mock.calls[0][0].params.items[0].targetTime).toBe('2026-10-02T08:35:00.000Z');
+  });
+
+  it('supersedes a pending draft only after a valid replacement is parsed and executes only the replacement', async () => {
+    const userLA = { ...user, id: 'user-run-supersede', phone_number: '573007776658', display_name: 'Ana', timezone: 'America/Los_Angeles' };
+    const referenceTime = new Date('2026-10-02T06:55:00.000Z'); // Oct 1, 23:55 PDT; stale pending schedule is tomorrow at 07:00
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Ana appointment reminder',
+      schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 7, minute: 0, clockMode: 'explicit_24h' },
+      missingFields: ['date'],
+    }] }, {
+      user: userLA, language: 'en', timezone: userLA.timezone, referenceTime,
+    });
+    const oldRun = await getActiveAgentRun(userLA, referenceTime);
+
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ relation: 'supersede' }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ actions: [
+      { domain: 'reminder', action: 'create', content: 'Ana appointment', schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 17, minute: 0, clockMode: 'explicit_24h' } },
+      { domain: 'reminder', action: 'create', content: 'Ana appointment morning reminder', schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 7, minute: 0, clockMode: 'explicit_24h' } },
+      { domain: 'reminder', action: 'create', content: 'Ana appointment afternoon reminder', schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 16, minute: 0, clockMode: 'explicit_24h' } },
+    ] }));
+    executeTool.mockResolvedValue({ success: true, action: 'created_reminder', data: { id: 'rem-corrected', content: 'Corrected appointment' } });
+
+    const result = await routeMessage('Actually, schedule the corrected appointment for Tuesday at 5 pm', userLA, [], { referenceTime });
+
+    expect(result.plan.type).toBe('turn_intent');
+    expect(executeTool).toHaveBeenCalledTimes(3);
+    expect(executeTool.mock.calls.map(([call]) => call.params.items[0].targetTime)).toEqual([
+      '2026-10-07T00:00:00.000Z',
+      '2026-10-06T14:00:00.000Z',
+      '2026-10-06T23:00:00.000Z',
+    ]);
+    expect(executeTool.mock.calls.map(([call]) => call.params.items[0].content)).toEqual([
+      'Ana appointment', 'Ana appointment morning reminder', 'Ana appointment afternoon reminder',
+    ]);
+    expect(await getActiveAgentRun(userLA, referenceTime)).toBeNull();
+    expect(oldRun.status).toBe('waiting_for_input');
+  });
+
+  it('preserves the pending draft when supersede classification is followed by provider failure', async () => {
+    const referenceTime = new Date('2026-10-01T16:00:00.000Z');
+    await executeTurnIntent({ actions: [{ domain: 'reminder', action: 'create', content: 'Keep me pending', missingFields: ['schedule'] }] }, {
+      user, language: 'es', timezone: user.timezone, referenceTime,
+    });
+    const pending = await getActiveAgentRun(user, referenceTime);
+
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ relation: 'supersede' }));
+    callChatCompletion.mockResolvedValueOnce({ content: '', tool_calls: [], unavailable: true });
+    const result = await routeMessage('No, mejor crea otra cosa', user, [], { referenceTime });
+
+    expect(result.plan.type).toBe('provider_unavailable');
+    expect((await getActiveAgentRun(user, referenceTime)).id).toBe(pending.id);
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('preserves the pending draft when a superseding canonical turn is invalid', async () => {
+    const referenceTime = new Date('2026-10-01T16:00:00.000Z');
+    await executeTurnIntent({ actions: [{ domain: 'reminder', action: 'create', content: 'Keep me pending', missingFields: ['schedule'] }] }, {
+      user, language: 'es', timezone: user.timezone, referenceTime,
+    });
+    const pending = await getActiveAgentRun(user, referenceTime);
+
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ relation: 'supersede' }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ actions: [{ domain: 'reminder', action: 'unknown' }] }));
+    const result = await routeMessage('Replace it with an invalid action', user, [], { referenceTime });
+
+    expect(result.plan.type).toBe('invalid_intent');
+    expect((await getActiveAgentRun(user, referenceTime)).id).toBe(pending.id);
+  });
+
+  it('fails closed when the exact pending run cannot be confirmed cancelled', async () => {
+    const referenceTime = new Date('2026-10-01T16:00:00.000Z');
+    await executeTurnIntent({ actions: [{ domain: 'reminder', action: 'create', content: 'Do not discard me', missingFields: ['schedule'] }] }, {
+      user, language: 'es', timezone: user.timezone, referenceTime,
+    });
+    const pending = await getActiveAgentRun(user, referenceTime);
+    vi.spyOn(agentRunModule, 'cancelSupersededInputRun').mockResolvedValueOnce(false);
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ responseLanguage: 'en', relation: 'supersede' }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ responseLanguage: 'en', actions: [{
+      domain: 'reminder', action: 'create', content: 'Replacement',
+      schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 17, minute: 0, clockMode: 'explicit_24h' },
+    }] }));
+
+    const result = await routeMessage('Replace that with an appointment on Tuesday at 5 pm', user, [], { referenceTime });
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect((await getActiveAgentRun(user, referenceTime)).id).toBe(pending.id);
+    expect(result.confirmation).toContain('I did not run the replacement');
+  });
+
+  it('does not execute or claim the old request stayed intact when replacement activation is uncertain', async () => {
+    vi.spyOn(agentRunModule, 'createInputRun').mockResolvedValueOnce({
+      id: 'staged-inert-replacement',
+      status: 'failed',
+      activationFailed: true,
+      activationStatusUnknown: true,
+      preparedActions: [{ payload: { content: 'Replacement draft' } }],
+    });
+    const result = await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Replacement draft', missingFields: ['schedule'],
+    }] }, {
+      user, language: 'en', timezone: user.timezone, referenceTime: new Date('2026-10-01T16:00:00.000Z'),
+      supersedesRunId: 'old-pending-run',
+    });
+
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.records[0].result.error).toContain('may already have been cancelled');
+    expect(result.records[0].result.error).not.toContain('left unchanged');
+  });
+
+  it('does not stage a second incomplete operation while preserving an unrelated pending draft', async () => {
+    const referenceTime = new Date(Date.now() + 1_000);
+    await executeTurnIntent({ actions: [{ domain: 'reminder', action: 'create', content: 'Unrelated first', missingFields: ['schedule'] }] }, {
+      user, language: 'es', timezone: user.timezone, referenceTime,
+    });
+    const firstRun = await getActiveAgentRun(user, referenceTime);
+
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ responseLanguage: 'en', relation: 'unrelated' }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ responseLanguage: 'en', actions: [{
+      domain: 'reminder', action: 'create', content: 'Separate incomplete', missingFields: ['schedule'],
+    }] }));
+    const result = await routeMessage('Also remind me about a separate thing', user, [], { referenceTime });
+
+    expect((await getActiveAgentRun(user, referenceTime)).id).toBe(firstRun.id);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.confirmation).toContain('pending request');
+  });
+
+  it('executes a complete unrelated turn while leaving the pending draft untouched', async () => {
+    const referenceTime = new Date('2026-10-01T16:00:00.000Z');
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'First draft', missingFields: ['schedule'],
+    }] }, { user, language: 'es', timezone: user.timezone, referenceTime });
+    const pending = await getActiveAgentRun(user, referenceTime);
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ relation: 'unrelated' }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Complete unrelated',
+      schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 17, minute: 0, clockMode: 'explicit_24h' },
+    }] }));
+    executeTool.mockResolvedValueOnce({ success: true, action: 'created_reminder', data: { id: 'rem-unrelated', content: 'Complete unrelated' } });
+
+    await routeMessage('Also remind me about a separate complete request', user, [], { referenceTime });
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool.mock.calls[0][0].params.items[0].content).toBe('Complete unrelated');
+    expect((await getActiveAgentRun(user, referenceTime)).id).toBe(pending.id);
+  });
+
+  it('allows only one concurrent replacement write against the same bound pending run', async () => {
+    const referenceTime = new Date('2026-10-01T16:00:00.000Z');
+    await executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content: 'Concurrent source', missingFields: ['schedule'],
+    }] }, { user, language: 'es', timezone: user.timezone, referenceTime });
+    const pending = await getActiveAgentRun(user, referenceTime);
+    const injectedExecuteTool = vi.fn().mockResolvedValue({ success: true, action: 'created_reminder', data: {} });
+    const replacement = (content) => executeTurnIntent({ actions: [{
+      domain: 'reminder', action: 'create', content,
+      schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 6, hour: 17, minute: 0, clockMode: 'explicit_24h' },
+    }] }, {
+      user, language: 'es', timezone: user.timezone, referenceTime,
+      supersedesRunId: pending.id,
+      executeTool: injectedExecuteTool,
+    });
+
+    const results = await Promise.all([replacement('First replacement'), replacement('Second replacement')]);
+
+    expect(injectedExecuteTool).toHaveBeenCalledTimes(1);
+    expect(results.flatMap((result) => result.records).filter(({ result }) => result.errorCode === 'PENDING_REQUEST_CHANGED')).toHaveLength(1);
   });
 
   it('Invariant: expired AgentRun past TTL returns null and does not intercept next turns', async () => {

@@ -11,7 +11,7 @@ const user = {
 afterEach(() => clearWorkingMemory(user));
 
 describe('recurring reminder runtime normalization', () => {
-  it('moves a daily recurring update to tomorrow when today clock time already passed', () => {
+  it('preserves the future occurrence date when changing only a daily reminder clock', () => {
     saveWorkingMemory(user, {
       source: 'reminder',
       items: [{
@@ -42,8 +42,7 @@ describe('recurring reminder runtime normalization', () => {
     });
 
     expect(result.actions[0].schedule).toMatchObject({
-      kind: 'relative_day_time',
-      dayOffset: 1,
+      kind: 'local_time',
       hour: 8,
       minute: 0,
     });

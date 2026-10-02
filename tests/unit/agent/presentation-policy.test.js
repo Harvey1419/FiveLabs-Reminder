@@ -15,12 +15,14 @@ function fact({
   card = 'ok',
   requiresClarification = false,
   params = {},
+  complete = true,
 }) {
   return {
     tool,
     requestedAction,
     action: requestedAction,
     success,
+    complete,
     summary,
     card,
     requiresClarification,
@@ -138,6 +140,24 @@ describe('turn-level presentation policy', () => {
     const text = composeTurnPresentation(facts, 'es');
     expect(text.indexOf('Cerrar reporte')).toBeLessThan(text.indexOf('No encontré ese recordatorio'));
     expect(text).toContain('1 acción no se pudo completar');
+  });
+
+  it('does not describe a partial successful outcome as fully completed', () => {
+    const partial = fact({
+      tool: TOOL_NAMES.MANAGE_REMINDER,
+      requestedAction: 'create',
+      data: { items: [{ content: 'Main appointment' }], rejected: [{ content: 'Advance notice', code: 'DATABASE_ERROR' }] },
+      summary: 'Main appointment was saved, but its advance notice could not be saved.',
+      card: '✅ Main appointment saved. Advance notice failed.',
+      complete: false,
+    });
+
+    expect(classifyTurnPresentation([partial])).toBe(PRESENTATION_KINDS.PARTIAL_SUCCESS);
+    const text = composeTurnPresentation([partial], 'en');
+    expect(text).toContain('partially completed');
+    expect(text).toContain('advance notice could not be saved');
+    expect(text).not.toContain('1 actions completed');
+    expect(text).not.toMatch(/✅ \*?1?\s*Reminders? ·/);
   });
 
   it('keeps verified successes aggregated when one action needs clarification', () => {

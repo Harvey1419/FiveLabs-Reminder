@@ -64,7 +64,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
       internalId: String(it.internalId || it.id || '').trim(),
       summary: String(it.summary || rawTitle).trim(),
       title: String(it.title || rawTitle).trim(),
-      time: it.time || it.formattedTime || it.localTime || it.localStartTime || it.raw?.formattedTime || it.raw?.localFormatted || it.raw?.time || null,
+      time: it.time === null ? null : (it.time || it.formattedTime || it.localTime || it.localStartTime || it.raw?.formattedTime || it.raw?.localFormatted || it.raw?.time || null),
       source: it.source || it.domain || memoryData.source || 'unknown',
       entityName: it.entityName || it.raw?.entities?.name || it.raw?.entityName || null,
       raw: it.raw || it,
@@ -206,7 +206,9 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
         : (it.type === 'entity' ? 'Proyecto/Entidad' : (it.type === 'task' ? 'Tarea' : 'Elemento')));
     const timeDisplay = it.time ? ` (${it.time})` : '';
     const entityDisplay = it.entityName ? ` [${it.entityName}]` : '';
-    return `${it.position}. contextRef={source:working_memory,position:${it.position}} [${typeLabel}] ${it.summary}${timeDisplay}${entityDisplay}`;
+    const recurrence = Object.hasOwn(it.raw || {}, 'recurrenceRule') ? it.raw.recurrenceRule : it.raw?.recurrence_rule;
+    const details = [recurrence ? `recurrence=${recurrence}` : '', it.raw?.status ? `status=${it.raw.status}` : ''].filter(Boolean).join(', ');
+    return `${it.position}. contextRef={source:working_memory,position:${it.position}} [${typeLabel}] ${it.summary}${timeDisplay}${entityDisplay}${details ? ` [${details}]` : ''}`;
   });
 
   const sourceDesc = wm.source === 'unified'
@@ -229,7 +231,7 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
     ...(containerInstruction ? [containerInstruction] : []),
     ...lines,
-    '(Para operar sobre un elemento anterior, usa target: "1", target: "el primero", o el nombre. El backend resolverá el ID interno).',
+    '(Para tareas/recordatorios/eventos anteriores usa contextRef; conserva la posición mostrada. Nunca elijas un elemento eliminado/cancelado. Para otros dominios usa su nombre en target).',
   ].join('\n');
 }
 

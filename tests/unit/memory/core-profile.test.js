@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getActiveMemories = vi.fn();
+const getStandingMemories = vi.fn();
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
   saveMemory: vi.fn(),
   searchMemories: vi.fn(),
   getActiveMemories,
+  getStandingMemories,
   findOrCreateEntityFuzzy: vi.fn(),
 }));
 
-const { selectCoreProfileMemories, retrieveStandingPreferences } = await import('../../../src/features/memory/service.js');
+const { CORE_PROFILE_ASPECTS, selectCoreProfileMemories, retrieveStandingPreferences, retrieveStandingPreferencesResult, retrieveRelevantMemoriesResult } = await import('../../../src/features/memory/service.js');
 
 describe('second-brain core profile selection', () => {
   beforeEach(() => {
@@ -48,14 +50,14 @@ describe('second-brain core profile selection', () => {
   });
 
   it('retrieves and ranks standing preferences for a user', async () => {
-    getActiveMemories.mockResolvedValueOnce([
+    getStandingMemories.mockResolvedValueOnce({ data: [
       { id: 'm1', topic_key: 'preference/reminders', category: 'preference', content: 'Sin avisos después de 10 min.' },
       { id: 'm2', topic_key: 'profile/residence', category: 'fact', content: 'Vive en Bogotá.' },
       { id: 'm3', topic_key: 'episode/trip', category: 'episode', content: 'Viaje a Cartagena.' },
-    ]);
+    ], error: null });
 
     const prefs = await retrieveStandingPreferences({ userId: 'user-123', limit: 5 });
-    expect(getActiveMemories).toHaveBeenCalledWith({ userId: 'user-123', limit: 30 });
+    expect(getStandingMemories).toHaveBeenCalledWith({ userId: 'user-123', limit: 30, legacyFactAspects: CORE_PROFILE_ASPECTS });
     expect(prefs).toHaveLength(2);
     expect(prefs[0].id).toBe('m2');
     expect(prefs[1].id).toBe('m1');
@@ -65,5 +67,25 @@ describe('second-brain core profile selection', () => {
     const prefs = await retrieveStandingPreferences({ userId: null });
     expect(prefs).toEqual([]);
     expect(getActiveMemories).not.toHaveBeenCalled();
+  });
+
+  it('keeps retrieval failure distinct from a confirmed empty preference set', async () => {
+    getStandingMemories.mockResolvedValueOnce({ data: null, error: new Error('database unavailable') });
+    const result = await retrieveStandingPreferencesResult({ userId: 'user-123', limit: 5 });
+    expect(result).toMatchObject({ status: 'unavailable', memories: [] });
+
+    getStandingMemories.mockResolvedValueOnce({ data: [], error: null });
+    expect(await retrieveStandingPreferencesResult({ userId: 'user-123', limit: 5 }))
+      .toEqual({ status: 'available', memories: [] });
+  });
+
+  it('keeps semantic retrieval errors distinct from a confirmed empty result', async () => {
+    const { searchMemories } = await import('../../../src/infrastructure/database/index.js');
+    searchMemories.mockRejectedValueOnce(new Error('vector search unavailable'));
+    expect(await retrieveRelevantMemoriesResult({ userId: 'user-123', queryText: 'my preferences' }))
+      .toMatchObject({ status: 'unavailable', memories: [] });
+    searchMemories.mockResolvedValueOnce([]);
+    expect(await retrieveRelevantMemoriesResult({ userId: 'user-123', queryText: 'my preferences' }))
+      .toEqual({ status: 'available', memories: [] });
   });
 });

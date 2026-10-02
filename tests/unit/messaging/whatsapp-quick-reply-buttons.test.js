@@ -93,6 +93,47 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     process.env.KAPSO_API_KEY = 'mock-key';
   });
 
+  it.each(['ack', 'snooze', 'task'])('does not confirm an unobserved %s button mutation', async kind => {
+    const db = await import('../../../src/infrastructure/database/index.js');
+    if (kind === 'ack') db.acknowledgeReminder.mockResolvedValueOnce(null);
+    if (kind === 'snooze') db.updateReminder.mockResolvedValueOnce(null);
+    if (kind === 'task') db.updateTask.mockResolvedValueOnce({ data: null, error: { code: 'NOT_FOUND' } });
+    const id = kind === 'ack' ? 'rem:ack:missing' : kind === 'snooze' ? 'rem:snooze:15:missing' : 'task:done:missing';
+    const interactive = kind === 'task' ? { list_reply: { id, title: 'Done' } } : { button_reply: { id, title: 'Done' } };
+    const { processWebhookMessage } = await import('../../../src/http/webhooks/whatsapp.js');
+    await processWebhookMessage({ headers: {}, body: { message: { id: `missing-${kind}`, from: '573001234567', interactive } } });
+    expect(mockState.sentTexts).toHaveLength(1);
+    expect(mockState.sentTexts[0].text).toContain('No pude confirmar');
+    expect(mockState.sentTexts[0].text).not.toContain('✅');
+  });
+
+  it('keeps the language of the displayed interactive reply without inferring it from button text', async () => {
+    const messages = await import('../../../src/infrastructure/database/messages.js');
+    messages.getRecentMessages.mockResolvedValueOnce([{ role: 'assistant', entities: { _responseLanguage: 'en' } }]);
+    const { processWebhookMessage } = await import('../../../src/http/webhooks/whatsapp.js');
+    await processWebhookMessage({ headers: {}, body: { message: { id: 'language-button', from: '573001234567', interactive: { button_reply: { id: 'rem:ack:known', title: 'Done' } } } } });
+    expect(mockState.sentTexts[0].text).toContain('marked this reminder');
+  });
+
+
+  it('reports a partial acknowledgment when the linked task update is unobserved', async () => {
+    const db = await import('../../../src/infrastructure/database/index.js');
+    db.updateTask.mockResolvedValueOnce(null);
+    const { processWebhookMessage } = await import('../../../src/http/webhooks/whatsapp.js');
+    await processWebhookMessage({ headers: {}, body: { message: { id: 'partial-button', from: '573001234567', interactive: { button_reply: { id: 'rem:ack:known', title: 'Listo' } } } } });
+    expect(mockState.sentTexts[0].text).toContain('recordatorio como completado');
+    expect(mockState.sentTexts[0].text).toContain('No pude confirmar todos');
+  });
+
+  it('accepts equivalent persisted timestamp encodings after snoozing', async () => {
+    const db = await import('../../../src/infrastructure/database/index.js');
+    db.updateReminder.mockImplementationOnce(async (id, updates) => ({ id, ...updates, send_at: updates.send_at.replace('Z', '+00:00') }));
+    const { processWebhookMessage } = await import('../../../src/http/webhooks/whatsapp.js');
+    await processWebhookMessage({ headers: {}, body: { message: { id: 'offset-snooze-button', from: '573001234567', interactive: { button_reply: { id: 'rem:snooze:15:known', title: '+15 min' } } } } });
+    expect(mockState.sentTexts[0].text).toContain('15 minutos');
+    expect(mockState.sentTexts[0].text).not.toContain('No pude confirmar');
+  });
+
   describe('sendWhatsAppQuickReplyButtons', () => {
     it('structures interactive button payload adhering to Meta WhatsApp limits', async () => {
       const { sendWhatsAppQuickReplyButtons } = await import('../../../src/integrations/whatsapp/kapso-client.js');
@@ -134,7 +175,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
 
   describe('Webhook Fast-Path Interception', () => {
     it('executes zero-LLM fast-path when receiving rem:ack button click and cascades to linked task', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       const req = {
@@ -179,7 +220,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     });
 
     it('executes zero-LLM fast-path for rem:snooze button click', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       const req = {
@@ -211,7 +252,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     });
 
     it('executes zero-LLM fast-path in English when user locale is en-US', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       const req = {
@@ -240,7 +281,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     });
 
     it('executes zero-LLM fast-path for list_reply task:done:<id> with micro-dopamina feedback', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       const req = {
@@ -277,7 +318,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     });
 
     it('executes zero-LLM fast-path for list_reply rem:ack:<id>', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       const req = {
@@ -310,7 +351,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
 
   describe('Router Buttons & List Outbound Dispatch', () => {
     it('dispatches sendWhatsAppQuickReplyButtons when router returns buttons', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       routeMessage.mockResolvedValueOnce({
@@ -343,7 +384,7 @@ describe('WhatsApp Quick Reply Buttons & Fast-Path', () => {
     });
 
     it('dispatches sendWhatsAppListMessage when router returns list', async () => {
-      const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+      const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
       const { routeMessage } = await import('../../../src/agent/orchestration/router.js');
 
       routeMessage.mockResolvedValueOnce({

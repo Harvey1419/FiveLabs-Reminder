@@ -144,7 +144,27 @@ export async function executeTaskComplete({
   }
 
   const completedTask = updateResult.data || updateResult;
-  await acknowledgeRemindersByTaskId(completedTask.id, userId);
+  let reminderAcknowledgement = null;
+  try {
+    reminderAcknowledgement = await acknowledgeRemindersByTaskId(completedTask.id, userId);
+  } catch (error) {
+    reminderAcknowledgement = { error };
+  }
+  if (reminderAcknowledgement?.error) {
+    const message = language === 'en'
+      ? 'The task was completed, but its linked reminders could not be confirmed as acknowledged; some may remain active.'
+      : 'La tarea se completó, pero no pude confirmar que sus recordatorios vinculados quedaran confirmados; algunos podrían seguir activos.';
+    return {
+      success: true,
+      partialSuccess: true,
+      complete: false,
+      action: 'completed_task_partial',
+      errorCode: 'COMPANION_CLEANUP_FAILED',
+      error: message,
+      rawSummary: message,
+      data: completedTask,
+    };
+  }
 
   return {
     success: true,

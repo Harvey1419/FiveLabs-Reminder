@@ -53,8 +53,8 @@ describe('agent live overview', () => {
     });
 
     expect(text).toContain('creado por Temple Labs');
-    expect(text).toContain('No te presentes como ChatGPT, OpenAI, Groq, Google, Anthropic');
-    expect(text).toContain('puedes conversar naturalmente');
+    expect(text).toContain('Hermes, nunca el proveedor del modelo');
+    expect(text).toContain('Conversa con naturalidad y empatía');
     expect(text).toContain('¿En qué puedo ayudarte?');
     expect(text).toContain('No la repitas mecánicamente');
   });
@@ -80,7 +80,21 @@ describe('agent live overview', () => {
     expect(formatted).not.toContain('enviar reporte');
   });
 
-  it('injects referenced project tasks into system prompt context for direct conversational answering', () => {
+  it('states when the live task context is truncated instead of implying a complete total', () => {
+    const overview = {
+      pendingTasksByEntity: {
+        Apartment: Array.from({ length: 12 }, (_, index) => ({ title: `Task ${index + 1}`, status: 'pending' })),
+      },
+    };
+
+    const formatted = formatReferencedProjectTasks(overview, 'List the tasks for Apartment', 'en');
+
+    expect(formatted).toContain('Showing 10 of 12 open tasks');
+    expect(formatted).toContain('Task 10');
+    expect(formatted).not.toContain('Task 11');
+  });
+
+  it('provides project references while requiring authoritative reads for totals', () => {
     const overview = {
       pendingTasksByEntity: {
         Apartamento: [
@@ -99,7 +113,7 @@ describe('agent live overview', () => {
 
     expect(promptWithProject).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
     expect(promptWithProject).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
-    expect(promptWithProject).toContain('Preguntas sobre proyectos con tareas vivas en contexto');
+    expect(promptWithProject).toContain('Estado o montos de proyectos: task.list(entityName)');
 
     const promptWithoutProject = buildAgentCorePrompt({
       nowStr: '2026-09-29 16:30',
@@ -120,10 +134,24 @@ describe('agent live overview', () => {
       language: 'en',
     });
 
-    expect(prompt).toContain('Idioma: 🇺🇸 English');
-    expect(prompt).toContain('ENGLISH ONLY');
+    expect(prompt).toContain('Stored language fallback: en');
+    expect(prompt).toContain('CURRENT user');
     expect(prompt).toContain('How can I help you today?');
-    expect(prompt).toContain('You are Harvey, right? 😉');
+    expect(prompt).toContain('usa perfil/memoria verificados');
+    expect(prompt).not.toContain('Harvey');
+  });
+
+  it('does not equate unavailable memory retrieval with no stored memories', () => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30',
+      nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
+      timezone: 'America/Bogota',
+      memoryRetrievalStatus: 'unavailable',
+    });
+
+    expect(prompt).toContain('Memory retrieval is temporarily unavailable');
+    expect(prompt).toContain('Do not claim that no memories or standing preferences exist');
+    expect(prompt).not.toContain('(Ninguna memoria relevante para este turno)');
   });
 
   it('defaults to Spanish prompt directives when user language is Spanish', () => {
@@ -134,9 +162,10 @@ describe('agent live overview', () => {
       language: 'es',
     });
 
-    expect(prompt).toContain('Idioma: 🇨🇴 Español');
-    expect(prompt).toContain('Tuteo cálido colombiano por defecto');
+    expect(prompt).toContain('Stored language fallback: es');
+    expect(prompt).toContain('CURRENT user');
     expect(prompt).toContain('¿En qué puedo ayudarte?');
-    expect(prompt).toContain('Te llamas Harvey, ¿no? 😉');
+    expect(prompt).toContain('si falta el nombre, pregunta');
+    expect(prompt).not.toContain('Harvey');
   });
 });

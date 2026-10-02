@@ -70,6 +70,25 @@ async function foregroundFailure(body) {
 }
 
 describe('strict foreground provider error diagnostics', () => {
+  it.each(['approval_decision', 'continuation_decision'])('validates %s at the same provider boundary as the initial decision', async (purpose) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(success('{"relation":"invented"}'))
+      .mockResolvedValueOnce(success('{"relation":"cancel"}'));
+    const validate = vi.fn(content => ({ valid: JSON.parse(content).relation === 'cancel' }));
+    const result = await callChatCompletion([], { responseFormat, purpose, returnMessage: true, validateStructuredContent: validate });
+    expect(result.routeStage).toBe('secondary');
+    expect(validate).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).stream)).toEqual([false, false]);
+  });
+
+  it.each(['approval_decision', 'continuation_decision'])('rejects a parseable but truncated %s', async (purpose) => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(response({ choices: [{ finish_reason: 'length', message: { content: '{"relation":"approval","decision":"approve_all"}' } }] }))
+      .mockResolvedValueOnce(success('{"relation":"unrelated"}'));
+    const result = await callChatCompletion([], { responseFormat, purpose, returnMessage: true });
+    expect(result.routeStage).toBe('secondary');
+    expect(console.warn.mock.calls.flat().join('\n')).toContain('truncated_structured_output');
+  });
   beforeEach(() => {
     vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-diagnostic-test-secret');
     vi.spyOn(console, 'log').mockImplementation(() => {});

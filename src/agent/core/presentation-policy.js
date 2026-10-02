@@ -96,15 +96,18 @@ function groupKey(fact) {
 
 export function classifyTurnPresentation(facts) {
   const safeFacts = (facts || []).filter(Boolean);
-  if (safeFacts.length <= 1) return PRESENTATION_KINDS.SINGLE;
+  if (safeFacts.length === 0) return PRESENTATION_KINDS.SINGLE;
 
   const succeeded = safeFacts.filter((fact) => fact.success);
   const failed = safeFacts.filter((fact) => !fact.success);
   const clarifications = failed.filter((fact) => fact.requiresClarification);
+  const hasPartialSuccess = succeeded.some((fact) => fact.complete === false || fact.outcome === 'partial_success');
+
+  if (safeFacts.length === 1) return hasPartialSuccess ? PRESENTATION_KINDS.PARTIAL_SUCCESS : PRESENTATION_KINDS.SINGLE;
 
   // A clarification is local to the action that needs it. It must not destroy
   // aggregation of other verified actions from the same user turn.
-  if (succeeded.length > 0 && failed.length > 0) return PRESENTATION_KINDS.PARTIAL_SUCCESS;
+  if (hasPartialSuccess || (succeeded.length > 0 && failed.length > 0)) return PRESENTATION_KINDS.PARTIAL_SUCCESS;
   if (succeeded.length === 0 && clarifications.length > 0) return PRESENTATION_KINDS.CLARIFICATION;
   if (succeeded.length === 0) return PRESENTATION_KINDS.FAILURE_BATCH;
 
@@ -198,7 +201,7 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
     return formatCanonicalReminderCreateBatch(
       facts.map((fact) => fact.presentationData),
       { language, timezone: facts.map((fact) => fact.presentationContext?.timezone).find(Boolean) || 'UTC' },
-    );
+    ) || facts.map(fact => fact.card || fact.summary).filter(Boolean).join('\n\n');
   }
 
   if (includeHeader && domain === 'reminder' && operation === 'cancel') {
@@ -293,6 +296,15 @@ function formatFailures(failed, language) {
   return `${header}\n${lines.join('\n')}`;
 }
 
+function formatPartialSuccesses(partial, language) {
+  if (!partial.length) return '';
+  const heading = language === 'en'
+    ? `⚠️ *${partial.length} action${partial.length === 1 ? '' : 's'} partially completed*`
+    : `⚠️ *${partial.length} ${partial.length === 1 ? 'acción completada parcialmente' : 'acciones completadas parcialmente'}*`;
+  const details = partial.map((fact) => sanitizeResponseText(fact.summary || fact.card || '')).filter(Boolean);
+  return `${heading}${details.length ? `\n${details.join('\n')}` : ''}`;
+}
+
 function formatClarifications(clarifications, language) {
   if (!clarifications.length) return '';
   const bodies = clarifications
@@ -327,8 +339,11 @@ export function composeTurnPresentation(facts, language = 'es') {
   if (kind === PRESENTATION_KINDS.SINGLE) return safeFacts[0].card || safeFacts[0].summary || '';
 
   const succeeded = safeFacts.filter((fact) => fact.success);
+  const completeSuccesses = succeeded.filter((fact) => fact.complete !== false && fact.outcome !== 'partial_success');
+  const partialSuccesses = succeeded.filter((fact) => fact.complete === false || fact.outcome === 'partial_success');
   const clarifications = safeFacts.filter((fact) => !fact.success && fact.requiresClarification);
   const hardFailures = safeFacts.filter((fact) => !fact.success && !fact.requiresClarification);
+  const unknown = hardFailures.filter(fact => fact.outcome === 'unknown');
 
   if (kind === PRESENTATION_KINDS.CLARIFICATION) {
     return formatClarifications(clarifications, language)
@@ -336,8 +351,10 @@ export function composeTurnPresentation(facts, language = 'es') {
   }
 
   return [
-    formatSuccesses(succeeded, language),
+    formatSuccesses(completeSuccesses, language),
+    formatPartialSuccesses(partialSuccesses, language),
     formatClarifications(clarifications, language),
-    formatFailures(hardFailures, language),
+    formatFailures(hardFailures.filter(fact => fact.outcome !== 'unknown'), language),
+    unknown.length ? [(language === 'en' ? '⚠️ *Outcome not confirmed*' : '⚠️ *Resultado sin confirmar*'), ...unknown.map(fact => fact.summary)].join('\n') : '',
   ].filter(Boolean).join('\n\n');
 }

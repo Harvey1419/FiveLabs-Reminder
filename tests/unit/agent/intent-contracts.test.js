@@ -63,7 +63,8 @@ describe('direct TurnIntent contract', () => {
     expect(actionProps).not.toHaveProperty('sequence');
     expect(actionProps).not.toHaveProperty('kind');
     expect(actionProps).not.toHaveProperty('sourceQuote');
-    expect(actionProps).not.toHaveProperty('contextRef');
+    expect(Object.keys(actionProps.contextRef.properties).sort()).toEqual(['position', 'source']);
+    expect(actionProps.contextRef.properties.source.enum).toEqual(['working_memory']);
   });
 
   it('blocks admin intent for non-admin users and semantic aliases', () => {

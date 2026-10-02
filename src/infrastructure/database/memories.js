@@ -257,6 +257,35 @@ export async function getActiveMemories({ userId, category = null, limit = 15 })
   }
 }
 
+/** Retrieves standing profile/preference candidates before applying the limit. */
+export async function getStandingMemories({ userId, limit = 30, legacyFactAspects = [] }) {
+  if (!userId) return { data: [], error: null };
+  if (!isDatabaseConfigured()) return { data: null, error: new Error('Memory storage is unavailable.') };
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 30), 50);
+  const legacyAspectFilters = [...new Set(legacyFactAspects)]
+    .filter((aspect) => /^[a-z0-9_-]+$/i.test(aspect))
+    .map((aspect) => `and(category.eq.fact,topic_key.like.%/${aspect})`);
+  const standingMemoryFilter = [
+    'category.eq.preference',
+    'topic_key.like.profile/%',
+    'topic_key.like.preference/%',
+    ...legacyAspectFilters,
+  ].join(',');
+  try {
+    const { data, error } = await supabase
+      .from('memories')
+      .select('id, topic_key, category, content, confidence, created_at')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .or(standingMemoryFilter)
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+    return error ? { data: null, error } : { data: data || [], error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 /**
  * Hybrid Semantic (pgvector) + Full-Text Search (tsvector with Spanish Snowball/Porter stemming) Memory Search:
  * Combines dense vector similarity with sparse stemmed keyword matching.
@@ -275,8 +304,11 @@ export async function searchMemories({
   topicKey = null,
   category = null,
   limit = 5,
+  throwOnError = false,
+  withStatus = false,
 }) {
   if (!userId) return [];
+  if (throwOnError && !isDatabaseConfigured()) throw new Error('Memory storage is unavailable.');
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
   const vectorCandidateLimit = Math.min(
     Math.max(safeLimit * MEMORY_VECTOR_CANDIDATE_MULTIPLIER, MEMORY_VECTOR_MIN_CANDIDATES),
@@ -302,6 +334,7 @@ export async function searchMemories({
         (async () => {
           try {
             const queryEmbedding = await generateEmbedding(query);
+            if (!queryEmbedding && throwOnError) throw new Error('Memory embedding is unavailable.');
             if (queryEmbedding) {
               const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {
                 p_user_id: userId,
@@ -309,9 +342,11 @@ export async function searchMemories({
                 p_match_threshold: MEMORY_VECTOR_MATCH_THRESHOLD,
                 p_match_count: vectorCandidateLimit,
               });
+              if (rpcErr && throwOnError) throw rpcErr;
               if (!rpcErr && matched) return { type: 'vector', data: matched };
             }
           } catch (err) {
+            if (throwOnError) throw err;
             console.warn('[memories] vector search err:', err.message);
           }
           return { type: 'vector', data: [] };
@@ -343,9 +378,11 @@ export async function searchMemories({
               }
 
               const { data: ftsData, error: ftsErr } = await ftsQ;
+              if (ftsErr && throwOnError) throw ftsErr;
               if (!ftsErr && ftsData) return { type: 'fts', data: ftsData };
             }
           } catch (err) {
+            if (throwOnError) throw err;
             console.warn('[memories] FTS search err:', err.message);
           }
           return { type: 'fts', data: [] };
@@ -371,9 +408,11 @@ export async function searchMemories({
               tQ = tQ.eq('category', category);
             }
 
-            const { data: tData } = await tQ;
+            const { data: tData, error: tErr } = await tQ;
+            if (tErr && throwOnError) throw tErr;
             if (tData) return { type: 'topic', data: tData };
           } catch (err) {
+            if (throwOnError) throw err;
             console.warn('[memories] topic search err:', err.message);
           }
           return { type: 'topic', data: [] };
@@ -381,7 +420,10 @@ export async function searchMemories({
       );
     }
 
-    const taskResults = await Promise.all(searchTasks);
+    const settled = await Promise.allSettled(searchTasks);
+    const taskResults = settled.filter(result => result.status === 'fulfilled').map(result => result.value);
+    if (!taskResults.length && throwOnError) throw new Error('All memory retrieval channels are unavailable.');
+    const retrievalStatus = taskResults.length === settled.length ? 'available' : 'partial';
     for (const res of taskResults) {
       if (res.type === 'vector') vectorResults = res.data;
       else if (res.type === 'fts') ftsResults = res.data;
@@ -408,8 +450,9 @@ export async function searchMemories({
         .catch(() => {});
     }
 
-    return finalResults;
+    return withStatus ? { status: retrievalStatus, memories: finalResults } : finalResults;
   } catch (err) {
+    if (throwOnError) throw err;
     console.error('[memories] searchMemories threw:', err);
     return [];
   }
@@ -858,5 +901,3 @@ export function triggerEagerReminderReconciliation(userId) {
     }
   });
 }
-
-

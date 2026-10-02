@@ -41,7 +41,7 @@ function resolveWorkingItem(user, target, preferredType = null) {
 function baseDateFromItem(item, preferredType) {
   if (!item) return null;
   if (preferredType === 'reminder') {
-    return item.time || item.raw?.sendAt || item.raw?.send_at || null;
+    return item.raw?.sendAt || item.raw?.send_at || item.time || null;
   }
   if (preferredType === 'calendar_event') {
     return item.raw?.start?.dateTime || item.raw?.startDateTime || item.raw?.start || item.time || null;
@@ -239,7 +239,7 @@ function buildDomainCallForNormalizedAction(action, context) {
         if (action.schedule) {
           const temporal = resolveSchedule(action, context, 'task');
           if (!temporal.valid) return temporal;
-          item.dueDate = temporal.canonicalDate || temporal.canonical;
+          item.dueDate = temporal.isAllDay ? temporal.canonicalDate : temporal.canonical;
         }
         return {
           valid: true,
@@ -282,7 +282,7 @@ function buildDomainCallForNormalizedAction(action, context) {
       if (action.schedule) {
         const temporal = resolveSchedule(action, context, 'task');
         if (!temporal.valid) return temporal;
-        updates.dueDate = temporal.canonicalDate || temporal.canonical;
+        updates.dueDate = temporal.isAllDay ? temporal.canonicalDate : temporal.canonical;
       }
       if (action.clearFields?.includes('dueDate')) updates.dueDate = null;
       if (Object.keys(updates).length === 0) {
@@ -541,6 +541,7 @@ function buildDomainCallForNormalizedAction(action, context) {
 /** Build the validated canonical tool call used by fresh and resumed actions. */
 export function buildDomainCall(action, context = {}) {
   const normalized = normalizeTurnActionForRuntime(action, context);
+  if (normalized._referenceError) return { valid: false, errorCode: 'INVALID_CONTEXT_REFERENCE', error: context.language === 'en' ? 'That reference is no longer in the displayed list. Please select an available item.' : 'Esa referencia ya no está en la lista mostrada. Selecciona un elemento disponible.', requiresClarification: true };
   if (normalized.clearFields !== undefined) {
     const allowed = normalized.action === 'update' && normalized.domain === 'task'
       ? new Set(['description', 'dueDate'])

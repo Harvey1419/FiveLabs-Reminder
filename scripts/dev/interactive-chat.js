@@ -129,7 +129,10 @@ async function startInteractiveSession() {
         await extractAndSaveMemories({
           userId: user.id,
           userText: text,
+          currentUserText: text,
           assistantReply: result.confirmation,
+          executionFacts: result.executionFacts,
+          memoryDisposition: result.memoryDisposition,
         });
 
       } catch (err) {

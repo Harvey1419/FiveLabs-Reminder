@@ -40,7 +40,7 @@ describe('semantic memory retrieval budget', () => {
   it('treats limit as a real total prompt budget instead of adding an always-on profile behind it', async () => {
     const result = await retrieveRelevantMemories({ userId: 'u1', queryText: '¿Qué recuerdas de mi proyecto?', limit: 3 });
 
-    expect(searchMemories).toHaveBeenCalledWith({ userId: 'u1', query: '¿Qué recuerdas de mi proyecto?', limit: 3 });
+    expect(searchMemories).toHaveBeenCalledWith({ userId: 'u1', query: '¿Qué recuerdas de mi proyecto?', limit: 3, throwOnError: true, withStatus: true });
     expect(result).toHaveLength(3);
     expect(getActiveMemories).not.toHaveBeenCalled();
   });

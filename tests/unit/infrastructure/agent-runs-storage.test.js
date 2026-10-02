@@ -6,6 +6,8 @@ const { database } = vi.hoisted(() => ({
     failures: [],
     responses: [],
     rows: [],
+    beforePreparedUpsert: null,
+    observedActiveRun: undefined,
   },
 }));
 
@@ -15,6 +17,11 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
       const state = { table, operation: 'select', payload: null, filters: [] };
       const execute = async () => {
         database.calls.push({ ...state, filters: [...state.filters] });
+        if (state.operation === 'upsert' && state.table === 'prepared_actions' && database.beforePreparedUpsert) {
+          const beforePreparedUpsert = database.beforePreparedUpsert;
+          database.beforePreparedUpsert = null;
+          await beforePreparedUpsert();
+        }
         const failureIndex = database.failures.findIndex((failure) => (
           failure.table === state.table && failure.operation === state.operation
         ));
@@ -23,22 +30,47 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
           return { data: null, error };
         }
         const responseIndex = database.responses.findIndex((response) => (
-          response.table === state.table && response.operation === state.operation
+          response.table === state.table
+          && response.operation === state.operation
+          && (!response.filters || response.filters.every(([column, value]) => state.filters.some(([actualColumn, actualValue]) => actualColumn === column && actualValue === value)))
         ));
         if (responseIndex >= 0) {
           const [{ data }] = database.responses.splice(responseIndex, 1);
           return { data, error: null };
         }
         if (state.operation === 'insert' && state.table === 'agent_runs') {
-          const row = { id: 'db-run-id', ...state.payload };
+          const row = { id: 'db-run-id', created_at: new Date().toISOString(), ...state.payload };
           database.rows.push(row);
           return { data: row, error: null };
+        }
+        if (state.operation === 'select' && state.table === 'agent_runs') {
+          const rows = database.rows.filter((candidate) => state.filters.every(([column, value]) => {
+            if (column.endsWith('>')) return candidate[column.slice(0, -1)] > value;
+            return Array.isArray(value) ? value.includes(candidate[column]) : candidate[column] === value;
+          }));
+          if (state.order?.column === 'created_at') {
+            rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+          }
+          return { data: rows, error: null };
         }
         if (state.operation === 'upsert') {
           const rows = state.payload.map((row) => ({ id: 'db-prepared-id', ...row }));
           return { data: rows, error: null };
         }
         if (state.operation === 'update' && state.table === 'agent_runs') {
+          const row = database.rows.find((candidate) => state.filters.every(([column, value]) => {
+            if (column.endsWith('>')) return candidate[column.slice(0, -1)] > value;
+            return Array.isArray(value) ? value.includes(candidate[column]) : candidate[column] === value;
+          }));
+          if (state.filters.some(([column]) => column === 'status')) {
+            if (!row) return { data: null, error: null };
+            Object.assign(row, state.payload);
+            return { data: row, error: null };
+          }
+          if (row) {
+            Object.assign(row, state.payload);
+            return { data: row, error: null };
+          }
           return { data: { id: 'db-run-id', ...state.payload }, error: null };
         }
         if (state.operation === 'update' && state.table === 'prepared_actions') {
@@ -58,7 +90,8 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
         maybeSingle: execute,
         eq(column, value) { state.filters.push([column, value]); return builder; },
         in(column, value) { state.filters.push([column, value]); return builder; },
-        order() { return builder; },
+        gt(column, value) { state.filters.push([`${column}>`, value]); return builder; },
+        order(column, options = {}) { state.order = { column, ...options }; return builder; },
         then(resolve, reject) { return execute().then(resolve, reject); },
       };
       return builder;
@@ -67,6 +100,7 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 }));
 
 import {
+  cancelActiveInputRunFromDb,
   createAgentRunInDb,
   getActiveRunFromDb,
   getPreparedActionsFromDb,
@@ -76,7 +110,7 @@ import {
   updateAgentRunInDb,
   updatePreparedActionInDb,
 } from '../../../src/infrastructure/database/agent-runs.js';
-import { createApprovalRun, executeApprovalDecision } from '../../../src/agent/core/agent-run.js';
+import { createApprovalRun, createInputRun, executeApprovalDecision } from '../../../src/agent/core/agent-run.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 
 vi.mock('../../../src/agent/tools/index.js', () => ({ executeTool: vi.fn() }));
@@ -89,6 +123,8 @@ beforeEach(() => {
   database.failures.length = 0;
   database.responses.length = 0;
   database.rows.length = 0;
+  database.beforePreparedUpsert = null;
+  database.observedActiveRun = undefined;
   resetInMemoryAgentRuns();
   vi.stubEnv('SUPABASE_URL', 'https://unit-test.supabase.co');
   vi.stubEnv('SUPABASE_SECRET', 'unit-test-secret');
@@ -101,6 +137,222 @@ afterEach(() => {
 });
 
 describe('AgentRun durable storage boundary', () => {
+  it('keeps a replacement invisible to active-run queries until stage and retirement are complete', async () => {
+    const now = new Date();
+    const oldRun = {
+      id: 'old-pending', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation', waiting_for: { type: 'missing_fields' },
+      context: {}, created_at: new Date(now.getTime() - 60_000).toISOString(),
+      expires_at: new Date(now.getTime() + 60_000).toISOString(),
+    };
+    database.rows.push(oldRun);
+    database.beforePreparedUpsert = async () => {
+      database.observedActiveRun = await getActiveRunFromDb(user.phone_number, user.id, now);
+    };
+
+    const replacement = await createInputRun({
+      user,
+      partialAction: { domain: 'reminder', action: 'create', content: 'Replacement', missingFields: ['schedule'] },
+      missingFields: ['schedule'],
+      referenceTime: now,
+    });
+
+    expect(database.observedActiveRun?.id).toBe(oldRun.id);
+    expect(replacement.status).toBe('waiting_for_input');
+    expect(database.rows.find((row) => row.id === 'db-run-id')?.status).toBe('waiting_for_input');
+  });
+
+  it('keeps a staged candidate inert when cancellation fails without a cleanup write', async () => {
+    const now = new Date();
+    const oldRun = {
+      id: 'old-pending', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation', waiting_for: { type: 'missing_fields' },
+      context: {}, created_at: new Date(now.getTime() - 60_000).toISOString(),
+      expires_at: new Date(now.getTime() + 60_000).toISOString(),
+    };
+    database.rows.push(oldRun);
+    database.failures.push({ table: 'agent_runs', operation: 'update', error: failure });
+    database.beforePreparedUpsert = async () => {
+      database.observedActiveRun = await getActiveRunFromDb(user.phone_number, user.id, now);
+    };
+
+    await expect(createInputRun({
+      user,
+      partialAction: { domain: 'reminder', action: 'create', content: 'Replacement', missingFields: ['schedule'] },
+      missingFields: ['schedule'],
+      referenceTime: now,
+    })).rejects.toThrow(/conditional AgentRun status update/i);
+
+    expect(database.observedActiveRun?.id).toBe(oldRun.id);
+    expect(oldRun.status).toBe('waiting_for_input');
+    expect(database.rows.find((row) => row.id === 'db-run-id')?.status).toBe('failed');
+    expect(database.calls.filter((call) => call.table === 'agent_runs' && call.operation === 'update')).toHaveLength(1);
+  });
+
+  it('retains staged payload and refuses activation when the candidate status claim fails', async () => {
+    const now = new Date();
+    const oldRun = {
+      id: 'old-pending', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation', waiting_for: { type: 'missing_fields' },
+      context: {}, created_at: new Date(now.getTime() - 60_000).toISOString(),
+      expires_at: new Date(now.getTime() + 60_000).toISOString(),
+    };
+    database.rows.push(oldRun);
+    database.responses.push(
+      { table: 'agent_runs', operation: 'update', filters: [['id', 'db-run-id'], ['status', 'failed']], data: null },
+    );
+
+    const replacement = await createInputRun({
+      user,
+      partialAction: { domain: 'reminder', action: 'create', content: 'Replacement', missingFields: ['schedule'] },
+      missingFields: ['schedule'],
+      referenceTime: now,
+    });
+
+    expect(replacement).toMatchObject({ activationFailed: true, status: 'failed' });
+    expect(replacement.preparedActions[0].payload.content).toBe('Replacement');
+    expect(oldRun.status).toBe('cancelled');
+    expect(database.rows.find((row) => row.id === 'db-run-id')?.status).toBe('failed');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('atomically permits only one owner-bound cancellation of the same pending input run', async () => {
+    const now = new Date();
+    database.rows.push({
+      id: 'pending-cas', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', expires_at: new Date(now.getTime() + 60_000).toISOString(),
+    });
+
+    const results = await Promise.all([
+      cancelActiveInputRunFromDb({ runId: 'pending-cas', userId: user.id, now }),
+      cancelActiveInputRunFromDb({ runId: 'pending-cas', userId: user.id, now }),
+    ]);
+
+    expect(results.sort()).toEqual([false, true]);
+    const cancellation = database.calls.filter((call) => call.table === 'agent_runs' && call.operation === 'update');
+    expect(cancellation).toHaveLength(2);
+    expect(cancellation.every((call) => JSON.stringify(call.filters).includes('["id","pending-cas"]'))).toBe(true);
+    expect(cancellation.every((call) => JSON.stringify(call.filters).includes(JSON.stringify(['user_id', user.id])))).toBe(true);
+    expect(cancellation.every((call) => JSON.stringify(call.filters).includes('["status","waiting_for_input"]'))).toBe(true);
+  });
+
+  it('uses atomic compare-and-set in the explicit offline store too', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://placeholder.supabase.co');
+    vi.stubEnv('SUPABASE_SECRET', 'placeholder-secret');
+    const pending = await createAgentRunInDb({
+      userId: user.id, threadId: user.phone_number, kind: 'reminder_creation',
+      waitingFor: { type: 'missing_fields' }, expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const results = await Promise.all([
+      cancelActiveInputRunFromDb({ runId: pending.id, userId: user.id }),
+      cancelActiveInputRunFromDb({ runId: pending.id, userId: user.id }),
+    ]);
+
+    expect(results.sort()).toEqual([false, true]);
+  });
+
+  it('surfaces configured compare-and-set storage failures instead of claiming cancellation', async () => {
+    database.rows.push({
+      id: 'pending-cas-error', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', expires_at: new Date(Date.now() + 60_000).toISOString(),
+    });
+    database.failures.push({ table: 'agent_runs', operation: 'update', error: failure });
+
+    await expect(cancelActiveInputRunFromDb({ runId: 'pending-cas-error', userId: user.id }))
+      .rejects.toThrow(/conditional AgentRun status update/i);
+  });
+
+  it.each(['insert', 'stage'])('preserves the old pending input when replacement %s fails', async (failurePoint) => {
+    const oldRun = {
+      id: 'old-pending', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation', waiting_for: { type: 'missing_fields' },
+      context: {}, expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    database.rows.push(oldRun);
+    database.responses.push({ table: 'agent_runs', operation: 'select', data: [oldRun] });
+    if (failurePoint === 'insert') {
+      database.failures.push({ table: 'agent_runs', operation: 'insert', error: failure });
+    } else {
+      database.failures.push({ table: 'prepared_actions', operation: 'upsert', error: failure });
+    }
+
+    await expect(createInputRun({
+      user,
+      partialAction: { domain: 'reminder', action: 'create', content: 'Replacement', missingFields: ['schedule'] },
+      missingFields: ['schedule'],
+      expiresAtMs: 60_000,
+    })).rejects.toThrow();
+
+    expect(oldRun.status).toBe('waiting_for_input');
+  });
+
+  it('marks a staged replacement failed when its exact pending-run cancellation claim loses', async () => {
+    const oldRun = {
+      id: 'old-pending', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation', waiting_for: { type: 'missing_fields' },
+      context: {}, expires_at: new Date(Date.now() + 60_000).toISOString(),
+    };
+    database.rows.push(oldRun);
+    database.responses.push(
+      { table: 'agent_runs', operation: 'select', data: [oldRun] },
+      { table: 'agent_runs', operation: 'update', data: null },
+    );
+
+    const replacement = await createInputRun({
+      user,
+      partialAction: { domain: 'reminder', action: 'create', content: 'Replacement', missingFields: ['schedule'] },
+      missingFields: ['schedule'],
+      supersedesRunId: oldRun.id,
+      referenceTime: new Date(),
+    });
+
+    expect(replacement).toBeNull();
+    expect(oldRun.status).toBe('waiting_for_input');
+    expect(database.rows.find((row) => row.id === 'db-run-id')?.status).toBe('failed');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  it('resumes a serialized pending run after module-cache eviction using its stored original time context', async () => {
+    vi.resetModules();
+    const freshStore = await import('../../../src/infrastructure/database/agent-runs.js');
+    freshStore.resetInMemoryAgentRuns();
+    const originalReference = new Date('2026-10-02T06:55:00.000Z');
+    const resumedAt = new Date('2026-10-02T07:05:00.000Z');
+    const serializedRun = {
+      id: 'durable-restart-run', user_id: user.id, thread_id: user.phone_number,
+      status: 'waiting_for_input', kind: 'reminder_creation',
+      waiting_for: { type: 'missing_fields', fields: ['time'], question: 'What time?' },
+      context: { referenceTime: originalReference.toISOString(), timezone: 'America/Los_Angeles' },
+      expires_at: new Date(resumedAt.getTime() + 60_000).toISOString(),
+    };
+    const serializedPrepared = {
+      id: 'durable-prepared', run_id: serializedRun.id, call_id: 'call-1',
+      domain: 'reminder', action: 'create', status: 'prepared', execution_fact: null,
+      payload: { domain: 'reminder', action: 'create', content: 'Restarted reminder', schedule: { kind: 'relative_day_time', dayOffset: 1 }, missingFields: ['time'] },
+    };
+    database.rows.push(serializedRun);
+    database.responses.push(
+      { table: 'agent_runs', operation: 'select', data: [serializedRun] },
+      { table: 'prepared_actions', operation: 'select', data: [serializedPrepared] },
+      { table: 'prepared_actions', operation: 'select', data: [serializedPrepared] },
+      { table: 'agent_runs', operation: 'select', data: [] },
+    );
+    const freshCore = await import('../../../src/agent/core/agent-run.js');
+    const activeRun = await freshCore.getActiveAgentRun(user, resumedAt);
+    const execution = await freshCore.executeContinuationDecision({
+      run: activeRun,
+      suppliedFields: { schedule: { kind: 'local_time', hour: 7, minute: 0, clockMode: 'explicit_24h' } },
+      executionContext: { user: { ...user, timezone: 'America/Bogota' }, language: 'en', timezone: 'America/Bogota', referenceTime: resumedAt },
+      executeTool,
+    });
+
+    expect(execution.success).toBe(true);
+    expect(executeTool.mock.calls[0][0].params.items[0].targetTime).toBe('2026-10-02T14:00:00.000Z');
+    expect(await freshCore.getActiveAgentRun(user, resumedAt)).toBeNull();
+    expect(executeTool).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['input_draft', 'proposal_approval'])('normalizes legacy %s kinds without changing staged payload identity', async (kind) => {
     const run = await createAgentRunInDb({
       userId: user.id,
@@ -232,6 +484,7 @@ describe('AgentRun durable storage boundary', () => {
       userId: user.id, threadId: user.phone_number, kind: 'generic_operation',
       waitingFor: { type: 'approval' }, expiresAt: new Date(Date.now() + 60_000),
     });
+    database.responses.push({ table: 'agent_runs', operation: 'select', data: [] });
 
     await expect(getActiveRunFromDb(user.phone_number, user.id)).resolves.toBeNull();
     expect(cachedRun.id).toBe('db-run-id');

@@ -1,5 +1,23 @@
 const REMINDER_SCHEDULE_FIELDS = new Set(['main_time', 'advance_minutes']);
 
+const INPUT_ERRORS = Object.freeze({
+  MISSING_CONTENT: ['content', 'What should it say?', '¿Cuál es el contenido?'],
+  MISSING_TITLE: ['content', 'What is the title?', '¿Cuál es el título?'],
+  MISSING_TARGET: ['target', 'Which item do you mean?', '¿A qué elemento te refieres?'],
+  MISSING_SCHEDULE: ['schedule', 'On what date and at what time?', '¿Para qué fecha y hora?'],
+  MISSING_CLOCK_TIME: ['time', 'At what time?', '¿A qué hora?'],
+  MISSING_CALENDAR_DATE: ['date', 'On what date?', '¿Para qué fecha?'],
+  AMBIGUOUS_CLOCK_TIME: ['time', 'Is that AM or PM?', '¿Es de la mañana o de la tarde?'],
+});
+
+/** Validation codes describe missing data; natural language never controls execution. */
+export function pendingInputForValidation(validation, language = 'es') {
+  const entry = INPUT_ERRORS[validation.errorCode];
+  if (entry) return { fields: [entry[0]], question: entry[language === 'en' ? 1 : 2] };
+  if (!validation.requiresClarification) return null;
+  return { fields: [], question: validation.error || (language === 'en' ? 'Could you clarify the missing information?' : '¿Puedes aclarar la información que falta?') };
+}
+
 /** Render a typed clarification without trusting provider-authored permission prose. */
 export function formatAssistantClarification(clarification, language = 'es') {
   if (clarification?.kind !== 'reminder_schedule') return '';

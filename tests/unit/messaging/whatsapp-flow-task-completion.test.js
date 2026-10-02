@@ -101,7 +101,7 @@ describe('WhatsApp Flow Task Completion & Delivery', () => {
   });
 
   it('completes multiple tasks via nfm_reply Flow webhook and returns canonical completion card', async () => {
-    const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+    const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
 
     const req = {
       headers: {},
@@ -172,7 +172,7 @@ describe('WhatsApp Flow Task Completion & Delivery', () => {
   });
 
   it('dispatches sendWhatsAppFlow when turn result includes flow metadata', async () => {
-    const { handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
+    const { processWebhookMessage: handleWebhook } = await import('../../../src/http/webhooks/whatsapp.js');
 
     const req = {
       headers: {},

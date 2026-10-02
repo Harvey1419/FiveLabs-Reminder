@@ -350,7 +350,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
 } = {}) {
   const startMs = Date.now();
   const requestedProviders = providers?.length ? providers : [];
-  const strictForeground = purpose === 'initial' && responseFormat?.type === 'json_schema';
+  const strictForeground = responseFormat?.type === 'json_schema';
   const failStructured = (reason, data, choice, { terminal = false, validationCode = null } = {}) => {
     if (logPrefix) {
       const diagnostic = structuredResponseDiagnostic(data, choice, apiKey);
@@ -399,7 +399,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       const reason = classifyHttpFailure(res.status, errorData);
       if (logPrefix) {
         const detail = compactErrorBody(rawBody, {
-          includeProviderDetails: purpose === 'initial' && responseFormat?.type === 'json_schema',
+          includeProviderDetails: strictForeground,
           apiKey,
         });
         console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${detail}"`);
@@ -702,7 +702,7 @@ export async function callResponseSynthesis({
       content: JSON.stringify({
         availableAreas,
         excludedClauses: excludedClauses.map((item) => ({
-          text: item.text || item.sourceQuote || '',
+          text: item.quote || item.text || item.sourceQuote || '',
           reason: item.reason || 'out_of_scope',
         })),
       }),

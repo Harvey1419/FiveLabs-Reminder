@@ -182,7 +182,7 @@ describe('Google Calendar current architecture', () => {
       });
       expect(connectedPrompt).toContain('Google Calendar: 🟢 Conectado (iab.billionaire@gmail.com)');
       expect(connectedPrompt).toContain('calendar.list');
-      expect(connectedPrompt).toContain('NUNCA afirmes en conversation.reply que no puedes acceder al calendario');
+      expect(connectedPrompt).toContain('no niegues acceso en conversation.reply');
 
       const disconnectedPrompt = buildAgentCorePrompt({
         nowStr: '2026-09-12T14:00:00-05:00',
@@ -191,7 +191,7 @@ describe('Google Calendar current architecture', () => {
         googleIntegration: null,
       });
       expect(disconnectedPrompt).toContain('Google Calendar: 🔴 No conectado');
-      expect(disconnectedPrompt).toContain('emite calendar.list igualmente');
+      expect(disconnectedPrompt).toContain('calendar.list entrega el enlace oficial');
     });
 
     it('normalizes calendar.list temporal schedules into canonical scopes', () => {

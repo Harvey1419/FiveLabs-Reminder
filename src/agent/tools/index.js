@@ -18,6 +18,7 @@ import { executeAdminTool } from './admin.js';
 import { executeUnifiedAgendaTool } from './unified-agenda.js';
 import { formatErrorCard } from './formatters.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
+import { assertTurnLease } from '../core/turn-lease.js';
 
 export { TOOL_NAMES } from '../contracts/tool-names.js';
 
@@ -58,6 +59,8 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
   const isPro = requestedIsPro ?? (user?.isPro || false);
   const language = requestedLanguage || (user?.locale?.startsWith('en') ? 'en' : 'es');
   const reqId = correlationId ? `[tool req=${correlationId}]` : '[tool]';
+
+  await assertTurnLease();
 
   if (!toolName) return { success: false, action: 'unknown', errorCode: 'UNKNOWN_TOOL', error: 'No se especificó una herramienta para ejecutar.', rawSummary: 'No se especificó una herramienta para ejecutar.', confirmation: formatErrorCard('UNKNOWN_TOOL', null, language), complete: false };
 
@@ -102,16 +105,24 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
       default: result = { success: false, action: 'unknown', errorCode: 'UNKNOWN_TOOL', error: `Herramienta desconocida: ${toolName}` }; break;
     }
 
+    if (!result || typeof result.success !== 'boolean') throw new Error('Unobservable tool result');
+    if (result.outcome === 'unknown') {
+      return { ...result, success: false, complete: false, outcome: 'unknown' };
+    }
     if (!result.success) {
       console.warn(`${reqId} ${toolName} failed with ${result.errorCode}:`, result.error);
       const rawSummary = result.formattedCard || result.rawSummary || result.error || 'Ocurrió un error al ejecutar la herramienta.';
       return { success: false, action: result.action || 'error', errorCode: result.errorCode || 'TOOL_EXECUTION_ERROR', error: result.error, isProFeature: result.isProFeature ?? (result.errorCode === 'PRO_TIER_REQUIRED'), rawSummary, confirmation: result.formattedCard || result.rawSummary || formatErrorCard(result.errorCode, result.error, language), ctaUrl: result.ctaUrl || null, ctaHeader: result.ctaHeader || null, ctaButtonText: result.ctaButtonText || null, data: result.data || null, requiresClarification: Boolean(result.requiresClarification), pendingClarifications: result.pendingClarifications || result.data?.pendingClarifications || [], partialSuccess: Boolean(result.partialSuccess), complete: false };
     }
 
-    const rawSummary = result.confirmation || result.rawSummary || 'Operación completada.';
+    const rawSummary = result.confirmation || result.rawSummary || (language === 'en' ? 'Operation completed.' : 'Operación completada.');
     return { success: true, action: result.action || params?.action || 'executed', data: result.data, rawSummary, confirmation: rawSummary, ctaUrl: result.ctaUrl || null, ctaHeader: result.ctaHeader || null, ctaButtonText: result.ctaButtonText || null, flow: result.flow || null, requiresClarification: Boolean(result.requiresClarification), pendingClarifications: result.pendingClarifications || result.data?.pendingClarifications || [], partialSuccess: Boolean(result.partialSuccess), complete: result.complete !== false };
   } catch (err) {
     console.error(`${reqId} Unexpected exception in ${toolName}:`, err);
-    return { success: false, action: 'error', errorCode: 'UNEXPECTED_EXCEPTION', error: err.message, rawSummary: err.message, confirmation: formatErrorCard('UNEXPECTED_EXCEPTION', null, language), complete: false };
+    const readOnly = ['list', 'read', 'search', 'get_agenda', 'get_overview', 'status', 'metrics', 'next'].includes(params.action);
+    const summary = readOnly
+      ? (language === 'en' ? 'I could not retrieve that information.' : 'No pude consultar esa información.')
+      : (language === 'en' ? 'I could not confirm the outcome of this action. I will not repeat it automatically.' : 'No pude confirmar el resultado de esta acción. No la repetiré automáticamente.');
+    return { success: false, action: 'error', ...(readOnly ? {} : { outcome: 'unknown' }), errorCode: readOnly ? 'UNEXPECTED_EXCEPTION' : 'WRITE_OUTCOME_UNKNOWN', error: summary, rawSummary: summary, confirmation: summary, complete: false };
   }
 }

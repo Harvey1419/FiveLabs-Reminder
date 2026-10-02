@@ -112,6 +112,20 @@ describe('Task ⇄ Reminder Dual Synergy lifecycle cascades', () => {
     expect(cancelRemindersByTaskId).toHaveBeenCalledWith('task-uuid-1', 'user-1');
   });
 
+  it('reports partial completion if a deleted task leaves companion reminders unconfirmed', async () => {
+    cancelRemindersByTaskId.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    const res = await executeTaskDelete({
+      params: { target: 'Comprar insumos' },
+      user: testUser,
+      language: 'en',
+    });
+
+    expect(res).toMatchObject({ success: true, partialSuccess: true, complete: false });
+    expect(res.error).toContain('task was deleted');
+    expect(res.error).toContain('may remain');
+  });
+
   it('cascades task due date update to reschedule companion reminders', async () => {
     const res = await executeTaskUpdate({
       params: { target: 'Comprar insumos', dueDate: '2026-09-15T10:00:00.000Z' },
@@ -126,4 +140,37 @@ describe('Task ⇄ Reminder Dual Synergy lifecycle cascades', () => {
       'user-1',
     );
   });
+
+  it('reports partial completion when task update succeeds but companion rescheduling fails', async () => {
+    rescheduleRemindersByTaskId.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    const res = await executeTaskUpdate({
+      params: { target: 'Comprar insumos', dueDate: '2026-09-15T10:00:00.000Z' },
+      user: testUser,
+      language: 'en',
+    });
+
+    expect(res).toMatchObject({ success: true, partialSuccess: true, complete: false });
+    expect(res.error).toContain('task was updated');
+    expect(res.error).toContain('may not have moved');
+  });
+
+  it('reports partial completion when task completion cannot confirm linked reminders', async () => {
+    acknowledgeRemindersByTaskId.mockRejectedValueOnce(new Error('storage unavailable'));
+    const { executeTaskComplete } = await import('../../../src/agent/tools/task-complete.js');
+
+    const res = await executeTaskComplete({
+      params: { target: 'Comprar insumos' }, user: testUser, language: 'en',
+    });
+
+    expect(res).toMatchObject({ success: true, partialSuccess: true, complete: false });
+    expect(res.error).toContain('task was completed');
+    expect(res.error).toContain('some may remain active');
+  });
+  it('cancels deadline companions when the task deadline is explicitly removed', async () => {
+    const res = await executeTaskUpdate({ params: { target: 'Comprar insumos', dueDate: null }, user: testUser, language: 'en' });
+    expect(res.success).toBe(true);
+    expect(cancelRemindersByTaskId).toHaveBeenCalledWith('task-uuid-1', 'user-1');
+  });
+
 });

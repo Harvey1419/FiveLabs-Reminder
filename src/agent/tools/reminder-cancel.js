@@ -105,6 +105,7 @@ function ambiguousCandidateSnapshot(reminders = []) {
     summary: reminder.content,
     time: reminder.send_at || null,
     send_at: reminder.send_at || null,
+    recurrence_rule: reminder.recurrence_rule || null,
     status: reminder.status || null,
   }));
 }

@@ -17,7 +17,7 @@ export function normalizeUserPhone(phone) {
   return digits || trimmed;
 }
 
-export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defaultLocale = 'es-CO', displayName = null) {
+export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defaultLocale = 'es-CO', displayName = null, { fresh = false } = {}) {
   const cleanPhone = normalizeUserPhone(phoneNumber);
   const resolvedTz = defaultTz || (cleanPhone ? detectTimezoneFromPhone(cleanPhone) : 'America/Bogota');
   const resolvedLocale = (defaultLocale === 'es-CO' && cleanPhone)
@@ -36,7 +36,7 @@ export async function getOrCreateUserByPhone(phoneNumber, defaultTz = null, defa
   }
 
   const cached = userCache.get(cleanPhone);
-  if (cached?.user?.id && Date.now() - cached.timestamp < USER_CACHE_TTL_MS) {
+  if (!fresh && cached?.user?.id && Date.now() - cached.timestamp < USER_CACHE_TTL_MS) {
     if (displayName && !cached.user.display_name) {
       cached.user.display_name = displayName;
       supabase.from('users').update({ display_name: displayName }).eq('id', cached.user.id).then(() => {}).catch(() => {});
@@ -191,4 +191,3 @@ export async function touchUserLastActive(userId, phoneNumber) {
       .catch(handleDbErr);
   }
 }
-

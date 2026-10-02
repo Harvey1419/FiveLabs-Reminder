@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { formatLocalDateTime } from '../../shared/time.js';
+import { assertTurnLease, currentTurnSignal } from '../../agent/core/turn-lease.js';
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseSecret = process.env.SUPABASE_SECRET || 'placeholder-secret';
@@ -8,6 +9,12 @@ const supabase = createClient(
   supabaseUrl,
   supabaseSecret,
   {
+    global: {
+      fetch: (url, options = {}) => fetch(url, {
+        ...options,
+        signal: AbortSignal.any([options.signal, currentTurnSignal(), AbortSignal.timeout(15000)].filter(Boolean)),
+      }),
+    },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -235,7 +242,8 @@ import { isStrictUUID } from '../../shared/entity-resolution.js';
  * Acknowledge single reminder by its ID.
  */
 export async function acknowledgeReminder(id, userId = null) {
-  if (!id) return null;
+  await assertTurnLease();
+  if (!id || !userId) return null;
   const ackTime = new Date().toISOString();
   try {
     let resolvedId = String(id).trim();
@@ -257,6 +265,7 @@ export async function acknowledgeReminder(id, userId = null) {
       .from('reminders')
       .update({ acknowledged_at: ackTime, status: 'sent' })
       .eq('id', resolvedId)
+      .eq('user_id', userId)
       .select()
       .maybeSingle();
 
@@ -461,6 +470,7 @@ export async function markReminderAsCancelled(id, userId = null, phoneNumber = n
  * @returns {Promise<object|null>} Updated reminder object or null
  */
 export async function updateReminder(reminderId, updates, userId = null, phoneNumber = null) {
+  await assertTurnLease();
   if (!reminderId || !updates) return null;
   try {
     let resolvedId = reminderId;
@@ -932,6 +942,7 @@ export async function getNextPendingReminder() {
  */
 export async function cancelCalendarCompanionReminders({ userId, eventId, summary = null }) {
   if (!userId || (!eventId && !summary)) return { cancelled: 0 };
+  let cleanupError = null;
   try {
     if (eventId) {
       const { data, error } = await supabase
@@ -941,6 +952,7 @@ export async function cancelCalendarCompanionReminders({ userId, eventId, summar
         .eq('delivery_id', `gcal:${eventId}`)
         .in('status', ['pending', 'processing'])
         .select('id');
+      if (error) cleanupError = error;
       if (!error && data?.length > 0) {
         return { cancelled: data.length };
       }
@@ -954,14 +966,16 @@ export async function cancelCalendarCompanionReminders({ userId, eventId, summar
         .in('status', ['pending', 'processing'])
         .ilike('content', `%${cleanSummary}%`)
         .select('id');
+      if (error) cleanupError = error;
       if (!error && data?.length > 0) {
         return { cancelled: data.length };
       }
     }
+    if (cleanupError) return { cancelled: 0, error: { code: cleanupError.code || 'DATABASE_ERROR' } };
     return { cancelled: 0 };
   } catch (err) {
     console.warn('[reminders] cancelCalendarCompanionReminders warning:', err.message);
-    return { cancelled: 0 };
+    return { cancelled: 0, error: { code: err.code || 'DATABASE_ERROR' } };
   }
 }
 
@@ -1034,6 +1048,7 @@ export async function rescheduleCalendarCompanionReminders({
  * Acknowledge companion reminders associated with a completed task.
  */
 export async function acknowledgeRemindersByTaskId(taskId, userId = null) {
+  await assertTurnLease();
   if (!taskId) return { acknowledgedCount: 0 };
   const now = new Date().toISOString();
   try {
@@ -1047,12 +1062,12 @@ export async function acknowledgeRemindersByTaskId(taskId, userId = null) {
     const { data, error } = await q.select('id');
     if (error) {
       console.warn('[reminders] acknowledgeRemindersByTaskId error:', error.message);
-      return { acknowledgedCount: 0 };
+      return { acknowledgedCount: 0, error: { code: error.code || 'DATABASE_ERROR' } };
     }
     return { acknowledgedCount: data?.length || 0 };
   } catch (err) {
     console.warn('[reminders] acknowledgeRemindersByTaskId threw:', err.message);
-    return { acknowledgedCount: 0 };
+    return { acknowledgedCount: 0, error: { code: err.code || 'DATABASE_ERROR' } };
   }
 }
 
@@ -1072,12 +1087,12 @@ export async function cancelRemindersByTaskId(taskId, userId = null) {
     const { data, error } = await q.select('id');
     if (error) {
       console.warn('[reminders] cancelRemindersByTaskId error:', error.message);
-      return { cancelledCount: 0 };
+      return { cancelledCount: 0, error: { code: error.code || 'DATABASE_ERROR' } };
     }
     return { cancelledCount: data?.length || 0 };
   } catch (err) {
     console.warn('[reminders] cancelRemindersByTaskId threw:', err.message);
-    return { cancelledCount: 0 };
+    return { cancelledCount: 0, error: { code: err.code || 'DATABASE_ERROR' } };
   }
 }
 
@@ -1098,12 +1113,12 @@ export async function rescheduleRemindersByTaskId(taskId, newDueDate, userId = n
     const { data, error } = await q.select('id');
     if (error) {
       console.warn('[reminders] rescheduleRemindersByTaskId error:', error.message);
-      return { rescheduledCount: 0 };
+      return { rescheduledCount: 0, error: { code: error.code || 'DATABASE_ERROR' } };
     }
     return { rescheduledCount: data?.length || 0, newSendAt };
   } catch (err) {
     console.warn('[reminders] rescheduleRemindersByTaskId threw:', err.message);
-    return { rescheduledCount: 0 };
+    return { rescheduledCount: 0, error: { code: err.code || 'DATABASE_ERROR' } };
   }
 }
 

@@ -1,3 +1,4 @@
+import { assertTurnLease, checkpointTurnResponse, currentTurnSignal } from '../../agent/core/turn-lease.js';
 import { markAsProcessed } from '../../http/webhooks/whatsapp.js';
 import { supabase } from '../../infrastructure/database/index.js';
 import { userCache } from '../../infrastructure/database/users.js';
@@ -50,6 +51,58 @@ export class KapsoValidationError extends KapsoError {
   }
 }
 
+// Delivery without a provider identity is uncertain: replaying may duplicate a message.
+async function postMessage({ activePhoneId, apiKey, payload, fallbackText = null }) {
+  await assertTurnLease();
+  const confirmation = payload.text?.body || payload.interactive?.body?.text;
+  await checkpointTurnResponse({ ...(confirmation ? { confirmation } : {}), delivery: { status: 'attempted' } });
+  for (let attempt = 0; ; attempt++) {
+    await assertTurnLease();
+    let response;
+    try {
+      const signals = [AbortSignal.timeout(15000), currentTurnSignal()].filter(Boolean);
+      response = await fetch(`${KAPSO_API_BASE}/${activePhoneId}/messages`, {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.any(signals),
+      });
+    } catch {
+      throw new KapsoError('Message delivery could not be confirmed.', { code: 'DELIVERY_OUTCOME_UNKNOWN' });
+    }
+    if (response.ok) {
+      let data;
+      try { data = await response.json(); } catch { /* A malformed receipt does not prove rejection. */ }
+      const messageId = data?.messages?.[0]?.id;
+      if (typeof messageId !== 'string' || !messageId.trim()) {
+        throw new KapsoError('Provider response has no message identity.', { code: 'DELIVERY_OUTCOME_UNKNOWN' });
+      }
+      markAsProcessed(messageId);
+      await checkpointTurnResponse({ delivery: { status: 'accepted', messageId } });
+      return { success: true, messageId, recipientType: payload.recipient ? 'bsuid' : 'phone', data };
+    }
+    const status = response.status;
+    const errText = await response.text().catch(() => '');
+    // Only an explicit rejection can safely be retried or replaced by another format.
+    if (status === 429 && attempt < 3) {
+      await new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt + 1)));
+      continue;
+    }
+    if ([400, 404, 422].includes(status)) {
+      if (fallbackText) return sendWhatsAppText({
+        phoneNumberId: activePhoneId, phoneNumber: payload.to, bsuid: payload.recipient, text: fallbackText,
+      });
+      throw new KapsoValidationError(`Kapso rejected the message (HTTP ${status}): ${errText.slice(0, 150)}`, status);
+    }
+    if (status === 401) throw new KapsoAuthError('Invalid or unauthorized KAPSO_API_KEY.');
+    if (status === 403 && errText.includes('Active sandbox session required')) throw new KapsoSandboxError('Active sandbox session required.');
+    if (status === 429) throw new KapsoRateLimitError('Kapso rate limit reached.');
+    throw new KapsoError(`Message dispatch HTTP ${status}.`, {
+      status, code: status >= 500 ? 'DELIVERY_OUTCOME_UNKNOWN' : 'DELIVERY_REJECTED', data: errText,
+    });
+  }
+}
+
 /**
  * Clean phone number to E.164 without +, spaces, hyphens, or parentheses.
  */
@@ -64,7 +117,7 @@ export function normalizePhoneNumber(rawPhone) {
  * - Uses `to` for valid E.164 phone numbers.
  * - Uses `recipient` exclusively for BSUIDs (e.g. CO.1552339023039755).
  * - Dynamically routes through the originating phoneNumberId (Sandbox or Production).
- * - Implements exponential backoff retry for temporary errors (429, 500, 502, 503, 504).
+ * - Retries explicit rate-limit rejections; uncertain delivery is never replayed.
  *
  * @param {object} params
  * @param {string} [params.phoneNumberId]
@@ -79,6 +132,7 @@ export async function sendWhatsAppText({
   bsuid = null,
   text,
 }) {
+  await assertTurnLease();
   const apiKey = process.env.KAPSO_API_KEY;
   if (!apiKey) {
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
@@ -104,12 +158,8 @@ export async function sendWhatsAppText({
 
   // Build body strictly adhering to Kapso / Meta spec
   let payload;
-  let recipientType;
-  let targetDisplay;
 
   if (cleanPhone) {
-    recipientType = 'phone';
-    targetDisplay = cleanPhone;
     payload = {
       messaging_product: 'whatsapp',
       to: cleanPhone,
@@ -117,8 +167,6 @@ export async function sendWhatsAppText({
       text: { body: text },
     };
   } else {
-    recipientType = 'bsuid';
-    targetDisplay = cleanBsuid;
     payload = {
       messaging_product: 'whatsapp',
       recipient: cleanBsuid,
@@ -127,95 +175,7 @@ export async function sendWhatsAppText({
     };
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-  const maxRetries = 3;
-  let attempt = 0;
-
-  while (attempt <= maxRetries) {
-    try {
-      console.log(`[kapso] sending (${recipientType}) to ${targetDisplay}: "${text.slice(0, 50)}${text.length > 50 ? '...' : ''}" (attempt ${attempt + 1})`);
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const messageId = data.messages?.[0]?.id || null;
-
-        if (!messageId) {
-          console.error(`[kapso] HTTP ${response.status} response for ${targetDisplay} did not include a provider message id.`);
-          return {
-            success: false,
-            recipientType,
-            data,
-            error: 'Kapso accepted the request without returning a provider message id.',
-          };
-        }
-        markAsProcessed(messageId);
-
-        console.log(`[kapso] sent ok to=${targetDisplay} (${recipientType}) messageId=${messageId}`);
-        return {
-          success: true,
-          messageId,
-          recipientType,
-          data,
-        };
-      }
-
-      const errText = await response.text();
-      const status = response.status;
-
-      // Handle 403 Sandbox session expired
-      if (status === 403 && errText.includes('Active sandbox session required')) {
-        throw new KapsoSandboxError('Active sandbox session required to send messages. Please ensure you are using production phone_number_id.');
-      }
-
-      if (status === 401) {
-        throw new KapsoAuthError('Invalid or unauthorized KAPSO_API_KEY.', status);
-      }
-
-      if (status === 400 || status === 404) {
-        throw new KapsoValidationError(`Kapso API rejected request (HTTP ${status}): ${errText.slice(0, 150)}`, status);
-      }
-
-      // Retryable errors: 429, 500, 502, 503, 504
-      const isRetryable = status === 429 || status >= 500;
-      if (isRetryable && attempt < maxRetries) {
-        attempt++;
-        const delayMs = Math.pow(2, attempt) * 500;
-        console.warn(`[kapso] temporary error HTTP ${status}. Retrying in ${delayMs}ms... (attempt ${attempt}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
-      }
-
-      throw new KapsoError(`Kapso API failed with HTTP ${status}: ${errText.slice(0, 150)}`, {
-        status,
-        data: errText,
-      });
-
-    } catch (err) {
-      if (err instanceof KapsoError) {
-        throw err;
-      }
-
-      if (attempt < maxRetries) {
-        attempt++;
-        const delayMs = Math.pow(2, attempt) * 500;
-        console.warn(`[kapso] network error "${err.message}". Retrying in ${delayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
-      }
-
-      throw new KapsoError(`Failed to send message: ${err.message}`);
-    }
-  }
+  return postMessage({ activePhoneId, apiKey, payload });
 }
 
 /**
@@ -243,6 +203,7 @@ export async function sendWhatsAppCtaUrl({
   buttonText = 'Abrir enlace',
   url,
 }) {
+  await assertTurnLease();
   const apiKey = process.env.KAPSO_API_KEY;
   if (!apiKey) {
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
@@ -299,44 +260,7 @@ export async function sendWhatsAppCtaUrl({
     payload.recipient = cleanBsuid;
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const messageId = data.messages?.[0]?.id || 'unknown';
-      if (messageId && messageId !== 'unknown') {
-        markAsProcessed(messageId);
-      }
-      console.log(`[kapso] sent CTA button ok to=${cleanPhone || cleanBsuid} messageId=${messageId}`);
-      return { success: true, messageId, data };
-    }
-
-    const errText = await response.text();
-    console.warn(`[kapso] CTA URL button rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: `${bodyText}\n\n👉 *${buttonText}:*\n${url}`,
-    });
-  } catch (err) {
-    console.warn(`[kapso] CTA URL error: ${err.message}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: `${bodyText}\n\n👉 *${buttonText}:*\n${url}`,
-    });
-  }
+  return postMessage({ activePhoneId, apiKey, payload, fallbackText: `${bodyText}\n\n👉 *${buttonText}:*\n${url}` });
 }
 
 /**
@@ -374,6 +298,7 @@ export async function sendWhatsAppFlow({
   flowData = {},
   mode = null,
 }) {
+  await assertTurnLease();
   const apiKey = process.env.KAPSO_API_KEY;
   if (!apiKey) {
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
@@ -443,44 +368,7 @@ export async function sendWhatsAppFlow({
     payload.recipient = cleanBsuid;
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const messageId = data.messages?.[0]?.id || 'unknown';
-      if (messageId && messageId !== 'unknown') {
-        markAsProcessed(messageId);
-      }
-      console.log(`[kapso] sent Flow button ok to=${cleanPhone || cleanBsuid} messageId=${messageId} flowId=${targetFlowId}`);
-      return { success: true, messageId, data };
-    }
-
-    const errText = await response.text();
-    console.warn(`[kapso] Flow interactive message rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: bodyText,
-    });
-  } catch (err) {
-    console.warn(`[kapso] Flow interactive message error: ${err.message}, falling back to text...`);
-    return await sendWhatsAppText({
-      phoneNumber: cleanPhone,
-      bsuid: cleanBsuid,
-      text: bodyText,
-    });
-  }
+  return postMessage({ activePhoneId, apiKey, payload, fallbackText: bodyText });
 }
 
 
@@ -496,6 +384,7 @@ export async function sendWhatsAppQuickReplyButtons({
   footerText = 'Hermes TempleLabs',
   buttons = [],
 }) {
+  await assertTurnLease();
   const apiKey = process.env.KAPSO_API_KEY;
   if (!apiKey) {
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
@@ -553,58 +442,10 @@ export async function sendWhatsAppQuickReplyButtons({
   if (cleanPhone) {
     payload.to = cleanPhone;
   } else {
-    payload.recipient_type = 'individual';
-    payload.to = cleanBsuid;
+    payload.recipient = cleanBsuid;
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const messageId = data.messages?.[0]?.id || 'unknown';
-      if (messageId && messageId !== 'unknown') {
-        markAsProcessed(messageId);
-      }
-      console.log(`[kapso] sent interactive buttons ok to=${cleanPhone || cleanBsuid} messageId=${messageId}`);
-      return { success: true, messageId, data };
-    }
-
-    const errText = await response.text();
-    console.warn(`[kapso] Interactive buttons rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
-    try {
-      return await sendWhatsAppText({
-        phoneNumberId,
-        phoneNumber: cleanPhone,
-        bsuid: cleanBsuid,
-        text: bodyText,
-      });
-    } catch (fallbackErr) {
-      return { success: false, error: fallbackErr.message };
-    }
-  } catch (err) {
-    console.warn(`[kapso] Interactive buttons error: ${err.message}, falling back to text...`);
-    try {
-      return await sendWhatsAppText({
-        phoneNumberId,
-        phoneNumber: cleanPhone,
-        bsuid: cleanBsuid,
-        text: bodyText,
-      });
-    } catch (fallbackErr) {
-      return { success: false, error: fallbackErr.message };
-    }
-  }
+  return postMessage({ activePhoneId, apiKey, payload, fallbackText: bodyText });
 }
 
 /**
@@ -642,6 +483,7 @@ export async function sendWhatsAppListMessage({
   buttonText = 'Ver opciones',
   sections = [],
 }) {
+  await assertTurnLease();
   const apiKey = process.env.KAPSO_API_KEY;
   if (!apiKey) {
     throw new KapsoConfigurationError('KAPSO_API_KEY is not configured in environment.');
@@ -724,58 +566,10 @@ export async function sendWhatsAppListMessage({
   if (cleanPhone) {
     payload.to = cleanPhone;
   } else {
-    payload.recipient_type = 'individual';
-    payload.to = cleanBsuid;
+    payload.recipient = cleanBsuid;
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const messageId = data.messages?.[0]?.id || 'unknown';
-      if (messageId && messageId !== 'unknown') {
-        markAsProcessed(messageId);
-      }
-      console.log(`[kapso] sent interactive list message ok to=${cleanPhone || cleanBsuid} messageId=${messageId} rows=${totalRows}`);
-      return { success: true, messageId, data };
-    }
-
-    const errText = await response.text();
-    console.warn(`[kapso] Interactive list message rejected (HTTP ${response.status}): ${errText.slice(0, 150)}, falling back to text...`);
-    try {
-      return await sendWhatsAppText({
-        phoneNumberId,
-        phoneNumber: cleanPhone,
-        bsuid: cleanBsuid,
-        text: bodyText,
-      });
-    } catch (fallbackErr) {
-      return { success: false, error: fallbackErr.message };
-    }
-  } catch (err) {
-    console.warn(`[kapso] Interactive list message error: ${err.message}, falling back to text...`);
-    try {
-      return await sendWhatsAppText({
-        phoneNumberId,
-        phoneNumber: cleanPhone,
-        bsuid: cleanBsuid,
-        text: bodyText,
-      });
-    } catch (fallbackErr) {
-      return { success: false, error: fallbackErr.message };
-    }
-  }
+  return postMessage({ activePhoneId, apiKey, payload, fallbackText: bodyText });
 }
 
 /**
@@ -796,7 +590,7 @@ export async function sendReminderConfirmation(recipient, message, { phoneNumber
     });
   } catch (err) {
     console.error('[kapso] sendReminderConfirmation failed:', err.message);
-    return { success: false, error: err.message };
+    return { success: false, error: err.message, code: err.code, status: err.status, outcome: err.code === 'DELIVERY_OUTCOME_UNKNOWN' ? 'unknown' : 'failure' };
   }
 }
 
@@ -910,8 +704,6 @@ export async function sendWhatsAppTemplate({
     throw new KapsoValidationError('Incomplete recipient data: either phoneNumber or bsuid must be provided.');
   }
 
-  let recipientType;
-  let targetDisplay;
   let payload;
 
   const templateObj = {
@@ -929,8 +721,6 @@ export async function sendWhatsAppTemplate({
   };
 
   if (cleanPhone) {
-    recipientType = 'phone';
-    targetDisplay = cleanPhone;
     payload = {
       messaging_product: 'whatsapp',
       to: cleanPhone,
@@ -938,8 +728,6 @@ export async function sendWhatsAppTemplate({
       template: templateObj,
     };
   } else {
-    recipientType = 'bsuid';
-    targetDisplay = cleanBsuid;
     payload = {
       messaging_product: 'whatsapp',
       recipient: cleanBsuid,
@@ -948,85 +736,15 @@ export async function sendWhatsAppTemplate({
     };
   }
 
-  const endpoint = `${KAPSO_API_BASE}/${activePhoneId}/messages`;
-  const maxRetries = 2;
-  let attempt = 0;
-
-  while (attempt <= maxRetries) {
-    try {
-      console.log(`[kapso] sending template "${templateName}" (${recipientType}) to ${targetDisplay} (attempt ${attempt + 1})`);
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const messageId = data.messages?.[0]?.id || null;
-        if (!messageId) {
-          console.error(`[kapso] HTTP ${response.status} template response for ${targetDisplay} did not include a provider message id.`);
-          return {
-            success: false,
-            recipientType,
-            data,
-            error: 'Kapso accepted the template request without returning a provider message id.',
-          };
-        }
-        markAsProcessed(messageId);
-        console.log(`[kapso] template sent ok to=${targetDisplay} (${recipientType}) messageId=${messageId}`);
-        return {
-          success: true,
-          messageId,
-          recipientType,
-          data,
-        };
-      }
-
-      const errText = await response.text();
-      const status = response.status;
-
-      if (status === 401) {
-        throw new KapsoAuthError('Invalid or unauthorized KAPSO_API_KEY.', status);
-      }
-
-      // Check if template translation is missing (#132001) and we requested a non-default language
-      if (
-        (status === 404 || status === 400) &&
-        languageCode !== 'es' &&
-        (errText.includes('132001') || errText.includes('does not exist in the translation') || errText.includes('does not exist in'))
-      ) {
-        console.warn(
-          `[kapso] template "${templateName}" does not exist in "${languageCode}". Falling back to approved template "reminder_task_one_reminder" (es)...`
-        );
-        return await sendWhatsAppTemplate({
-          phoneNumberId,
-          phoneNumber: cleanPhone,
-          bsuid: cleanBsuid,
-          templateName: 'reminder_task_one_reminder',
-          languageCode: 'es',
-          parameters,
-        });
-      }
-
-      console.warn(`[kapso] template dispatch HTTP ${status}:`, errText.slice(0, 150));
-      return { success: false, status, error: errText };
-
-    } catch (err) {
-      if (err instanceof KapsoError) throw err;
-      if (attempt < maxRetries) {
-        attempt++;
-        await new Promise((res) => setTimeout(res, 1000));
-        continue;
-      }
-      console.error('[kapso] sendWhatsAppTemplate error:', err.message);
-      return { success: false, error: err.message };
+  try {
+    return await postMessage({ activePhoneId, apiKey, payload });
+  } catch (error) {
+    if ([400, 404].includes(error.status) && languageCode !== 'es'
+        && (error.message.includes('132001') || error.message.includes('does not exist in'))) {
+      return sendWhatsAppTemplate({ phoneNumberId: activePhoneId, phoneNumber: cleanPhone, bsuid: cleanBsuid,
+        templateName: 'reminder_task_one_reminder', languageCode: 'es', parameters });
     }
+    throw error;
   }
 }
 
@@ -1069,12 +787,12 @@ export async function sendReminderMessage(recipient, content, {
         textRes = await sendReminderConfirmation(recipient, reminderText, { phoneNumberId });
       }
     } catch (sendErr) {
-      console.warn(`[kapso] Freeform/interactive send threw: ${sendErr.message}. Auto-recovering via template...`);
-      textRes = { success: false, error: sendErr.message };
+      textRes = { success: false, error: sendErr.message, code: sendErr.code, status: sendErr.status, outcome: sendErr.code === 'DELIVERY_OUTCOME_UNKNOWN' ? 'unknown' : 'failure' };
     }
 
     // If freeform text or interactive buttons succeeded, return immediately
     if (textRes?.success) return textRes;
+    if (![400, 404, 422].includes(textRes?.status)) return textRes;
 
     console.log(`[kapso] Freeform/interactive message failed (${textRes?.error || 'window closed'}). Auto-recovering via template "${templateName}"...`);
   } else {

@@ -136,7 +136,7 @@ export function formatCanonicalTaskUpdate(data, {
   const header = language === 'en' ? '🔄 *Task updated*' : '🔄 *Tarea actualizada*';
   const groups = formatTaskProjectGroups([task], { language, timezone, isMultiDay: true });
   const priority = task?.priority && task.priority !== 'medium'
-    ? `\n${language === 'en' ? '⚡ Priority' : '⚡ Prioridad'}: ${task.priority}`
+    ? `\n${language === 'en' ? '⚡ Priority' : '⚡ Prioridad'}: ${language === 'en' ? task.priority : ({ low: 'baja', medium: 'media', high: 'alta', urgent: 'urgente' }[task.priority] || task.priority)}`
     : '';
   return `${header}${groups ? `\n\n${groups}` : ''}${priority}`;
 }

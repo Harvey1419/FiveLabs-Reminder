@@ -78,12 +78,16 @@ export async function createAgentRunInDb({
   waitingFor = null,
   context = {},
   expiresAt,
+  initialStatus = null,
 }) {
   const persistedKind = normalizeRunKind(kind);
+  if (initialStatus != null && initialStatus !== 'failed') {
+    throw new Error(`Unsupported initial AgentRun status: ${String(initialStatus)}`);
+  }
   const payload = {
     user_id: userId,
     thread_id: String(threadId || userId),
-    status: waitingFor ? (waitingFor.type === 'missing_fields' ? 'waiting_for_input' : 'waiting_for_approval') : 'running',
+    status: initialStatus || (waitingFor ? (waitingFor.type === 'missing_fields' ? 'waiting_for_input' : 'waiting_for_approval') : 'running'),
     kind: persistedKind,
     waiting_for: waitingFor,
     context: context || {},
@@ -213,6 +217,70 @@ export async function updateAgentRunInDb(runId, {
 }
 
 /**
+ * Atomically change a run status only while its owner and expected status match.
+ */
+export async function updateAgentRunIfStatusFromDb({
+  runId,
+  userId = null,
+  threadId = null,
+  expectedStatus,
+  nextStatus,
+  now = new Date(),
+}) {
+  if (!runId || !expectedStatus || !nextStatus || (!userId && !threadId)) return false;
+  const nowIso = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+  const updates = { status: nextStatus, updated_at: nowIso };
+
+  if (isDatabaseConfigured()) {
+    try {
+      let query = supabase
+        .from('agent_runs')
+        .update(updates)
+        .eq('id', runId)
+        .eq('status', expectedStatus)
+        .gt('expires_at', nowIso);
+      query = userId ? query.eq('user_id', userId) : query.eq('thread_id', threadId);
+      const { data, error } = await query.select().maybeSingle();
+      if (error) throw storageError('conditional AgentRun status update', error);
+      if (!data || data.id !== runId || data.status !== nextStatus) return false;
+      const cached = inMemoryRuns.get(runId);
+      if (cached) inMemoryRuns.set(runId, { ...cached, ...updates });
+      return true;
+    } catch (err) {
+      throw err?.code === 'AGENT_RUN_STORAGE_ERROR'
+        ? err
+        : storageError('conditional AgentRun status update', err);
+    }
+  }
+
+  const existing = inMemoryRuns.get(runId);
+  const ownerMatches = userId
+    ? existing?.user_id === userId
+    : existing?.thread_id === String(threadId);
+  if (
+    !existing
+    || !ownerMatches
+    || existing.status !== expectedStatus
+    || new Date(existing.expires_at) <= new Date(nowIso)
+  ) return false;
+
+  inMemoryRuns.set(runId, { ...existing, ...updates });
+  return true;
+}
+
+/** Atomically cancel a non-expired pending input run owned by the caller. */
+export async function cancelActiveInputRunFromDb({ runId, userId = null, threadId = null, now = new Date(), expectedStatus = 'waiting_for_input' }) {
+  return updateAgentRunIfStatusFromDb({
+    runId,
+    userId,
+    threadId,
+    expectedStatus,
+    nextStatus: 'cancelled',
+    now,
+  });
+}
+
+/**
  * Stage prepared actions for a specific run.
  */
 export async function stagePreparedActionsInDb(runId, preparedActions = []) {
@@ -321,12 +389,14 @@ export async function getPreparedActionsFromDb(runId) {
 export async function updatePreparedActionInDb(runId, callId, {
   status,
   executionFact = null,
+  payload = undefined,
   now = new Date(),
 } = {}) {
   const updates = {
     status,
     execution_fact: executionFact,
     executed_at: status === 'executed' ? (now instanceof Date ? now.toISOString() : new Date(now).toISOString()) : null,
+    ...(payload !== undefined ? { payload } : {}),
   };
 
   if (isDatabaseConfigured()) {

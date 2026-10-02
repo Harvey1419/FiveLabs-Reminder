@@ -89,6 +89,7 @@ function providerResponse(message) {
 function structuredResponse(intent) {
   const providerIntent = {
     ...intent,
+    responseLanguage: intent.responseLanguage || 'es',
     actions: intent.actions.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const { domain, action, ...fields } = item;
@@ -291,6 +292,7 @@ describe('foreground strict Structured Outputs boundary', () => {
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     const expectedCanonical = structuredClone(canonicalSnapshot);
+    expectedCanonical.required.push('responseLanguage');
     const providerSchema = payload.response_format.json_schema.schema;
     const action = expectedCanonical.properties.actions.items;
     const domains = action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
@@ -317,7 +319,7 @@ describe('foreground strict Structured Outputs boundary', () => {
       };
     }
     expectStrictSchema(providerSchema, expectedCanonical);
-    expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [replyAction] }, { isAdmin });
+    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', actions: [replyAction] }, { isAdmin });
     expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.required).toEqual(['domain', 'action']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.required).toEqual(['kind']);
@@ -329,7 +331,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
 
     expect(validateTurnIntent).toHaveBeenCalledTimes(1);
-    expect(validateTurnIntent).toHaveBeenCalledWith({ actions: [reminderAction] }, { isAdmin: false });
+    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', actions: [reminderAction] }, { isAdmin: false });
     expect(validateTurnIntent.mock.results[0].value.valid).toBe(true);
     expect(result.plan.type).toBe('turn_intent');
     expect(executeTool).toHaveBeenCalledTimes(1);

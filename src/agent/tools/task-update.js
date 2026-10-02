@@ -3,6 +3,7 @@ import {
   updateTask,
   rescheduleRemindersByTaskId,
   acknowledgeRemindersByTaskId,
+  cancelRemindersByTaskId,
 } from '../../infrastructure/database/index.js';
 import { normalizeTaskPriority } from '../../infrastructure/database/tasks.js';
 import { parseTargetTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
@@ -175,11 +176,48 @@ export async function executeTaskUpdate({
   }
 
   const updatedTask = updateResult.data || updateResult;
+  const lifecycleFailures = [];
   if (updates.due_date) {
-    await rescheduleRemindersByTaskId(resolution.taskId, updates.due_date, userId);
+    try {
+      const cascade = await rescheduleRemindersByTaskId(resolution.taskId, updates.due_date, userId);
+      if (cascade?.error) lifecycleFailures.push('reschedule');
+    } catch {
+      lifecycleFailures.push('reschedule');
+    }
+  }
+  if (Object.hasOwn(updates, 'due_date') && updates.due_date === null) {
+    try {
+      const cascade = await cancelRemindersByTaskId(resolution.taskId, userId);
+      if (cascade?.error) lifecycleFailures.push('cancel');
+    } catch { lifecycleFailures.push('cancel'); }
   }
   if (updates.status === 'completed') {
-    await acknowledgeRemindersByTaskId(resolution.taskId, userId);
+    try {
+      const cascade = await acknowledgeRemindersByTaskId(resolution.taskId, userId);
+      if (cascade?.error) lifecycleFailures.push('acknowledge');
+    } catch {
+      lifecycleFailures.push('acknowledge');
+    }
+  }
+  if (lifecycleFailures.length > 0) {
+    const companionStatus = [
+      lifecycleFailures.includes('reschedule') ? (language === 'en' ? 'may not have moved' : 'podrían no haberse reprogramado') : null,
+      lifecycleFailures.includes('cancel') ? (language === 'en' ? 'may remain scheduled' : 'podrían seguir programados') : null,
+      lifecycleFailures.includes('acknowledge') ? (language === 'en' ? 'may remain unacknowledged' : 'podrían seguir sin confirmar') : null,
+    ].filter(Boolean).join(language === 'en' ? ' and ' : ' y ');
+    const message = language === 'en'
+      ? `The task was updated, but its linked reminders ${companionStatus}.`
+      : `La tarea se actualizó, pero sus recordatorios vinculados ${companionStatus}.`;
+    return {
+      success: true,
+      partialSuccess: true,
+      complete: false,
+      action: 'updated_task_partial',
+      errorCode: 'COMPANION_CLEANUP_FAILED',
+      error: message,
+      rawSummary: message,
+      data: updatedTask,
+    };
   }
 
   return {

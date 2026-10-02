@@ -108,6 +108,7 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
       return {
         success: true,
         action: 'subscription_status',
+        rawSummary: sub ? (language === 'en' ? `Subscription: ${sub.plan} (${sub.status}).` : `Suscripción: ${sub.plan} (${sub.status}).`) : (language === 'en' ? 'You have no active subscription.' : 'No tienes una suscripción activa.'),
         data: {
           subscription: sub,
         },

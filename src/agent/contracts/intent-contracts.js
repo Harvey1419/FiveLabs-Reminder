@@ -1,3 +1,4 @@
+import { TURN_CONTEXT_PROPERTIES, validateTurnContext } from './turn-context.js';
 import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 
@@ -71,6 +72,12 @@ const actionSchema = {
   properties: {
     domain: { type: 'string', enum: DOMAINS },
     action: { type: 'string' },
+    contextRef: {
+      type: 'object', additionalProperties: false,
+      description: 'For an existing reminder, task or calendar event shown in Working Memory, use its contextRef when the user identifies it by position, time, recurrence or title. The model selects the matching displayed item; Node binds its identity. Keep target optional; do not concatenate ordinal/time words into a fuzzy name.',
+      properties: { source: { type: 'string', enum: ['working_memory'] }, position: { type: 'integer', minimum: 1, maximum: 100 } },
+      required: ['source', 'position'],
+    },
     target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For entity.delete, the project or list name to delete (deleting a project automatically deletes all its tasks in cascade; never use scope="all" for one project).' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
     title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
@@ -82,7 +89,7 @@ const actionSchema = {
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
     scope: { type: 'string', description: `For entity.delete / project.delete: "all" deletes EVERY project/entity across the user account; "no_tasks" deletes only projects that have zero tasks. For single projects, leave scope null/omitted. Agenda, task, and reminder scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today', 'tomorrow', 'day_after_tomorrow', 'this_week', 'next_week'] },
-    query: { type: 'string', description: 'Search term. For calendar.search or calendar.list, use query to filter a specific meeting or event by title/subject (e.g. "daily", "sync cliente"). For task/memory search, the search query.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
+    query: { type: 'string', description: 'Text filter for item titles or memory content, never dates or times. For any dated read (agenda, reminders, tasks, calendar), put the date in schedule using calendar_date_time and allDay=true; a date string in query does not restrict the date window.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
     schedule: typedSchedule, endSchedule: typedSchedule,
     advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080, description: 'Advance offset in minutes. For calendar actions this is the event notification offset. For reminders prefer deliveryPolicy so delivery behavior is represented as desired state, not a separate action.' },
@@ -109,6 +116,8 @@ const actionSchema = {
 export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
+    ...TURN_CONTEXT_PROPERTIES,
+    answerFromResults: { type: 'boolean', description: 'True when the user asks for an interpretation, calculation or comparison that needs live reads. Emit the required read actions; after observing their results Hermes will answer. For ordinary listings or mutations leave false/null.' },
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
@@ -119,7 +128,7 @@ export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la a
 AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, fecha o estado. conversation.reply es sin estado; NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones exigen target existente. Modificar es reminder.update sobre objeto existente. Cambio nunca es identidad.
 Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
-TAREAS Y PROYECTOS: 'tareas' fija domain="task"; listar emite task.list(entityName, query?). Preguntas sobre proyectos con tareas vivas en contexto van directo en conversation.reply. Completar o pagar es task.complete(target). Proyectos: project+task.create. Borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: newName. Ordinales: target="1".
+TAREAS Y PROYECTOS: 'tareas' fija domain="task"; listar emite task.list(entityName, query?). Estado o montos de proyectos: task.list(entityName); contexto parcial. Completar o pagar es task.complete(target). Proyectos: project+task.create. Borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: newName. Ordinales visibles: contextRef.
 CALENDARIO: Fechas: calendar.list; eventos: calendar.search (query="daily"); citas: calendar.create (advanceMinutes=30; allDay=true); vincular: calendar.connect/disconnect. Node gestiona Google; no niegues acceso en conversation.reply.
 ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Preguntas JAMÁS autorizan mutaciones.
 Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
@@ -171,7 +180,7 @@ export function normalizeIntentAction(domain, action) {
   // exact. This never interprets the user's natural language.
   return STRUCTURAL_ACTION_ALIASES[domain]?.[normalized] || normalized;
 }
-function hasTarget(raw) { return typeof raw?.target === 'string' && raw.target.trim().length > 0; }
+function hasTarget(raw) { return (typeof raw?.target === 'string' && raw.target.trim().length > 0) || Boolean(raw?.contextRef); }
 function hasEntityIdentity(raw) {
   return [raw?.target, raw?.entityName, raw?.title, raw?.content]
     .some((value) => typeof value === 'string' && value.trim().length > 0);
@@ -283,6 +292,9 @@ function scheduleBearingMutation(domain, action, field = 'schedule') {
 
 export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El intent del turno debe ser un objeto.' };
+  const turnContext = validateTurnContext(intent);
+  if (!turnContext.valid) return turnContext;
+  if (intent.answerFromResults !== undefined && typeof intent.answerFromResults !== 'boolean') return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'answerFromResults must be boolean.' };
   if (intent.pendingIntentEffect !== undefined) {
     return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'pendingIntentEffect ha sido deprecado y no es soportado.' };
   }
@@ -310,6 +322,11 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
     const normalizedRaw = structurallyMissingScheduleFields.length > 0 && declaredMissingFields.length === 0
       ? { ...raw, missingFields: structurallyMissingScheduleFields }
       : raw;
+    if (raw.contextRef && (!['reminder', 'task', 'calendar'].includes(domain) || raw.contextRef.source !== 'working_memory' || !Number.isInteger(raw.contextRef.position)
+      || raw.contextRef.position < 1 || raw.contextRef.position > 100
+      || !['update', 'cancel', 'acknowledge', 'complete', 'delete', 'rename'].includes(action))) {
+      return { valid: false, errorCode: 'INVALID_CONTEXT_REFERENCE', error: 'The action requires a valid existing-item reference.' };
+    }
     const declaredPendingFields = Array.isArray(normalizedRaw.missingFields) && normalizedRaw.missingFields.length > 0;
     const mayRemainPending = declaredPendingFields;
 
@@ -418,6 +435,8 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   return {
     valid: true,
     intent: {
+      ...turnContext.context,
+      ...(intent.answerFromResults !== undefined ? { answerFromResults: intent.answerFromResults } : {}),
       actions: normalizedActions,
       excluded,
     },
