@@ -216,7 +216,8 @@ function formatHomogeneousGroup(facts, language, { includeHeader = true } = {}) 
   const [icon, domainLabel] = DOMAIN_LABELS[lang][domain] || DOMAIN_LABELS[lang].other;
   const opLabel = OPERATION_LABELS[lang][operation] || (language === 'en' ? 'completed' : 'realizadas');
   const lines = facts.flatMap((fact) => compactFactLines(fact));
-  const count = lines.length || facts.length;
+  // A title and its project/date detail lines describe one affected record.
+  const count = facts.reduce((total, fact) => total + (logicalItems(fact).length || 1), 0);
   if (!includeHeader) return lines.join('\n');
   return `${icon} *${domainLabel} · ${count} ${opLabel}*${lines.length ? `\n\n${lines.join('\n')}` : ''}`;
 }

@@ -2,39 +2,9 @@ import { extractAndSaveMemories, getMemoryEligibleText } from '../features/memor
 
 /**
  * Trigger memory extraction out of band. Learning is independent from tool
- * execution: operational clauses are removed first, while durable residual
- * user facts remain eligible even in a mixed actionable turn.
+ * execution: semantic admission validates individual facts, preserving mixed turns.
  */
 let extractionQueue = Promise.resolve();
-
-function splitClauses(value) {
-  return String(value || '')
-    .split(/(?<=[.!?])\s+|\n+/u)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function isQuestionClause(value) {
-  const normalized = String(value || '')
-    .replace(/^\[Respondiendo a:[\s\S]*?\]\s*/i, '')
-    .trim();
-  if (!normalized) return true;
-  return normalized.endsWith('?') || (normalized.startsWith('¿') && normalized.includes('?'));
-}
-
-export function isPureQuestionTurn(userText) {
-  const trusted = String(userText || '')
-    .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
-    .trim();
-  if (!trusted) return true;
-
-  const clauses = splitClauses(trusted);
-  if (clauses.length === 0) return true;
-
-  // A turn such as "Vivo en Barranquilla. ¿Lo recuerdas?" contains a durable
-  // assertion plus a question and must remain eligible for learning.
-  return clauses.every(isQuestionClause);
-}
 
 export function extractMemoryInBackground({
   userId,
@@ -44,11 +14,6 @@ export function extractMemoryInBackground({
   memoryDisposition = 'extract',
 }) {
   if (!userId || !userText) return;
-
-  if (isPureQuestionTurn(userText)) {
-    console.log('[memoryExtractor] SKIPPED extraction: question-only turn contains no new durable fact.');
-    return;
-  }
 
   const trusted = String(userText || '')
     .replace(/<untrusted_attachment_content>[\s\S]*?<\/untrusted_attachment_content>/gi, '')
@@ -67,8 +32,7 @@ export function extractMemoryInBackground({
         userText,
         assistantReply,
         executionFacts,
-        // Kept for call compatibility/telemetry only. Eligibility is now
-        // clause-based instead of classifying the whole turn as operational.
+        // The semantic classifier handles questions and mixed turns.
         memoryDisposition,
       }))
       .catch((err) => console.error('[memoryExtractor] background extraction failed:', err));

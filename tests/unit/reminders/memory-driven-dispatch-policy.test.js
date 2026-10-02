@@ -1,187 +1,76 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const from = vi.fn();
-
-vi.mock('../../../src/infrastructure/database/index.js', () => ({
-  supabase: { from },
-}));
-
-const {
-  getReminderDispatchPolicy,
-  getReminderConfirmationPreference,
-} = await import('../../../src/infrastructure/database/memories.js');
-
-function createQueryChain(resolveData = []) {
-  const chain = {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    order: vi.fn(() => chain),
-    limit: vi.fn(() => chain),
-    then: (resolve) => Promise.resolve({ data: resolveData, error: null }).then(resolve),
-  };
-  return chain;
+const { from, complete } = vi.hoisted(() => ({ from: vi.fn(), complete: vi.fn() }));
+vi.mock('../../../src/infrastructure/database/index.js', () => ({ supabase: { from } }));
+vi.mock('../../../src/agent/providers/client.js', () => ({ callChatCompletion: complete }));
+const { getReminderDispatchPolicy, getReminderConfirmationPreference } = await import('../../../src/infrastructure/database/memories.js');
+const { compileDispatchPolicy, reduceDispatchRules } = await import('../../../src/features/reminders/dispatch-policy.js');
+const rule = (patch = {}) => ({ position: 1, scope: 'global', requiresConfirmation: null, disableButtons: null, disableNudges: null, nudgeIntervalMinutes: null, ...patch });
+const response = rules => ({ content: JSON.stringify({ rules }) });
+function chain(data, error = null) {
+  const value = { select: vi.fn(() => value), eq: vi.fn(() => value), order: vi.fn(() => value), limit: vi.fn(() => value), then: resolve => Promise.resolve({ data, error }).then(resolve) };
+  return value;
 }
-
-describe('getReminderDispatchPolicy - Multi-Tenant Hierarchical Policy Evaluator', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+beforeEach(() => { vi.clearAllMocks(); complete.mockResolvedValue(response([])); });
+describe('compiled reminder delivery policy', () => {
+  it('does not invent an explicit opt-out when there are no preferences', async () => {
+    from.mockReturnValue(chain([]));
+    const policy = await getReminderDispatchPolicy('empty');
+    expect(policy.global.requiresConfirmation).toBe(false);
+    expect(policy.explicit.global).toEqual({});
+    expect(complete).not.toHaveBeenCalled();
   });
-
-  it('returns default policy with buttons and nudges enabled when user has no memories', async () => {
-    from.mockReturnValue(createQueryChain([]));
-
-    const policy = await getReminderDispatchPolicy('user-without-memories');
-
-    expect(policy).toEqual({
-      global: {
-        requiresConfirmation: false,
-        nudgeIntervalMinutes: 15,
-        disableButtons: false,
-      },
-      recurring: {
-        requiresConfirmation: false,
-        nudgeIntervalMinutes: 15,
-        disableButtons: false,
-        disableNudges: false,
-      },
-      disableButtonsForRecurring: false,
-      disableNudgesForRecurring: false,
-      requiresConfirmation: false,
-      nudgeIntervalMinutes: 15,
-      preferenceText: null,
-    });
-  });
-
-  it('detects user preference to disable buttons on recurring reminders', async () => {
-    from.mockReturnValue(createQueryChain([
-      {
-        id: 'mem-1',
-        user_id: 'user-with-suppression',
-        topic_key: 'preference/reminders/confirmation_buttons',
-        content: 'Los recordatorios recurrentes no deben incluir botones de confirmación',
-        category: 'preference',
-        is_active: true,
-      },
-    ]));
-
-    const policy = await getReminderDispatchPolicy('user-with-suppression');
-
-    expect(policy.disableButtonsForRecurring).toBe(true);
+  it('compiles observed preferences into typed rules with tenant-scoped reads', async () => {
+    const db = chain([{ id: 'm', content: 'Do not show buttons on recurring reminders' }]); from.mockReturnValue(db);
+    complete.mockResolvedValue(response([rule({ scope: 'recurring', disableButtons: true })]));
+    const policy = await getReminderDispatchPolicy('buttons');
     expect(policy.recurring.disableButtons).toBe(true);
-    expect(policy.requiresConfirmation).toBe(false);
-    expect(policy.preferenceText).toBe('Los recordatorios recurrentes no deben incluir botones de confirmación');
+    expect(policy.recurring.disableNudges).toBe(false);
+    expect(db.eq).toHaveBeenCalledWith('user_id', 'buttons');
+    expect(db.eq).toHaveBeenCalledWith('category', 'preference');
   });
-
-  it('correctly isolates policies between different users (multi-tenant safety)', async () => {
-    from.mockImplementation(() => {
-      let targetUser = null;
-      const chain = {
-        select: vi.fn(() => chain),
-        eq: vi.fn((field, val) => {
-          if (field === 'user_id') targetUser = val;
-          return chain;
-        }),
-        order: vi.fn(() => chain),
-        limit: vi.fn(() => chain),
-        then: (resolve) => {
-          const memories = targetUser === 'user-juan'
-            ? [{
-                id: 'mem-juan',
-                user_id: 'user-juan',
-                topic_key: 'preference/reminders/confirmation_buttons',
-                content: 'No quiero botones en los recordatorios recurrentes',
-                category: 'preference',
-                is_active: true,
-              }]
-            : [];
-          return Promise.resolve({ data: memories, error: null }).then(resolve);
-        },
-      };
-      return chain;
-    });
-
-    const juanPolicy = await getReminderDispatchPolicy('user-juan');
-    const otherPolicy = await getReminderDispatchPolicy('user-other');
-
-    expect(juanPolicy.disableButtonsForRecurring).toBe(true);
-    expect(otherPolicy.disableButtonsForRecurring).toBe(false);
-  });
-
-  it('handles persistent confirmation preferences without confusing them with button suppression', async () => {
-    from.mockReturnValue(createQueryChain([
-      {
-        id: 'mem-confirm',
-        user_id: 'user-confirm',
-        topic_key: 'preference/reminders/persistent_confirmation',
-        content: 'Pedir confirmación en recordatorios cada 20 minutos hasta que responda',
-        category: 'preference',
-        is_active: true,
-      },
+  it('applies specific exceptions and explicit intervals without interpreting text in the reducer', async () => {
+    from.mockReturnValue(chain([{ id: 'm1', content: 'global' }, { id: 'm2', content: 'exception' }]));
+    complete.mockResolvedValue(response([
+      rule({ requiresConfirmation: true, disableNudges: false, nudgeIntervalMinutes: 20 }),
+      rule({ position: 2, scope: 'recurring', disableNudges: true, requiresConfirmation: false }),
     ]));
-
-    const policy = await getReminderDispatchPolicy('user-confirm');
-
-    expect(policy.disableButtonsForRecurring).toBe(false);
-    expect(policy.requiresConfirmation).toBe(true);
+    const policy = await getReminderDispatchPolicy('hierarchy');
     expect(policy.global.requiresConfirmation).toBe(true);
-    expect(policy.nudgeIntervalMinutes).toBe(20);
-  });
-
-  it('resolves hierarchical conflict: specific recurring nudge suppression overrides global confirmation', async () => {
-    // Exact scenario reported by user:
-    // Memory 1 (global): "Todo recordatorio me avise 10 minutos despues para confirmarlo"
-    // Memory 2 (specific): "Los recordatorios recurrentes no deben generar avisos pendientes"
-    // Memory 3 (specific): "Los recordatorios recurrentes no deben incluir botones de confirmación"
-    from.mockReturnValue(createQueryChain([
-      {
-        id: 'mem-global-confirm',
-        user_id: 'user-hierarchical',
-        topic_key: 'preference/reminders/persistent_confirmation',
-        content: 'Todo recordatorio me avise 10 minutos despues para confirmarlo',
-        category: 'preference',
-        is_active: true,
-      },
-      {
-        id: 'mem-recurring-no-nudge',
-        user_id: 'user-hierarchical',
-        topic_key: 'preference/reminders/recurring_nudges',
-        content: 'Los recordatorios recurrentes no deben generar avisos pendientes',
-        category: 'preference',
-        is_active: true,
-      },
-      {
-        id: 'mem-recurring-no-buttons',
-        user_id: 'user-hierarchical',
-        topic_key: 'preference/reminders/confirmation_buttons',
-        content: 'Los recordatorios recurrentes no deben incluir botones de confirmación',
-        category: 'preference',
-        is_active: true,
-      },
-    ]));
-
-    const policy = await getReminderDispatchPolicy('user-hierarchical');
-
-    // Global policy: confirmation enabled at 10 minutes
-    expect(policy.global.requiresConfirmation).toBe(true);
-    expect(policy.global.nudgeIntervalMinutes).toBe(10);
-    expect(policy.global.disableButtons).toBe(false);
-
-    // Recurring policy: specific override disables nudges and buttons
     expect(policy.recurring.requiresConfirmation).toBe(false);
-    expect(policy.recurring.disableNudges).toBe(true);
-    expect(policy.recurring.disableButtons).toBe(true);
-    expect(policy.disableNudgesForRecurring).toBe(true);
-    expect(policy.disableButtonsForRecurring).toBe(true);
-
-    // Helper getReminderConfirmationPreference respects the scope:
-    const recurringPref = await getReminderConfirmationPreference('user-hierarchical', { isRecurring: true });
-    expect(recurringPref).toBeNull();
-
-    const nonRecurringPref = await getReminderConfirmationPreference('user-hierarchical', { isRecurring: false });
-    expect(nonRecurringPref).toEqual({
-      requiresConfirmation: true,
-      nudgeIntervalMinutes: 10,
-      preferenceText: expect.any(String),
-    });
+    expect(await getReminderConfirmationPreference('hierarchy', { isRecurring: true })).toBeNull();
+    expect(await getReminderConfirmationPreference('hierarchy')).toMatchObject({ requiresConfirmation: true, nudgeIntervalMinutes: 20 });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+  it('uses newest explicit assertion regardless of retrieval order', () => {
+    const policy = reduceDispatchRules([{ content: 'new', created_at: '2026-10-02' }, { content: 'old', created_at: '2026-10-01' }], [
+      rule({ disableButtons: false }), rule({ position: 2, disableButtons: true }),
+    ]);
+    expect(policy.global.disableButtons).toBe(false);
+  });
+  it('deduplicates concurrent compilation but invalidates on content change or tenant change', async () => {
+    const preferences = [{ id: 'm', content: 'Original' }];
+    const input = { userId: 'revision', preferences };
+    await Promise.all([compileDispatchPolicy(input), compileDispatchPolicy(input)]);
+    expect(complete).toHaveBeenCalledTimes(1);
+    await compileDispatchPolicy({ ...input, preferences: [{ id: 'm', content: 'Changed' }] });
+    await compileDispatchPolicy({ ...input, userId: 'other' });
+    expect(complete).toHaveBeenCalledTimes(3);
+  });
+  it('does not turn missing database evidence into default permission', async () => {
+    from.mockReturnValue(chain(null, { message: 'database unavailable' }));
+    await expect(getReminderDispatchPolicy('read-error')).rejects.toThrow('database unavailable');
+    expect(complete).not.toHaveBeenCalled();
+  });
+  it.each([
+    { rules: [rule({ position: 2 })] }, { rules: [rule({ nudgeIntervalMinutes: 0 })] },
+    { rules: [rule({ requiresConfirmation: 'false' })] }, { rules: [rule(), rule()] },
+  ])('rejects invalid semantic decisions without applying them: %j', async value => {
+    complete.mockResolvedValue({ content: JSON.stringify(value) });
+    await expect(compileDispatchPolicy({ userId: JSON.stringify(value), preferences: [{ content: 'test' }] })).rejects.toThrow();
+  });
+  it('fails closed for unavailable compilation and oversized snapshots', async () => {
+    complete.mockResolvedValue({ unavailable: true });
+    await expect(compileDispatchPolicy({ userId: 'unavailable', preferences: [{ content: 'test' }] })).rejects.toThrow();
+    await expect(compileDispatchPolicy({ userId: 'oversized', preferences: Array(101).fill({ content: 'test' }) })).rejects.toThrow();
   });
 });

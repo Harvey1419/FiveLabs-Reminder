@@ -13,6 +13,11 @@ vi.mock('../../../src/integrations/ai/embeddings.js', () => ({
   generateEmbedding: (...args) => mockGenerateEmbedding(...args),
 }));
 
+vi.mock('../../../src/features/reminders/dispatch-policy.js', async (original) => ({
+  ...await original(), compileDispatchPolicy: vi.fn(),
+}));
+const { compileDispatchPolicy, reduceDispatchRules } = await import('../../../src/features/reminders/dispatch-policy.js');
+const suppression = { position: 1, scope: 'recurring', requiresConfirmation: false, disableNudges: true, disableButtons: null, nudgeIntervalMinutes: null };
 const {
   isReminderPolicyMemory,
   reconcileRemindersWithPolicy,
@@ -40,30 +45,13 @@ function createFluentChain(resolveData = []) {
 describe('Eager Memory-to-Reminder Reconciliation Architecture', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    compileDispatchPolicy.mockResolvedValue(reduceDispatchRules());
   });
 
-  describe('isReminderPolicyMemory Domain Gate', () => {
-    it('accurately identifies memories that impact reminder dispatch policy', () => {
-      // Positive cases: topic matches
-      expect(isReminderPolicyMemory({ topic_key: 'preference/reminders/recurring_nudges' })).toBe(true);
-      expect(isReminderPolicyMemory({ topic_key: 'preference/reminders/confirmation_buttons' })).toBe(true);
-      expect(isReminderPolicyMemory({ topic_key: 'preference/reminders/persistent_confirmation' })).toBe(true);
-      expect(isReminderPolicyMemory({ topic_key: 'recurring_tasks_nudge' })).toBe(true);
-
-      // Positive cases: content matches
-      expect(isReminderPolicyMemory({ content: 'Los recordatorios recurrentes no deben generar avisos pendientes' })).toBe(true);
-      expect(isReminderPolicyMemory({ content: 'Todo recordatorio me avise 10 minutos despues para confirmarlo' })).toBe(true);
-      expect(isReminderPolicyMemory({ content: 'No poner botones en los recordatorios de rutina' })).toBe(true);
-      expect(isReminderPolicyMemory({ content: 'Desactivar avisos para recordatorios diarios' })).toBe(true);
-
-      // Negative cases: unrelated profile, preference, or fact memories
-      expect(isReminderPolicyMemory(null)).toBe(false);
-      expect(isReminderPolicyMemory({})).toBe(false);
-      expect(isReminderPolicyMemory({ topic_key: 'profile/residence', content: 'Vivo en Barranquilla' })).toBe(false);
-      expect(isReminderPolicyMemory({ topic_key: 'preference/coffee', content: 'Prefiero el café amargo sin azúcar' })).toBe(false);
-      expect(isReminderPolicyMemory({ topic_key: 'company/client', content: 'El cliente es Cerámica Italia' })).toBe(false);
-      expect(isReminderPolicyMemory({ topic_key: 'fact/dog', content: 'Mi perro se llama Barón' })).toBe(false);
-    });
+  it('invalidates policies by structural preference category, never wording or topic keywords', () => {
+    expect(isReminderPolicyMemory({ category: 'preference', content: 'Prefiero café' })).toBe(true);
+    expect(isReminderPolicyMemory({ category: 'fact', content: 'No nudges recurring reminder' })).toBe(false);
+    expect(isReminderPolicyMemory(null)).toBe(false);
   });
 
   describe('reconcileRemindersWithPolicy', () => {
@@ -87,6 +75,7 @@ describe('Eager Memory-to-Reminder Reconciliation Architecture', () => {
         return createFluentChain([]);
       });
 
+      compileDispatchPolicy.mockResolvedValue(reduceDispatchRules([{ content: 'preference' }], [suppression]));
       const result = await reconcileRemindersWithPolicy('user-eager-1');
 
       expect(result.updatedCount).toBeGreaterThanOrEqual(2);
@@ -131,7 +120,7 @@ describe('Eager Memory-to-Reminder Reconciliation Architecture', () => {
       // Wait a tick for any setImmediate to fire
       await new Promise((resolve) => setImmediate(resolve));
 
-      // Reminders table must NEVER be queried or updated for an unrelated memory!
+      // Compilation found no dispatch rules; default false must not clear existing confirmations!
       expect(remindersAccessed).toBe(false);
     });
 
@@ -157,6 +146,7 @@ describe('Eager Memory-to-Reminder Reconciliation Architecture', () => {
         return createFluentChain([]);
       });
 
+      compileDispatchPolicy.mockResolvedValue(reduceDispatchRules([reminderPrefMemory], [suppression]));
       await saveMemory({
         userId: 'user-pref',
         topicKey: 'preference/reminders/recurring_nudges',

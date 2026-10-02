@@ -33,6 +33,17 @@ function fact({
 }
 
 describe('turn-level presentation policy', () => {
+  it('counts affected tasks rather than project detail lines', () => {
+    const facts = ['Revisar contrato final', 'Enviar propuesta'].map((title, index) => fact({
+      tool: TOOL_NAMES.MANAGE_TASK, requestedAction: 'delete', data: { id: String(index), title, entityName: 'QA-HERMES-A' },
+    }));
+    const text = composeTurnPresentation(facts, 'es');
+    expect(text).toContain('Tareas · 2 eliminados');
+    expect(text).not.toContain('4 eliminados');
+    expect(text).toContain('Revisar contrato final');
+    expect(text).toContain('Enviar propuesta');
+  });
+
   it('classifies homogeneous and mixed turns independently of domain', () => {
     const reminders = [
       fact({ tool: TOOL_NAMES.MANAGE_REMINDER, requestedAction: 'create' }),

@@ -93,7 +93,7 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
       }
       case TOOL_NAMES.MANAGE_PROJECT: result = await executeProjectTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
       case TOOL_NAMES.MANAGE_ENTITY: result = await executeEntityTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
-      case TOOL_NAMES.MANAGE_MEMORY: result = await executeMemoryTool({ action: params?.action || 'save', params, user, language }); break;
+      case TOOL_NAMES.MANAGE_MEMORY: result = await executeMemoryTool({ action: params?.action || 'save', params, user, language, correlationId }); break;
       case TOOL_NAMES.MANAGE_SUBSCRIPTION: result = await executeSubscriptionTool({ action: params?.action || 'get_link', params, user, language }); break;
       case TOOL_NAMES.MANAGE_GOOGLE_CALENDAR: {
         const action = params?.action || 'get_connect_link';
@@ -106,6 +106,13 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
     }
 
     if (!result || typeof result.success !== 'boolean') throw new Error('Unobservable tool result');
+    if (['delete', 'cancel', 'forget', 'delete_event'].includes(params.action)) {
+      // Log observed tool receipts, including partial/failed outcomes, never just the requested target.
+      console.log(`[deletion-audit] ${JSON.stringify({ correlationId, userId: user?.id, tool: toolName,
+        requestedAction: params.action, action: result.action, success: result.success,
+        outcome: result.outcome || (result.success ? (result.partialSuccess ? 'partial_success' : 'success') : 'failure'),
+        errorCode: result.errorCode || null, affected: result.success || result.data?.receipts ? result.data : null })}`);
+    }
     if (result.outcome === 'unknown') {
       return { ...result, success: false, complete: false, outcome: 'unknown' };
     }

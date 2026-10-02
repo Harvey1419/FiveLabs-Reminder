@@ -187,8 +187,17 @@ export function formatCanonicalAgenda(data = {}, {
     sections.push(`☑️ *${isEn ? 'Tasks' : 'Tareas'} · ${tasks.length}*\n\n${groups}`);
   }
 
+  for (const source of ['reminders', 'tasks']) {
+    if (data.sources?.[source] === 'ERROR') {
+      const label = source === 'reminders' ? (isEn ? 'Reminders' : 'Recordatorios') : (isEn ? 'Tasks' : 'Tareas');
+      sections.push(`⚠️ ${label}: ${isEn ? 'temporarily unavailable' : 'no disponibles temporalmente'}.`);
+    }
+  }
   if (events.length === 0 && reminders.length === 0 && tasks.length === 0) {
-    sections.push(isEn ? '✅ Nothing pending right now. Enjoy your day! ☕' : '✅ No tienes pendientes en este momento. ¡Día completamente libre de compromisos! ☕');
+    const complete = data.complete !== false && calendar.state === 'CONNECTED';
+    sections.push(complete
+      ? (isEn ? '✅ No pending items found for this period.' : '✅ No encontré pendientes en este período.')
+      : (isEn ? 'No items found in the available sources. Your agenda could be incomplete.' : 'No encontré elementos en las fuentes disponibles. Tu agenda puede estar incompleta.'));
   }
 
   return sections.join('\n\n');

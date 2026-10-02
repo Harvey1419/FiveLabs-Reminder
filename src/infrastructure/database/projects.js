@@ -411,6 +411,15 @@ export async function deleteProjects({
     return { success: false, errorCode: 'INVALID_PARAMETERS', error: 'Missing deletion target.', deletedCount: 0 };
   }
 
+  const receipts = { projects: [], tasks: [], reminders: [], entities: [] };
+  let mutationStarted = false;
+  const failure = (errorCode, error, outcome = 'failure') => ({
+    success: false, complete: false, errorCode, error, outcome,
+    partialSuccess: Object.values(receipts).some(rows => rows.length > 0), receipts,
+    projects: receipts.projects, entities: receipts.projects,
+    deletedCount: receipts.projects.length, deletedTaskCount: receipts.tasks.length,
+    cancelledReminderCount: receipts.reminders.length,
+  });
   try {
     let projects = [];
     if (hasExactIds) {
@@ -482,58 +491,52 @@ export async function deleteProjects({
       };
     }
 
-    // Real deletion:
-    // 1. Cancel active reminders
+    // Each dependent write requires an observed receipt before proceeding.
+    // This is deliberately not presented as atomic: failures expose partial progress.
     if (activeReminderIds.length > 0) {
-      await supabase
-        .from('reminders')
+      mutationStarted = true;
+      const { data, error } = await supabase.from('reminders')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .in('id', activeReminderIds);
+        .eq('user_id', userId).in('id', activeReminderIds).in('status', ['pending', 'processing'])
+        .select('id, content, send_at, status, task_id');
+      if (error) return failure('DATABASE_ERROR', error.message, 'unknown');
+      if (!Array.isArray(data)) return failure('UNOBSERVABLE_RESULT', 'Reminder cancellation returned no receipt', 'unknown');
+      receipts.reminders = data;
+      if (data.length !== activeReminderIds.length) return failure('CONCURRENT_CHANGE', 'Reminder state changed during deletion');
     }
 
-    // 2. Delete unfinished tasks
     if (unfinishedTaskIds.length > 0) {
-      await supabase
-        .from('tasks')
-        .delete()
-        .eq('user_id', userId)
-        .in('id', unfinishedTaskIds);
+      mutationStarted = true;
+      const { data, error } = await supabase.from('tasks').delete()
+        .eq('user_id', userId).in('id', unfinishedTaskIds).in('status', ['pending', 'in_progress'])
+        .select('id, title, status, project_id, entity_id');
+      if (error) return failure('DATABASE_ERROR', error.message, 'unknown');
+      if (!Array.isArray(data)) return failure('UNOBSERVABLE_RESULT', 'Task deletion returned no receipt', 'unknown');
+      receipts.tasks = data;
+      if (data.length !== unfinishedTaskIds.length) return failure('CONCURRENT_CHANGE', 'Task state changed during deletion');
     }
 
-    // 3. Delete from projects table
-    const { data: deleted, error: deleteError } = await supabase
-      .from('projects')
-      .delete()
-      .eq('user_id', userId)
-      .in('id', ids)
-      .select('id, name');
+    mutationStarted = true;
+    const { data: deleted, error: deleteError } = await supabase.from('projects').delete()
+      .eq('user_id', userId).in('id', ids).select('id, name, description');
+    if (deleteError) return failure('DATABASE_ERROR', deleteError.message, 'unknown');
+    if (!Array.isArray(deleted)) return failure('UNOBSERVABLE_RESULT', 'Project deletion returned no receipt', 'unknown');
+    receipts.projects = deleted;
+    if (deleted.length !== ids.length) return failure('CONCURRENT_CHANGE', 'Project state changed during deletion');
 
-    if (deleteError) {
-      return { success: false, errorCode: 'DATABASE_ERROR', error: deleteError.message, deletedCount: 0 };
-    }
-
-    // 4. Sync delete from entities table for backward compatibility
-    try {
-      await supabase
-        .from('entities')
-        .delete()
-        .eq('user_id', userId)
-        .in('id', ids);
-    } catch {}
-
-    const deletedProjects = deleted || [];
+    // Legacy mirrors are independently owned records; only delete observed project IDs.
+    const { data: mirrors, error: mirrorError } = await supabase.from('entities').delete()
+      .eq('user_id', userId).in('id', deleted.map(project => project.id)).select('id, name, category');
+    if (mirrorError) return failure('DATABASE_ERROR', mirrorError.message, 'unknown');
+    if (!Array.isArray(mirrors)) return failure('UNOBSERVABLE_RESULT', 'Mirror deletion returned no receipt', 'unknown');
+    receipts.entities = mirrors;
     return {
-      success: true,
-      dryRun: false,
-      projects: deletedProjects,
-      entities: deletedProjects, // backward compatibility
-      deletedCount: deletedProjects.length,
-      deletedTaskCount: unfinishedTaskIds.length,
-      cancelledReminderCount: activeReminderIds.length,
-      preservedCompletedTaskCount,
+      success: true, complete: true, dryRun: false, receipts,
+      projects: deleted, entities: deleted,
+      deletedCount: deleted.length, deletedTaskCount: receipts.tasks.length,
+      cancelledReminderCount: receipts.reminders.length, preservedCompletedTaskCount,
     };
   } catch (err) {
-    return { success: false, errorCode: 'DATABASE_ERROR', error: err.message, deletedCount: 0 };
+    return failure('DATABASE_ERROR', err.message, mutationStarted ? 'unknown' : 'failure');
   }
 }

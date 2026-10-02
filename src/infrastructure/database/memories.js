@@ -1,3 +1,4 @@
+import { compileDispatchPolicy, reduceDispatchRules } from '../../features/reminders/dispatch-policy.js';
 import { supabase } from './index.js';
 import { generateEmbedding } from '../../integrations/ai/embeddings.js';
 
@@ -467,61 +468,64 @@ export async function searchMemories({
  * @param {string} [params.query]
  * @returns {Promise<{deletedCount: number, deletedMemories: Array<object>}>}
  */
-export async function forgetMemories({ userId, topicKey = null, query = null }) {
-  if (!userId) return { deletedCount: 0, deletedMemories: [] };
+export async function forgetMemories({ userId, topicKey = null, query = null, selectCandidates = null, correlationId = null }) {
+  const empty = { deletedCount: 0, deletedMemories: [] };
+  if (!userId || (!topicKey?.trim() && !query?.trim())) return { ...empty, success: false, errorCode: 'INVALID_PARAMETERS' };
+  let writeStarted = false;
 
   try {
     let candidates = [];
 
     // 1. Direct topic match
     if (topicKey) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('memories')
-        .select('id, content, topic_key')
+        .select('id, content, topic_key, category')
         .eq('user_id', userId)
-        .ilike('topic_key', `%${topicKey.trim().toLowerCase()}%`);
+        .eq('topic_key', topicKey.trim().toLowerCase());
+      if (error) throw error;
       if (data) candidates.push(...data);
     }
 
     // 2. FTS & semantic search for target memories to delete
     if (query) {
-      const cleanFtsQuery = String(query)
-        .replace(/[¿?¡!.,:;()]/g, ' ')
-        .replace(/^olvida(?:r)?\s+(?:todo\s+sobre\s+|que\s+|de\s+|lo\s+de\s+|la\s+|el\s+)?/i, '')
-        .trim();
+      const cleanFtsQuery = String(query).trim();
 
       if (cleanFtsQuery.length > 0) {
         // FTS textSearch with spanish stemming
-        const { data: ftsMatches } = await supabase
+        const { data: ftsMatches, error: ftsError } = await supabase
           .from('memories')
-          .select('id, content, topic_key')
+          .select('id, content, topic_key, category')
           .eq('user_id', userId)
           .textSearch('content', cleanFtsQuery, {
             config: 'spanish',
             type: 'websearch',
           });
 
+        if (ftsError) throw ftsError;
         if (ftsMatches) candidates.push(...ftsMatches);
 
         // Fallback ilike on topic_key
-        const { data: topicMatches } = await supabase
+        const { data: topicMatches, error: topicError } = await supabase
           .from('memories')
-          .select('id, content, topic_key')
+          .select('id, content, topic_key, category')
           .eq('user_id', userId)
           .ilike('topic_key', `%${cleanFtsQuery}%`);
 
+        if (topicError) throw topicError;
         if (topicMatches) candidates.push(...topicMatches);
       }
 
       // Also vector search
       const queryEmbedding = await generateEmbedding(query);
       if (queryEmbedding) {
-        const { data: vecMatches } = await supabase.rpc('match_memories', {
+        const { data: vecMatches, error: vectorError } = await supabase.rpc('match_memories', {
           p_user_id: userId,
           p_query_embedding: queryEmbedding,
           p_match_threshold: 0.50,
           p_match_count: 5,
         });
+        if (vectorError) throw vectorError;
         if (vecMatches) candidates.push(...vecMatches);
       }
     }
@@ -534,33 +538,42 @@ export async function forgetMemories({ userId, topicKey = null, query = null }) 
     const uniqueCandidates = Array.from(uniqueMap.values());
 
     if (uniqueCandidates.length === 0) {
-      return { deletedCount: 0, deletedMemories: [] };
+      return { ...empty, success: true };
     }
 
-    const ids = uniqueCandidates.map(c => c.id);
-    const { error: delErr } = await supabase
+    const ownedIds = new Set(uniqueCandidates.map(c => c.id));
+    const ids = query ? await selectCandidates?.(uniqueCandidates) : [...ownedIds];
+    if (!Array.isArray(ids) || new Set(ids).size !== ids.length || ids.some(id => !ownedIds.has(id))) {
+      return { ...empty, success: false, errorCode: 'MEMORY_SELECTION_UNAVAILABLE' };
+    }
+    if (!ids.length) return { ...empty, success: true };
+    writeStarted = true;
+    const { data: deleted, error: delErr } = await supabase
       .from('memories')
       .delete()
-      .in('id', ids);
+      .eq('user_id', userId)
+      .in('id', ids)
+      .select('id, content, topic_key, category');
 
     if (delErr) {
       console.error('[memories] forgetMemories delete error:', delErr);
-      return { deletedCount: 0, deletedMemories: [] };
+      return { ...empty, success: false, errorCode: 'DATABASE_ERROR', outcome: 'unknown' };
     }
+    if (!Array.isArray(deleted)) throw new Error('Missing deletion receipt');
+    console.log(`[memory-delete] ${JSON.stringify({ correlationId, userId, deletedCount: deleted.length, deletedMemories: deleted })}`);
 
-    console.log(`[memories] Forgot/deleted ${ids.length} memories for user ${userId}`);
-
-    if (uniqueCandidates.some((m) => isReminderPolicyMemory(m))) {
+    if (deleted.some((m) => isReminderPolicyMemory(m))) {
       triggerEagerReminderReconciliation(userId);
     }
 
     return {
-      deletedCount: ids.length,
-      deletedMemories: uniqueCandidates,
+      success: true,
+      deletedCount: deleted.length,
+      deletedMemories: deleted,
     };
   } catch (err) {
     console.error('[memories] forgetMemories threw:', err);
-    return { deletedCount: 0, deletedMemories: [] };
+    return { ...empty, success: false, errorCode: 'DATABASE_ERROR', ...(writeStarted ? { outcome: 'unknown' } : {}) };
   }
 }
 
@@ -580,155 +593,14 @@ export async function forgetMemoriesByTopic(userId, topicKey) {
  * @returns {Promise<{ global: object, recurring: object, disableButtonsForRecurring: boolean, disableNudgesForRecurring: boolean, requiresConfirmation: boolean, nudgeIntervalMinutes: number, preferenceText?: string }>}
  */
 export async function getReminderDispatchPolicy(userId) {
-  const defaultPolicy = {
-    global: {
-      requiresConfirmation: false,
-      nudgeIntervalMinutes: 15,
-      disableButtons: false,
-    },
-    recurring: {
-      requiresConfirmation: false,
-      nudgeIntervalMinutes: 15,
-      disableButtons: false,
-      disableNudges: false,
-    },
-    disableButtonsForRecurring: false,
-    disableNudgesForRecurring: false,
-    requiresConfirmation: false,
-    nudgeIntervalMinutes: 15,
-    preferenceText: null,
-  };
-  if (!userId) return defaultPolicy;
-
-  try {
-    const preferences = await getActiveMemories({ userId, category: 'preference', limit: 30 });
-    if (!Array.isArray(preferences) || preferences.length === 0) return defaultPolicy;
-
-    let globalConfirmation = null;
-    let globalInterval = 15;
-    let globalDisableButtons = false;
-
-    let recurringDisableButtons = null;
-    let recurringDisableNudges = null;
-    let recurringConfirmation = null;
-    let recurringInterval = null;
-
-    let matchedText = null;
-
-    for (const m of preferences) {
-      const topic = String(m.topic_key || '').toLowerCase();
-      const content = String(m.content || '').toLowerCase();
-
-      // Scope detection
-      const isRecurringScope = topic.includes('recurring')
-        || content.includes('recurrente')
-        || content.includes('recurrentes')
-        || content.includes('rutina')
-        || content.includes('rutinas');
-
-      // Intent detection
-      const mentionsButtons = content.includes('boton') || content.includes('botón') || topic.includes('confirmation_buttons');
-      const mentionsNudges = content.includes('aviso pendiente')
-        || content.includes('avisos pendientes')
-        || content.includes('aviso')
-        || content.includes('avisos')
-        || content.includes('nudge')
-        || content.includes('insistir')
-        || content.includes('insistencia')
-        || content.includes('seguimiento')
-        || content.includes('confirm')
-        || topic.includes('persistent_confirmation')
-        || topic.includes('reminder_confirmation');
-
-      const isNegative = content.includes('no ')
-        || content.includes('sin ')
-        || content.includes('quitar')
-        || content.includes('eliminar')
-        || content.includes('desactivar')
-        || content.includes('nunca')
-        || content.includes('no deben')
-        || content.includes('no debe');
-
-      // 1. RECURRING-SPECIFIC SCOPE
-      if (isRecurringScope) {
-        if (mentionsButtons && isNegative) {
-          recurringDisableButtons = true;
-          if (!matchedText) matchedText = m.content;
-        }
-
-        if (mentionsNudges) {
-          if (isNegative) {
-            recurringDisableNudges = true;
-            recurringConfirmation = false;
-            if (!matchedText) matchedText = m.content;
-          } else {
-            recurringConfirmation = true;
-            const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i)
-              || content.match(/(\d+)\s*(?:minutos|min|m)\b.*(?:desp(?:u|ú)es|para confirm)/i);
-            if (minMatch) recurringInterval = Number(minMatch[1]);
-            if (!matchedText) matchedText = m.content;
-          }
-        }
-      } else {
-        // 2. GLOBAL / NON-SPECIFIC SCOPE
-        if (mentionsButtons && isNegative) {
-          globalDisableButtons = true;
-        }
-
-        if (mentionsNudges) {
-          if (isNegative) {
-            globalConfirmation = false;
-          } else {
-            globalConfirmation = true;
-            const minMatch = content.match(/cada\s+(\d+)\s*(?:minutos|min|m)/i)
-              || content.match(/(\d+)\s*(?:minutos|min|m)\b.*(?:desp(?:u|ú)es|para confirm)/i);
-            if (minMatch) globalInterval = Number(minMatch[1]);
-            if (!matchedText) matchedText = m.content;
-          }
-        }
-      }
-    }
-
-    // RESOLVE HIERARCHY (Specific Override > Global Default)
-    const effectiveGlobalConfirmation = Boolean(globalConfirmation);
-    const effectiveGlobalInterval = globalInterval;
-    const effectiveGlobalDisableButtons = Boolean(globalDisableButtons);
-
-    const effectiveRecurringDisableButtons = recurringDisableButtons !== null
-      ? Boolean(recurringDisableButtons)
-      : effectiveGlobalDisableButtons;
-
-    const effectiveRecurringDisableNudges = Boolean(recurringDisableNudges);
-
-    // If specific recurring nudges are disabled, it strictly overrides any global confirmation setting
-    const effectiveRecurringConfirmation = effectiveRecurringDisableNudges
-      ? false
-      : (recurringConfirmation !== null ? Boolean(recurringConfirmation) : effectiveGlobalConfirmation);
-
-    const effectiveRecurringInterval = recurringInterval ?? effectiveGlobalInterval;
-
-    return {
-      global: {
-        requiresConfirmation: effectiveGlobalConfirmation,
-        nudgeIntervalMinutes: effectiveGlobalInterval,
-        disableButtons: effectiveGlobalDisableButtons,
-      },
-      recurring: {
-        requiresConfirmation: effectiveRecurringConfirmation,
-        nudgeIntervalMinutes: effectiveRecurringInterval,
-        disableButtons: effectiveRecurringDisableButtons,
-        disableNudges: effectiveRecurringDisableNudges,
-      },
-      disableButtonsForRecurring: effectiveRecurringDisableButtons,
-      disableNudgesForRecurring: effectiveRecurringDisableNudges,
-      requiresConfirmation: effectiveGlobalConfirmation,
-      nudgeIntervalMinutes: effectiveGlobalInterval,
-      preferenceText: matchedText,
-    };
-  } catch (err) {
-    console.warn('[memories] getReminderDispatchPolicy error:', err.message);
-    return defaultPolicy;
-  }
+  if (!userId) return reduceDispatchRules();
+  const { data, error } = await supabase.from('memories').select('id, content, created_at, valid_until')
+    .eq('user_id', userId).eq('is_active', true).eq('category', 'preference')
+    .order('created_at', { ascending: false }).limit(101);
+  if (error || !Array.isArray(data)) throw new Error(error?.message || 'Preference read unavailable');
+  if (data.length > 100) throw new Error('Incomplete preference snapshot');
+  const preferences = data.filter(item => !item.valid_until || new Date(item.valid_until).getTime() > Date.now());
+  return compileDispatchPolicy({ userId, preferences });
 }
 
 /**
@@ -758,45 +630,8 @@ export async function getReminderConfirmationPreference(userId, { isRecurring = 
  * @returns {boolean}
  */
 export function isReminderPolicyMemory(memory) {
-  if (!memory) return false;
-  const topic = String(memory.topic_key || memory.topicKey || '').toLowerCase();
-  const content = String(memory.content || '').toLowerCase();
-
-  // Fast path 1: Topic key explicitly targets reminder dispatch/confirmation
-  if (
-    topic.includes('reminder') ||
-    topic.includes('recurring') ||
-    topic.includes('confirmation') ||
-    topic.includes('nudge')
-  ) {
-    return true;
-  }
-
-  // Fast path 2: Content contains reminder scope + dispatch intent
-  const mentionsScope = content.includes('recordatorio') ||
-    content.includes('recurrente') ||
-    content.includes('recurrentes') ||
-    content.includes('rutina') ||
-    content.includes('rutinas');
-
-  if (mentionsScope) {
-    const mentionsIntent = content.includes('aviso') ||
-      content.includes('avisos') ||
-      content.includes('botón') ||
-      content.includes('boton') ||
-      content.includes('confirm') ||
-      content.includes('nudge') ||
-      content.includes('insist') ||
-      content.includes('pendiente') ||
-      content.includes('pendientes') ||
-      content.includes('quitar') ||
-      content.includes('desactivar') ||
-      content.includes('eliminar') ||
-      content.includes('no ');
-    if (mentionsIntent) return true;
-  }
-
-  return false;
+  // Structural invalidation only. The compiler decides relevance semantically.
+  return memory?.category === 'preference';
 }
 
 /**
@@ -839,7 +674,7 @@ export async function reconcileRemindersWithPolicy(userId) {
 
     // 2. GLOBAL / NON-RECURRING REMINDERS:
     // If global confirmation is explicitly disabled, heal pending non-recurring reminders
-    if (!policy?.global?.requiresConfirmation) {
+    if (policy?.explicit?.global?.requiresConfirmation === false || policy?.explicit?.global?.disableNudges === true) {
       const { data, error } = await supabase
         .from('reminders')
         .update({
@@ -859,7 +694,7 @@ export async function reconcileRemindersWithPolicy(userId) {
         updatedCount += data.length;
         console.log(`[memories] eagerly healed ${data.length} non-recurring reminder(s) (requires_confirmation -> false) for user ${userId}`);
       }
-    } else if (policy?.global?.nudgeIntervalMinutes) {
+    } else if (policy?.explicit?.global?.nudgeIntervalMinutes && policy.global.requiresConfirmation) {
       // If global confirmation is enabled and interval was adjusted
       const { data, error } = await supabase
         .from('reminders')

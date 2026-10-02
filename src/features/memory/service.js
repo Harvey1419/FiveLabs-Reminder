@@ -1,3 +1,4 @@
+import { validateMemoryCandidates } from './validate-candidates.js';
 import { saveMemory, searchMemories, getActiveMemories, getStandingMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
@@ -69,6 +70,8 @@ ATOMICITY AND EVIDENCE RULES:
 - Never combine a durable fact with a task, appointment, reminder, deadline, or temporary state.
 - Every candidate must include evidence: an exact quote copied from the user text that directly supports the durable fact.
 - Do not infer a relationship or entity type merely from the setting of an appointment.
+- A one-time intention never establishes a lasting preference or habit. Operational project creation, names and descriptions belong to project records, not duplicate memories.
+- Execution facts describe operational context to exclude; preserve independent durable facts in mixed turns.
 - Prefer returning no candidate over storing an uncertain or mixed memory.
 - Return at most ${MEMORY_MAX_CANDIDATES} candidates. If the turn contains more durable information, prioritize identity, working context, explicit preferences, standing responsibilities, and decisions that will be most useful later.
 - Keep every candidate compact: topicKey at most 100 characters, content at most 180 characters, evidence one exact contiguous quote of at most 180 characters, and entityName at most 80 characters.
@@ -142,10 +145,6 @@ export async function extractAndSaveMemories({
     .trim();
   if (hasAttachmentEvidence && !trustedUserText) return [];
 
-  const trimmed = trustedUserText.toLowerCase();
-  const PURE_TRIVIAL_REGEX = /^(hola|hi|hey|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|ok|listo|dale|gracias|muchas\s+gracias|de\s+nada|chao|adi[oó]s|done|ya|perfecto|entendido)$/i;
-  if (trimmed.length < 5 || PURE_TRIVIAL_REGEX.test(trimmed)) return [];
-
   const eligibleText = getMemoryEligibleText(trustedUserText, executionFacts);
   if (!eligibleText) {
     console.log('[memoryService] SKIPPED extraction: turn content was fully consumed by operational tools.');
@@ -157,7 +156,7 @@ export async function extractAndSaveMemories({
       { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
       {
         role: 'user',
-        content: buildMemoryExtractionInput({ userText: eligibleText, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
+        content: buildMemoryExtractionInput({ userText: eligibleText, executionFacts, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
       },
     ];
 
@@ -169,8 +168,10 @@ export async function extractAndSaveMemories({
     const candidates = parseJsonArray(rawResponse);
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
+    const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES).filter(item => !getMemoryCandidateRejection(item, eligibleText));
+    const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts });
     const saved = [];
-    for (const item of candidates.slice(0, MEMORY_MAX_CANDIDATES)) {
+    for (const item of admitted) {
       if (!item.content) continue;
       const rejectionReason = getMemoryCandidateRejection(item, eligibleText, executionFacts);
       if (rejectionReason) {
@@ -400,92 +401,22 @@ async function findRelatedActiveMemories(userId, query) {
   }
 }
 
-export function buildMemoryExtractionInput({ userText, existingMemories = [] }) {
+export function buildMemoryExtractionInput({ userText, existingMemories = [], executionFacts = [] }) {
   const related = Array.isArray(existingMemories) ? existingMemories.slice(0, MEMORY_RELATED_CONTEXT_LIMIT) : [];
-  return `Existing active memories (identity context only; never factual evidence):\n<existing_memories>${JSON.stringify(related)}</existing_memories>\n\nUser text (the only factual source):\n<user_text>${userText}</user_text>`;
+  return `Existing active memories (identity context only; never factual evidence):\n<existing_memories>${JSON.stringify(related)}</existing_memories>\n\nOperational outcomes (exclusion context only):\n${JSON.stringify(executionFacts)}\n\nUser text (the only factual source):\n<user_text>${userText}</user_text>`;
 }
 
-const OPERATIONAL_MEMORY_TOOLS = new Set([
-  'manage_reminder', 'manage_task', 'manage_entity', 'manage_google_calendar', 'get_unified_agenda',
-  'manage_memory',
-]);
-
-const MEMORY_STOPWORDS = new Set([
-  'a', 'al', 'and', 'at', 'con', 'de', 'del', 'el', 'en', 'for', 'la', 'las', 'le', 'lo', 'los',
-  'me', 'mi', 'of', 'para', 'por', 'que', 'the', 'to', 'un', 'una', 'y', 'yo',
-  // Spanish auxiliaries, pronouns, and adverbs common in operational commands
-  'ya', 'he', 'ha', 'has', 'han', 'hemos', 'se', 'su', 'sus', 'es', 'son', 'fue', 'fui',
-  'si', 'no', 'te', 'nos', 'les',
-]);
-
-function stemToken(token) {
-  if (!token || token.length < 4) return token;
-  return token
-    .replace(/(?:aron|ieron|aste|iste|ando|iendo|ado|ido|aba|ia|ar|er|ir|as|es|an|en|os|as|o|a|e)$/i, '');
+export function getMemoryEligibleText(userText) {
+  // Preserve mixed turns intact. Semantic admission decides eligibility per fact.
+  return String(userText || '').trim();
 }
 
-function meaningfulTokens(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter((token) => token.length > 1 && !MEMORY_STOPWORDS.has(token));
-}
-
-function tokenOverlap(left, right) {
-  const leftTokens = [...new Set(meaningfulTokens(left))];
-  const rightTokens = new Set(meaningfulTokens(right));
-  if (leftTokens.length === 0 || rightTokens.size === 0) return 0;
-  const rightStems = new Set([...rightTokens].map(stemToken));
-  const matches = leftTokens.filter((token) => (
-    rightTokens.has(token) || rightStems.has(stemToken(token))
-  ));
-  return matches.length / leftTokens.length;
-}
-
-function operationalCorpus(executionFacts) {
-  return (executionFacts || [])
-    .filter((fact) => OPERATIONAL_MEMORY_TOOLS.has(fact?.tool))
-    .map((fact) => {
-      const parts = [
-        fact.card || '',
-        fact.summary || '',
-        fact.presentationParams?.target || '',
-        fact.presentationParams?.title || '',
-        fact.presentationData?.title || '',
-        fact.presentationData?.content || '',
-      ];
-      return parts.filter(Boolean).join(' ');
-    })
-    .join(' ');
-}
-
-export function getMemoryEligibleText(userText, executionFacts = []) {
-  const corpus = operationalCorpus(executionFacts);
-  if (!corpus) return String(userText || '').trim();
-
-  const clauses = String(userText || '')
-    .split(/(?<=[.!?])\s+|[\n;]+/)
-    .map((clause) => clause.trim())
-    .filter(Boolean);
-  const residual = clauses.filter((clause) => tokenOverlap(clause, corpus) <= 0.5);
-  return residual.join(' ').trim();
-}
-
-function getMemoryCandidateRejection(item, sourceText, executionFacts) {
+function getMemoryCandidateRejection(item, sourceText) {
   if (!String(item?.topicKey || '').trim()) return 'missing_topic_key';
-  const evidence = String(item?.evidence || '').trim();
+  if (typeof item?.content !== 'string' || !item.content.trim()) return 'missing_content';
+  if (!['fact', 'decision', 'preference', 'episode'].includes(item.category)) return 'invalid_category';
+  const evidence = typeof item?.evidence === 'string' ? item.evidence.trim() : '';
   if (!evidence) return 'missing_user_evidence';
-
-  const normalizedSource = meaningfulTokens(sourceText).join(' ');
-  const normalizedEvidence = meaningfulTokens(evidence).join(' ');
-  if (!normalizedEvidence || !normalizedSource.includes(normalizedEvidence)) return 'evidence_not_in_user_text';
-
-  const corpus = operationalCorpus(executionFacts);
-  if (corpus && (tokenOverlap(evidence, corpus) > 0.5 || tokenOverlap(item.content, corpus) > 0.5)) {
-    return 'overlaps_operational_execution';
-  }
+  if (!String(sourceText).includes(evidence)) return 'evidence_not_in_user_text';
   return null;
 }

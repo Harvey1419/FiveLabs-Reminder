@@ -241,10 +241,13 @@ export async function checkAndDispatchNudges() {
     }
 
     for (const reminder of byId.values()) {
-      if (isRecurring(reminder) && reminder.user_id) {
+      let includeNudgeButtons = true;
+      if (reminder.user_id) {
         try {
           const policy = await getReminderDispatchPolicy(reminder.user_id);
-          if (policy?.recurring?.disableNudges || policy?.disableNudgesForRecurring) {
+          const scope = isRecurring(reminder) ? policy?.recurring : policy?.global;
+          includeNudgeButtons = !scope?.disableButtons;
+          if (scope?.disableNudges || (isRecurring(reminder) && policy?.disableNudgesForRecurring)) {
             await supabase
               .from('reminders')
               .update({ requires_confirmation: false, nudge_count: 0, last_nudged_at: null })
@@ -253,6 +256,7 @@ export async function checkAndDispatchNudges() {
           }
         } catch (policyErr) {
           console.warn(`[scheduler worker=${WORKER_ID}] failed to check reminder policy for nudge:`, policyErr.message);
+          continue;
         }
       }
 
@@ -280,7 +284,7 @@ export async function checkAndDispatchNudges() {
       ];
       const sendResult = await sendReminderMessage(reminder.phone_number, nudgeMessage, {
         phoneNumberId,
-        buttons: nudgeButtons,
+        ...(includeNudgeButtons ? { buttons: nudgeButtons } : {}),
         language: isEnglish ? 'en' : 'es',
       });
       if (!sendResult?.success || !sendResult?.messageId) {
@@ -354,17 +358,19 @@ export async function processReminder(reminder) {
     const isAdvance = isAdvanceNoticeContent(reminder?.content);
     let includeButtons = !isAdvance;
     let effectiveRequiresConfirmation = isAdvance ? false : reminder.requires_confirmation;
-    if (recurring && reminder.user_id) {
+    if (reminder.user_id) {
       try {
         const policy = await getReminderDispatchPolicy(reminder.user_id);
-        if (policy?.disableButtonsForRecurring || policy?.recurring?.disableButtons) {
+        const scope = recurring ? policy?.recurring : policy?.global;
+        if (scope?.disableButtons || (recurring && policy?.disableButtonsForRecurring)) {
           includeButtons = false;
         }
-        if (policy?.disableNudgesForRecurring || policy?.recurring?.disableNudges) {
+        if (scope?.disableNudges || (recurring && policy?.disableNudgesForRecurring)) {
           effectiveRequiresConfirmation = false;
         }
       } catch (policyErr) {
         console.warn(`[scheduler worker=${WORKER_ID}] failed to load reminder policy:`, policyErr.message);
+        includeButtons = false;
       }
     }
 

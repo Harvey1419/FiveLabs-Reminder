@@ -11,6 +11,8 @@
  * that already failed during the same foreground turn.
  */
 
+import { responseVoice } from '../contracts/response-policy.js';
+
 function parseProviderList(value, defaults) {
   const configured = value
     ?.split(',')
@@ -650,7 +652,15 @@ export async function callChatCompletion(messages, {
     ? foregroundProfiles.slice(requestedStartIndex)
     : foregroundProfiles;
 
-  const result = await runOpenRouterChain(messages, profiles, {
+  // Optional proactive advice must not delay a verified operational reply.
+  const boundedProfiles = purpose === 'next_best_action'
+    ? profiles.slice(0, 1).map(profile => ({ ...profile, timeoutMs: 2000, emptyContentRetries: 0,
+      reasoning: profile.reasoning ? { ...profile.reasoning, effort: 'low' } : null }))
+    : ['policy_compilation', 'memory_admission'].includes(purpose)
+      ? profiles.slice(0, 2).map(profile => ({ ...profile, timeoutMs: Math.min(profile.timeoutMs, 3000), emptyContentRetries: 0,
+        reasoning: profile.reasoning ? { ...profile.reasoning, effort: 'low' } : null }))
+      : profiles;
+  const result = await runOpenRouterChain(messages, boundedProfiles, {
     apiKey: openrouterKey,
     purpose,
     temperature,
@@ -695,7 +705,7 @@ export async function callResponseSynthesis({
       role: 'system',
       content: isEnglish
         ? `Write one tiny conversational fragment before verified assistant cards. Return JSON only: {"before":"","after":""}. Address only the excluded part. Never restate, reinterpret or claim the result of an action. Never mention internal tools or schemas. "after" must be empty. Each field is at most 160 characters.`
-        : `Escribe un fragmento conversacional mínimo antes de cards verificadas del asistente. Devuelve solo JSON: {"before":"","after":""}. Atiende únicamente la parte excluida. Nunca repitas, reinterpretes ni afirmes el resultado de una acción. Nunca menciones herramientas ni esquemas internos. "after" debe quedar vacío. Cada campo admite máximo 160 caracteres.`,
+        : `Escribe en ${responseVoice(language)} un fragmento conversacional mínimo antes de cards verificadas del asistente. Devuelve solo JSON: {"before":"","after":""}. Atiende únicamente la parte excluida. Nunca repitas, reinterpretes ni afirmes el resultado de una acción. Nunca menciones herramientas ni esquemas internos. "after" debe quedar vacío. Cada campo admite máximo 160 caracteres.`,
     },
     {
       role: 'user',

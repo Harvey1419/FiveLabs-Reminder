@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
+  getReminderDispatchPolicy: vi.fn().mockResolvedValue({ recurring: { disableNudges: false, disableButtons: false } }),
   claimNextDueReminder: vi.fn(),
   getNextPendingReminder: vi.fn(),
   markReminderAsDispatched: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../../src/agent/core/working-memory.js', () => ({
 
 const {
   getLatestInboundPhoneNumberId,
+  getReminderDispatchPolicy,
   markReminderAsDispatched,
   markReminderAsFailed,
   saveMessage,
@@ -77,6 +79,20 @@ function mockRecurringAdvance() {
   supabase.from.mockReturnValue(chain);
   return { chain, getUpdates: () => capturedUpdates, getId: () => capturedId };
 }
+
+describe('reminder policy failure boundary', () => {
+  it('defers follow-up when preferences cannot be verified', async () => {
+    vi.clearAllMocks();
+    getRemindersDueForNudge.mockResolvedValue([dueReminder({ status: 'sent', requires_confirmation: true })]);
+    getReminderDispatchPolicy.mockRejectedValueOnce(new Error('policy unavailable'));
+    const query = { select: () => query, eq: () => query, not: () => query, is: () => query, order: () => query, limit: () => query, then: resolve => Promise.resolve({ data: [], error: null }).then(resolve) };
+    supabase.from.mockReturnValue(query);
+    await checkAndDispatchNudges();
+    expect(sendReminderMessage).not.toHaveBeenCalled();
+    expect(incrementReminderNudge).not.toHaveBeenCalled();
+    getRemindersDueForNudge.mockResolvedValue([]);
+  });
+});
 
 describe('scheduler delivery truth', () => {
   beforeEach(() => {

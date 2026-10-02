@@ -5,11 +5,12 @@ import {
   forgetMemories,
 } from '../../infrastructure/database/index.js';
 import { formatMemoryListCard } from './formatters.js';
+import { selectMemoriesToForget } from '../orchestration/select-memory-forgetting.js';
 
 /**
  * Domain tool for managing persistent semantic memories.
  */
-export async function executeMemoryTool({ action, params = {}, user, language = 'es' }) {
+export async function executeMemoryTool({ action, params = {}, user, language = 'es', correlationId = null }) {
   const userId = user?.id;
   const normalizedAction = String(action || 'save');
 
@@ -106,18 +107,31 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
     case 'forget': {
       const topicKey = params.topicKey || null;
       const query = params.query || null;
-      const effectiveTerm = topicKey || query || '';
+      const effectiveTerm = query || topicKey || '';
 
       const res = await forgetMemories({
         userId,
-        topicKey: topicKey || effectiveTerm,
-        query: query || effectiveTerm,
+        topicKey,
+        query,
+        correlationId,
+        selectCandidates: candidates => selectMemoriesToForget({ query: effectiveTerm, candidates, language, correlationId }),
       });
 
       const count = res?.deletedCount || 0;
+      if (res?.success === false || !count) {
+        const failed = res?.success === false;
+        const message = failed
+          ? (language === 'en' ? 'I could not confirm the memory deletion.' : 'No pude confirmar la eliminación de la memoria.')
+          : (language === 'en' ? 'I did not delete any memories matching that request.' : 'No eliminé ninguna memoria que coincidiera con esa solicitud.');
+        return { success: false, action: failed ? 'memory_forget_failed' : 'memory_not_found',
+          errorCode: res?.errorCode || 'NOT_FOUND', ...(res?.outcome ? { outcome: res.outcome } : {}),
+          error: message, rawSummary: message, data: { deletedCount: 0, deletedMemories: [] } };
+      }
+      const deletedMemories = res.deletedMemories || [];
+      const details = deletedMemories.map(memory => `• ${memory.content}`).join('\n');
       const formattedCard = language === 'en'
-        ? `🗑️ *Memory Forgotten:* Removed stored context for "${effectiveTerm}".`
-        : `🗑️ *Memoria borrada:* Eliminé el contexto guardado sobre "${effectiveTerm}".`;
+        ? `🗑️ *${count} ${count === 1 ? 'memory deleted' : 'memories deleted'}*${details ? `\n\n${details}` : ''}`
+        : `🗑️ *${count} ${count === 1 ? 'memoria eliminada' : 'memorias eliminadas'}*${details ? `\n\n${details}` : ''}`;
 
       return {
         success: true,
@@ -125,6 +139,7 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
         data: {
           forgottenCount: count,
           deletedCount: count,
+          deletedMemories,
           topicKey: effectiveTerm,
           formattedCard,
         },

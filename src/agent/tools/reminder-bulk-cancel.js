@@ -127,6 +127,7 @@ export async function executeBulkReminderCancellation({
   }
 
   let cancelledCount = 0;
+  const cancelledReminders = [];
   const failedCandidates = [];
   for (const reminder of candidates) {
     const cancellationUserId = reminder.user_id === userId ? userId : null;
@@ -134,7 +135,11 @@ export async function executeBulkReminderCancellation({
       ? null
       : (reminder.phone_number && phoneVariants.includes(reminder.phone_number) ? reminder.phone_number : phoneNumber);
     const cancelled = await markReminderAsCancelled(reminder.id, cancellationUserId, cancellationPhone);
-    if (cancelled) cancelledCount += 1;
+    if (cancelled) {
+      cancelledCount += 1;
+      cancelledReminders.push({ id: reminder.id, content: reminder.content,
+        sendAt: reminder.send_at, status: 'cancelled', recurrenceRule: reminder.recurrence_rule });
+    }
     else failedCandidates.push(reminder);
   }
 
@@ -152,6 +157,7 @@ export async function executeBulkReminderCancellation({
     action: failedCount > 0 ? 'partially_cancelled_reminders' : 'cancelled_reminders',
     data: {
       cancelledCount,
+      cancelledReminders,
       remainingCount: failedCount,
       scope,
       failedCount,

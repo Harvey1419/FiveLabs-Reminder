@@ -88,8 +88,10 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       const systemMessage = callArgs.find((m) => m.role === 'system');
 
       expect(systemMessage.content).toContain('PLAN FREE Y PERSUASIÓN CONSULTIVA A PRO');
-      expect(systemMessage.content).toContain('REGLA DE NO INVASIVIDAD');
-      expect(systemMessage.content).toContain('Reminder Pro ($9.99 USD)');
+      expect(systemMessage.content).toContain('No agregues publicidad');
+      expect(systemMessage.content).toContain('subscription.link');
+      expect(systemMessage.content).not.toContain('$9.99');
+      expect(systemMessage.content).not.toContain('$14.99');
     });
 
     it('warns not to repeat Pro pitch if recent turns already mentioned Pro', async () => {
@@ -118,7 +120,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       const callArgs = callChatCompletion.mock.calls[0][0];
       const systemMessage = callArgs.find((m) => m.role === 'system');
 
-      expect(systemMessage.content).toContain('Historial reciente ya mencionó Pro o suscripción: NO vuelvas a mencionarlo');
+      expect(systemMessage.content).toContain('considera el historial para evitar repetir ofertas');
     });
 
     it('never injects pro guidance for non-1916 regular users', async () => {

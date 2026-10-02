@@ -3,7 +3,6 @@ import { hasUsableGoogleCredentials, isGoogleAuthError } from '../../integration
 import { resolveCalendarTemporalScope, formatLocalDateTime } from '../../shared/time.js';
 import { normalizeAgendaScope, isAllPendingScope } from '../../shared/agenda-scopes.js';
 import { listCalendarEvents, normalizeCalendarEvent } from '../../integrations/google/calendar.js';
-import { reconcileCalendarCompanionReminders } from '../calendar/reconciliation.js';
 
 const DEFAULT_TIMEZONE = 'America/Bogota';
 
@@ -24,13 +23,6 @@ export async function getUnifiedAgenda({
   language = 'es',
 }) {
   const tz = timezone || DEFAULT_TIMEZONE;
-
-  // JIT Calendar Reconciliation: non-blocking sync in background if userId is present
-  if (userId && process.env.NODE_ENV !== 'test') {
-    reconcileCalendarCompanionReminders({ userId, phoneNumber, timezone: tz }).catch(err => {
-      console.warn(`[unifiedAgenda] JIT reconciliation non-blocking warning for user ${userId}:`, err.message);
-    });
-  }
 
   const canonicalScope = normalizeAgendaScope(scope, 'upcoming');
   const temporal = resolveCalendarTemporalScope({ scope: canonicalScope, date, dateFrom, dateTo }, tz);
@@ -90,8 +82,7 @@ export async function getUnifiedAgenda({
       reminderQuery = reminderQuery.order('send_at', { ascending: true });
       const { data, error } = await reminderQuery;
       if (error) {
-        console.error('[unifiedAgenda] Reminders read error:', error.message);
-        return [];
+        throw new Error(`Reminders unavailable: ${error.message}`);
       }
 
       // With stable recurring UUIDs, acknowledged_at describes the most recent
@@ -139,8 +130,7 @@ export async function getUnifiedAgenda({
       taskQuery = taskQuery.order('due_date', { ascending: true, nullsFirst: false });
       const { data, error } = await taskQuery;
       if (error) {
-        console.error('[unifiedAgenda] Tasks read error:', error.message);
-        return [];
+        throw new Error(`Tasks unavailable: ${error.message}`);
       }
 
       return (data || []).map((task) => {
@@ -219,6 +209,8 @@ export async function getUnifiedAgenda({
     locale,
     timeMin,
     timeMax,
+    complete: calendar.state === 'CONNECTED' && remindersResult.status === 'fulfilled' && tasksResult.status === 'fulfilled',
+    sources: { calendar: calendar.state, reminders: remindersResult.status === 'fulfilled' ? 'AVAILABLE' : 'ERROR', tasks: tasksResult.status === 'fulfilled' ? 'AVAILABLE' : 'ERROR' },
     calendar,
     reminders,
     tasks,

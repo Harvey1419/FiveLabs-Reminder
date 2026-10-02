@@ -38,6 +38,8 @@ export async function executeUnifiedAgendaTool({
     return {
       success: true,
       action: 'unified_agenda_listed',
+      complete: agenda.complete !== false,
+      partialSuccess: agenda.complete === false,
       data: { ...agenda, timezone, locale },
       ctaUrl: authUrl,
       // The canonical body owns the visible title. Do not add a second header

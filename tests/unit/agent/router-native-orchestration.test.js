@@ -172,7 +172,7 @@ describe('Hermes direct TurnIntent router', () => {
     }));
     expect(result.executionFacts).toEqual(expect.arrayContaining([expect.objectContaining({ success: true })]));
     const systemPrompt = callChatCompletion.mock.calls[0][0][0].content;
-    expect(systemPrompt).toContain('Set responseLanguage');
+    expect(systemPrompt).toContain("CURRENT USER's language");
     expect(result.language).toBe('en');
     expect(executeTool.mock.calls[0][0].language).toBe('en');
     expect(systemPrompt).not.toContain('pagar la factura mañana');
@@ -609,9 +609,9 @@ describe('Hermes direct TurnIntent router', () => {
       ],
       tasksDueToday: [],
     });
-    callChatCompletion.mockResolvedValue(modelToolCall({
+    callChatCompletion.mockResolvedValueOnce(modelToolCall({
       actions: [{ domain: 'task', action: 'complete', target: 'Enviar reporte' }],
-    }));
+    })).mockResolvedValueOnce({ content: JSON.stringify({ position: 1, suggestion: 'Puedes preparar la reunión de balance de las 4:00 PM.' }) });
     executeTool.mockResolvedValue({
       success: true,
       complete: true,
@@ -628,7 +628,8 @@ describe('Hermes direct TurnIntent router', () => {
     }));
     expect(result.confirmation).toContain('✅ *Tarea completada*');
     expect(result.confirmation).toContain('Enviar reporte');
-    expect(result.confirmation).toContain('💡 *Siguiente paso*: Tu próximo recordatorio es *Reunión de balance* a las 4:00 PM.');
+    expect(result.confirmation).toContain('Puedes preparar la reunión de balance de las 4:00 PM.');
+    expect(executeTool).toHaveBeenCalledTimes(1);
   });
 
   it('answers personal facts from user memories directly via conversation.reply without emitting memory.search', async () => {

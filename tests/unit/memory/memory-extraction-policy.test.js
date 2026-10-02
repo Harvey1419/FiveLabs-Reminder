@@ -13,7 +13,8 @@ vi.mock('../../../src/agent/providers/client.js', () => ({
 const { saveMemory, searchMemories, findOrCreateEntityFuzzy } = await import('../../../src/infrastructure/database/index.js');
 const { callMemoryExtraction } = await import('../../../src/agent/providers/client.js');
 const { extractAndSaveMemories, getMemoryEligibleText } = await import('../../../src/features/memory/service.js');
-const { isPureQuestionTurn } = await import('../../../src/jobs/memory-extractor.js');
+vi.mock('../../../src/features/memory/validate-candidates.js', () => ({ validateMemoryCandidates: vi.fn() }));
+const { validateMemoryCandidates } = await import('../../../src/features/memory/validate-candidates.js');
 
 const reminderFact = {
   tool: 'manage_reminder',
@@ -24,30 +25,28 @@ const reminderFact = {
 
 describe('durable memory extraction policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    callMemoryExtraction.mockResolvedValue('[]');
+    validateMemoryCandidates.mockImplementation(async ({ candidates }) => candidates);
     searchMemories.mockResolvedValue([]);
     findOrCreateEntityFuzzy.mockResolvedValue({ id: 'entity-1', name: 'Borona' });
     saveMemory.mockResolvedValue({ id: 'memory-1' });
   });
 
-  it('classifies pure recall/questions separately from learning turns', () => {
-    expect(isPureQuestionTurn('¿Cómo me llamo?')).toBe(true);
-    expect(isPureQuestionTurn('¿Qué recuerdas de mí?')).toBe(true);
-    expect(isPureQuestionTurn('¿Cuál es mi comida favorita?\n¿Dónde vivo?')).toBe(true);
-    expect(isPureQuestionTurn('Vivo en Barranquilla. ¿Lo recuerdas?')).toBe(false);
-    expect(isPureQuestionTurn('Prefiero respuestas cortas')).toBe(false);
+  it('preserves embedded assertions in questions for semantic admission', () => {
+    expect(getMemoryEligibleText('¿Recuerdas que vivo en Cali?')).toBe('¿Recuerdas que vivo en Cali?');
   });
 
   it('skips a turn whose clauses were fully consumed by operational tools', async () => {
     const userText = 'Recuérdame llevar a mi amorcito en 10 minutos. Dile que la amo en 20 minutos. Tenemos cita con Borona a las 4 de la tarde.';
 
-    expect(getMemoryEligibleText(userText, [reminderFact])).toBe('');
+    expect(getMemoryEligibleText(userText, [reminderFact])).toBe(userText);
     const saved = await extractAndSaveMemories({
       userId: 'user-1', userText, assistantReply: 'Todo quedó programado.', executionFacts: [reminderFact],
     });
 
     expect(saved).toEqual([]);
-    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).toHaveBeenCalled();
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
@@ -65,11 +64,12 @@ describe('durable memory extraction policy', () => {
     });
 
     expect(saved).toEqual([]);
-    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).toHaveBeenCalled();
     expect(findOrCreateEntityFuzzy).not.toHaveBeenCalled();
   });
 
-  it('rejects a mixed candidate whose evidence is not in the eligible user text', async () => {
+  it('rejects a mixed candidate through semantic admission before any writes', async () => {
+    validateMemoryCandidates.mockResolvedValue([]);
     const userText = 'Borona es mi perrita. Recuérdame su cita mañana a las 4.';
     const fact = {
       ...reminderFact,
@@ -122,7 +122,8 @@ describe('durable memory extraction policy', () => {
     }));
     const prompt = callMemoryExtraction.mock.calls[0][0];
     expect(prompt[1].content).toContain('Borona es mi perrita');
-    expect(prompt[1].content).not.toContain('Recuérdame su cita mañana a las 4');
+    expect(prompt[1].content).toContain('Recuérdame su cita mañana a las 4');
+    expect(validateMemoryCandidates).toHaveBeenCalledWith(expect.objectContaining({ executionFacts: [fact], userText }));
   });
 
   it('skips an unfinished appointment turn using semantic orchestration metadata', async () => {
@@ -139,7 +140,7 @@ describe('durable memory extraction policy', () => {
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
-  it('does not run background extraction after an explicit memory tool already saved the fact', async () => {
+  it('does not save new memories when extraction returns no durable candidates after an explicit save', async () => {
     const memoryFact = {
       tool: 'manage_memory',
       success: true,
@@ -155,7 +156,7 @@ describe('durable memory extraction policy', () => {
     });
 
     expect(saved).toEqual([]);
-    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).toHaveBeenCalled();
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
@@ -296,7 +297,7 @@ describe('durable memory extraction policy', () => {
       },
     };
 
-    expect(getMemoryEligibleText(userText, [completionFact])).toBe('');
+    expect(getMemoryEligibleText(userText, [completionFact])).toBe(userText);
     const saved = await extractAndSaveMemories({
       userId: 'user-1',
       userText,
@@ -305,11 +306,12 @@ describe('durable memory extraction policy', () => {
     });
 
     expect(saved).toEqual([]);
-    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).toHaveBeenCalled();
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
   it('rejects an ephemeral completion candidate even if extractor produces a candidate (Issue #68 candidate rejection)', async () => {
+    validateMemoryCandidates.mockImplementation(async ({ candidates }) => [candidates[1]]);
     const userText = 'Ya guardé el pasaporte. Mi color favorito es el azul.';
     const completionFact = {
       tool: 'manage_task',
@@ -344,7 +346,7 @@ describe('durable memory extraction policy', () => {
       executionFacts: [completionFact],
     });
 
-    // profile/passport must be rejected due to overlap with operational completion; preference/color preserved
+    // The admission decision excludes operational state without removing the independent preference.
     expect(saved).toHaveLength(1);
     expect(saveMemory).toHaveBeenCalledTimes(1);
     expect(saveMemory).toHaveBeenCalledWith(expect.objectContaining({

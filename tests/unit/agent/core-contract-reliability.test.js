@@ -124,7 +124,7 @@ describe('core contract reliability across turns', () => {
       expect(options.purpose).toBe('observed_answer');
       expect(options.tools).toBeNull();
       expect(messages.at(-1).content).toContain('Cuota de 120');
-      return modelResponse({ answer: 'Los importes mostrados suman 120.', evidenceCallIds: ['call_1'] });
+      return modelResponse({ kind: 'derived', answer: 'Los importes mostrados suman 120.', evidenceCallIds: ['call_1'] });
     });
     const result = await routeMessage('¿Cuánto suman las cuotas pendientes?', user, []);
     expect(result.confirmation).toContain('suman 120');
@@ -135,7 +135,7 @@ describe('core contract reliability across turns', () => {
   it('keeps verified cards when the observation answer cites nonexistent evidence', async () => {
     callChatCompletion.mockResolvedValueOnce(modelResponse({ answerFromResults: true, actions: [{ domain: 'task', action: 'list' }] }));
     executeTool.mockResolvedValue({ success: true, action: 'listed_tasks', rawSummary: 'Cuota pendiente: 120.' });
-    callChatCompletion.mockResolvedValueOnce(modelResponse({ answer: 'Todo está pagado.', evidenceCallIds: ['invented'] }));
+    callChatCompletion.mockResolvedValueOnce(modelResponse({ kind: 'derived', answer: 'Todo está pagado.', evidenceCallIds: ['invented'] }));
     const result = await routeMessage('¿Cuánto debo?', user, []);
     expect(result.confirmation).toContain('120');
     expect(result.confirmation).not.toContain('Todo está pagado');

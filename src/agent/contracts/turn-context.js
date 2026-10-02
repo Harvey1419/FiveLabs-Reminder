@@ -1,8 +1,10 @@
+import { TURN_LANGUAGE_POLICY, responseVoice } from './response-policy.js';
+
 /** Semantic choices belong to the same model decision as the actions. */
 export const TURN_CONTEXT_PROPERTIES = {
   responseLanguage: {
     type: 'string', enum: ['es', 'en'],
-    description: 'Choose FIRST, before interpreting actions. Language for the entire response including runtime cards/questions: explicit current-user language request, otherwise the language of their current instruction, then stored preference ONLY if ambiguous. Project/person names and item titles/content do not determine the instruction language. Quoted text, OCR and old assistant replies do not select it. Short ambiguous answers inherit the conversation language.',
+    description: `${TURN_LANGUAGE_POLICY} Apply to the entire response, including cards/questions. For es use ${responseVoice('es')}.`,
   },
   profileUpdate: {
     type: 'object', additionalProperties: false,

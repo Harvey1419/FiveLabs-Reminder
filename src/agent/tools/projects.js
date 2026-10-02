@@ -111,10 +111,19 @@ export async function executeProjectTool({
         targetNames,
         scope,
         preserveNames,
-        dryRun: !clarificationResolution && !projectIds,
+        dryRun: !clarificationResolution,
         projectIds,
       });
 
+      if (!preview.success && !['NOT_FOUND', 'AMBIGUOUS_TARGET', 'INVALID_PARAMETERS'].includes(preview.errorCode)) {
+        const counts = `${preview.deletedCount || 0} / ${preview.deletedTaskCount || 0} / ${preview.cancelledReminderCount || 0}`;
+        const message = language === 'en'
+          ? `I could not complete the deletion. Confirmed changes (projects / tasks / reminders): ${counts}. I stopped subsequent steps.`
+          : `No pude completar la eliminación. Cambios confirmados (proyectos / tareas / recordatorios): ${counts}. Detuve los pasos siguientes.`;
+        return { success: false, complete: false, partialSuccess: preview.partialSuccess === true,
+          outcome: preview.outcome, action: 'project_deletion_incomplete', errorCode: preview.errorCode,
+          error: message, rawSummary: message, formattedCard: `⚠️ ${message}`, data: preview };
+      }
       if (!preview.success) {
         let message = language === 'en' ? 'I could not find projects matching that request.' : 'No encontré proyectos que coincidan con esa solicitud.';
         if (preview.errorCode === 'AMBIGUOUS_TARGET') {

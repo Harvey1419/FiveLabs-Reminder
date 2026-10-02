@@ -135,7 +135,7 @@ describe('Unified Agenda & Morning Briefing', () => {
       expect(res.data.reminders).toHaveLength(0);
       expect(res.data.tasks).toHaveLength(0);
       expect(card).toContain('Sin eventos en este período');
-      expect(card).toContain('No tienes pendientes en este momento');
+      expect(card).toContain('No encontré pendientes en este período');
     });
   });
 
@@ -219,5 +219,30 @@ describe('Unified Agenda & Morning Briefing', () => {
       expect(card).toContain('Escribirle a la veterinaria');
       expect(card).not.toContain('internal-id');
     });
+  });
+});
+
+describe('partial agenda evidence', () => {
+  it('does not present a failed task read as an empty agenda', async () => {
+    vi.spyOn(integrationsDb, 'getUserIntegration').mockResolvedValue({ access_token: 'token' });
+    vi.spyOn(googleService, 'listCalendarEvents').mockResolvedValue([]);
+    vi.spyOn(supabase, 'from').mockImplementation(table => {
+      const query = createFluentQueryMock([]);
+      if (table === 'tasks') query.then = resolve => Promise.resolve({ data: null, error: { message: 'read failed' } }).then(resolve);
+      return query;
+    });
+    const agenda = await getUnifiedAgenda({ userId: 'u1', scope: 'tomorrow' });
+    expect(agenda.complete).toBe(false);
+    expect(agenda.sources.tasks).toBe('ERROR');
+    const card = renderAgenda(agenda);
+    expect(card).toContain('Tareas: no disponibles');
+    expect(card).toContain('puede estar incompleta');
+    expect(card).not.toContain('No encontré pendientes en este período');
+    vi.restoreAllMocks();
+  });
+  it('does not declare a free day when Calendar is unavailable', () => {
+    const card = renderAgenda({ scope: 'tomorrow', calendar: { state: 'ERROR', events: [] }, tasks: [], reminders: [] });
+    expect(card).toContain('puede estar incompleta');
+    expect(card).not.toContain('Día completamente libre');
   });
 });

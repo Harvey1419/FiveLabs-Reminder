@@ -479,21 +479,11 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   const enforceBilling = shouldEnforceBillingForUser(user);
   let proGuidance = null;
   if (enforceBilling && !isPro) {
-    const isStripe = (process.env.BILLING_PROVIDER || '').toLowerCase() === 'stripe';
-    const proPrice = isStripe ? '$14.99 USD' : '$9.99 USD';
-    const recentTurnsMentionedPro = pastTurns.slice(-4).some((turn) =>
-      /lemonsqueezy|mercadopago|stripe|suscrip|reminder pro|\$9\.99|\$14\.99|checkout/i.test(turn.content || '')
-    );
     proGuidance = [
       '- Este usuario está en Plan Free con facturación supervisada.',
-      `- Tu objetivo secundario es orientar de forma elegante y consultiva al usuario hacia Reminder Pro (${proPrice}/mes), con persuasión suave y CERO invasiva.`,
-      '- REGLA DE NO INVASIVIDAD: JAMÁS agregues un pitch de ventas a operaciones rutinarias (crear una tarea rápida, consultar un dato, marcar completado, etc.). Primero cumple y confirma impecablemente lo pedido.',
-      recentTurnsMentionedPro
-        ? '- Historial reciente ya mencionó Pro o suscripción: NO vuelvas a mencionarlo en este turno a menos que el usuario lo pregunte directamente.'
-        : '- Momentos ideales para sembrar Pro suavemente:\n' +
-          `  1. Saludos iniciales o preguntas exploratorias ("Hola", "¿qué puedes hacer?", "¿cómo funcionas?"): preséntate como su asistente personal y segundo cerebro ejecutivo. Explica que en Free puede gestionar su día a día y tareas inmediatas, y menciona con sutileza que con Reminder Pro (${proPrice}) desbloquea anticipación total (recordatorios para días y semanas futuras, rutinas recurrentes y Google Calendar).\n` +
-          `  2. Preguntas sobre capacidades, planes o límites: responde con claridad y entusiasmo sobre los beneficios de Pro. Si pide el link o muestra interés, usa subscription.link o incluye [checkout_url] en tu respuesta.${isStripe ? ' El procesador de pago oficial es Stripe (NUNCA menciones Lemon Squeezy ni Mercado Pago).' : ''}`,
-      '- Tono: Asesor ejecutivo de alta confianza. Cero insistencia, cero spam.',
+      '- Cumple primero la solicitud. Explica planes solo si el usuario pregunta o un límite real bloquea lo pedido; considera el historial para evitar repetir ofertas.',
+      '- Para precios, beneficios vigentes y enlace de pago usa subscription.link. No inventes tarifas ni procesadores a partir del historial.',
+      '- No agregues publicidad a saludos u operaciones rutinarias.',
     ].join('\n');
   }
 
@@ -696,7 +686,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
       console.warn(`[router req=${requestId}] active run model call failed or invalid — blocking normal turn. kind=${pendingKind} runId=${activeAgentRun.id}`);
       const safeFallback = language === 'en'
         ? 'I could not process your response to the pending action. Could you send it again?'
-        : 'No pude procesar tu respuesta a la acción pendiente. ¿Podés enviarlo de nuevo?';
+        : 'No pude procesar tu respuesta a la acción pendiente. ¿Puedes enviarla de nuevo?';
       return {
         intent: 'clarification',
         entities: conversationStateEntities(user, { _turnMetadata: { kind: 'active_run_unresolved' } }),
@@ -927,8 +917,10 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     framing = before ? { before, after: '' } : null;
   }
 
-  const nextAction = resolveNextBestAction({
+  const nextAction = await resolveNextBestAction({
     executionFacts: execution.facts,
+    userText: currentUserText,
+    correlationId: requestId,
     dailyOverview,
     user,
     language,

@@ -400,6 +400,10 @@ export async function executeSingleReminderCancellation({
     action: recurring ? 'cancelled_recurring_reminder_series' : 'cancelled_reminder',
     data: {
       cancelledCount,
+      cancelledReminders: (cancelled || []).map(({ id }) => {
+        const row = targets.find(target => target.id === id);
+        return { id, content: row?.content, sendAt: row?.send_at, status: 'cancelled', recurrenceRule: row?.recurrence_rule || null };
+      }),
       logicalCancelledCount: primaryTargets.length,
       linkedAdvanceNoticesCancelled: childNotices.length,
       recurring,

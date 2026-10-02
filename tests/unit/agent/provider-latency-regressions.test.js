@@ -134,6 +134,20 @@ describe('foreground provider latency policy', () => {
     expect(result.content).toBe(JSON.stringify(intent));
   });
 
+  it('skips optional proactive advice after one failed provider attempt', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(finishError());
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'next_best_action' });
+    expect(result.unavailable).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['policy_compilation', 'memory_admission'])('bounds %s to two provider attempts', async purpose => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(finishError());
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true, purpose });
+    expect(result.unavailable).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not migrate the background memory request or change its existing text cleanup', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
       provider: 'Groq',

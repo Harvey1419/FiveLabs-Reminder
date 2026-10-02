@@ -77,6 +77,6 @@ describe('architecture hardening', () => {
       [{ tool: 'manage_reminder', card: '✅ Recordatorio programado: llamar a Pedro mañana', summary: 'llamar a Pedro mañana' }],
     );
     expect(eligible).toContain('Trabajo en Globant');
-    expect(eligible).not.toContain('Recuérdame llamar a Pedro');
+    expect(eligible).toContain('Recuérdame llamar a Pedro');
   });
 });

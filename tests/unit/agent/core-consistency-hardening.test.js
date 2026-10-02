@@ -82,6 +82,6 @@ describe('core consistency hardening', () => {
     );
 
     expect(eligible).toContain('Trabajo en Globant');
-    expect(eligible).not.toContain('Recuérdame llamar a Pedro mañana');
+    expect(eligible).toContain('Recuérdame llamar a Pedro mañana');
   });
 });

@@ -1,176 +1,77 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveNextBestAction } from '../../../src/agent/orchestration/next-best-action.js';
-import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
 
-describe('Next Best Action (proactive cycle closure)', () => {
-  const baseUser = {
-    id: 'user-1',
-    preferences: [],
-    locale: 'es-CO',
-  };
+const completed = { tool: 'manage_task', requestedAction: 'complete', action: 'completed_task', success: true, complete: true,
+  presentationData: { id: 'done', title: 'Enviar reporte' } };
+const options = { executionFacts: [completed], userText: 'Completé el reporte del proyecto', language: 'es',
+  dailyOverview: { pendingConfirmationReminders: [{ id: 'old', content: 'Un seguimiento de otro proyecto', status: 'sent' }],
+    openTasks: [{ id: 'next', title: 'Preparar presentación', entityName: 'Proyecto' }] } };
+const answer = (position, suggestion) => vi.fn().mockResolvedValue({ content: JSON.stringify({ position, suggestion }) });
 
-  it('returns null when no completion facts exist', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_REMINDER, action: 'created_reminder', success: true },
-    ];
-    const overview = { timedRemindersToday: [{ title: 'Comprar leche' }] };
-    expect(resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser })).toBeNull();
+describe('grounded proactive decision after observed execution', () => {
+  it('lets the model choose a relevant item instead of a fixed follow-up priority', async () => {
+    const complete = answer(2, 'Puedes continuar con la presentación del proyecto.');
+    const result = await resolveNextBestAction({ ...options, complete });
+    expect(result).toMatchObject({ type: 'open_task', item: { id: 'next' }, recommendationText: 'Puedes continuar con la presentación del proyecto.' });
+    expect(complete.mock.calls[0][1]).toMatchObject({ purpose: 'next_best_action', tools: null, toolChoice: 'none' });
+    const evidence = JSON.parse(complete.mock.calls[0][0][1].content);
+    expect(evidence.completed[0].data.id).toBe('done');
+    expect(evidence.candidates).toHaveLength(2);
   });
 
-  it('returns null when completion fact was not successful', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: false },
-    ];
-    const overview = { tasksDueToday: [{ title: 'Revisar métricas' }] };
-    expect(resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser })).toBeNull();
+  it('permits silence instead of forcing a recommendation', async () => {
+    expect(await resolveNextBestAction({ ...options, complete: answer(0, '') })).toBeNull();
   });
 
-  it('suppresses suggestion when turn already includes read actions', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1' } },
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'listed_tasks', success: true },
-    ];
-    const overview = { tasksDueToday: [{ id: 't2', title: 'Revisar métricas' }] };
-    expect(resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser })).toBeNull();
+  it('keeps every source represented when follow-ups exceed the context budget', async () => {
+    const complete = answer(0, '');
+    await resolveNextBestAction({ ...options, complete, dailyOverview: {
+      pendingConfirmationReminders: Array.from({ length: 20 }, (_, index) => ({ id: `old-${index}`, content: 'Old follow-up' })),
+      tasksDueToday: [{ id: 'urgent', title: 'Send contract', due_date: '2026-10-02T20:00:00Z' }],
+    }, referenceTime: new Date('2026-10-02T18:00:00Z'), timezone: 'America/Bogota', language: 'en' });
+    const context = JSON.parse(complete.mock.calls[0][0][1].content);
+    expect(context.candidates).toHaveLength(12);
+    expect(context.candidates.find(item => item.title === 'Send contract').localTime).toContain('15:00');
+    expect(context.localNow).toContain('13:00');
   });
 
-  it('respects user preference against proactive suggestions', () => {
-    const userWithAntiPreference = {
-      ...baseUser,
-      preferences: [{ category: 'communication', content: 'Prefiero sin sugerencias proactivas' }],
-    };
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1' } },
-    ];
-    const overview = { tasksDueToday: [{ id: 't2', title: 'Revisar métricas' }] };
-    expect(resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: userWithAntiPreference })).toBeNull();
+  it.each([
+    { executionFacts: [] }, { dailyOverview: null },
+    { executionFacts: [{ ...completed, success: false }] },
+    { executionFacts: [{ ...completed, complete: false }] },
+    { executionFacts: [completed, { tool: 'manage_task', requestedAction: 'list', success: true }] },
+  ])('does not ask for advice with missing evidence or an unresolved/read turn: %j', async change => {
+    const complete = vi.fn();
+    expect(await resolveNextBestAction({ ...options, ...change, complete })).toBeNull();
+    expect(complete).not.toHaveBeenCalled();
   });
 
-  it('prioritizes pending unacknowledged follow-up reminders over scheduled items', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1', title: 'Comprar leche' } },
-    ];
-    const overview = {
-      pendingConfirmationReminders: [
-        { id: 'rem-followup', content: 'Llamar a Laura', localFormatted: 'Hoy 10:00 AM' },
-      ],
-      timedRemindersToday: [
-        { id: 'rem-later', title: 'Reunión balance', localTime: '4:00 PM' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('followup');
-    expect(res.recommendationText).toContain('Todavía tenés pendiente confirmar el seguimiento de *Llamar a Laura*');
-    expect(res.recommendationText).toContain('Hoy 10:00 AM');
+  it('excludes completed/deleted items and refuses to infer an empty agenda', async () => {
+    const complete = vi.fn();
+    expect(await resolveNextBestAction({ ...options, dailyOverview: {
+      openTasks: [{ id: 'done', title: 'Enviar reporte' }, { id: 'gone', status: 'deleted' }],
+    }, complete })).toBeNull();
+    expect(complete).not.toHaveBeenCalled();
   });
 
-  it('recommends upcoming timed reminder when task is completed', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1', title: 'Enviar reporte' } },
-    ];
-    const overview = {
-      timedRemindersToday: [
-        { id: 'rem-1', title: 'Cita con el médico', localTime: '3:30 PM' },
-      ],
-      tasksDueToday: [
-        { id: 't2', title: 'Otra tarea', entityName: 'Trabajo' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('reminder');
-    expect(res.recommendationText).toContain('Tu próximo recordatorio es *Cita con el médico* a las 3:30 PM');
+  it('passes natural preferences and current request to the decision without a regex classifier', async () => {
+    const complete = answer(0, '');
+    await resolveNextBestAction({ ...options, user: { preferences: [{ content: 'Evita recomendarme más cosas al terminar.' }] }, complete });
+    expect(JSON.parse(complete.mock.calls[0][0][1].content).preferences).toEqual(['Evita recomendarme más cosas al terminar.']);
   });
 
-  it('recommends next task due today when reminder is acknowledged and no more timed reminders', () => {
-    const facts = [
-      {
-        tool: TOOL_NAMES.MANAGE_REMINDER,
-        action: 'acknowledged_reminder',
-        success: true,
-        presentationData: { id: 'rem-1', content: 'Tomar medicina' },
-      },
-    ];
-    const overview = {
-      pendingConfirmationReminders: [],
-      timedRemindersToday: [
-        { id: 'rem-1', content: 'Tomar medicina' }, // was just completed
-      ],
-      tasksDueToday: [
-        { id: 't-due-1', title: 'Enviar facturas', entityName: 'Finanzas' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('task_due_today');
-    expect(res.recommendationText).toContain('Tu próxima tarea para hoy es *Enviar facturas* (📁 Finanzas)');
+  it.each(['{"position":99,"suggestion":"Invented"}', '{"position":0,"suggestion":"Claim"}', '{"position":1,"suggestion":"Advice","actions":["delete"]}', 'bad'])('drops invalid selections: %s', async content => {
+    expect(await resolveNextBestAction({ ...options, complete: vi.fn().mockResolvedValue({ content }) })).toBeNull();
   });
 
-  it('recommends open task to keep momentum when no timed reminders or due tasks remain', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1' } },
-    ];
-    const overview = {
-      openTasks: [
-        { id: 't-open-1', title: 'Rediseñar landing', entityName: 'FiveLabs' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('open_task');
-    expect(res.recommendationText).toContain('Si querés seguir con ritmo, tenés pendiente *Rediseñar landing* (📁 FiveLabs)');
+  it('degrades to no suggestion on provider failure', async () => {
+    expect(await resolveNextBestAction({ ...options, complete: vi.fn().mockRejectedValue(new Error('timeout')) })).toBeNull();
   });
 
-  it('celebrates all caught up with tomorrow preview when today is clear', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1', title: 'Última tarea' } },
-    ];
-    const overview = {
-      tasksDueToday: [{ id: 't1', title: 'Última tarea' }],
-      tomorrowReminders: [
-        { id: 'rem-tom', title: 'Vuelo a Bogotá', localTime: '7:00 AM' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('all_caught_up');
-    expect(res.recommendationText).toContain('¡Todo listo por hoy!');
-    expect(res.recommendationText).toContain('Tu primer compromiso de mañana es *Vuelo a Bogotá* a las 7:00 AM');
-  });
-
-  it('celebrates completely all caught up when today and tomorrow are clear', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1', title: 'Última tarea' } },
-    ];
-    const overview = {
-      tasksDueToday: [{ id: 't1', title: 'Última tarea' }],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'es' });
-    expect(res).not.toBeNull();
-    expect(res.type).toBe('all_caught_up');
-    expect(res.recommendationText).toContain('¡Todo al día!');
-    expect(res.recommendationText).toContain('No tenés más compromisos pendientes');
-  });
-
-  it('supports English localization', () => {
-    const facts = [
-      { tool: TOOL_NAMES.MANAGE_TASK, action: 'completed_task', success: true, presentationData: { id: 't1' } },
-    ];
-    const overview = {
-      timedRemindersToday: [
-        { id: 'rem-1', title: 'Team meeting', localTime: '4:00 PM' },
-      ],
-    };
-
-    const res = resolveNextBestAction({ executionFacts: facts, dailyOverview: overview, user: baseUser, language: 'en' });
-    expect(res).not.toBeNull();
-    expect(res.recommendationText).toBe('💡 *Next up*: Your next reminder is *Team meeting* at 4:00 PM.');
+  it('uses the current turn language independently of the saved profile', async () => {
+    const complete = answer(2, 'You could prepare the presentation next.');
+    const result = await resolveNextBestAction({ ...options, user: { locale: 'es-CO' }, language: 'en', complete });
+    expect(result.recommendationText).toBe('You could prepare the presentation next.');
+    expect(complete.mock.calls[0][0][0].content).toContain('Respond in English');
   });
 });

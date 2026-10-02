@@ -89,10 +89,10 @@ describe('Hermes product-quality core', () => {
       displayName: 'Harvey',
     });
 
-    expect(prompt).toContain('Reloj y Fecha Actual: Tu única referencia temporal autorizada es la "Hora local"');
+    expect(prompt).toContain('Reloj y Fecha Actual: usa exclusivamente la "Hora local"');
     expect(prompt).toContain('jueves, 24 de septiembre, 8:15 p. m.');
     expect(prompt).toContain('America/Bogota');
-    expect(prompt).toContain('Jamás calcules, inventes ni asumas una hora o fecha diferente');
+    expect(prompt).toContain('no infieras otra fecha del historial');
   });
 
   it('renders user preferences and directives into the prompt for standing rules', () => {

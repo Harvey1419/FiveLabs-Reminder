@@ -55,8 +55,8 @@ describe('agent live overview', () => {
     expect(text).toContain('creado por Temple Labs');
     expect(text).toContain('Hermes, nunca el proveedor del modelo');
     expect(text).toContain('Conversa con naturalidad y empatía');
-    expect(text).toContain('¿En qué puedo ayudarte?');
-    expect(text).toContain('No la repitas mecánicamente');
+    expect(text).toContain('Saluda cuando corresponda');
+    expect(text).toContain('no repitas ofertas de ayuda mecánicamente');
   });
 
   it('formats referenced project tasks when user message targets a known entity', () => {
@@ -135,8 +135,8 @@ describe('agent live overview', () => {
     });
 
     expect(prompt).toContain('Stored language fallback: en');
-    expect(prompt).toContain('CURRENT user');
-    expect(prompt).toContain('How can I help you today?');
+    expect(prompt).toContain("CURRENT USER's language");
+    expect(prompt).toContain('no repitas ofertas de ayuda mecánicamente');
     expect(prompt).toContain('usa perfil/memoria verificados');
     expect(prompt).not.toContain('Harvey');
   });
@@ -163,8 +163,8 @@ describe('agent live overview', () => {
     });
 
     expect(prompt).toContain('Stored language fallback: es');
-    expect(prompt).toContain('CURRENT user');
-    expect(prompt).toContain('¿En qué puedo ayudarte?');
+    expect(prompt).toContain("CURRENT USER's language");
+    expect(prompt).toContain('neutral Colombian Spanish with tuteo');
     expect(prompt).toContain('si falta el nombre, pregunta');
     expect(prompt).not.toContain('Harvey');
   });
