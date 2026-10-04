@@ -12,6 +12,117 @@
  */
 
 import { responseVoice } from '../contracts/response-policy.js';
+import { openSync, writeSync, closeSync, lstatSync, realpathSync, constants } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve, dirname, basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Evidence is deliberately unavailable to the server or runner parent. Only the
+// synthetic interactive child can open the runner-created private directory.
+const traceEntrypoint = fileURLToPath(new URL('../../../scripts/dev/interactive-chat.js', import.meta.url));
+const TRACE_BYTES = 8 * 1024 * 1024;
+const TRACE_EVENT_BYTES = 256 * 1024;
+const TRACE_EVENTS = 1200;
+let runnerTrace = null;
+
+export function finalizeRunnerProviderTrace() {
+  const trace = runnerTrace;
+  if (!trace || trace.closed) return;
+  trace.closed = true;
+  process.removeListener('exit', finalizeRunnerProviderTrace);
+  try {
+    const summary = JSON.stringify({ type: 'completeness', complete: !trace.missing && !trace.ioError && !trace.pending,
+      unfinishedCalls: trace.pending, events: trace.events, bytesBeforeSummary: trace.bytes, missingEvents: trace.missing,
+      ioError: trace.ioError, limits: { bytes: TRACE_BYTES, eventBytes: TRACE_EVENT_BYTES, events: TRACE_EVENTS },
+      responseEnvelope: 'not_captured; raw decision only', headers: 'never_captured' }) + '\n';
+    trace.write(summary);
+  } catch { console.warn('Provider trace incomplete: finalization_io_error'); }
+  finally { try { closeSync(trace.fd); } catch { /* already reported as incomplete */ } }
+}
+
+function getRunnerTrace() {
+  const directory = process.env.HERMES_CHAT_PROVIDER_TRACE_DIR;
+  if (!directory) return null;
+  const phone = process.env.HERMES_CHAT_TEST_PHONE;
+  if (resolve(process.argv[1] || '') !== traceEntrypoint
+    || process.env.HERMES_CHAT_DISABLE_REMINDER_SCHEDULER !== '1'
+    || !/^hermes-chat\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(phone || '')) return null;
+  if (runnerTrace?.directory === directory) return runnerTrace.closed ? null : runnerTrace;
+  if (runnerTrace && !runnerTrace.closed) return null;
+  // Remember initialization failures too: trace IO must never cause a retry.
+  runnerTrace = { directory, closed: true };
+  try {
+    const canonicalTmp = realpathSync(tmpdir());
+    const stat = lstatSync(directory);
+    if (dirname(directory) !== canonicalTmp || realpathSync(directory) !== directory
+      || !basename(directory).startsWith(`hermes-provider-trace-${phone}-`)
+      || !/^[a-zA-Z0-9.-]+$/.test(basename(directory))
+      || !stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700
+      || stat.uid !== process.getuid?.()) throw new Error('unsafe_directory');
+    const fd = openSync(join(directory, 'events.jsonl'), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    const trace = { directory, fd, closed: false, events: 0, bytes: 0, missing: 0, ioError: false, calls: 0, pending: 0 };
+    trace.write = text => {
+      const bytes = Buffer.from(text, 'utf8');
+      let offset = 0;
+      while (offset < bytes.length) {
+        const written = writeSync(fd, bytes, offset, bytes.length - offset);
+        if (!written) throw new Error('short_write');
+        offset += written;
+      }
+      trace.bytes += bytes.length;
+    };
+    trace.emit = (metadata, type, evidence, apiKey) => {
+      if (trace.closed || trace.ioError) { trace.missing++; return; }
+      try {
+        if (evidence.missing) trace.missing++;
+        const serialized = JSON.stringify({ ...metadata, type, complete: !evidence.missing, ...evidence });
+        const evidenceBytes = Buffer.byteLength(serialized);
+        let line = serialized + '\n';
+        const missing = serialized.includes(apiKey) ? 'credential_in_evidence' : evidenceBytes > TRACE_EVENT_BYTES ? 'event_byte_limit' : null;
+        if (missing) {
+          trace.missing++;
+          // Do not silently redact or truncate protocol evidence.
+          line = JSON.stringify({ call: metadata.call, type, complete: false, missing, originalBytes: evidenceBytes }) + '\n';
+        }
+        if (trace.events >= TRACE_EVENTS || trace.bytes + Buffer.byteLength(line) > TRACE_BYTES - 2048) {
+          trace.missing++; return;
+        }
+        trace.write(line);
+        trace.events++;
+      } catch {
+        trace.ioError = true; trace.missing++;
+        console.warn('Provider trace incomplete: event_io_error');
+      }
+    };
+    runnerTrace = trace;
+    process.once('exit', finalizeRunnerProviderTrace);
+    return trace;
+  } catch {
+    console.warn('Provider trace incomplete: initialization_failed (no evidence file opened)');
+    return null;
+  }
+}
+
+async function callOpenRouterAttempt(messages, model, apiKey, options = {}) {
+  const trace = getRunnerTrace();
+  const state = { response: false, validation: false };
+  if (trace) trace.pending++;
+  const metadata = trace ? { call: ++trace.calls, purpose: options.purpose || 'unspecified',
+    correlationId: options.correlationId ?? null, model, provider: options.providers || [],
+    stage: options.stage || 'direct', attempt: options.attemptNumber || 1 } : null;
+  const capture = trace ? (type, evidence) => {
+    if (type === 'response') state.response = true;
+    if (type === 'validation') state.validation = true;
+    trace.emit(metadata, type, evidence, apiKey);
+  } : null;
+  const result = await performOpenRouterAttempt(messages, model, apiKey, { ...options, capture });
+  capture?.('outcome', { ok: result.ok, reason: result.reason ?? null,
+    ...(!state.response ? { missing: 'response_decision_unavailable' } : {}),
+    terminal: Boolean(result.terminal), response: state.response ? 'captured_or_marked_missing' : 'missing_transport_or_json_failure',
+    validation: state.validation ? 'captured_or_marked_missing' : 'not_run' });
+  if (trace) trace.pending--;
+  return result;
+}
 
 function parseProviderList(value, defaults) {
   const configured = value
@@ -333,7 +444,7 @@ function createBackgroundProfiles() {
   ];
 }
 
-async function callOpenRouterAttempt(messages, model, apiKey, {
+async function performOpenRouterAttempt(messages, model, apiKey, {
   temperature = 0,
   max_tokens = 800,
   timeoutMs = 15000,
@@ -349,6 +460,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
   purpose = 'unspecified',
   stage = 'direct',
   validateStructuredContent = null,
+  capture = null,
 } = {}) {
   const startMs = Date.now();
   const requestedProviders = providers?.length ? providers : [];
@@ -383,6 +495,9 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       };
     }
 
+    const serializedBody = JSON.stringify(payload);
+    capture?.('request', { serializedBody, bodyBytes: Buffer.byteLength(serializedBody), encoding: 'utf8',
+      transportBoundary: 'fetch_argument; network_delivery_not_asserted' });
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -391,12 +506,14 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
         'HTTP-Referer': 'https://fivelabs.co',
         'X-Title': 'Hermes Assistant',
       },
-      body: JSON.stringify(payload),
+      body: serializedBody,
       signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!res.ok) {
       const rawBody = await res.text().catch(() => '');
+      capture?.('response', { status: res.status, decision: null,
+        missing: 'http_error_decision_unavailable; error envelope not captured (may contain headers)' });
       const errorData = parseErrorEnvelope(rawBody);
       const reason = classifyHttpFailure(res.status, errorData);
       if (logPrefix) {
@@ -416,6 +533,10 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       throw error;
     }
     const choice = data?.choices?.[0] || {};
+    capture?.('response', { status: res.status, provider: data?.provider ?? null,
+      decision: { content: choice?.message?.content ?? null, tool_calls: choice?.message?.tool_calls ?? null,
+        refusal: choice?.message?.refusal ?? null }, finishReason: choice?.finish_reason ?? null,
+      ...(data?.error || choice?.error ? { missing: 'provider_error_envelope_not_captured (may contain headers)' } : {}) });
     if (strictForeground) {
       // OpenRouter can return an error-only JSON body with HTTP 200 and no choices.
       // Inspect it BEFORE treating a missing message as an empty completion.
@@ -486,6 +607,7 @@ async function callOpenRouterAttempt(messages, model, apiKey, {
       let validation;
       try { validation = validateStructuredContent(raw); }
       catch { validation = { valid: false }; }
+      capture?.('validation', { result: validation ?? null });
       if (!validation?.valid) return failStructured('invalid_structured_output', data, choice, { validationCode: validation?.errorCode || 'UNKNOWN' });
       validatedStructuredIntent = validation.intent || null;
     }
@@ -539,6 +661,7 @@ async function runOpenRouterChain(messages, profiles, {
   returnMessage,
   logPrefix,
   validateStructuredContent,
+  correlationId,
 }) {
   let previousFailure = 'initial_request';
 
@@ -583,6 +706,8 @@ async function runOpenRouterChain(messages, profiles, {
         purpose,
         stage: profile.stage,
         validateStructuredContent,
+        correlationId,
+        attemptNumber,
       });
 
       // Providers that only accept auto still have to return execute_turn. Prose
@@ -671,6 +796,7 @@ export async function callChatCompletion(messages, {
     returnMessage,
     logPrefix,
     validateStructuredContent,
+    correlationId,
   });
 
   if (result?.chainExhausted) {
@@ -734,6 +860,7 @@ export async function callResponseSynthesis({
     toolChoice: 'none',
     returnMessage: false,
     logPrefix,
+    correlationId,
   });
 
   try {

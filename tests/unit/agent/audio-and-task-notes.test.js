@@ -17,6 +17,7 @@ describe('Audio interpretation and task notes enhancement', () => {
     expect(prompt).toContain('🎙️ Audio');
     expect(prompt).toContain('Auto-correcciones / Voz');
     expect(prompt).toContain('ÚLTIMA instrucción prevalece');
+    process.stdout.write(`Compaction audio fixture: ${prompt.length} characters\n`);
     expect(prompt.length).toBeLessThan(6000);
   });
 

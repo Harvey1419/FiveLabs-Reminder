@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 
 vi.mock('../../../src/agent/tools/index.js', () => ({
@@ -27,14 +27,24 @@ vi.mock('../../../src/integrations/google/auth.js', () => ({
   hasUsableGoogleCredentials: vi.fn(() => false),
 }));
 
+import { executeTool } from '../../../src/agent/tools/index.js';
+import { executeSubscriptionTool } from '../../../src/agent/tools/subscriptions.js';
 import { routeMessage } from '../../../src/agent/orchestration/router.js';
 import { callChatCompletion } from '../../../src/agent/providers/client.js';
+import { hasProAccess, createPendingSubscription } from '../../../src/infrastructure/database/index.js';
+import { getOrCreateCanonicalPlan } from '../../../src/integrations/mercado-pago/client.js';
 
 describe('Pro Consultative Onboarding & Guidance', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.BILLING_PROVIDER = 'lemonsqueezy';
-    process.env.LEMON_SQUEEZY_CHECKOUT_URL = 'https://hermes-templelabs.lemonsqueezy.com/checkout/buy/test-plan';
+    executeTool.mockImplementation(async ({ params, user, language }) => executeSubscriptionTool({ action: params.action, user, language }));
+    vi.stubEnv('BILLING_PROVIDER', 'lemonsqueezy');
+    vi.stubEnv('LEMON_SQUEEZY_CHECKOUT_URL', 'https://hermes-templelabs.lemonsqueezy.com/checkout/buy/test-plan');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   describe('buildAgentCorePrompt pro guidance injection', () => {
@@ -65,6 +75,43 @@ describe('Pro Consultative Onboarding & Guidance', () => {
     });
   });
 
+  describe('safe initial billing grounding', () => {
+    it.each([false, true])('grounds Stripe for regular users with isPro=%s without checkout', async (isPro) => {
+      vi.stubEnv('BILLING_PROVIDER', 'stripe');
+      vi.stubEnv('STRIPE_CHECKOUT_URL', 'https://buy.stripe.com/private-test-url');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected network call'));
+      hasProAccess.mockReturnValueOnce(isPro);
+      callChatCompletion.mockResolvedValueOnce({
+        role: 'assistant',
+        content: JSON.stringify({ responseCapability: 'general', actions: [{ domain: 'conversation', action: 'reply', content: 'Explanation only.' }] }),
+      });
+      await routeMessage('Explain subscribing, but do not start checkout.', {
+        id: `billing-${isPro}`, phone_number: '573001112233', timezone: 'America/Bogota', locale: 'en',
+      }, []);
+      const prompt = callChatCompletion.mock.calls[0][0].find((m) => m.role === 'system').content;
+      expect(prompt).toContain('Configured billing provider: Stripe');
+      expect(prompt).toContain('Checkout payment methods: UNKNOWN');
+      expect(prompt).toContain('provider name proves no methods, prices or discounts');
+      expect(prompt).toContain('Never invent PayPal, bank transfer, Apple Pay');
+      expect(prompt).toContain('never auto-checkout or retry');
+      expect(prompt).toContain('Explicit checkout prohibition means NO subscription.link or mutation');
+      expect(prompt).not.toContain('private-test-url');
+      expect(getOrCreateCanonicalPlan).not.toHaveBeenCalled();
+      expect(createPendingSubscription).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('projects only allowlisted provider facts into the core prompt', () => {
+      const prompt = buildAgentCorePrompt({ billingContext: {
+        provider: 'Stripe', secret: 'private-secret', checkoutUrl: 'https://private-checkout.test', paymentMethods: ['PayPal'],
+      } });
+      expect(prompt).toContain('Configured billing provider: Stripe');
+      expect(prompt).toContain('Checkout payment methods: UNKNOWN');
+      expect(prompt).not.toContain('private-secret');
+      expect(prompt).not.toContain('https://private-checkout.test');
+    });
+  });
+
   describe('routeMessage pro guidance scoping', () => {
     it('injects subtle pro guidance for 1916 user on Free tier', async () => {
       const user1916 = {
@@ -77,6 +124,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       callChatCompletion.mockResolvedValueOnce({
         role: 'assistant',
         content: JSON.stringify({
+          responseCapability: 'general',
           actions: [{ domain: 'conversation', action: 'reply', content: '¡Hola! Soy Hermes, tu segundo cerebro ejecutivo.' }],
         }),
       });
@@ -105,6 +153,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       callChatCompletion.mockResolvedValueOnce({
         role: 'assistant',
         content: JSON.stringify({
+          responseCapability: 'general',
           actions: [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }],
         }),
       });
@@ -134,6 +183,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       callChatCompletion.mockResolvedValueOnce({
         role: 'assistant',
         content: JSON.stringify({
+          responseCapability: 'general',
           actions: [{ domain: 'conversation', action: 'reply', content: '¡Hola! ¿En qué te ayudo?' }],
         }),
       });
@@ -147,7 +197,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       expect(systemMessage.content).not.toContain('PLAN FREE Y PERSUASIÓN CONSULTIVA A PRO');
     });
 
-    it('extracts interactive CTA button when conversational reply includes [checkout_url]', async () => {
+    it('uses pure information rather than checkout for conversational [checkout_url]', async () => {
       const user1916 = {
         id: 'user-1916',
         phone_number: '19164158325',
@@ -158,22 +208,23 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       callChatCompletion.mockResolvedValueOnce({
         role: 'assistant',
         content: JSON.stringify({
+          responseCapability: 'general',
           actions: [{ domain: 'conversation', action: 'reply', content: 'Puedes activar tu suscripción acá: [checkout_url]' }],
         }),
       });
 
       const result = await routeMessage('Cómo me suscribo', user1916, []);
 
-      expect(result.ctaUrl).toContain('lemonsqueezy.com');
-      expect(result.ctaHeader).toBe('💎 Reminder Pro');
-      expect(result.ctaButtonText).toBe('Pagar ahora');
-      expect(result.confirmation).toContain('https://hermes-templelabs.lemonsqueezy.com/checkout/buy/test-plan');
+      expect(result.ctaUrl).toBeNull();
+      expect(result.confirmation).toContain('Proveedor de pago: Lemon Squeezy');
+      expect(result.confirmation).not.toContain('https://');
+      expect(createPendingSubscription).not.toHaveBeenCalled();
       expect(result.confirmation).not.toContain('[checkout_url]');
     });
 
-    it('extracts Stripe interactive CTA button and sanitizes legacy Lemon Squeezy text when BILLING_PROVIDER is stripe', async () => {
-      process.env.BILLING_PROVIDER = 'stripe';
-      process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/test-stripe';
+    it('uses configured Stripe information without resolving legacy prose checkout', async () => {
+      vi.stubEnv('BILLING_PROVIDER', 'stripe');
+      vi.stubEnv('STRIPE_CHECKOUT_URL', 'https://buy.stripe.com/test-stripe');
 
       const user1916 = {
         id: 'user-1916',
@@ -185,6 +236,7 @@ describe('Pro Consultative Onboarding & Guidance', () => {
       callChatCompletion.mockResolvedValueOnce({
         role: 'assistant',
         content: JSON.stringify({
+          responseCapability: 'general',
           actions: [{
             domain: 'conversation',
             action: 'reply',
@@ -195,10 +247,9 @@ describe('Pro Consultative Onboarding & Guidance', () => {
 
       const result = await routeMessage('Cómo me suscribo', user1916, []);
 
-      expect(result.ctaUrl).toContain('buy.stripe.com');
-      expect(result.ctaHeader).toBe('💎 Reminder Pro');
-      expect(result.ctaButtonText).toBe('Pagar ahora');
-      expect(result.confirmation).toContain('https://buy.stripe.com/test-stripe');
+      expect(result.ctaUrl).toBeNull();
+      expect(result.confirmation).not.toContain('https://');
+      expect(createPendingSubscription).not.toHaveBeenCalled();
       expect(result.confirmation).toContain('Stripe');
       expect(result.confirmation).not.toContain('Lemon Squeezy');
       expect(result.confirmation).not.toContain('[checkout_url]');

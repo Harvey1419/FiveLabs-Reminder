@@ -29,10 +29,65 @@ describe('durable memory extraction policy', () => {
     callMemoryExtraction.mockResolvedValue('[]');
     validateMemoryCandidates.mockImplementation(async ({ candidates }) => candidates);
     searchMemories.mockResolvedValue([]);
-    findOrCreateEntityFuzzy.mockResolvedValue({ id: 'entity-1', name: 'Borona' });
+    findOrCreateEntityFuzzy.mockImplementation(async ({ userId, name, category }) => ({ id: 'entity-1', user_id: userId, name, category }));
     saveMemory.mockResolvedValue({ id: 'memory-1' });
   });
 
+  it.each([42, { key: 'profile/residence' }, '!!!', 'residence', 'profile/___/home', 'profile/' + 'x'.repeat(101)])('rejects malformed topic identity %j before entity and memory writes', async topicKey => {
+    const userText = 'Vivo en Cali.';
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{ topicKey, category: 'fact', content: userText, evidence: userText, entityName: 'Cali' }]));
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText })).toEqual([]);
+    expect(findOrCreateEntityFuzzy).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+  it('rejects only a malformed identity while preserving a valid durable preference', async () => {
+    const userText = 'Vivo en Cali. Prefiero llamadas telefónicas.';
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([
+      { topicKey: '!!!', category: 'fact', content: 'Vivo en Cali.', evidence: 'Vivo en Cali.', entityName: 'Cali' },
+      { topicKey: 'preference/communication/channel', category: 'preference', content: 'Prefiere llamadas telefónicas.', evidence: 'Prefiero llamadas telefónicas.' },
+    ]));
+    const saved = await extractAndSaveMemories({ userId: 'user-1', userText });
+    expect(saved).toHaveLength(1);
+    expect(findOrCreateEntityFuzzy).not.toHaveBeenCalled();
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ topicKey: 'preference/communication/channel' }));
+    expect(validateMemoryCandidates).toHaveBeenCalledWith(expect.objectContaining({ candidates: [expect.objectContaining({ topicKey: 'preference/communication/channel' })] }));
+  });
+  it.each([
+    ['Borona', 'pet'], ['Borona', 'preference'], ['Borona', null], ['Borona', undefined],
+    ['Borona', { type: 'person' }], [42, 'person'], [{ name: 'Borona' }, 'person'],
+    [[], 'person'], ['   ', 'person'], [null, 'person'],
+  ])('saves admitted fact without unsupported optional identity %j/%j', async (entityName, entityCategory) => {
+    const userText = 'Borona es mi perrita.';
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{ topicKey: 'pet/borona/relation', category: 'fact', content: userText, evidence: userText, entityName, entityCategory }]));
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText, throwOnError: true })).toHaveLength(1);
+    expect(findOrCreateEntityFuzzy).not.toHaveBeenCalled();
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: 'pet/borona/relation', category: 'fact', content: userText });
+  });
+  it.each(['person', 'company'])('attempts valid owned %s association without rewriting the fact identity', async entityCategory => {
+    const userText = 'Trabajo con Acme.';
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{ topicKey: 'company/acme/relation', category: 'fact', content: userText, evidence: userText, entityName: ' Acme ', entityCategory }]));
+    await extractAndSaveMemories({ userId: 'user-1', userText });
+    expect(findOrCreateEntityFuzzy).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', name: 'Acme', category: entityCategory });
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: 'company/acme/relation', category: 'fact', content: userText });
+  });
+  it('keeps a durable fact independent of a conflicting known physical category', async () => {
+    const userText = 'Acme es mi empresa.';
+    const readConflictingName = vi.fn(() => 'Unrelated person');
+    findOrCreateEntityFuzzy.mockResolvedValue({ id: 'wrong-category', user_id: 'user-1', get name() { return readConflictingName(); }, category: 'person' });
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([{ topicKey: 'company/acme/relation', category: 'fact', content: userText, evidence: userText, entityName: 'Acme', entityCategory: 'company' }]));
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText })).toHaveLength(1);
+    expect(readConflictingName).not.toHaveBeenCalled();
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: 'company/acme/relation', category: 'fact', content: userText });
+  });
+  it('exposes language inference safeguards with source-only full-turn evidence', async () => {
+    const userText = 'Mi colega dijo "responde en inglés"; no es mi instrucción. No cambies mi idioma.';
+    await extractAndSaveMemories({ userId: 'user-1', userText, assistantReply: 'Untrusted alternative language preference.' });
+    const [messages] = callMemoryExtraction.mock.calls[0];
+    expect(messages[0].content).toContain('current utterance language, citation, denial or refusal to change');
+    expect(messages[0].content).toContain('unnamed alternative language');
+    expect(messages[1].content).toContain(`<user_text>${userText}</user_text>`);
+    expect(messages[1].content).not.toContain('Untrusted alternative');
+  });
   it('preserves embedded assertions in questions for semantic admission', () => {
     expect(getMemoryEligibleText('¿Recuerdas que vivo en Cali?')).toBe('¿Recuerdas que vivo en Cali?');
   });

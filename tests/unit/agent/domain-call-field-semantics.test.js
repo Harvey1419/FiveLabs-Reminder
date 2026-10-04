@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
+import { TURN_INTENT_SCHEMA, validateTurnIntent, parseCanonicalOperation } from '../../../src/agent/contracts/intent-contracts.js';
 import { stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { buildDomainCall } from '../../../src/agent/orchestration/domain-call.js';
 import { executeTurnIntent } from '../../../src/agent/orchestration/intent-executor.js';
@@ -12,6 +12,11 @@ const context = {
 };
 
 describe('lossless advertised domain fields', () => {
+  it('accepts canonical subscription.info and maps it without checkout', () => {
+    expect(parseCanonicalOperation('subscription.info')).toEqual({ domain: 'subscription', action: 'info' });
+    expect(validateTurnIntent({ actions: [{ domain: 'subscription', action: 'info' }] }).valid).toBe(true);
+    expect(buildDomainCall({ domain: 'subscription', action: 'info' }, context)).toMatchObject({ valid: true, toolName: 'manage_subscription', params: { action: 'info' } });
+  });
   it('keeps explicit false and deliveryPolicy.none through strict schema projection', () => {
     const action = {
       domain: 'reminder', action: 'create', content: 'Check the door',
@@ -103,6 +108,15 @@ describe('lossless advertised domain fields', () => {
     expect(result.records[0].result).toMatchObject({ success: false, errorCode: 'UNSUPPORTED_FIELD' });
   });
 
+  it.each([null, {}, 42, '', '   ', 'a'.repeat(201), '*', 'a\0b'])('rejects malformed reminder query %j without execution', async query => {
+    const call = buildDomainCall({ domain: 'reminder', action: 'list', query }, context);
+    expect(call).toMatchObject({ valid: false, errorCode: 'INVALID_QUERY' });
+    const executeTool = vi.fn();
+    const result = await executeTurnIntent({ actions: [{ domain: 'reminder', action: 'list', query }] }, { ...context, executeTool, isPro: true });
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(result.records[0].result.errorCode).toBe('INVALID_QUERY');
+  });
+
   it('uses explicit calendar dates and timezone calendar arithmetic for reads', () => {
     const exactDate = buildDomainCall({
       domain: 'calendar', action: 'list',
@@ -121,7 +135,7 @@ describe('lossless advertised domain fields', () => {
       schedule: { kind: 'calendar_date_time', year: 2026, month: 3, day: 8 },
     }, context);
     expect(reminderDate.params).toMatchObject({ filter: 'explicit_date@2026-03-08', scope: 'explicit_date@2026-03-08' });
-    expect(buildDomainCall({ domain: 'reminder', action: 'list', query: 'water' }, context))
-      .toMatchObject({ valid: false, errorCode: 'UNSUPPORTED_FIELD' });
+    expect(buildDomainCall({ domain: 'reminder', action: 'list', query: ' water ' }, context))
+      .toMatchObject({ valid: true, params: { action: 'list', query: 'water' } });
   });
 });

@@ -50,7 +50,16 @@ const previewAlfaBeta = [
 ];
 
 function modelResponse(payload) {
-  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
+  // Approval/continuation messages use their own protocol, not foreground wire.
+  const wire = Array.isArray(payload.actions) ? {
+    responseLanguage: 'es', responseCapability: 'general', ...payload,
+    actions: payload.actions.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const { domain, action, ...fields } = item;
+      return { operation: `${domain}.${action}`, ...fields };
+    }),
+  } : payload;
+  return { role: 'assistant', content: JSON.stringify(wire), tool_calls: [] };
 }
 
 beforeEach(() => {

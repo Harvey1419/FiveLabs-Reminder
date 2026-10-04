@@ -1,6 +1,8 @@
+import { PERSONAL_READ_OPERATIONS } from '../orchestration/personal-knowledge.js';
 import { TURN_CONTEXT_PROPERTIES, validateTurnContext } from './turn-context.js';
 import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
+import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
 
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
@@ -17,7 +19,7 @@ const MISSING_FIELDS = Object.freeze([
 ]);
 
 const DOMAIN_ACTIONS = Object.freeze({
-  conversation: new Set(['reply']),
+  conversation: new Set(['reply', 'recap']),
   agenda: new Set(['read']),
   reminder: new Set(['create', 'update', 'cancel', 'acknowledge', 'list', 'add_advance']),
   task: new Set(['create', 'update', 'complete', 'delete', 'list']),
@@ -25,7 +27,7 @@ const DOMAIN_ACTIONS = Object.freeze({
   entity: new Set(['create', 'upsert', 'rename', 'merge', 'delete', 'deduplicate', 'list']),
   calendar: new Set(['create', 'update', 'delete', 'list', 'search', 'next', 'connect', 'disconnect']),
   memory: new Set(['save', 'search', 'list', 'forget']),
-  subscription: new Set(['link', 'status', 'cancel']),
+  subscription: new Set(['info', 'link', 'status', 'cancel']),
   clarification: new Set(['request']),
   admin: new Set(['metrics']),
 });
@@ -74,22 +76,25 @@ const actionSchema = {
     action: { type: 'string' },
     contextRef: {
       type: 'object', additionalProperties: false,
-      description: 'For an existing reminder, task or calendar event shown in Working Memory, use its contextRef when the user identifies it by position, time, recurrence or title. The model selects the matching displayed item; Node binds its identity. Keep target optional; do not concatenate ordinal/time words into a fuzzy name.',
+      description: 'For an existing reminder, task or calendar event shown in Working Memory, use its contextRef when the user identifies it by position, time, recurrence or title. The model selects the displayed item; contextRef is the sole operative identity. Omit target when selected; Node ignores any redundant target label.',
       properties: { source: { type: 'string', enum: ['working_memory'] }, position: { type: 'integer', minimum: 1, maximum: 100 } },
       required: ['source', 'position'],
     },
-    target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations except reminder.acknowledge when Node can bind one authoritative active follow-up. For entity.delete, the project or list name to delete (deleting a project automatically deletes all its tasks in cascade; never use scope="all" for one project).' },
+    target: { type: 'string', description: 'Human reference to an EXISTING item, never an internal ID. Required by existing-object mutations without contextRef, except reminder.acknowledge when Node can bind one authoritative active follow-up. With contextRef, omit target; any redundant label is ignored. For entity.delete, the project or list name to delete (deleting a project automatically deletes all its tasks in cascade; never use scope="all" for one project).' },
     content: { type: 'string', description: 'Natural reply, create content, or requested update delta; never existing-object identity.' },
     title: { type: 'string', description: 'One actionable task/event title, not the name of its containing project.' }, description: { type: 'string' },
-    descriptionMode: { type: 'string', enum: ['append', 'replace'], description: 'For task.update description: append preserves existing behavior; replace overwrites it. Use clearFields to remove a description.' },
+    descriptionMode: { type: 'string', enum: ['append', 'replace'], description: 'task.update ONLY: append preserves notes; replace overwrites; clearFields removes. task.create: null/omit, even with description.' },
     clearFields: { type: 'array', uniqueItems: true, maxItems: 3, items: { type: 'string', enum: ['description', 'dueDate', 'recurrence'] }, description: 'Explicit clear intent for supported update fields. Task supports description/dueDate; reminder supports recurrence; calendar supports description/recurrence.' },
     entityName: { type: 'string', description: 'Entity name. For entity.create/upsert, its own name. For task actions (task.list, task.create), the explicit or implicit container/project name (e.g. "reminder", "trabajo"), even if it shares a name with a system domain. For task.complete/update/delete, include the owning container whenever the target belongs to a named project, so duplicate titles cannot cross containers.' }, oldName: { type: 'string' }, newName: { type: 'string' }, sourceName: { type: 'string' },
-    category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'Use project for an operational container whose members are tasks. A collection of people, companies or other knowledge remains entities according to what its members mean.' },
+    category: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other', 'fact', 'preference', 'decision', 'episode', 'observation'], description: 'entity.create/upsert: person/company/project/place/asset/other only; omitted=other; pet is not a physical write category. project is a task container. Memory fact/preference/decision/episode/observation uses memory.save, not entity fields.' },
     topicKey: { type: 'string' }, priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
-    status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'] },
+    status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'], description: 'Required for task.list. Explicit model-selected status; all preserves both states for unfiltered reads. Dated all uses due dates, not completion dates.' },
+    recapMode: { type: 'string', enum: ['historical', 'current'], description: 'historical: renders recorded evidence; evidenceRefs optionally narrows it. current: explicit reads, content=null.' },
+    evidenceRefs: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', minLength: 36, maxLength: 36 }, description: 'conversation.reply or historical recap: select supplied operational evidence refs. Content with refs is discarded, never verified prose; Node renders owned historical proof, not fresh state. Personal recall uses TURN knowledgeRefs or natural content without operational refs. No additional actions.' },
+    returnFields: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: ['description', 'status', 'due_date', 'completed_at', 'priority'] }, description: 'task.list only: simple field question on returned rows; Node renders actual fields (null=absent, missing=unknown). Keep query, entityName, status and date filters. This explicit typed projection takes precedence over answerFromResults for a single task read. No ordinal identity or calculations; for complex interpretation leave returnFields absent and use answerFromResults.' },
     scope: { type: 'string', description: `For entity.delete / project.delete: "all" deletes EVERY project/entity across the user account; "no_tasks" deletes only projects that have zero tasks. For single projects, leave scope null/omitted. Agenda, task, and reminder scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today', 'tomorrow', 'day_after_tomorrow', 'this_week', 'next_week'] },
-    query: { type: 'string', description: 'Text filter for item titles or memory content, never dates or times. For any dated read (agenda, reminders, tasks, calendar), put the date in schedule using calendar_date_time and allDay=true; a date string in query does not restrict the date window.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
+    query: { type: 'string', description: 'Text filter for titles or memory content; reminder.list searches literal case-insensitive content (1–200 trimmed characters, no * or NUL), never dates or times. For any dated read (agenda, reminders, tasks, calendar), put the date in schedule using calendar_date_time and allDay=true; a date string in query does not restrict the date window.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
     preserveNames: { type: 'array', maxItems: 20, items: { type: 'string' } },
     schedule: typedSchedule, endSchedule: typedSchedule,
     advanceMinutes: { type: 'integer', minimum: 1, maximum: 10080, description: 'Advance offset in minutes. For calendar actions this is the event notification offset. For reminders prefer deliveryPolicy so delivery behavior is represented as desired state, not a separate action.' },
@@ -117,24 +122,28 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
     ...TURN_CONTEXT_PROPERTIES,
-    answerFromResults: { type: 'boolean', description: 'True when the user asks for an interpretation, calculation or comparison that needs live reads. Emit the required read actions; after observing their results Hermes will answer. For ordinary listings or mutations leave false/null.' },
+    responseCapability: { type: 'string', enum: ['general', 'billing_info'], description: 'Required foreground presentation authority: billing_info for payment information/failure/retry (Free or Pro), even with conversation.reply; general otherwise. billing_info preserves declared reads/recap alongside its safe card; never checkout or mutations.' },
+    answerFromResults: { type: 'boolean', description: 'True when the user asks for an interpretation, calculation or comparison that needs live reads. Emit the required read actions; after observing their results Hermes will answer. For complex interpretation leave returnFields absent. For ordinary listings, simple task.list returnFields questions or mutations leave false/null; a single task.list returnFields projection takes precedence over a redundant true flag.' },
+    knowledgeRefs: { type: 'array', minItems: 0, maxItems: 8, uniqueItems: true, items: { type: 'string', maxLength: 32 }, description: 'Turn RESPONSE metadata: for mixed tasks + personal recall select supplied pk_ refs from memory hints here, not in tool actions. Supplements canonical cards/fields and historical summaries with recorded personal quotations, never fresh operational state. Ordinary inventories need no answerFromResults just for personal recall. Only reads/conversation allowed; never mutations or guessed refs. Ordinary personal chat may use content without refs.' },
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
   required: ['actions'],
 });
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. Toda salida es TurnIntent JSON (TurnIntent is mandatory for every turn). Significado explícito domina; contexto resuelve referencias. Sin IDs internos.
-AUTORIDAD DE ESTADO: Historial no manda. Si la verdad puede cambiar al cambiar DB/Calendar, EXIGE lectura (agenda.read, calendar.list, reminder.list, task.list), incluso para monto, fecha o estado. conversation.reply es sin estado; NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear no lleva target; mutaciones exigen target existente. Modificar es reminder.update sobre objeto existente. Cambio nunca es identidad.
-Eliminar es reminder.cancel (uno por objetivo). reminder.acknowledge confirma seguimiento real completado (Completion is not an update); Node vincula objetivo autoritativo si es único.
-TAREAS Y PROYECTOS: 'tareas' fija domain="task"; listar emite task.list(entityName, query?). Estado o montos de proyectos: task.list(entityName); contexto parcial. Completar o pagar es task.complete(target). Proyectos: project+task.create. Borrar: project.delete(target); sin tareas: scope="no_tasks". Montos: title; notas: description; renombre: newName. Ordinales visibles: contextRef.
-CALENDARIO: agenda.read reúne tareas, recordatorios y eventos por fecha. calendar.list/search: solo eventos; calendar.create: citas; calendar.connect/disconnect: vincular. Node gestiona Google; no niegues acceso en conversation.reply.
-ALERTAS VS LECTURAS (CQRS): reminder.create exige orden diferida ('recuérdame'). Inspección es lectura viva (agenda.read), NUNCA mutación. Preguntas JAMÁS autorizan mutaciones.
-Temporal meaning must remain typed: relative_offset=duración; relative_day_time=día relativo+hora; weekday_time=día semana+hora; local_time=solo hora. Node gestiona fechas.
-Faltantes: missingFields y clarification.request. deliveryPolicy: advanceNotice="none"|"offset". Hechos en <user_memories> van en conversation.reply; tareas vivas mandan sobre montos y deudas. memory.save solo explícito.
-CONTINUIDAD Y RECTIFICACIÓN: 'Same day'/'that one' hereda fecha de Working Memory. 'Wait'/'No' descarta propuestas previas ('Did you mean...'); la nueva orden manda. Cita con recordatorios múltiples genera todas las acciones en actions.
-Mensajes mixtos: acciones en actions; no ejecutables en excluded. Lecturas dan verdad en card; NUNCA especules en conversation.reply.`;
+const READ_AND_PAYMENT_GUIDANCE = `LECTURAS: task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date).
+PAGOS: Prices, discounts, methods, how-to and no-checkout: subscription.info, not conversation.reply. subscription.link only for explicit link/open-checkout requests. Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability. Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info. Unknown payment outcome never authorizes retry; no checkout to discover capabilities.
+RECAP: conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply. Solo recap refs normalize to partial history.`;
+
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent is mandatory for every turn. Orden explícita manda; contexto resuelve referencias, nunca IDs internos.
+AUTORIDAD DE ESTADO: Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura (agenda.read, calendar.list, reminder.list, task.list), incluso monto/fecha/estado. NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear sin target; mutar con contextRef o target, cambio no es identidad. reminder.update modifica; reminder.cancel elimina; reminder.acknowledge confirma seguimiento real (Completion is not an update).
+TAREAS: 'tareas' usa task; Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(target). Proyectos: project+task.create; borrar project.delete, vacíos scope="no_tasks". Montos: title; notas: description; renombre: newName.
+CALENDARIO: agenda.read reúne tareas, recordatorios y eventos; calendar.list/search solo eventos, calendar.create citas. Node gestiona Google; no niegues acceso en conversation.reply.
+reminder.create exige orden diferida. Preguntas JAMÁS autorizan mutaciones.
+Temporal meaning must remain typed según schema. 'Same day' hereda fecha de Working Memory; rectificación descarta propuestas previas. Solicita clarification.request con missingFields solo por faltantes genuinos.
+Mensajes mixtos: todas las acciones en actions (también cita+recordatorios); no ejecutables en excluded. Confirma solo resultados observados, no planes. Conserva cards sin repetirlas.
+${READ_AND_PAYMENT_GUIDANCE}`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -147,7 +156,8 @@ export function getConversationToolDefinition() {
     type: 'function',
     function: {
       name: TOOL_NAMES.REPLY_TO_USER,
-      description: 'Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Facts in <user_memories> must be answered directly in conversation.reply. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.',
+      description: `Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Facts in <user_memories> must be answered directly in conversation.reply. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.
+${READ_AND_PAYMENT_GUIDANCE}`,
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -290,8 +300,14 @@ function scheduleBearingMutation(domain, action, field = 'schedule') {
   );
 }
 
-export function validateTurnIntent(intent, { isAdmin = false } = {}) {
+export function validateTurnIntent(intent, { isAdmin = false, requireResponseCapability = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'El intent del turno debe ser un objeto.' };
+  // Direct internal intents may omit presentation authority; foreground decisions
+  // must declare it. Never manufacture a default for missing planner output.
+  if ((requireResponseCapability || intent.responseCapability !== undefined)
+    && !TURN_INTENT_SCHEMA.properties.responseCapability.enum.includes(intent.responseCapability)) {
+    return { valid: false, errorCode: 'INVALID_RESPONSE_CAPABILITY', error: 'An explicit supported response capability is required.' };
+  }
   const turnContext = validateTurnContext(intent);
   if (!turnContext.valid) return turnContext;
   if (intent.answerFromResults !== undefined && typeof intent.answerFromResults !== 'boolean') return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'answerFromResults must be boolean.' };
@@ -302,13 +318,52 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
   if (intent.actions.length > 12) return { valid: false, errorCode: 'TURN_ACTION_LIMIT', error: 'El turno supera el límite de 12 acciones.' };
   const normalizedActions = [];
   const structurallyLinkedActions = linkOperationalCollectionContainer(intent.actions);
-  for (const raw of structurallyLinkedActions) {
+  for (let raw of structurallyLinkedActions) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'Cada acción debe ser un objeto.' };
     const domain = String(raw.domain || '').trim().toLowerCase();
     if (!DOMAINS.includes(domain) || (!isAdmin && domain === 'admin')) return { valid: false, errorCode: 'UNSUPPORTED_DOMAIN', error: `Dominio no disponible: ${raw.domain || '(vacío)'}.` };
     const action = normalizeIntentAction(domain, raw.action);
     if (!DOMAIN_ACTIONS[domain]?.has(action)) return { valid: false, errorCode: 'UNSUPPORTED_ACTION', error: `Capacidad no soportada: ${domain}.${raw.action}.` };
-    if (domain === 'conversation' && action === 'reply' && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
+    if (domain === 'entity' && ['create', 'upsert'].includes(action)
+      && raw.category !== undefined && !ENTITY_WRITE_CATEGORIES.includes(raw.category)) {
+      return { valid: false, errorCode: 'INVALID_ENTITY_CATEGORY', error: `entity.${action} category must be ${ENTITY_WRITE_CATEGORIES.join('/')} (omitted=other); memory categories belong to memory.save, not entity fields.` };
+    }
+    // Pure typed selection is historical authority, regardless of the mode label.
+    // Other actions, billing and interpretation remain incompatible below.
+    if (domain === 'conversation' && action === 'recap' && raw.recapMode === 'current'
+      && raw.evidenceRefs !== undefined && structurallyLinkedActions.length === 1
+      && intent.answerFromResults !== true && intent.responseCapability !== 'billing_info') {
+      raw = { ...raw, recapMode: 'historical' };
+    }
+    if (domain === 'task' && action === 'list' && !actionSchema.properties.status.enum.includes(raw.status)) {
+      return { valid: false, errorCode: 'INVALID_TASK_STATUS', error: 'task.list requires an explicit supported status.' };
+    }
+    // Legacy action-scoped refs are rejected, never silently ignored or promoted.
+    if (raw.knowledgeRefs !== undefined) {
+      return { valid: false, errorCode: 'INVALID_KNOWLEDGE_REFS', error: 'Personal sources require bounded read-only references.' };
+    }
+    if (raw.returnFields !== undefined && (domain !== 'task' || action !== 'list'
+      || !Array.isArray(raw.returnFields) || !raw.returnFields.length || raw.returnFields.length > 5
+      || raw.returnFields.some(field => !actionSchema.properties.returnFields.items.enum.includes(field))
+      || new Set(raw.returnFields).size !== raw.returnFields.length)) {
+      return { valid: false, errorCode: 'INVALID_RETURN_FIELDS', error: 'returnFields requires task.list and unique supported task fields.' };
+    }
+    if (raw.recapMode !== undefined && !(domain === 'conversation' && action === 'recap')) {
+      return { valid: false, errorCode: 'INVALID_RECAP', error: 'recapMode applies only to conversation.recap.' };
+    }
+    if (raw.evidenceRefs !== undefined && (domain !== 'conversation'
+      || !(action === 'reply' || action === 'recap' && raw.recapMode === 'historical')
+      || !Array.isArray(raw.evidenceRefs) || !raw.evidenceRefs.length || raw.evidenceRefs.length > 8
+      || raw.evidenceRefs.some(ref => typeof ref !== 'string' || !/^[0-9a-f-]{36}$/.test(ref))
+      || new Set(raw.evidenceRefs).size !== raw.evidenceRefs.length)) {
+      return { valid: false, errorCode: 'INVALID_EVIDENCE_REFS', error: 'Invalid operational evidence selection.' };
+    }
+    if (domain === 'conversation' && action === 'recap'
+      && (!['historical', 'current'].includes(raw.recapMode)
+        || raw.content !== undefined && (raw.evidenceRefs === undefined || typeof raw.content !== 'string' || raw.content.length > 1600))) {
+      return { valid: false, errorCode: 'INVALID_RECAP', error: 'Recap prose is not evidence; select historical refs or declare current reads.' };
+    }
+    if (domain === 'conversation' && action === 'reply' && raw.evidenceRefs === undefined && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     const structurallyMissingScheduleFields = domain === 'reminder'
       && action === 'create'
       ? inferPartialReminderScheduleFields(raw.schedule)
@@ -429,14 +484,50 @@ export function validateTurnIntent(intent, { isAdmin = false } = {}) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
     }
-    normalizedActions.push({ ...normalizedRaw, domain, action });
+    const normalizedAction = { ...normalizedRaw, domain, action };
+    // Explicit sources own the response; generated framing is never evidence.
+    if (domain === 'conversation' && ['reply', 'recap'].includes(action) && raw.evidenceRefs !== undefined) delete normalizedAction.content;
+    normalizedActions.push(normalizedAction);
+  }
+  const hasKnowledgeRefs = intent.knowledgeRefs != null
+    && !(Array.isArray(intent.knowledgeRefs) && intent.knowledgeRefs.length === 0);
+  if (hasKnowledgeRefs && (!Array.isArray(intent.knowledgeRefs)
+    || intent.knowledgeRefs.length > 8
+    || intent.knowledgeRefs.some(ref => typeof ref !== 'string' || !/^pk_[a-f0-9]{12}_[1-9][0-9]?$/.test(ref))
+    || new Set(intent.knowledgeRefs).size !== intent.knowledgeRefs.length
+    || normalizedActions.some(item => !PERSONAL_READ_OPERATIONS.has(`${item.domain}.${item.action}`)
+      && !(item.domain === 'conversation' && ['reply', 'recap'].includes(item.action))))) {
+    return { valid: false, errorCode: 'INVALID_KNOWLEDGE_REFS', error: 'Personal response sources require bounded references and read/conversation-only authority.' };
+  }
+  const billingReadOperations = new Set(['conversation.reply', 'conversation.recap', 'subscription.info',
+    'task.list', 'reminder.list', 'agenda.read', 'calendar.list', 'calendar.search', 'calendar.next']);
+  if (intent.responseCapability === 'billing_info'
+    && normalizedActions.some(item => !billingReadOperations.has(qualifyOperation(item.domain, item.action)))) {
+    return { valid: false, errorCode: 'INVALID_RESPONSE_CAPABILITY', error: 'Billing information cannot authorize checkout or mutations.' };
+  }
+  if (normalizedActions.some(item => item.evidenceRefs !== undefined)
+    && (normalizedActions.length !== 1 || intent.answerFromResults === true || intent.responseCapability === 'billing_info')) {
+    return { valid: false, errorCode: 'INVALID_EVIDENCE_REFS', error: 'Historical selections cannot imply current reads, billing queries or actions.' };
+  }
+  const recaps = normalizedActions.filter(item => item.domain === 'conversation' && item.action === 'recap');
+  if (recaps.length) {
+    const reads = normalizedActions.filter(item => item !== recaps[0]
+      && !(intent.responseCapability === 'billing_info' && item.domain === 'subscription' && item.action === 'info'));
+    const allowedReads = new Set(['agenda.read', 'task.list', 'reminder.list', 'calendar.list', 'calendar.search', 'calendar.next']);
+    if (recaps.length !== 1 || (recaps[0].recapMode === 'historical'
+      ? reads.length !== 0 || intent.answerFromResults === true
+      : reads.length === 0 || reads.some(item => !allowedReads.has(qualifyOperation(item.domain, item.action))))) {
+      return { valid: false, errorCode: 'INVALID_RECAP', error: 'Historical recap permits no reads; current recap requires only explicit operational reads.' };
+    }
   }
   const excluded = Array.isArray(intent.excluded) ? intent.excluded.filter((item) => item && typeof item.quote === 'string' && item.quote.trim()) : [];
   return {
     valid: true,
     intent: {
       ...turnContext.context,
+      ...(intent.responseCapability !== undefined ? { responseCapability: intent.responseCapability } : {}),
       ...(intent.answerFromResults !== undefined ? { answerFromResults: intent.answerFromResults } : {}),
+      ...(hasKnowledgeRefs ? { knowledgeRefs: intent.knowledgeRefs } : {}),
       actions: normalizedActions,
       excluded,
     },

@@ -1,3 +1,4 @@
+import { buildPersonalKnowledge, renderPersonalKnowledge, PERSONAL_READ_OPERATIONS } from './personal-knowledge.js';
 import { assertTurnLease } from '../core/turn-lease.js';
 import { callChatCompletion, callResponseSynthesis } from '../providers/client.js';
 import { retrieveRelevantMemories, retrieveStandingPreferences } from '../../features/memory/service.js';
@@ -7,10 +8,9 @@ import {
   getUserSubscription,
   getUserIntegration,
   hasProAccess,
-  createPendingSubscription,
 } from '../../infrastructure/database/index.js';
 import { shouldEnforceBillingForUser } from '../../infrastructure/database/subscriptions.js';
-import { resolveReminderProUpgradeContext } from '../tools/reminder-pro.js';
+import { selectReminderProProvider } from '../tools/reminder-pro.js';
 import { getGoogleConnectUrl } from '../../integrations/google/auth.js';
 import { buildAgentCorePrompt } from '../core/agent-core.js';
 import {
@@ -22,7 +22,7 @@ import {
   sanitizeResponseText,
 } from '../core/working-memory.js';
 import { hydrateClarificationStateFromHistory, getClarificationStateSnapshot } from './clarification-flow.js';
-import { composeExecutionReply, createExecutionFact } from '../core/execution-facts.js';
+import { composeExecutionReply, createExecutionFact, TASK_CARD_COVERAGE } from '../core/execution-facts.js';
 import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { updateUserPreferences } from '../../infrastructure/database/users.js';
@@ -37,7 +37,7 @@ import {
 import { executeTurnIntent, inferIntentFromTool } from './intent-executor.js';
 import { normalizeTurnIntentForRuntime } from './intent-normalizer.js';
 import { resolveNextBestAction } from './next-best-action.js';
-import { answerFromObservedReads } from './observed-answer.js';
+import { answerFromObservedReads, answerFromTaskReturnFields, mutationReceiptsFromFacts, historicalMutationReceipts, carryCreationReceiptEvents, receiptBlock, historicalRecap, freezeTaskReferenceSnapshot, carryOperationalEvidence, operationalEvidenceFromHistory, renderOperationalEvidence, renderHistoricalEvidence } from './observed-answer.js';
 
 export function sanitizeUserQueryText(text) {
   if (!text || typeof text !== 'string') return '';
@@ -188,10 +188,24 @@ function conversationReplyFromActions(actions = []) {
     .join('\n\n');
 }
 
+// Initial-turn source boundary only. A stale optional update must not block
+// independent conversation/reads, nor permit mutations under the old context.
+function enforceCurrentProfileSource(validation, currentUserText) {
+  if (!validation?.valid || !validation.intent?.profileUpdate) return validation;
+  const quote = validation.intent.profileUpdate.sourceQuote;
+  if (quote && currentUserText.includes(quote)) return validation;
+  const safe = validation.intent.actions.every(({ domain, action }) =>
+    PERSONAL_READ_OPERATIONS.has(`${domain}.${action}`)
+    || (domain === 'conversation' && ['reply', 'recap'].includes(action)));
+  if (!safe) return { valid: false, errorCode: 'INVALID_TURN_CONTEXT', error: 'Profile evidence is not from the current user turn.' };
+  const { profileUpdate, ...intent } = validation.intent;
+  return { ...validation, intent };
+}
+
 function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
   if (modelResponse?.unavailable) return { unavailable: true, validation: null };
   if (modelResponse?.toolCalls?.length) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión foreground no admite llamadas a herramientas.' } };
-  if (modelResponse?.structuredIntent) return { unavailable: false, validation: { valid: true, intent: modelResponse.structuredIntent } };
+  if (modelResponse?.structuredIntent) return { unavailable: false, validation: validateTurnIntent(modelResponse.structuredIntent, { isAdmin, requireResponseCapability: true }) };
   return { unavailable: false, validation: validateStructuredTurnContent(modelResponse?.content, { isAdmin }) };
 }
 
@@ -199,12 +213,13 @@ function validateStructuredTurnContent(content, { isAdmin = false } = {}) {
   const parsed = parseIntentArguments(content);
   if (!parsed) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' };
   const canonical = projectStructuredTurnIntent(stripStructuredNulls(parsed));
-  return validateTurnIntent(canonical, { isAdmin });
+  return validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true });
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {
   if (!isAttachmentOnlyTurn || !collected?.valid || !collected.intent) return collected;
-  const hasOperationalAction = collected.intent.actions.some((action) => action?.domain !== 'conversation');
+  const hasOperationalAction = collected.intent.responseCapability !== 'general'
+    || collected.intent.actions.some((action) => action?.domain !== 'conversation');
   if (!hasOperationalAction) return collected;
   return {
     valid: false,
@@ -267,12 +282,22 @@ export function bindAuthoritativeFollowupTargets(intent, overview, workingMemory
   };
 }
 
+const EVIDENCE_OWNER = Symbol('local evidence owner');
 function conversationStateEntities(user, extra = {}) {
-  return {
+  const entities = {
     ...extra,
     _conversationState: getClarificationStateSnapshot(user),
     _workingMemory: getWorkingMemorySnapshot(user),
   };
+  // Local-only binding: the persisted carry stores a domain-separated owner
+  // digest, never a copied user ID. No user message can set this symbol.
+  Object.defineProperty(entities, EVIDENCE_OWNER, { value: user.id });
+  return entities;
+}
+
+function hasConversationalPaymentReference(text) {
+  return ['[checkout_url]', 'lemonsqueezy.com', 'mercadopago.com', 'stripe.com']
+    .some(reference => text.includes(reference));
 }
 
 async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
@@ -286,51 +311,9 @@ async function replaceTrustedLinkPlaceholders({ text, user, phoneNumber }) {
     }
   }
 
-  if (finalText.includes('[checkout_url]')) {
-    try {
-      const proContext = await resolveReminderProUpgradeContext(
-        phoneNumber || user?.phone_number,
-        'es',
-        { userId: user?.id, timezone: user?.timezone, country: user?.country },
-      );
-      const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
-      if (user?.id && !checkoutUrl?.includes('lemonsqueezy') && !checkoutUrl?.includes('stripe.com') && proContext?.planId) {
-        await createPendingSubscription(user.id, {
-          mpPreapprovalId: proContext.planId,
-          amount: proContext.amount || 49900,
-          plan: 'pro',
-        }).catch(() => {});
-      }
-      if (checkoutUrl) {
-        finalText = finalText.replace(/\[checkout_url\]/g, checkoutUrl);
-      }
-    } catch (error) {
-      console.error('[router] auto-generating checkout_url failed:', error.message);
-    }
-  }
-
-  // Sanitize any obsolete Lemon Squeezy URLs or text inherited from conversation history turns when on Stripe
-  const isStripeBilling = (process.env.BILLING_PROVIDER || '').toLowerCase() === 'stripe';
-  if (isStripeBilling) {
-    if (finalText.includes('lemonsqueezy.com')) {
-      try {
-        const proContext = await resolveReminderProUpgradeContext(
-          phoneNumber || user?.phone_number,
-          'es',
-          { userId: user?.id, timezone: user?.timezone, country: user?.country },
-        );
-        const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
-        if (checkoutUrl) {
-          finalText = finalText.replace(/https:\/\/[^\s)]*lemonsqueezy\.com[^\s)]*/gi, checkoutUrl);
-        }
-      } catch (error) {
-        console.error('[router] replacing legacy lemonsqueezy link failed:', error.message);
-      }
-    }
-    finalText = finalText.replace(/\bLemon\s+Squeezy\b/gi, 'Stripe');
-  }
-
-  return finalText;
+  // Rendering is never payment authority, including synthesis and next-action
+  // text. A checkout URL must come from the explicit subscription.link result.
+  return finalText.replace(/\[checkout_url\]/g, '');
 }
 
 function safeIntentError(language) {
@@ -347,8 +330,8 @@ function structuredDecisionError(language) {
 
 function providerUnavailableError(language) {
   return language === 'en'
-    ? 'I could not complete that action right now. I did not execute anything. Please try again in a moment.'
-    : 'No pude completar esa acción en este momento. No ejecuté ninguna acción. Inténtalo nuevamente en un momento.';
+    ? 'I could not complete this turn right now. I executed no new actions in this turn; this does not invalidate prior confirmations. Please try again in a moment.'
+    : 'No pude completar esa acción en este momento. No ejecuté acciones nuevas en este turno; esto no invalida las confirmaciones anteriores. Inténtalo nuevamente en un momento.';
 }
 
 /**
@@ -451,14 +434,18 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   user.memories = effectiveMemories;
   user.preferences = standingPreferences || [];
 
+  const personalKnowledge = buildPersonalKnowledge(user.id, effectiveMemories, standingPreferences);
+  const knowledgeHint = record => personalKnowledge.refs.has(record) ? ` [${personalKnowledge.refs.get(record)}]` : '';
   const memoryHints = effectiveMemories.length > 0
-    ? effectiveMemories.map((memory) => `- [${memory.category || 'memoria'}] ${memory.content}`).join('\n')
+    ? effectiveMemories.map((memory) => `- [${memory.contextCategory || memory.category || 'memoria'}]${knowledgeHint(memory)} ${memory.content}`).join('\n')
     : '';
   const preferenceHints = (standingPreferences || []).length > 0
-    ? standingPreferences.map((pref) => `- [${pref.category || 'preferencia'}] ${pref.content}`).join('\n')
+    ? standingPreferences.map((pref) => `- [${pref.contextCategory || pref.category || 'preferencia'}]${knowledgeHint(pref)} ${pref.content}`).join('\n')
     : '';
   const workingMemoryKey = phoneNumber || user.id;
   const workingMemory = getWorkingMemory(workingMemoryKey);
+  // Freeze referents before read tools replace the current Working Memory view.
+  const referenceSnapshot = freezeTaskReferenceSnapshot(workingMemory);
   const workingMemoryText = formatWorkingMemoryPrompt(workingMemoryKey, dailyOverview);
   if (workingMemory) {
     console.log(
@@ -482,7 +469,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     proGuidance = [
       '- Este usuario está en Plan Free con facturación supervisada.',
       '- Cumple primero la solicitud. Explica planes solo si el usuario pregunta o un límite real bloquea lo pedido; considera el historial para evitar repetir ofertas.',
-      '- Para precios, beneficios vigentes y enlace de pago usa subscription.link. No inventes tarifas ni procesadores a partir del historial.',
+      '- Para precios, descuentos, métodos de pago, cómo comprar y explicaciones sin checkout usa subscription.info, no conversation.reply ni subscription.link. Usa subscription.link solo ante una solicitud explícita de enlace de pago o de abrir checkout; una prohibición de checkout prevalece. No generes checkout para descubrir precios o métodos. No inventes tarifas, procesadores, navegación ni métodos alternativos a partir del historial.',
       '- No agregues publicidad a saludos u operaciones rutinarias.',
     ].join('\n');
   }
@@ -491,6 +478,10 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     nowStr, nowHumanStr, timezone, phoneNumber, memoryHints, preferenceHints, overview: dailyOverview,
     workingMemoryText, googleIntegration, isAdmin, isPro, displayName: user.display_name, inputModality,
     proGuidance,
+    billingContext: {
+      provider: selectReminderProProvider(phoneNumber, process.env.BILLING_PROVIDER || ''),
+      subscriptionStatus: subscription?.status || null,
+    },
     userMessage: messageText || currentUserText,
     language,
     memoryRetrievalStatus,
@@ -582,7 +573,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
 
             return {
               intent: primaryDomain,
-              entities: conversationStateEntities(user),
+              entities: conversationStateEntities(user, { _turnMetadata: { kind: 'operational_result', mutationReceipts: mutationReceiptsFromFacts(execResult.facts || []) } }),
               language,
               confirmation: reply,
               ctaUrl: null, ctaHeader: null, ctaButtonText: null,
@@ -631,7 +622,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
               }
               return {
                 intent: execResult.domain || 'clarification',
-                entities: conversationStateEntities(user),
+                entities: conversationStateEntities(user, { _turnMetadata: { kind: 'operational_result', mutationReceipts: mutationReceiptsFromFacts(execResult.facts || (execResult.fact ? [execResult.fact] : [])) } }),
                 language,
                 confirmation: reply,
                 ctaUrl: null, ctaHeader: null, ctaButtonText: null,
@@ -706,6 +697,9 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     messages[0].content += `\nReplace the pending request using the current user's correction and this draft as context. Return canonical TurnIntent. Preserve unchanged fields and resolve every requested action. Executed actions are observed effects: do not recreate them; use an explicit update/cancel when requested.\n<pending_draft>${JSON.stringify({ kind: activeAgentRun.kind, context: activeAgentRun.context, actions: activeAgentRun.preparedActions })}</pending_draft>`;
   }
 
+  const historicalEvidence = operationalEvidenceFromHistory(rawPastTurns, user.id);
+  if (historicalEvidence.length) messages[0].content += `\nOperational evidence (actual prior outcomes: success on read/list means a real query succeeded then, not unverified cache. Say last observed; no new query is not a failed query. Bounded history, not fresh state; select evidenceRefs on recap, older/overflow may be missing): ${JSON.stringify(historicalEvidence)}`;
+
   const turnResponseFormat = {
 
     type: 'json_schema',
@@ -734,7 +728,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
       returnMessage: true,
       purpose: 'initial',
       language,
-      validateStructuredContent: (content) => validateStructuredTurnContent(content, { isAdmin }),
+      validateStructuredContent: (content) => enforceCurrentProfileSource(validateStructuredTurnContent(content, { isAdmin }), currentUserText),
     });
   } catch (error) {
     console.warn(`[router req=${requestId}] model failed:`, error.message);
@@ -745,10 +739,21 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms structuredChars=${decision.content.length} unavailable=${decision.unavailable}`);
   const structuredDecision = parseStructuredTurnDecision(decision, { isAdmin });
   let collected = structuredDecision.unavailable ? { valid: true, intent: null } : structuredDecision.validation;
+  collected = enforceCurrentProfileSource(collected, currentUserText);
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
 
 
+  const recordProviderFault = (faultReason) => {
+    const current = getWorkingMemory(workingMemoryKey);
+    saveWorkingMemory(workingMemoryKey, {
+      ...(current || { source: 'system', lastAction: 'provider_failure' }),
+      infraFault: true,
+      faultReason,
+    }, { restoredTimestamp: current?.timestamp ?? null });
+  };
+
   if (!collected.valid) {
+    recordProviderFault(collected.errorCode || 'invalid_structured_output');
     console.warn(`[router req=${requestId}] rejected semantic intent: ${collected.errorCode} ${collected.error}`);
     return {
       intent: 'clarification',
@@ -761,17 +766,10 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   }
 
   if (!collected.intent) {
-    if (decision.unavailable || decision.unavailableReason) {
-      saveWorkingMemory(workingMemoryKey, {
-        source: 'system',
-        lastAction: 'provider_failure',
-        infraFault: true,
-        faultReason: decision.unavailableReason || 'provider_unavailable',
-      });
-    }
+    recordProviderFault(decision.unavailableReason || (decision.refused ? 'provider_refusal' : decision.unavailable ? 'provider_unavailable' : 'missing_structured_decision'));
 
     const confirmation = decision.refused
-      ? (language === 'en' ? 'I cannot complete that request. I did not execute any action.' : 'No puedo completar esa solicitud. No ejecuté ninguna acción.')
+      ? (language === 'en' ? 'I cannot complete this request. I executed no new actions in this turn; this does not invalidate prior confirmations.' : 'No puedo completar esta solicitud. No ejecuté acciones nuevas en este turno; esto no invalida las confirmaciones anteriores.')
       : decision.unavailable
       ? providerUnavailableError(language)
       : structuredDecisionError(language);
@@ -798,6 +796,12 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     };
   }
 
+  const currentMemory = getWorkingMemory(workingMemoryKey);
+  if (currentMemory?.infraFault) {
+    const { infraFault: _infraFault, faultReason: _faultReason, ...view } = currentMemory;
+    saveWorkingMemory(workingMemoryKey, view, { restoredTimestamp: currentMemory.timestamp });
+  }
+
   if (!await applyDecisionContext(collected.intent)) return { language, intent: 'clarification', executionFacts: [] };
   const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview, workingMemory);
   console.log(`[router req=${requestId}] semantic intent actions=${semanticIntent.actions.map(summarizeAction).join(' | ')}`);
@@ -808,8 +812,38 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   });
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 
+  const evidenceSelection = runtimeIntent.actions.find(action => action.evidenceRefs !== undefined);
+  if (evidenceSelection) return {
+    intent: 'chat', language,
+    entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
+    confirmation: [renderOperationalEvidence(rawPastTurns, evidenceSelection.evidenceRefs, user.id, language), renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language)].filter(Boolean).join('\n\n'),
+    executionFacts: [], ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+    memoryDisposition: 'skip_operational',
+  };
+  const recap = runtimeIntent.actions.find(action => action.domain === 'conversation' && action.action === 'recap');
+  if (recap?.recapMode === 'historical' && runtimeIntent.responseCapability !== 'billing_info') {
+    return {
+      intent: 'chat',
+      entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
+      language,
+      confirmation: [renderHistoricalEvidence(rawPastTurns, undefined, user.id, language), renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language)].filter(Boolean).join('\n\n'),
+      ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+    };
+  }
   const conversationReply = conversationReplyFromActions(runtimeIntent.actions);
-  const operationalActions = runtimeIntent.actions.filter((action) => action.domain !== 'conversation');
+  // Declared presentation authority overrides freeform billing prose, not user
+  // meaning. Canonical validation has already rejected incompatible operations.
+  const operationalActions = runtimeIntent.actions.filter(action => action.domain !== 'conversation');
+  if (runtimeIntent.responseCapability === 'billing_info'
+    && !operationalActions.some(action => action.domain === 'subscription' && action.action === 'info')) {
+    operationalActions.push({ domain: 'subscription', action: 'info' });
+  }
+
+  // Structural references are not permission to create checkout. Use the pure
+  // information path instead of trusting model prose (including mixed auth).
+  if (operationalActions.length === 0 && hasConversationalPaymentReference(conversationReply)) {
+    operationalActions.push({ domain: 'subscription', action: 'info' });
+  }
 
   if (operationalActions.length === 0) {
     let confirmation = conversationReply || structuredDecisionError(language);
@@ -825,26 +859,10 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
       } catch (err) {
         console.warn('[router] generating auth_url in conversation failed:', err.message);
       }
-    } else if (confirmation.includes('[checkout_url]') || confirmation.includes('lemonsqueezy.com') || confirmation.includes('mercadopago.com') || confirmation.includes('stripe.com')) {
-      try {
-        const proContext = await resolveReminderProUpgradeContext(
-          phoneNumber || user?.phone_number,
-          language,
-          { userId: user?.id, timezone: user?.timezone, country: user?.country },
-        );
-        const checkoutUrl = proContext?.checkoutUrl || proContext?.fallbackCheckoutUrl;
-        if (checkoutUrl) {
-          extractedCta = {
-            ctaUrl: checkoutUrl,
-            ctaHeader: proContext?.ctaHeader || '💎 Reminder Pro',
-            ctaButtonText: proContext?.ctaButtonText || (language === 'en' ? 'Pay now' : 'Pagar ahora'),
-          };
-        }
-      } catch (err) {
-        console.warn('[router] generating checkout_url cta in conversation failed:', err.message);
-      }
     }
     confirmation = await replaceTrustedLinkPlaceholders({ text: confirmation, user, phoneNumber });
+    const personalAnswer = renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language);
+    if (personalAnswer) confirmation += `\n\n${personalAnswer}`;
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
     return {
       intent: 'chat',
@@ -886,6 +904,9 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     latestAssistantMessage,
     supersedesRunId,
     preserveExistingActiveRun,
+    // This path replaces the numbered card with an unnumbered field answer.
+    preserveDisplayedReferences: !recap && operationalActions.length === 1
+      && Boolean(operationalActions[0].returnFields),
   });
   const toolElapsedMs = Date.now() - toolStart;
   execution.records.forEach(({ toolName, result }, index) => {
@@ -897,13 +918,47 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
 
   // Text planned before execution is not evidence of its outcome. Operational
   // acknowledgements come exclusively from observed execution facts.
-  let framing = null;
-  if (runtimeIntent.answerFromResults === true
-    && operationalActions.every(action => ['read', 'list', 'search', 'next', 'status', 'metrics'].includes(action.action))) {
-    const answer = await answerFromObservedReads({ userText: currentUserText, facts: execution.facts, language, correlationId: options?.correlationId });
+  const hasSubscriptionInfo = operationalActions.some(action => action.domain === 'subscription' && action.action === 'info');
+  const hasTaskRead = execution.facts.some(fact =>
+    [TOOL_NAMES.MANAGE_TASK, TOOL_NAMES.GET_UNIFIED_AGENDA].includes(fact.tool)
+    && ['read', 'list'].includes(fact.requestedAction));
+  // Only a single simple read can replace its card. Complex/mixed turns retain
+  // existing observation behavior; no identity is inferred from query or title.
+  const simpleFieldAction = !recap
+    && operationalActions.length === 1 && operationalActions[0].returnFields
+    ? operationalActions[0] : null;
+  const fieldAnswer = simpleFieldAction
+    ? answerFromTaskReturnFields(simpleFieldAction, execution.facts, user.id, language) : null;
+  let interpretationOutcome;
+  let knowledgeRefs = runtimeIntent.knowledgeRefs || [];
+  let framing = recap?.recapMode === 'historical'
+    ? { before: renderHistoricalEvidence(rawPastTurns, undefined, user.id, language), after: '' } : null;
+  if (recap?.recapMode === 'current' && hasSubscriptionInfo && !hasTaskRead) {
+    const coverage = language === 'en'
+      ? 'Current observations cover returned rows only. Unseen or filtered items remain unknown; complete inventory coverage is not verified.'
+      : 'Las observaciones actuales cubren solo las filas devueltas. Los elementos no vistos o filtrados siguen desconocidos; no se verifica cobertura del inventario completo.';
+    const failed = execution.facts.some(fact => !fact.success || !fact.complete);
+    const unknown = language === 'en'
+      ? 'Current status in failed or partial reads is unknown.'
+      : 'El estado actual en consultas fallidas o parciales es desconocido.';
+    framing = { before: [historicalRecap(rawPastTurns, language), coverage, failed ? unknown : ''].filter(Boolean).join('\n\n'), after: '' };
+  }
+  const answerFacts = hasSubscriptionInfo
+    ? execution.facts.filter(fact => [TOOL_NAMES.MANAGE_TASK, TOOL_NAMES.GET_UNIFIED_AGENDA].includes(fact.tool))
+    : execution.facts;
+  if (!simpleFieldAction && (!hasSubscriptionInfo || hasTaskRead) && (runtimeIntent.answerFromResults === true || recap?.recapMode === 'current')
+    && operationalActions.every(action => action.domain === 'subscription' && action.action === 'info'
+      || ['read', 'list', 'search', 'next', 'status', 'metrics'].includes(action.action))) {
+    const answer = await answerFromObservedReads({ userText: currentUserText, facts: answerFacts, language, correlationId: options?.correlationId, conversationHistory: rawPastTurns, currentRecap: recap?.recapMode === 'current', referenceSnapshot, userId: user.id,
+      personalKnowledge: personalKnowledge.lookup, selectedKnowledgeRefs: knowledgeRefs,
+      onKnowledgeRefs: refs => { knowledgeRefs = [...new Set([...knowledgeRefs, ...refs])].slice(0, 8); },
+      onInterpretationOutcome: outcome => { interpretationOutcome = outcome; },
+      retainedTaskCoverage: answerFacts.slice(0, 12).flatMap(fact => (fact[TASK_CARD_COVERAGE] || [])
+        .map(item => ({ ...item, callId: fact.callId }))).slice(0, 100),
+    });
     if (answer) framing = { before: answer, after: '' };
   }
-  if ((execution.excluded || []).length > 0 && execution.facts.length > 0) {
+  if (!recap && !hasSubscriptionInfo && !hasTaskRead && (execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
     const excludedFraming = await callResponseSynthesis({
       userText: currentUserText,
@@ -917,7 +972,8 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     framing = before ? { before, after: '' } : null;
   }
 
-  const nextAction = await resolveNextBestAction({
+  const personalAnswer = renderPersonalKnowledge(knowledgeRefs, personalKnowledge.lookup, user.id, language);
+  const nextAction = recap || hasSubscriptionInfo || simpleFieldAction || knowledgeRefs.length ? null : await resolveNextBestAction({
     executionFacts: execution.facts,
     userText: currentUserText,
     correlationId: requestId,
@@ -935,10 +991,28 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     };
   }
 
-  let finalReply = composeExecutionReply(execution.facts, language, { framing });
+  const mixedInfoFacts = hasSubscriptionInfo && execution.facts.length > 1
+    ? execution.facts.filter(fact => fact.tool === TOOL_NAMES.MANAGE_SUBSCRIPTION && fact.requestedAction === 'info') : [];
+  // Keep the complete pure-information card beside the ordinary read cards;
+  // mixed-batch summaries must not drop provider uncertainty or checkout authority.
+  let finalReply = fieldAnswer || (mixedInfoFacts.length
+    ? [framing?.before, composeExecutionReply(execution.facts.filter(fact => !mixedInfoFacts.includes(fact)), language),
+      ...mixedInfoFacts.map(fact => fact.card), framing?.after].filter(Boolean).join('\n\n')
+    : composeExecutionReply(execution.facts, language, { framing }));
+  if (hasTaskRead && execution.excluded?.length) finalReply += `\n\n${language === 'en'
+    ? 'Excluded instructions were not executed.' : 'Las instrucciones excluidas no se ejecutaron.'}`;
   if (!finalReply) finalReply = safeIntentError(language);
+  // Historical execution quotes survive prose classification, unavailable synthesis,
+  // and partial read errors, but never become current-state evidence.
+  if (!recap && !hasSubscriptionInfo && operationalActions.every(action => ['read', 'list', 'search', 'next', 'status', 'metrics'].includes(action.action))
+    && execution.facts.some(fact => !fact.success || !fact.complete)) {
+    const historicalBlock = receiptBlock(historicalMutationReceipts(rawPastTurns), language, true);
+    if (historicalBlock && !finalReply.includes(historicalBlock)) finalReply += `\n\n${historicalBlock}`;
+  }
   finalReply = await replaceTrustedLinkPlaceholders({ text: finalReply, user, phoneNumber });
   finalReply = sanitizeResponseText(finalReply);
+  // Stored originals are not operational prose, link templates or new evidence.
+  if (personalAnswer) finalReply += `\n\n${personalAnswer}`;
 
   const primary = execution.records[0] || null;
   const ctaFact = execution.facts.find((fact) => fact.ctaUrl) || null;
@@ -955,7 +1029,9 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   return {
     intent: inferIntentFromTool(primary?.toolName),
     entities: conversationStateEntities(user, {
-      _turnMetadata: { kind: 'operational_result' },
+      _turnMetadata: { kind: 'operational_result', mutationReceipts: mutationReceiptsFromFacts(execution.facts),
+        ...(interpretationOutcome ? { interpretationOutcome } : {}),
+      },
       ...(primary?.params && typeof primary.params === 'object' && !Array.isArray(primary.params) ? primary.params : {}),
     }),
     language,
@@ -968,7 +1044,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     list: listFact?.list || listRecord?.result?.list || null,
     plan: { type: 'turn_intent', actions: runtimeIntent.actions.map(({ domain, action }) => ({ domain, action })) },
     executionFacts: execution.facts,
-    memoryDisposition: 'skip_operational',
+    memoryDisposition: execution.memoryProcessed ? 'processed' : 'skip_operational',
   };
 }
 
@@ -976,7 +1052,19 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
 export async function routeMessage(messageText, userOrPhone, history = [], options = {}) {
   const contextEffects = [];
   const result = await routeMessageInternal(messageText, userOrPhone, history, options, contextEffects);
+  // Persist the same bounded carry on every returned assistant turn, including
+  // ordinary conversation, failed reads and provider failure. User metadata never mints it.
+  const metadata = result.entities?._turnMetadata || {};
+  const owner = result.entities?.[EVIDENCE_OWNER];
+  result.entities = { ...result.entities, _turnMetadata: {
+    ...metadata,
+    creationReceiptEvents: carryCreationReceiptEvents(history, metadata.mutationReceipts),
+    ...(owner ? { operationalEvidence: carryOperationalEvidence(history, result.executionFacts || [], owner, metadata.interpretationOutcome) } : {}),
+  } };
   if (!contextEffects.length) return result;
   const executionFacts = [...contextEffects, ...(result.executionFacts || [])];
-  return { ...result, executionFacts, confirmation: composeExecutionReply(executionFacts, result.language), memoryDisposition: 'skip_operational' };
+  // Domain presentation already validated the requested fields/framing. Adding
+  // a profile receipt must not replace it with a generic recomposition.
+  const profileReceipt = composeExecutionReply(contextEffects, result.language);
+  return { ...result, executionFacts, confirmation: [profileReceipt, result.confirmation].filter(Boolean).join('\n\n'), memoryDisposition: result.memoryDisposition === 'processed' ? 'processed' : 'skip_operational' };
 }

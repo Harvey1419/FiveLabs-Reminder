@@ -54,6 +54,7 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
     correlationId = null,
     referenceTime = null,
     clarificationResolution = false,
+    memoryTurn = null,
   } = options;
 
   const isPro = requestedIsPro ?? (user?.isPro || false);
@@ -93,7 +94,7 @@ export async function executeTool(firstArg, secondArg, thirdArg) {
       }
       case TOOL_NAMES.MANAGE_PROJECT: result = await executeProjectTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
       case TOOL_NAMES.MANAGE_ENTITY: result = await executeEntityTool({ action: params?.action || 'create', params, user, language, clarificationResolution }); break;
-      case TOOL_NAMES.MANAGE_MEMORY: result = await executeMemoryTool({ action: params?.action || 'save', params, user, language, correlationId }); break;
+      case TOOL_NAMES.MANAGE_MEMORY: result = await executeMemoryTool({ action: params?.action || 'save', params, user, language, correlationId, memoryTurn }); break;
       case TOOL_NAMES.MANAGE_SUBSCRIPTION: result = await executeSubscriptionTool({ action: params?.action || 'get_link', params, user, language }); break;
       case TOOL_NAMES.MANAGE_GOOGLE_CALENDAR: {
         const action = params?.action || 'get_connect_link';

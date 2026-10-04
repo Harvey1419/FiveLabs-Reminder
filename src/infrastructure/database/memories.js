@@ -21,6 +21,34 @@ const MEMORY_VECTOR_CANDIDATE_MULTIPLIER = 4;
 const MEMORY_VECTOR_MIN_CANDIDATES = 12;
 const MEMORY_VECTOR_MAX_CANDIDATES = 50;
 const MEMORY_VECTOR_RELATIVE_WINDOW = 0.05;
+const MEMORY_RETRIEVAL_COLUMNS = 'id, user_id, topic_key, category, content, confidence, is_active, valid_from, valid_until, superseded_by, last_accessed_at, created_at';
+
+function isVerifiedRetrievalRow(row, userId) {
+  return row?.user_id === userId && row.is_active === true && !row.superseded_by
+    && typeof row.id === 'string' && Boolean(row.id)
+    && VALID_MEM_CATEGORIES.has(row.category)
+    && typeof row.topic_key === 'string' && Boolean(row.topic_key.trim())
+    && typeof row.content === 'string' && Boolean(row.content.trim())
+    && (row.valid_until == null || Date.parse(row.valid_until) > Date.now())
+    && (row.valid_from == null || Date.parse(row.valid_from) <= Date.now());
+}
+
+/** One authoritative read for all ranked channels; RPC supplies only rank metadata. */
+async function hydrateMemoryCandidates(userId, sources) {
+  const ids = [...new Set(sources.flat().map(item => item?.id).filter(id => typeof id === 'string' && id))];
+  if (!ids.length) return sources.map(() => []);
+  const { data, error } = await supabase.from('memories')
+    .select(MEMORY_RETRIEVAL_COLUMNS)
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .in('id', ids);
+  if (error || !Array.isArray(data)) throw error || new Error('Memory verification is unavailable.');
+  const rows = new Map(data.filter(row => isVerifiedRetrievalRow(row, userId)).map(row => [row.id, row]));
+  return sources.map(source => source.flatMap(candidate => {
+    const row = rows.get(candidate?.id);
+    return row ? [{ ...row, ...(candidate.similarity != null ? { similarity: candidate.similarity } : {}) }] : [];
+  }));
+}
 
 /**
  * The topic is part of the retrieval document, not user-visible memory content.
@@ -229,14 +257,18 @@ function isDatabaseConfigured() {
   );
 }
 
-export async function getActiveMemories({ userId, category = null, limit = 15 }) {
-  if (!userId || !isDatabaseConfigured()) return [];
+export async function getActiveMemories({ userId, category = null, limit = 15, withStatus = false, throwOnError = false }) {
+  const unavailable = () => {
+    if (throwOnError) throw new Error('Memory storage is unavailable.');
+    return withStatus ? { status: 'unavailable', memories: [] } : [];
+  };
+  if (!userId || !isDatabaseConfigured()) return unavailable();
   const safeLimit = Math.min(Math.max(1, Number(limit) || 15), 50);
 
   try {
     let q = supabase
       .from('memories')
-      .select('id, topic_key, category, content, confidence, created_at')
+      .select(MEMORY_RETRIEVAL_COLUMNS)
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
@@ -247,14 +279,11 @@ export async function getActiveMemories({ userId, category = null, limit = 15 })
     }
 
     const { data, error } = await q;
-    if (error) {
-      console.warn('[memories] getActiveMemories error:', error.message);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    console.error('[memories] getActiveMemories threw:', err);
-    return [];
+    if (error || !Array.isArray(data)) return unavailable();
+    const memories = data.filter(row => isVerifiedRetrievalRow(row, userId) && (!category || row.category === category));
+    return withStatus ? { status: 'available', memories } : memories;
+  } catch {
+    return unavailable();
   }
 }
 
@@ -275,13 +304,13 @@ export async function getStandingMemories({ userId, limit = 30, legacyFactAspect
   try {
     const { data, error } = await supabase
       .from('memories')
-      .select('id, topic_key, category, content, confidence, created_at')
+      .select(MEMORY_RETRIEVAL_COLUMNS)
       .eq('user_id', userId)
       .eq('is_active', true)
       .or(standingMemoryFilter)
       .order('created_at', { ascending: false })
       .limit(safeLimit);
-    return error ? { data: null, error } : { data: data || [], error: null };
+    return error ? { data: null, error } : { data: (data || []).filter(row => isVerifiedRetrievalRow(row, userId)), error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -308,8 +337,11 @@ export async function searchMemories({
   throwOnError = false,
   withStatus = false,
 }) {
-  if (!userId) return [];
-  if (throwOnError && !isDatabaseConfigured()) throw new Error('Memory storage is unavailable.');
+  const strictRead = throwOnError || withStatus;
+  if (!userId || (strictRead && !isDatabaseConfigured())) {
+    if (throwOnError) throw new Error('Memory storage is unavailable.');
+    return withStatus ? { status: 'unavailable', memories: [] } : [];
+  }
   const safeLimit = Math.min(Math.max(1, Number(limit) || 5), 20);
   const vectorCandidateLimit = Math.min(
     Math.max(safeLimit * MEMORY_VECTOR_CANDIDATE_MULTIPLIER, MEMORY_VECTOR_MIN_CANDIDATES),
@@ -318,7 +350,7 @@ export async function searchMemories({
 
   // If no specific query and no topicKey provided, return all active memories
   if (!query && !topicKey) {
-    return getActiveMemories({ userId, category, limit: safeLimit });
+    return getActiveMemories({ userId, category, limit: safeLimit, withStatus, throwOnError });
   }
 
   try {
@@ -335,7 +367,7 @@ export async function searchMemories({
         (async () => {
           try {
             const queryEmbedding = await generateEmbedding(query);
-            if (!queryEmbedding && throwOnError) throw new Error('Memory embedding is unavailable.');
+            if (!queryEmbedding && strictRead) throw new Error('Memory embedding is unavailable.');
             if (queryEmbedding) {
               const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {
                 p_user_id: userId,
@@ -343,11 +375,11 @@ export async function searchMemories({
                 p_match_threshold: MEMORY_VECTOR_MATCH_THRESHOLD,
                 p_match_count: vectorCandidateLimit,
               });
-              if (rpcErr && throwOnError) throw rpcErr;
+              if (strictRead && (rpcErr || !Array.isArray(matched))) throw new Error('Memory retrieval is unavailable.');
               if (!rpcErr && matched) return { type: 'vector', data: matched };
             }
           } catch (err) {
-            if (throwOnError) throw err;
+            if (strictRead) throw err;
             console.warn('[memories] vector search err:', err.message);
           }
           return { type: 'vector', data: [] };
@@ -364,7 +396,7 @@ export async function searchMemories({
             if (cleanFtsQuery.length > 0) {
               let ftsQ = supabase
                 .from('memories')
-                .select('id, topic_key, category, content, confidence, created_at')
+                .select(MEMORY_RETRIEVAL_COLUMNS)
                 .eq('user_id', userId)
                 .eq('is_active', true)
                 .textSearch('content', cleanFtsQuery, {
@@ -379,11 +411,11 @@ export async function searchMemories({
               }
 
               const { data: ftsData, error: ftsErr } = await ftsQ;
-              if (ftsErr && throwOnError) throw ftsErr;
+              if (strictRead && (ftsErr || !Array.isArray(ftsData))) throw new Error('Memory retrieval is unavailable.');
               if (!ftsErr && ftsData) return { type: 'fts', data: ftsData };
             }
           } catch (err) {
-            if (throwOnError) throw err;
+            if (strictRead) throw err;
             console.warn('[memories] FTS search err:', err.message);
           }
           return { type: 'fts', data: [] };
@@ -398,7 +430,7 @@ export async function searchMemories({
           try {
             let tQ = supabase
               .from('memories')
-              .select('id, topic_key, category, content, confidence, created_at')
+              .select(MEMORY_RETRIEVAL_COLUMNS)
               .eq('user_id', userId)
               .eq('is_active', true)
               .ilike('topic_key', `%${topicKey.trim()}%`)
@@ -410,10 +442,10 @@ export async function searchMemories({
             }
 
             const { data: tData, error: tErr } = await tQ;
-            if (tErr && throwOnError) throw tErr;
+            if (strictRead && (tErr || !Array.isArray(tData))) throw new Error('Memory retrieval is unavailable.');
             if (tData) return { type: 'topic', data: tData };
           } catch (err) {
-            if (throwOnError) throw err;
+            if (strictRead) throw err;
             console.warn('[memories] topic search err:', err.message);
           }
           return { type: 'topic', data: [] };
@@ -423,13 +455,17 @@ export async function searchMemories({
 
     const settled = await Promise.allSettled(searchTasks);
     const taskResults = settled.filter(result => result.status === 'fulfilled').map(result => result.value);
-    if (!taskResults.length && throwOnError) throw new Error('All memory retrieval channels are unavailable.');
+    if (!taskResults.length && strictRead) throw new Error('All memory retrieval channels are unavailable.');
     const retrievalStatus = taskResults.length === settled.length ? 'available' : 'partial';
     for (const res of taskResults) {
       if (res.type === 'vector') vectorResults = res.data;
       else if (res.type === 'fts') ftsResults = res.data;
       else if (res.type === 'topic') topicResults = res.data;
     }
+
+    [vectorResults, ftsResults, topicResults] = await hydrateMemoryCandidates(
+      userId, [vectorResults, ftsResults, topicResults],
+    );
 
     // 4. Semantic similarity remains authoritative for rank. Sparse and topic
     // matches are fallbacks, while exact structural identities are diversified.
@@ -446,6 +482,8 @@ export async function searchMemories({
       const ids = finalResults.map(m => m.id);
       supabase.from('memories')
         .update({ last_accessed_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('is_active', true)
         .in('id', ids)
         .then(() => {})
         .catch(() => {});
@@ -455,7 +493,7 @@ export async function searchMemories({
   } catch (err) {
     if (throwOnError) throw err;
     console.error('[memories] searchMemories threw:', err);
-    return [];
+    return withStatus ? { status: 'unavailable', memories: [] } : [];
   }
 }
 

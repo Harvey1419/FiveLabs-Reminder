@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import readline from 'readline';
-import { getOrCreateUserByPhone, updateUserTimezone } from '../../src/infrastructure/database/users.js';
+import { getOrCreateUserByPhone, normalizeUserPhone, updateUserTimezone } from '../../src/infrastructure/database/users.js';
 import { routeMessage } from '../../src/agent/orchestration/router.js';
 import { saveMessage, getRecentMessages } from '../../src/infrastructure/database/messages.js';
 import { extractAndSaveMemories } from '../../src/features/memory/service.js';
@@ -14,7 +14,7 @@ const rl = readline.createInterface({
 
 async function startInteractiveSession() {
   console.log('\n======================================================');
-  console.log('🤖 REMINDER ASSISTANT - TERMINAL TEST BENCH (Live Scheduler Active)');
+  console.log(`🤖 REMINDER ASSISTANT - TERMINAL TEST BENCH (${process.env.HERMES_CHAT_DISABLE_REMINDER_SCHEDULER === '1' ? 'Scheduler Disabled' : 'Live Scheduler Active'})`);
   console.log('======================================================');
   console.log('Escribe tus mensajes como si estuvieras en WhatsApp.');
   console.log('Comandos especiales:');
@@ -24,13 +24,28 @@ async function startInteractiveSession() {
   console.log('  /exit     - Salir');
   console.log('======================================================\n');
 
-  const testPhone = '+573009998877';
+  const configuredPhone = process.env.HERMES_CHAT_TEST_PHONE;
+  const testPhone = configuredPhone === undefined ? '+573009998877' : normalizeUserPhone(configuredPhone);
+  if (configuredPhone !== undefined) {
+    if (!/^hermes-chat\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(testPhone)) {
+      throw new Error('HERMES_CHAT_TEST_PHONE must be a generated hermes-chat UUID identity');
+    }
+    const representations = [...new Set([configuredPhone, testPhone])];
+    for (const phone of representations) {
+      for (const table of ['users', 'messages']) {
+        const { data, error } = await supabase.from(table).select('id').eq('phone_number', phone).limit(1);
+        if (error) throw error;
+        if (data?.length) throw new Error(`Synthetic identity already exists in ${table}; refusing to adopt it`);
+      }
+    }
+  }
   const user = await getOrCreateUserByPhone(testPhone);
+  if (configuredPhone !== undefined && (!user.id || !user.is_new)) throw new Error('Synthetic identity was not freshly created; refusing session');
   console.log(`👤 Usuario de prueba activo: ${user.phone_number} (ID: ${user.id}, TZ: ${user.timezone})\n`);
 
   // --- Live Background Scheduler for Test Bench ---
   const checkIntervalMs = 5000;
-  setInterval(async () => {
+  if (process.env.HERMES_CHAT_DISABLE_REMINDER_SCHEDULER !== '1') setInterval(async () => {
     try {
       const nowIso = new Date().toISOString();
       const { data: dueReminders } = await supabase
@@ -67,6 +82,12 @@ async function startInteractiveSession() {
       if (text === '/exit') {
         console.log('👋 ¡Hasta luego!');
         process.exit(0);
+      }
+
+      if (text === '/clean' && configuredPhone !== undefined) {
+        console.log('La limpieza de la identidad sintética corresponde al runner.');
+        promptUser();
+        return;
       }
 
       if (text === '/clean') {
@@ -110,7 +131,7 @@ async function startInteractiveSession() {
         await saveMessage({ userId: user.id, phoneNumber: user.phone_number, role: 'user', content: text });
 
         // 2. Obtener historial reciente
-        const history = await getRecentMessages(user.phone_number, 10);
+        const history = await getRecentMessages(user.phone_number, 40);
 
         // 3. Procesar turno
         const result = await routeMessage(text, user, history);
@@ -123,6 +144,7 @@ async function startInteractiveSession() {
           role: 'assistant',
           content: result.confirmation,
           intent: result.intent,
+          entities: { ...(result.entities || {}), _responseLanguage: result.language || (user.locale?.startsWith('en') ? 'en' : 'es') },
         });
 
         // 5. Extracción asíncrona de memoria
@@ -146,4 +168,4 @@ async function startInteractiveSession() {
   promptUser();
 }
 
-startInteractiveSession().catch(console.error);
+startInteractiveSession().catch(error => { console.error(error); process.exitCode = 1; rl.close(); });

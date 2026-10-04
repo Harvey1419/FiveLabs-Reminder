@@ -98,8 +98,12 @@ export async function executeTurnIntent(intent, context) {
   const regularActions = actions.filter((action) => action.domain !== 'clarification');
 
   const staged = regularActions.filter((action) => {
+    const prepared = buildDomainCall(action, context);
+    // A failed typed binding needs a fresh selection, not an input patch to
+    // an invalid reference. Keep it in execution to publish its specific error.
+    if (prepared.errorCode === 'INVALID_CONTEXT_REFERENCE') return false;
     if (Array.isArray(action.missingFields) && action.missingFields.length > 0) return true;
-    return buildDomainCall(action, context).requiresClarification === true;
+    return prepared.requiresClarification === true;
   });
   let supersededInputRunCancellation = 'pending';
   let pendingInputTransitionFailed = false;
@@ -176,6 +180,8 @@ export async function executeTurnIntent(intent, context) {
 
   const records = [];
   const facts = [];
+  // Scoped to this execution only; all save actions process the full source turn.
+  const memoryTurn = { userText: context.userMessage, executionFacts: facts, processed: false, result: null };
   const approvalActions = [];
   let targetResolutionAttempted = false;
   const runTool = async (options) => {
@@ -201,7 +207,7 @@ export async function executeTurnIntent(intent, context) {
         : 'No pude confirmar que la solicitud pendiente siguiera activa, así que no ejecuté el reemplazo. Su estado pudo haber cambiado; revisa tus solicitudes pendientes antes de volver a intentarlo.'),
     };
     try {
-      const result = await (context.executeTool || executeTool)(options);
+      const result = await (context.executeTool || executeTool)({ ...options, memoryTurn });
       if (!result || typeof result.success !== 'boolean') throw new Error('Missing observable tool outcome.');
       return result;
     } catch {
@@ -423,7 +429,9 @@ export async function executeTurnIntent(intent, context) {
       }
     }
 
-    if ((result.success || result.requiresClarification) && toolName !== 'orchestrator') {
+    if ((result.success || result.requiresClarification) && toolName !== 'orchestrator'
+      && !(context.preserveDisplayedReferences && toolName === TOOL_NAMES.MANAGE_TASK
+        && ['list', 'read'].includes(params.action))) {
       updateWorkingMemoryFromExecution({ user: context.user, toolName, params, result });
     }
   }
@@ -488,7 +496,7 @@ export async function executeTurnIntent(intent, context) {
     }
   }
 
-  return { records, facts, excluded: intent?.excluded || [] };
+  return { records, facts, excluded: intent?.excluded || [], memoryProcessed: memoryTurn.processed };
 }
 
 export function inferIntentFromTool(toolName) {

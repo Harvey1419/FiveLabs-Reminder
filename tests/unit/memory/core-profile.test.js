@@ -13,6 +13,8 @@ vi.mock('../../../src/infrastructure/database/index.js', () => ({
 
 const { CORE_PROFILE_ASPECTS, selectCoreProfileMemories, retrieveStandingPreferences, retrieveStandingPreferencesResult, retrieveRelevantMemoriesResult } = await import('../../../src/features/memory/service.js');
 
+const { buildPersonalKnowledge } = await import('../../../src/agent/orchestration/personal-knowledge.js');
+
 describe('second-brain core profile selection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,7 +29,16 @@ describe('second-brain core profile selection', () => {
     ], 10);
 
     expect(selected.map((memory) => memory.id)).toEqual(['residence', 'communication', 'legacy-location']);
-    expect(selected.every((memory) => memory.category.startsWith('core_profile:'))).toBe(true);
+    expect(selected.map(memory => memory.category)).toEqual(['fact', 'preference', 'fact']);
+    expect(selected.map(memory => memory.contextCategory)).toEqual(['core_profile:fact', 'core_profile:preference', 'core_profile:fact']);
+  });
+
+  it('keeps verified standing facts citable without changing their semantic category', () => {
+    const selected = selectCoreProfileMemories([{ id: 'home', user_id: 'owner', is_active: true,
+      category: 'fact', topic_key: 'profile/residence', content: 'Vive en Bogotá.' }]);
+    expect(selected[0]).toMatchObject({ category: 'fact', contextCategory: 'core_profile:fact' });
+    expect(buildPersonalKnowledge('owner', [], selected).lookup.size).toBe(1);
+    expect(buildPersonalKnowledge('other', [], selected).lookup.size).toBe(0);
   });
 
   it('does not promote arbitrary episodes or project facts into the always-on profile', () => {

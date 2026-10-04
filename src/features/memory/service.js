@@ -1,4 +1,5 @@
 import { validateMemoryCandidates } from './validate-candidates.js';
+import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
 import { saveMemory, searchMemories, getActiveMemories, getStandingMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
 
@@ -68,8 +69,10 @@ ENTITY NAME CANONICALIZATION (entityName):
 
 ATOMICITY AND EVIDENCE RULES:
 - Never combine a durable fact with a task, appointment, reminder, deadline, or temporary state.
-- Every candidate must include evidence: an exact quote copied from the user text that directly supports the durable fact.
+- Every candidate must include evidence: an exact quote copied from the user text that directly supports the durable fact. Exact substring presence is necessary but not sufficient: read the full user turn for quotation, negation, correction and attribution. A quoted or mentioned phrase is not itself a user preference; if the user disclaims that attribution, do not extract the denied preference or infer its opposite. Extract a durable preference only when the user directly asserts it.
 - Do not infer a relationship or entity type merely from the setting of an appointment.
+- Explicit lasting communication style/language instructions are durable preferences (preference/communication or preference/language); retain them through extraction and admission with exact user evidence. Quoted instructions and one-turn requests are not lasting preferences.
+- Never infer a concrete standing language preference solely from current utterance language, citation, denial or refusal to change. Only a direct lasting user instruction or assertion supports it. Retain explicit negative lasting constraints as constraints, without inferring an unnamed alternative language.
 - A one-time intention never establishes a lasting preference or habit. Operational project creation, names and descriptions belong to project records, not duplicate memories.
 - Execution facts describe operational context to exclude; preserve independent durable facts in mixed turns.
 - Prefer returning no candidate over storing an uncertain or mixed memory.
@@ -122,7 +125,7 @@ export function canonicalizeTopicKey(rawTopicKey, entityName = null, category = 
  * @param {string} params.userText
  * @param {string} params.assistantReply - Accepted for caller compatibility, but never used as factual evidence.
  * @param {Array<object>} params.executionFacts - Validated backend outcomes used to remove operational clauses.
- * @param {'extract'|'skip_operational'} params.memoryDisposition - Semantic turn classification from orchestration.
+ * @param {'extract'|'skip_operational'|'processed'} params.memoryDisposition - Semantic turn classification from orchestration.
  * @returns {Promise<Array<object>>}
  */
 export async function extractAndSaveMemories({
@@ -131,8 +134,11 @@ export async function extractAndSaveMemories({
   assistantReply,
   executionFacts = [],
   memoryDisposition = 'extract',
+  throwOnError = false,
 }) {
-  if (!userId || !userText) return [];
+  // An explicit save already ran this same pipeline on the entire source turn,
+  // including independent facts. Do not repeat even an empty or failed attempt.
+  if (memoryDisposition === 'processed' || !userId || !userText) return [];
 
   if (memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
     console.log('[memoryService] SKIPPED extraction: unresolved operational-only turn.');
@@ -165,11 +171,13 @@ export async function extractAndSaveMemories({
       max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
       timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
     });
-    const candidates = parseJsonArray(rawResponse);
+    const candidates = parseJsonArray(rawResponse, throwOnError);
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
-    const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES).filter(item => !getMemoryCandidateRejection(item, eligibleText));
-    const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts });
+    const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES)
+      .map(item => item && typeof item === 'object' ? { ...item, evidence: recoverLiteralEvidence(item.evidence, eligibleText) } : item)
+      .filter(item => !getMemoryCandidateRejection(item, eligibleText));
+    const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts, throwOnError });
     const saved = [];
     for (const item of admitted) {
       if (!item.content) continue;
@@ -179,16 +187,25 @@ export async function extractAndSaveMemories({
         continue;
       }
 
-      let canonicalName = item.entityName ? String(item.entityName).trim() : null;
-      let matchedEntity = null;
-      if (canonicalName) {
+      // Association is optional: never coerce malformed names or turn an
+      // unsupported/missing hint into a generic physical identity.
+      let canonicalName = typeof item.entityName === 'string' ? item.entityName.trim() : null;
+      const entityCategory = item.entityCategory;
+      if (canonicalName && canonicalName.length <= 80
+        && typeof entityCategory === 'string' && ENTITY_WRITE_CATEGORIES.includes(entityCategory)) {
         try {
-          matchedEntity = await findOrCreateEntityFuzzy({
+          const matchedEntity = await findOrCreateEntityFuzzy({
             userId,
             name: canonicalName,
-            category: item.entityCategory || 'other',
+            category: entityCategory,
           });
-          if (matchedEntity?.name) canonicalName = matchedEntity.name;
+          // Fuzzy matching can return a different physical category. Do not
+          // adopt that identity; durable memory keeps its admitted topic/content.
+          if (matchedEntity?.category === entityCategory
+            && (!matchedEntity.user_id || matchedEntity.user_id === userId)
+            && typeof matchedEntity.name === 'string' && matchedEntity.name.trim()) {
+            canonicalName = matchedEntity.name.trim();
+          }
         } catch (entErr) {
           console.warn('[memoryService] entity fuzzy match error:', entErr.message);
         }
@@ -202,6 +219,7 @@ export async function extractAndSaveMemories({
         content: item.content,
       });
 
+      if (!mem && throwOnError) throw new Error('Memory write was not confirmed.');
       if (mem) {
         saved.push(mem);
         console.log(`[memoryService] SAVED MEMORY (${safeTopicKey}): "${item.content}"`);
@@ -210,6 +228,7 @@ export async function extractAndSaveMemories({
     return saved;
   } catch (err) {
     console.error('[memoryService] extractAndSaveMemories threw:', err);
+    if (throwOnError) throw err;
     return [];
   }
 }
@@ -244,7 +263,7 @@ export function selectCoreProfileMemories(memories, limit = 10) {
     .filter(({ score }) => score > 0)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, safeLimit)
-    .map(({ memory }) => ({ ...memory, category: `core_profile:${memory.category || 'fact'}` }));
+    .map(({ memory }) => ({ ...memory, contextCategory: `core_profile:${memory.category || 'fact'}` }));
 }
 
 /**
@@ -366,8 +385,11 @@ export async function retrieveRelevantMemoriesResult({ userId, queryText, limit 
   }
 }
 
-function parseJsonArray(text) {
-  if (!text) return [];
+function parseJsonArray(text, throwOnError = false) {
+  if (!text) {
+    if (throwOnError) throw new Error('Memory extraction returned no response.');
+    return [];
+  }
   try {
     let clean = text.trim();
     const start = clean.indexOf('[');
@@ -380,7 +402,9 @@ function parseJsonArray(text) {
     if (Array.isArray(parsed?.memories)) return parsed.memories;
   } catch (err) {
     console.warn('[memoryService] JSON array parse failed:', err.message);
+    if (throwOnError) throw err;
   }
+  if (throwOnError) throw new Error('Invalid memory extraction response.');
   return [];
 }
 
@@ -411,11 +435,28 @@ export function getMemoryEligibleText(userText) {
   return String(userText || '').trim();
 }
 
+// Source canonicalization only; semantic admission still evaluates the full turn.
+function recoverLiteralEvidence(evidence, sourceText) {
+  if (typeof evidence !== 'string' || !evidence || sourceText.includes(evidence)) return evidence;
+  const sourceLower = sourceText.toLowerCase();
+  const evidenceLower = evidence.toLowerCase();
+  if (sourceLower.length !== sourceText.length || evidenceLower.length !== evidence.length) return evidence;
+  const start = sourceLower.indexOf(evidenceLower);
+  if (start < 0 || sourceLower.indexOf(evidenceLower, start + 1) >= 0) return evidence;
+  const slice = sourceText.slice(start, start + evidence.length);
+  return slice.toLowerCase() === evidenceLower ? slice : evidence;
+}
+
 function getMemoryCandidateRejection(item, sourceText) {
-  if (!String(item?.topicKey || '').trim()) return 'missing_topic_key';
+  if (typeof item?.topicKey !== 'string' || !item.topicKey.trim()) return 'missing_topic_key';
+  if (item.topicKey.length > 100) return 'invalid_topic_key';
+  // Identity/schema validation only, not semantic interpretation. Empty cleanup
+  // must not fall back to profile/fact and supersede an unrelated memory.
+  const segments = canonicalizeTopicKey(item.topicKey, null, '').split('/');
+  if (segments.length < 2 || segments.some(segment => !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(segment))) return 'invalid_topic_key';
   if (typeof item?.content !== 'string' || !item.content.trim()) return 'missing_content';
   if (!['fact', 'decision', 'preference', 'episode'].includes(item.category)) return 'invalid_category';
-  const evidence = typeof item?.evidence === 'string' ? item.evidence.trim() : '';
+  const evidence = typeof item?.evidence === 'string' ? item.evidence : '';
   if (!evidence) return 'missing_user_evidence';
   if (!String(sourceText).includes(evidence)) return 'evidence_not_in_user_text';
   return null;

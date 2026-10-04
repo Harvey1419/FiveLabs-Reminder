@@ -29,6 +29,7 @@ vi.mock('../../../src/integrations/google/auth.js', () => ({
 }));
 
 import { routeMessage } from '../../../src/agent/orchestration/router.js';
+import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { executeTool } from '../../../src/agent/tools/index.js';
 import { callChatCompletion, callPendingTransitionVerification, callResponseSynthesis } from '../../../src/agent/providers/client.js';
 import { getDailyOverview } from '../../../src/infrastructure/database/index.js';
@@ -42,8 +43,16 @@ const user = {
   display_name: 'Juan',
 };
 
+const supportedOperations = new Set(getStructuredTurnSchema().properties.actions.items.properties.operation.enum);
+
 function modelToolCall(payload) {
-  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
+  const actions = Array.isArray(payload.actions) ? payload.actions.map(action => {
+    const operation = `${action.domain}.${action.action}`;
+    if (!supportedOperations.has(operation)) return action;
+    const { domain, action: verb, ...fields } = action;
+    return { operation, ...fields };
+  }) : payload.actions;
+  return { role: 'assistant', content: JSON.stringify({ responseCapability: 'general', ...payload, actions }), tool_calls: [] };
 }
 
 function activeFollowup(id = 'reminder-1', content = 'Llamar a Julieth') {
@@ -65,6 +74,43 @@ beforeEach(() => {
 });
 
 describe('Hermes direct TurnIntent router', () => {
+  it.each([
+    ['missing capability', { actions: [{ operation: 'conversation.reply', content: 'Unsafe bypass' }] }],
+    ['null capability', { responseCapability: null, actions: [{ operation: 'conversation.reply', content: 'Unsafe bypass' }] }],
+    ['invalid capability', { responseCapability: 'invalid', actions: [{ operation: 'conversation.reply', content: 'Unsafe bypass' }] }],
+    ['missing task status', { responseCapability: 'general', actions: [{ operation: 'task.list' }] }],
+  ])('rejects raw %s without fixture defaults or tool effects', async (_name, payload) => {
+    callChatCompletion.mockResolvedValue({ role: 'assistant', content: JSON.stringify(payload), tool_calls: [] });
+    const result = await routeMessage('Consulta', user, []);
+    expect(result.intent).toBe('clarification');
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([{}, { domain: 'unknown', action: 'reply' }, { operation: 'unknown.reply' }])('does not repair missing or unknown mock operations: %j', async action => {
+    callChatCompletion.mockResolvedValue(modelToolCall({ actions: [action] }));
+    const result = await routeMessage('Consulta', user, []);
+    expect(result.plan.type).toBe('invalid_intent');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+  it('captures foreground policy separating historical dates, mutable state and ordinary dialogue', async () => {
+    callChatCompletion.mockResolvedValue(modelToolCall({ responseCapability: 'general', actions: [{ domain: 'conversation', action: 'reply', content: 'Con gusto.' }] }));
+    const history = [{ role: 'assistant', content: 'Creación anterior', entities: { _turnMetadata: { kind: 'operational_result', mutationReceipts: [{ operation: 'reminder.create', summary: 'Recordatorio programado: Alfa, 14 de enero de 2031' }] } } }];
+    const result = await routeMessage('Gracias por acompañarme', user, history);
+    const [messages, options] = callChatCompletion.mock.calls[0];
+    const policy = messages[0].content;
+    process.stdout.write(`DV18 captured foreground=${policy.length} schema=${JSON.stringify(options.responseFormat).length} characters\n`);
+    expect(policy).toContain('fechas de compromisos históricos: evidencia canónica, no el año del reloj');
+    expect(policy).toContain('conversation.recap historical renders recorded facts');
+    expect(policy).toContain('Current: explicit reads, not history.');
+    expect(policy).not.toContain('NUNCA respondas desde el historial');
+    expect(result.confirmation).toBe('Con gusto.');
+    expect(result.confirmation).not.toContain('2031');
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(callResponseSynthesis).not.toHaveBeenCalled();
+  });
   it('inherits persisted conversation language for ambiguous replies without changing the profile', async () => {
     callChatCompletion.mockResolvedValue(modelToolCall({ actions: [{ domain: 'conversation', action: 'reply', content: 'You are welcome.' }] }));
     const result = await routeMessage('OK', user, [{ role: 'assistant', content: 'Done.', entities: { _responseLanguage: 'en' } }]);
@@ -209,7 +255,7 @@ describe('Hermes direct TurnIntent router', () => {
   it('preserves the authentic conversational transcript in history while executing live reads for inventory', async () => {
     executeTool.mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
     callChatCompletion.mockResolvedValue(modelToolCall({
-      actions: [{ domain: 'task', action: 'list' }],
+      actions: [{ domain: 'task', action: 'list', status: 'pending' }],
     }));
     const history = [{
       role: 'assistant',
@@ -521,6 +567,7 @@ describe('Hermes direct TurnIntent router', () => {
         action: 'list',
         entityName: 'reminder',
         scope: 'all_pending',
+        status: 'pending',
       }],
     }));
     executeTool.mockResolvedValue({

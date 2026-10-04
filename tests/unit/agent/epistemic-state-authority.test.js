@@ -57,11 +57,13 @@ describe('Epistemic State Authority and Pure Architecture Contracts', () => {
         displayName: 'Juan',
       });
 
-      expect(prompt).toContain('el chat no tiene autoridad sobre compromisos');
-      expect(prompt).toContain('pregunta que pida inventario vivo');
+      expect(prompt).toContain('Node es la autoridad final sobre identidad, propiedad, estado y timezone');
+      expect(prompt).toContain('Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura');
       expect(prompt).toContain('agenda.read, calendar.list, reminder.list, task.list');
-      expect(prompt).toContain('Para estado, deuda o saldo consulta task.list(entityName)');
-      expect(prompt).toContain('no calcules totales a partir del contexto truncado ni del historial');
+      expect(prompt).toContain('Estado/deuda/saldo: task.list(entityName)');
+      expect(prompt).toContain('answerFromResults calcula con resultados, no contexto parcial/historial');
+      expect(prompt).toContain('NUNCA simules mutaciones (pagar, completar, borrar) solo con texto');
+      expect(prompt).toContain('Never reconstruct live state from chat history');
       expect(prompt.length).toBeLessThan(6000);
     });
   });

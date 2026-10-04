@@ -33,6 +33,17 @@ export function countTaskNotes(task) {
   return lines.length > 0 ? lines.length : 1;
 }
 
+// Report only complete, unchanged field values at the actual render decision.
+// Humanized dates and normalized notes are deliberately not coverage proof.
+export function fullyRenderedTaskFields(task, description, time) {
+  const fields = [];
+  if (typeof task?.description === 'string' && task.description.length > 0
+    && task.description.length <= 400 && task.description === description
+    && !description.includes('\n')) fields.push('description');
+  if (typeof task?.due_date === 'string' && task.due_date === time) fields.push('due_date');
+  return fields;
+}
+
 export function formatTaskNotesBadge(task, isEnglish = false) {
   const count = countTaskNotes(task);
   if (count <= 0) return '';
@@ -53,6 +64,7 @@ export function formatTaskProjectGroups(tasks = [], {
   isMultiDay = false,
   projectName = null,
   numbered = false,
+  onTaskRendered = null,
 } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   if (safeTasks.length === 0) return '';
@@ -72,6 +84,7 @@ export function formatTaskProjectGroups(tasks = [], {
       const prefix = numbered ? `${globalIndex++}.` : '•';
       const desc = String(task?.description || task?.notes || '').trim();
       const noteLine = desc ? `\n   ↳ 📝 _${desc.replace(/\n+/g, ' · ')}_` : '';
+      onTaskRendered?.(task, fullyRenderedTaskFields(task, desc, time));
       return `${prefix} ${title}${time ? ` — ${time}` : ''}${notesBadge}${noteLine}`;
     });
     return `${projectIcon} *${project}*\n${lines.join('\n')}`;
