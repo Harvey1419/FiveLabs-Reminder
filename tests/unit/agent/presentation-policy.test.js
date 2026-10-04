@@ -171,6 +171,29 @@ describe('turn-level presentation policy', () => {
     expect(text).not.toMatch(/✅ \*?1?\s*Reminders? ·/);
   });
 
+  it.each([
+    [TOOL_NAMES.GET_UNIFIED_AGENDA, 'get_agenda'],
+    [TOOL_NAMES.MANAGE_TASK, 'list'],
+    [TOOL_NAMES.MANAGE_REMINDER, 'list'],
+  ])('preserves canonical partial read cards for %s', (tool, requestedAction) => {
+    const card = '📋 *Agenda disponible*\n\n☑️ Revisar propuesta Alfa\n🔔 Llamar a Ana\n⚠️ Google Calendar no disponible.';
+    const text = composeTurnPresentation([fact({
+      tool, requestedAction, complete: false,
+      summary: 'Consulta parcialmente disponible.', card,
+    })], 'es');
+
+    expect(text).toBe(`⚠️ *1 acción completada parcialmente*\n${card}`);
+    expect(text).not.toContain('acciones realizadas');
+  });
+
+  it('falls back to the summary when a partial read has no card', () => {
+    const text = composeTurnPresentation([fact({
+      tool: TOOL_NAMES.GET_UNIFIED_AGENDA, requestedAction: 'get_agenda',
+      complete: false, card: '', summary: 'Solo tareas disponibles; calendario no disponible.',
+    })], 'en');
+    expect(text).toBe('⚠️ *1 action partially completed*\nSolo tareas disponibles; calendario no disponible.');
+  });
+
   it('keeps verified successes aggregated when one action needs clarification', () => {
     const facts = [
       fact({

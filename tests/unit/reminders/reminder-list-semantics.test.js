@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatCanonicalReminderList } from '../../../src/shared/reminder-presentation.js';
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
   supabase: { from: vi.fn() },
@@ -21,10 +22,26 @@ const { executeBulkReminderCancellation } = await import('../../../src/agent/too
 
 function queryResult(data = []) {
   const query = {};
-  for (const method of ['select', 'or', 'eq', 'in', 'is', 'gte', 'lt', 'neq', 'not', 'order', 'limit']) {
+  for (const method of ['select', 'or', 'eq', 'in', 'is', 'gte', 'lt', 'neq', 'not', 'order', 'limit', 'ilike']) {
     query[method] = vi.fn(() => query);
   }
-  query.then = (resolve, reject) => Promise.resolve({ data, error: null }).then(resolve, reject);
+  query.then = (resolve, reject) => {
+    let rows = data;
+    for (const [column, pattern] of query.ilike.mock.calls) {
+      const body = pattern.slice(1, -1);
+      let literal = '';
+      for (let i = 0; i < body.length; i++) {
+        if (body[i] === '\\') i++;
+        literal += body[i];
+      }
+      rows = rows.filter(row => String(row[column] || '').toLowerCase().includes(literal.toLowerCase()));
+    }
+    for (const [column, value] of query.eq.mock.calls) rows = rows.filter(row => row[column] === value);
+    for (const [column, value] of query.gte.mock.calls) rows = rows.filter(row => row[column] >= value);
+    for (const [column, value] of query.lt.mock.calls) rows = rows.filter(row => row[column] < value);
+    for (const [limit] of query.limit.mock.calls) rows = rows.slice(0, limit);
+    return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+  };
   return query;
 }
 
@@ -54,9 +71,127 @@ describe('reminder list delivery-state semantics', () => {
     expect(query.eq).toHaveBeenCalledWith('status', 'pending');
     expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-05T20:34:12.000Z');
     expect(query.is).not.toHaveBeenCalledWith('acknowledged_at', null);
+    expect(query.ilike).not.toHaveBeenCalled();
     expect(result.data).toMatchObject({ filter: 'upcoming' });
     expect(result.data.reminders).toHaveLength(1);
     expect(result.data.reminders[0]).toMatchObject({ id: 'future-1', content: 'Llamar a Laura' });
+  });
+
+  it.each([null, {}, 42, '', '   ', 'a'.repeat(201), '*', 'a\0b'])('rejects invalid query %j before database access', async value => {
+    const result = await executeReminderReadTool({ params: { query: value }, user: { id: 'user-1' }, language: 'en' });
+    expect(result).toMatchObject({ success: false, errorCode: 'INVALID_QUERY' });
+    expect(supabase.from).not.toHaveBeenCalled();
+    const { buildDomainCall } = await import('../../../src/agent/orchestration/domain-call.js');
+    const call = buildDomainCall({ domain: 'reminder', action: 'list', query: value }, { language: 'en' });
+    expect(call.error).toBe(result.error);
+  });
+
+  it.each(['AlFa', '50%', 'a_b', 'a\\b'])('filters literal content %s before limit', async value => {
+    const query = queryResult([]);
+    supabase.from.mockReturnValue(query);
+    const result = await executeReminderReadTool({ params: { query: ` ${value} ` }, user: { id: 'user-1' } });
+    expect(result.success).toBe(true);
+    const pattern = '%' + value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_') + '%';
+    expect(query.ilike).toHaveBeenCalledWith('content', pattern);
+    expect(query.ilike.mock.invocationCallOrder[0]).toBeLessThan(query.limit.mock.invocationCallOrder[0]);
+    expect(query.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(query.gte).toHaveBeenCalledWith('send_at', expect.any(String));
+    expect(result.data.reminders).toEqual([]);
+  });
+
+  it.each(['AlFa', '50%', 'a_b', 'a\\b'])('returns matching content %s beyond the unfiltered limit', async value => {
+    const base = { user_id: 'user-1', status: 'pending', send_at: '2031-01-01T12:00:00Z', acknowledged_at: null };
+    const query = queryResult([
+      ...Array.from({ length: 50 }, (_, i) => ({ ...base, id: `other-${i}`, content: 'Unrelated' })),
+      { ...base, id: 'match', content: `Review ${value.toUpperCase()} please` },
+      { ...base, id: 'foreign', user_id: 'user-2', content: value },
+      { ...base, id: 'sent', status: 'sent', content: value },
+      { ...base, id: 'past', send_at: '2020-01-01', content: value },
+      { ...base, id: 'hidden', delivery_id: 'gcal:event', content: value },
+    ]);
+    supabase.from.mockReturnValue(query);
+    const result = await executeReminderReadTool({ params: { query: value }, user: { id: 'user-1' }, referenceTime: new Date('2030-01-01') });
+    expect(result.data.reminders.map(row => row.id)).toEqual(['match']);
+    for (const language of ['es', 'en']) {
+      expect(formatCanonicalReminderList(result.data, { language })).toBe(formatCanonicalReminderList({ ...result.data, query: undefined }, { language }));
+    }
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(query.or).not.toHaveBeenCalled();
+  });
+
+  it.each(['es', 'en'].flatMap(language => ['upcoming', 'tomorrow', 'day_after_tomorrow', 'today', 'pending_today', 'remaining_today', 'this_week', 'next_week', 'completed_today', 'created_today', 'this_weekend'].map(filter => ({ language, filter }))))('renders query-scoped empty cards for $language/$filter', async ({ language, filter }) => {
+    const query = queryResult([{ id: 'owned', user_id: 'user-1', content: 'Llamar a Laura', status: 'pending', send_at: '2031-01-01T12:00:00Z', acknowledged_at: null }]);
+    supabase.from.mockReturnValue(query);
+    const result = await executeReminderReadTool({ params: { query: 'Alfa', filter }, language, user: { id: 'user-1' }, referenceTime: new Date('2030-01-01') });
+    expect(result.data.reminders).toEqual([]);
+    const header = formatCanonicalReminderList({ reminders: [], filter }, { language }).split('\n\n')[0];
+    const message = language === 'en'
+      ? 'No reminders match your search within the requested scope. 🔎'
+      : 'No hay recordatorios que coincidan con tu búsqueda dentro del alcance solicitado. 🔎';
+    const card = formatCanonicalReminderList(result.data, { language });
+    expect(card).toBe(`${header}\n\n${message}`);
+    expect(card).not.toContain('Alfa');
+  });
+
+  it.each([
+    ['upcoming', 'You have no pending reminders. Enjoy your peace of mind! ☕', 'No tienes recordatorios pendientes. ¡Tranquilidad total y todo bajo control! ☕'],
+    ['tomorrow', 'You have no reminders scheduled for tomorrow. Your day is completely clear! 🚀', 'No tienes recordatorios programados para mañana. ¡Día completamente despejado! 🚀'],
+    ['day_after_tomorrow', 'You have no reminders scheduled for the day after tomorrow. Enjoy your clear schedule! ✨', 'No tienes recordatorios programados para pasado mañana. ¡Panorama despejado! ✨'],
+    ['today', 'You have no pending reminders for today. You are all caught up! ☕', 'No tienes recordatorios pendientes para hoy. ¡Estás al día por completo! ☕'],
+    ['this_week', 'You have no reminders scheduled for this week. Have a relaxed and focused week! 🌟', 'No tienes recordatorios programados para esta semana. ¡Semana libre de alarmas por ahora! 🌟'],
+    ['next_week', 'You have no reminders scheduled for next week. Clear schedule ahead! 🎯', 'No tienes recordatorios programados para la próxima semana. ¡Agenda despejada! 🎯'],
+    ['completed_today', 'You have no pending reminders. Enjoy your peace of mind! ☕', 'No tienes recordatorios pendientes. ¡Tranquilidad total y todo bajo control! ☕'],
+  ])('preserves exact no-query empty wording for %s', (filter, en, es) => {
+    for (const language of ['en', 'es']) {
+      const card = formatCanonicalReminderList({ reminders: [], filter }, { language });
+      expect(card.split('\n\n')[1]).toBe(language === 'en' ? en : es);
+      expect(formatCanonicalReminderList({ reminders: [], filter, query: undefined }, { language })).toBe(card);
+    }
+  });
+
+  it('returns zero content matches from a populated legitimate owner dataset', async () => {
+    const rows = [
+      { id: 'owned-1', user_id: 'user-1', content: 'Llamar a Laura', status: 'pending', send_at: '2031-01-01T12:00:00Z', acknowledged_at: null },
+      { id: 'owned-2', user_id: 'user-1', content: 'Revisar presupuesto', status: 'pending', send_at: '2031-01-02T12:00:00Z', acknowledged_at: null },
+    ];
+    const query = queryResult(rows);
+    supabase.from.mockReturnValue(query);
+    const result = await executeReminderReadTool({ params: { query: 'Alfa' }, user: { id: 'user-1' }, referenceTime: new Date('2030-01-01') });
+    expect(result).toMatchObject({ success: true, data: { query: 'Alfa', reminders: [], items: [] } });
+    expect(formatCanonicalReminderList(result.data, { language: 'es' })).toBe('🔔 *Recordatorios pendientes*\n\nNo hay recordatorios que coincidan con tu búsqueda dentro del alcance solicitado. 🔎');
+    expect(formatCanonicalReminderList(result.data, { language: 'en' })).toBe('🔔 *Pending reminders*\n\nNo reminders match your search within the requested scope. 🔎');
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(query.ilike).toHaveBeenCalledWith('content', '%Alfa%');
+    expect(query.ilike.mock.invocationCallOrder[0]).toBeLessThan(query.limit.mock.invocationCallOrder[0]);
+    const unfilteredQuery = queryResult(rows);
+    supabase.from.mockReturnValue(unfilteredQuery);
+    const unfiltered = await executeReminderReadTool({ user: { id: 'user-1' }, referenceTime: new Date('2030-01-01') });
+    expect(unfiltered.data.reminders).toEqual(rows);
+    expect(unfilteredQuery.ilike).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 'a'.repeat(200), ` ${'a'.repeat(200)} `])('accepts absent or maximum trimmed query without broadening', async value => {
+    const query = queryResult([]);
+    supabase.from.mockReturnValue(query);
+    const result = await executeReminderReadTool({ params: { query: value }, user: { id: 'user-1' } });
+    expect(result.success).toBe(true);
+    if (value === undefined) expect(query.ilike).not.toHaveBeenCalled();
+    else expect(query.ilike).toHaveBeenCalledWith('content', `%${'a'.repeat(200)}%`);
+  });
+
+  it('serializes literal patterns through the installed SDK with isolated fetch', async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const { normalizeReminderQuery } = await import('../../../src/agent/contracts/reminder-query.js');
+    const fetch = vi.fn(async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createClient('https://example.invalid', 'offline-test-key', { global: { fetch }, auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { pattern } = normalizeReminderQuery('50%_\\,().');
+    await client.from('reminders').select('*').eq('user_id', 'user-1').ilike('content', pattern).limit(50);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const url = new URL(fetch.mock.calls[0][0]);
+    expect(url.hostname).toBe('example.invalid');
+    expect(url.searchParams.get('content')).toBe(`ilike.${pattern}`);
+    expect(url.searchParams.get('user_id')).toBe('eq.user-1');
+    expect(url.searchParams.has('or')).toBe(false);
   });
 
   it('does not treat already sent reminders as pending-today rows', async () => {
@@ -142,7 +277,7 @@ describe('reminder list delivery-state semantics', () => {
     // 2026-09-05 in Bogota is UTC-5
     // tomorrow is 2026-09-06: 05:00:00Z to 2026-09-07: 05:00:00Z
     const result = await executeReminderReadTool({
-      params: { filter: 'tomorrow' },
+      params: { filter: 'tomorrow', query: 'Alfa' },
       user: { id: 'user-1', phone_number: '+573000000001', timezone: 'America/Bogota' },
       language: 'es',
       referenceTime: new Date('2026-09-05T20:34:12.000Z'),
@@ -153,6 +288,7 @@ describe('reminder list delivery-state semantics', () => {
     expect(query.gte).toHaveBeenCalledWith('send_at', '2026-09-06T05:00:00.000Z');
     expect(query.lt).toHaveBeenCalledWith('send_at', '2026-09-07T05:00:00.000Z');
     expect(result.data).toMatchObject({ filter: 'tomorrow' });
+    expect(query.ilike).toHaveBeenCalledWith('content', '%Alfa%');
   });
 
   it('bounds dynamic weekday scope (e.g. martes) to that specific local day without hardcoding', async () => {

@@ -12,7 +12,7 @@ export const TURN_CONTEXT_PROPERTIES = {
     properties: {
       sourceQuote: { type: 'string', description: 'Exact current-user authored excerpt authorizing this profile change.' },
       timezone: { type: 'string', description: 'IANA timezone for the explicitly selected residence/timezone. Preserve event locations as event context.' },
-      language: { type: 'string', enum: ['es', 'en'], description: 'Only an explicit lasting language preference, not a one-turn language switch.' },
+      language: { type: 'string', enum: ['es', 'en'], description: 'Emit together with exact sourceQuote for an explicit lasting language instruction (e.g. from now on), not only responseLanguage. Never persist quoted or one-turn switches.' },
     },
     required: ['sourceQuote'],
   },

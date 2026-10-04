@@ -1,5 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { callChatCompletion, callMemoryExtraction } from '../../../src/agent/providers/client.js';
+import { mkdtempSync, readFileSync, statSync, readdirSync, rmSync, symlinkSync, realpathSync, writeSync, chmodSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
+// The normalizer's calendar dependency imports live DB/Google modules. None are
+// needed by these conversation-only cases; stop that import graph here.
+vi.mock('../../../src/agent/tools/calendar.js', () => ({ sanitizeCalendarQueryAndScope: () => ({}) }));
+vi.mock('../../../src/infrastructure/database/agent-runs.js', () => ({ clearAgentRunsForUser: vi.fn() }));
+vi.mock('node:fs', async importOriginal => {
+  const fs = await importOriginal();
+  return { ...fs, writeSync: vi.fn(fs.writeSync) };
+});
+import { callChatCompletion, callMemoryExtraction, finalizeRunnerProviderTrace } from '../../../src/agent/providers/client.js';
+
+import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import { validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
+import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
 
 const intent = { actions: [{ domain: 'conversation', action: 'reply', content: 'Hola.' }] };
 const options = { returnMessage: true, purpose: 'initial', responseFormat: { type: 'json_schema', json_schema: { name: 'test', strict: true, schema: { type: 'object', properties: {}, additionalProperties: false, required: [] } } } };
@@ -14,7 +30,183 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
+describe('synthetic runner provider evidence (offline)', () => {
+  let directory, argv;
+  beforeEach(() => {
+    const phone = `hermes-chat.${randomUUID()}`;
+    directory = mkdtempSync(join(realpathSync(tmpdir()), `hermes-provider-trace-${phone}-`));
+    argv = process.argv;
+    process.argv = [argv[0], resolve('scripts/dev/interactive-chat.js')];
+    vi.stubEnv('HERMES_CHAT_TEST_PHONE', phone);
+    vi.stubEnv('HERMES_CHAT_DISABLE_REMINDER_SCHEDULER', '1');
+    vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', directory);
+  });
+  afterEach(() => { finalizeRunnerProviderTrace(); process.argv = argv; rmSync(directory, { recursive: true, force: true }); });
+  const events = directory => readFileSync(join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+
+  it('captures the exact serialized fetch body and rejected raw decision without changing calls or results', async () => {
+    const bodies = [envelope('{"rejected":true}'), envelope()];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(bodies[(fetchMock.mock.calls.length - 1) % 2]));
+    const validate = vi.fn(raw => ({ valid: raw === JSON.stringify(intent), errorCode: 'TEST_REJECTION', intent }));
+    const messages = [{ role: 'user', content: 'Synthetic prompt 😀' }];
+    const opts = { ...options, correlationId: 'synthetic-turn-1', validateStructuredContent: validate };
+    vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', '');
+    const disabled = await callChatCompletion(messages, opts);
+    expect(readdirSync(directory)).toEqual([]);
+    const baseline = fetchMock.mock.calls.map(([, init]) => ({ body: init.body, headers: init.headers }));
+    vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', directory);
+    const enabled = await callChatCompletion(messages, opts);
+    expect(enabled).toEqual(disabled);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(validate).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.slice(2).map(([, init]) => ({ body: init.body, headers: init.headers }))).toEqual(baseline);
+    const captured = events(directory);
+    expect(captured.filter(e => e.type === 'request').map(e => e.serializedBody)).toEqual(baseline.map(e => e.body));
+    expect(captured.find(e => e.type === 'response').decision.content).toBe('{"rejected":true}');
+    expect(captured.filter(e => e.type === 'validation').map(e => e.result.valid)).toEqual([false, true]);
+    expect(captured.find(e => e.type === 'outcome').reason).toBe('invalid_structured_output');
+    expect(captured[0]).toMatchObject({ purpose: 'initial', correlationId: 'synthetic-turn-1', provider: ['groq'], attempt: 1,
+      bodyBytes: Buffer.byteLength(baseline[0].body) });
+    finalizeRunnerProviderTrace();
+    expect(events(directory).at(-1)).toMatchObject({ type: 'completeness', complete: true });
+    expect(statSync(directory).mode & 0o777).toBe(0o700);
+    expect(statSync(join(directory, 'events.jsonl')).mode & 0o777).toBe(0o600);
+    expect(readFileSync(join(directory, 'events.jsonl'), 'utf8')).not.toContain('sk-or-protocol-secret');
+  });
+
+  it('bounds oversized evidence and explicitly marks missing bytes while preserving return', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(envelope()));
+    const result = await callChatCompletion([{ role: 'user', content: 'x'.repeat(300000) }], options);
+    expect(result.content).toBe(JSON.stringify(intent));
+    expect(events(directory).find(e => e.type === 'request')).toMatchObject({ complete: false, missing: 'event_byte_limit' });
+    expect(statSync(join(directory, 'events.jsonl')).size).toBeLessThan(8 * 1024 * 1024);
+  });
+
+  it('preserves the primary empty-response retry with capture enabled', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope(fetchMock.mock.calls.length % 2 ? '' : JSON.stringify(intent))));
+    vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', '');
+    const disabled = await callChatCompletion([], options);
+    vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', directory);
+    expect(await callChatCompletion([], options)).toEqual(disabled);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(events(directory).filter(e => e.type === 'request').map(e => e.attempt)).toEqual([1, 2]);
+    expect(events(directory).filter(e => e.type === 'outcome').map(e => e.validation)).toEqual(['not_run', 'not_run']);
+  });
+
+  it('bounds aggregate bytes independently of the event limit', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope()));
+    for (let i = 0; i < 45; i++) await callChatCompletion([{ role: 'user', content: 'x'.repeat(200000) }], options);
+    finalizeRunnerProviderTrace();
+    const summary = events(directory).at(-1);
+    expect(summary.complete).toBe(false);
+    expect(summary.missingEvents).toBeGreaterThan(0);
+    expect(summary.events).toBeLessThan(1200);
+    expect(statSync(join(directory, 'events.jsonl')).size).toBeLessThanOrEqual(8 * 1024 * 1024);
+    expect(fetchMock).toHaveBeenCalledTimes(45);
+  });
+
+  it('refuses non-private or symlink directories without changing provider behavior', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope()));
+    chmodSync(directory, 0o755);
+    await callChatCompletion([], options);
+    expect(readdirSync(directory)).toEqual([]);
+    chmodSync(directory, 0o700);
+    const link = `${directory}.link`;
+    try {
+      symlinkSync(directory, link);
+      vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', link);
+      await callChatCompletion([], options);
+      expect(readdirSync(directory)).toEqual([]);
+    } finally { rmSync(link, { force: true }); }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(warning()).toContain('Provider trace incomplete');
+  });
+
+  it('reserves a completeness marker when the aggregate event budget is exhausted', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope()));
+    for (let i = 0; i < 401; i++) expect((await callChatCompletion([], options)).content).toBe(JSON.stringify(intent));
+    finalizeRunnerProviderTrace();
+    const captured = events(directory);
+    expect(captured).toHaveLength(1201);
+    expect(captured.at(-1)).toMatchObject({ type: 'completeness', complete: false, missingEvents: 3 });
+    expect(fetchMock).toHaveBeenCalledTimes(401);
+    expect(statSync(join(directory, 'events.jsonl')).size).toBeLessThanOrEqual(8 * 1024 * 1024);
+  });
+
+  it('marks credential-bearing evidence omitted, never silently redacted', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(envelope('sk-or-protocol-secret')));
+    expect((await callChatCompletion([], options)).content).toBe('sk-or-protocol-secret');
+    finalizeRunnerProviderTrace();
+    expect(events(directory).find(e => e.type === 'response')).toMatchObject({ complete: false, missing: 'credential_in_evidence' });
+    expect(events(directory).at(-1).complete).toBe(false);
+    expect(readFileSync(join(directory, 'events.jsonl'), 'utf8')).not.toContain('sk-or-protocol-secret');
+  });
+
+  it('marks an unfinished provider call incomplete at finalization', async () => {
+    let deliver;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(resolveResponse => { deliver = resolveResponse; }));
+    const pending = callChatCompletion([], options);
+    finalizeRunnerProviderTrace();
+    const summary = events(directory).at(-1);
+    deliver(response(envelope()));
+    expect((await pending).content).toBe(JSON.stringify(intent));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({ complete: false, unfinishedCalls: 1 });
+  });
+
+  it('does not retry provider requests on trace IO errors and reports incomplete evidence', async () => {
+    writeSync.mockImplementationOnce(() => { throw new Error('synthetic disk failure'); });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(envelope()));
+    expect((await callChatCompletion([], options)).content).toBe(JSON.stringify(intent));
+    finalizeRunnerProviderTrace();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(events(directory).at(-1)).toMatchObject({ complete: false, ioError: true });
+    expect(warning()).toContain('Provider trace incomplete: event_io_error');
+  });
+
+  it('does not trace the runner parent or generic entrypoints even with trace environment set', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope()));
+    for (const entrypoint of ['scripts/dev/run-chat-validation.js', 'src/app/server.js']) {
+      process.argv = [argv[0], resolve(entrypoint)];
+      await callChatCompletion([], options);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(readdirSync(directory)).toEqual([]);
+  });
+
+  it('refuses existing files/symlinks without extra provider requests or overwriting evidence', async () => {
+    symlinkSync('missing-target', join(directory, 'events.jsonl'));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(envelope()));
+    expect((await callChatCompletion([], options)).content).toBe(JSON.stringify(intent));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(readdirSync(directory)).toEqual(['events.jsonl']);
+    expect(warning()).toContain('Provider trace incomplete');
+  });
+});
+
 describe('foreground provider protocol, not HTTP status alone', () => {
+  it.each(['historical', 'current'])('preserves declared %s recap through mocked provider transport and runtime normalization', async mode => {
+    const schema = getStructuredTurnSchema();
+    const action = (operation, fields) => Object.fromEntries(Object.keys(schema.properties.actions.items.properties).map(key => [key, key === 'operation' ? operation : fields[key] ?? null]));
+    const wire = { responseCapability: 'general', responseLanguage: 'en', actions: [
+      action('conversation.recap', { recapMode: mode }),
+      ...(mode === 'current' ? [action('task.list', { status: 'all', entityName: 'Work', query: 'Alpha', limit: 3 }), action('reminder.list', { scope: 'all_pending', query: 'Alpha', limit: 2 })] : []),
+    ] };
+    const responseFormat = { type: 'json_schema', json_schema: { name: 'turn', strict: true, schema } };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response(envelope(JSON.stringify(wire))));
+    const message = await callChatCompletion([], { ...options, responseFormat });
+    const checked = validateTurnIntent(projectStructuredTurnIntent(stripStructuredNulls(JSON.parse(message.content))), { requireResponseCapability: true });
+    expect(checked.valid).toBe(true);
+    const normalized = normalizeTurnIntentForRuntime(checked.intent, {});
+    expect(normalized.responseCapability).toBe('general');
+    expect(normalized.actions[0]).toEqual({ domain: 'conversation', action: 'recap', recapMode: mode });
+    if (mode === 'current') {
+      expect(normalized.actions[1]).toMatchObject({ status: 'all', entityName: 'Work', query: 'Alpha', limit: 3 });
+      expect(normalized.actions[2]).toMatchObject({ scope: 'all_pending', query: 'Alpha', limit: 2 });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format.json_schema.schema).toEqual(schema);
+  });
   it.each([
     [{ id: 'gen-error', error: { code: 400, message: 'generation failed', metadata: { error_type: 'max_tokens_exceeded' } } }, 'provider_error'],
     [{ ...envelope(), error: { message: 'top-level failure overrides content' } }, 'provider_error'],

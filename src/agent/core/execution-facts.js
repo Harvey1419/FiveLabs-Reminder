@@ -41,9 +41,11 @@ function getPresentationContext(result, language, timezone) {
   };
 }
 
-function getCanonicalCard(toolName, params, result, language, timezone) {
+export const TASK_CARD_COVERAGE = Symbol('local task card coverage');
+
+function getCanonicalCard(toolName, params, result, language, timezone, onTaskRendered) {
   if (!result?.success) return null;
-  const presentation = getPresentationContext(result, language, timezone);
+  const presentation = { ...getPresentationContext(result, language, timezone), onTaskRendered };
 
   if (toolName === TOOL_NAMES.GET_UNIFIED_AGENDA && result?.data) {
     return formatCanonicalAgenda(result.data, presentation);
@@ -96,8 +98,8 @@ function getCanonicalCard(toolName, params, result, language, timezone) {
   return null;
 }
 
-function getSafeCard(toolName, params, result, language, timezone) {
-  const canonical = getCanonicalCard(toolName, params, result, language, timezone);
+function getSafeCard(toolName, params, result, language, timezone, onTaskRendered) {
+  const canonical = getCanonicalCard(toolName, params, result, language, timezone, onTaskRendered);
   return sanitizeResponseText(
     canonical || result?.formattedCard || result?.confirmation || result?.rawSummary || getSafeSummary(result, language)
   );
@@ -113,7 +115,16 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
   }
   const success = Boolean(result?.success) && !unknown;
   const complete = success && result?.partialSuccess !== true && result?.complete !== false;
-  return Object.freeze({
+  const coverage = [], seen = new Set(), duplicates = new Set();
+  let renderedRows = 0;
+  const card = getSafeCard(toolName, params, result, language, timezone, (row, fields) => {
+    if (++renderedRows > 100) return;
+    if (!complete || typeof row?.id !== 'string' || !row.id || row.id.length > 80) return;
+    if (seen.has(row.id)) duplicates.add(row.id);
+    seen.add(row.id);
+    if (coverage.length < 100) coverage.push({ itemId: row.id, fields: [...fields] });
+  });
+  const fact = {
     callId,
     tool: toolName,
     action: result?.action || params?.action || 'executed',
@@ -124,7 +135,7 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     errorCode: success ? null : (result?.errorCode || 'TOOL_EXECUTION_ERROR'),
     requiresClarification: Boolean(result?.requiresClarification),
     summary: getSafeSummary(result, language),
-    card: getSafeCard(toolName, params, result, language, timezone),
+    card,
     ctaUrl: result?.ctaUrl || null,
     ctaHeader: result?.ctaHeader || null,
     ctaButtonText: result?.ctaButtonText || null,
@@ -132,7 +143,12 @@ export function createExecutionFact({ toolName, params, result, callId = null, l
     presentationData: result?.data ?? null,
     presentationParams: params && typeof params === 'object' ? { ...params } : {},
     presentationContext: getPresentationContext(result, language, timezone),
-  });
+  };
+  // Non-enumerable local view metadata never enters JSON/history/provider payloads.
+  Object.defineProperty(fact, TASK_CARD_COVERAGE, { value: Object.freeze((renderedRows > 100 ? [] : coverage)
+    .filter(item => !duplicates.has(item.itemId))
+    .map(item => Object.freeze({ ...item, fields: Object.freeze(item.fields) }))) });
+  return Object.freeze(fact);
 }
 
 /**

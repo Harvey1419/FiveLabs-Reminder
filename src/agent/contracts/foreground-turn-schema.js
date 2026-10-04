@@ -29,7 +29,7 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
-  schema.required = [...schema.required, 'responseLanguage'];
+  schema.required = [...schema.required, 'responseLanguage', 'responseCapability'];
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']
@@ -40,10 +40,11 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   // Cartesian product. Node projects it back to canonical domain/action below.
   const { domain: _domain, action: _action, ...sharedProperties } = action.properties;
   if (attachmentOnly) {
+    schema.properties.responseCapability.enum = ['general'];
     action.properties = {
       operation: {
         type: 'string',
-        enum: getCanonicalOperations({ domains }),
+        enum: ['conversation.reply'],
         description: 'Exact qualified canonical operation. Domain/action are inseparable. For attachment-only evidence, use conversation.reply.',
       },
       content: sharedProperties.content,

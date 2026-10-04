@@ -41,7 +41,10 @@ describe('Groq strict provider projection regressions', () => {
       : before.properties.actions.items.properties.domain.enum.filter((domain) => options.isAdmin || domain !== 'admin');
     expect(action.properties).not.toHaveProperty('domain');
     expect(action.properties).not.toHaveProperty('action');
-    expect(action.properties.operation.enum).toEqual(getCanonicalOperations({ domains }));
+    expect(action.properties.operation.enum).toEqual(options.attachmentOnly ? ['conversation.reply'] : getCanonicalOperations({ domains }));
+    expect(schema.properties.responseLanguage.type).toBe('string');
+    expect(schema.properties.responseCapability.type).toBe('string');
+    expect(schema.properties.responseCapability.enum).toEqual(options.attachmentOnly ? ['general'] : ['general', 'billing_info']);
     if (!options.attachmentOnly) expect(action.properties.operation.enum).toContain('reminder.list');
     expect(action.properties.operation.enum).not.toContain('reminder.search');
     expect(TURN_INTENT_SCHEMA).toEqual(before);

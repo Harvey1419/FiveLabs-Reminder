@@ -302,7 +302,9 @@ function formatPartialSuccesses(partial, language) {
   const heading = language === 'en'
     ? `⚠️ *${partial.length} action${partial.length === 1 ? '' : 's'} partially completed*`
     : `⚠️ *${partial.length} ${partial.length === 1 ? 'acción completada parcialmente' : 'acciones completadas parcialmente'}*`;
-  const details = partial.map((fact) => sanitizeResponseText(fact.summary || fact.card || '')).filter(Boolean);
+  const details = partial.map((fact) => sanitizeResponseText(
+    isReadFact(fact) ? (fact.card || fact.summary || '') : (fact.summary || fact.card || ''),
+  )).filter(Boolean);
   return `${heading}${details.length ? `\n${details.join('\n')}` : ''}`;
 }
 

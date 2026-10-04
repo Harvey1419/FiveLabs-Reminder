@@ -46,7 +46,8 @@ describe('standing memory database retrieval', () => {
         created_at: new Date(Date.UTC(2026, 9, 1, 12, index)).toISOString(),
       })),
       {
-        id: 'legacy-profile-fact', topic_key: 'place/barranquilla/residence', category: 'fact',
+        id: 'legacy-profile-fact', user_id: 'user-1', is_active: true, valid_from: '2024-01-01T00:00:00.000Z', valid_until: null, superseded_by: null,
+        topic_key: 'place/barranquilla/residence', category: 'fact',
         content: 'The user lives in Barranquilla.', created_at: '2024-01-01T00:00:00.000Z',
       },
     ];

@@ -4,6 +4,8 @@ import { composeExecutionReply, createExecutionFact } from '../../../src/agent/c
 import { getIntentToolDefinitions, normalizeIntentAction, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { clearWorkingMemory, formatWorkingMemoryPrompt, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
 
+// Pure entity matching imports the DB barrel; do not construct a live client.
+vi.mock('../../../src/infrastructure/database/index.js', () => ({ supabase: null }));
 vi.mock('../../../src/integrations/google/auth.js', () => ({
   hasUsableGoogleCredentials: vi.fn(() => false),
 }));
@@ -74,10 +76,15 @@ describe('Hermes product-quality core', () => {
       displayName: 'Juan',
     });
 
-    expect(prompt).toContain('pregunta que pida inventario vivo');
-    expect(prompt).toContain('requiere una lectura de agenda');
+    expect(prompt).toContain('Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura (agenda.read, calendar.list, reminder.list, task.list)');
+    expect(prompt).toContain('Never reconstruct live state from chat history');
+    expect(prompt).toContain('RECAP: conversation.recap historical renders recorded facts;');
+    expect(prompt).toContain('Current: explicit reads, not history.');
+    expect(prompt).toContain('evidenceRefs narrows history.');
     expect(prompt).toContain('Si un dato personal ya aparece');
-    expect(prompt).not.toContain('sourceQuote');
+    expect(prompt).toContain('lasting standing preference');
+    expect(prompt).toContain('profileUpdate.sourceQuote');
+    expect(prompt).toContain('never persist one-turn switches');
     expect(prompt).not.toContain('manifest');
   });
 
@@ -89,10 +96,10 @@ describe('Hermes product-quality core', () => {
       displayName: 'Harvey',
     });
 
-    expect(prompt).toContain('Reloj y Fecha Actual: usa exclusivamente la "Hora local"');
+    expect(prompt).toContain('Reloj: "Hora local" y timezone;');
     expect(prompt).toContain('jueves, 24 de septiembre, 8:15 p. m.');
     expect(prompt).toContain('America/Bogota');
-    expect(prompt).toContain('no infieras otra fecha del historial');
+    expect(prompt).toContain('fechas de compromisos históricos: evidencia canónica, no el año del reloj.');
   });
 
   it('renders user preferences and directives into the prompt for standing rules', () => {

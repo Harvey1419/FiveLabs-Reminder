@@ -44,7 +44,11 @@ function reminderContent(item, language) {
 
 function reminderTime(item, timezone, language) {
   const sendAt = item?.sendAt || item?.send_at || null;
-  return item?.formattedTime || (sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '');
+  // Rebuild from the stored instant so stale preformatted text cannot omit or
+  // duplicate the year. Legacy rows without a usable instant keep their label.
+  return sendAt && !Number.isNaN(new Date(sendAt).getTime())
+    ? formatHumanFriendlyDateTime(sendAt, timezone, language, { includeYearWhenDifferent: true })
+    : item?.formattedTime || '';
 }
 
 function reminderRecurrence(item) {
@@ -206,6 +210,12 @@ export function formatCanonicalReminderList(data, {
   const header = getHeader(filter);
 
   if (reminders.length === 0) {
+    if (typeof data?.query === 'string' && data.query.trim().length > 0) {
+      const message = isEn
+        ? 'No reminders match your search within the requested scope. 🔎'
+        : 'No hay recordatorios que coincidan con tu búsqueda dentro del alcance solicitado. 🔎';
+      return `${header}\n\n${message}`;
+    }
     let emptyMsg;
     switch (filter) {
       case 'tomorrow':
@@ -246,8 +256,7 @@ export function formatCanonicalReminderList(data, {
 
   const blocks = reminders.map((reminder, index) => {
     const content = reminder.content || reminder.title || (language === 'en' ? 'Reminder' : 'Recordatorio');
-    const sendAt = reminder.send_at || reminder.sendAt || null;
-    const timeDisplay = sendAt ? formatHumanFriendlyDateTime(sendAt, timezone, language) : '';
+    const timeDisplay = reminderTime(reminder, timezone, language);
     const recurring = Boolean(reminder.recurrence_rule || reminder.recurrenceRule);
     const recurrenceSuffix = recurring
       ? (language === 'en' ? ' · recurring' : ' · recurrente')

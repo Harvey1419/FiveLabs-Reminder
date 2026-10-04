@@ -1,6 +1,6 @@
 import { formatHumanFriendlyDateTime } from './time.js';
 import { PRESENTATION_TOKENS } from './presentation-tokens.js';
-import { formatTaskProjectGroups, getTaskTime, formatTaskNotesBadge } from './task-presentation.js';
+import { formatTaskProjectGroups, getTaskTime, formatTaskNotesBadge, fullyRenderedTaskFields } from './task-presentation.js';
 import { isAllPendingScope, normalizeAgendaScope, normalizeTaskScope } from './agenda-scopes.js';
 
 function scopeLabel(scope, language) {
@@ -33,6 +33,7 @@ function scopeLabel(scope, language) {
 export function formatCanonicalTaskList(data = {}, {
   language = 'es',
   timezone = 'UTC',
+  onTaskRendered = null,
 } = {}) {
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
   const projectName = data?.entityName || null;
@@ -58,6 +59,7 @@ export function formatCanonicalTaskList(data = {}, {
       const title = task?.title || task?.content || (isEn ? 'Untitled task' : 'Tarea sin título');
       const entity = (task?.entityName || task?.entities?.name) ? ` [${task.entityName || task.entities.name}]` : '';
       const time = task?.localTime ? ` _(${task.localTime})_` : '';
+      onTaskRendered?.(task, task.status === 'completed' ? ['status'] : []);
       return `${globalIndex++}. ~${title}~${entity}${time}`;
     });
 
@@ -107,6 +109,7 @@ export function formatCanonicalTaskList(data = {}, {
       const notesBadge = formatTaskNotesBadge(task, isEn);
       const desc = String(task?.description || task?.notes || '').trim();
       const noteLine = desc ? `\n   ↳ 📝 _${desc.replace(/\n+/g, ' · ')}_` : '';
+      onTaskRendered?.(task, fullyRenderedTaskFields(task, desc, time));
       return `${globalIndex++}. ${title}${time ? ` — ${time}` : ''}${notesBadge}${noteLine}`;
     });
     return `${header}\n\n${lines.join('\n')}`;
@@ -117,6 +120,7 @@ export function formatCanonicalTaskList(data = {}, {
     timezone,
     isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
     numbered: true,
+    onTaskRendered,
   });
 
   const header = scope === 'all_pending'
@@ -129,6 +133,7 @@ export function formatCanonicalTaskList(data = {}, {
 export function formatCanonicalAgenda(data = {}, {
   language = 'es',
   timezone = 'UTC',
+  onTaskRendered = null,
 } = {}) {
   const isEn = language === 'en';
   const calendar = data?.calendar || { state: 'DISCONNECTED', events: [] };
@@ -183,6 +188,7 @@ export function formatCanonicalAgenda(data = {}, {
       timezone,
       isMultiDay: !['today', 'remaining_today', 'tomorrow'].includes(scope),
       numbered: true,
+      onTaskRendered,
     });
     sections.push(`☑️ *${isEn ? 'Tasks' : 'Tareas'} · ${tasks.length}*\n\n${groups}`);
   }

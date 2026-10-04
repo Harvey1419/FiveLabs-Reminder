@@ -1,3 +1,4 @@
+import { normalizeReminderQuery } from '../contracts/reminder-query.js';
 import { supabase } from '../../infrastructure/database/index.js';
 import {
   formatHumanFriendlyDateTime,
@@ -29,6 +30,10 @@ export async function executeReminderReadTool({
   language = 'es',
   referenceTime = null,
 } = {}) {
+  const reminderQuery = normalizeReminderQuery(params.query, language);
+  if (!reminderQuery.valid) {
+    return { success: false, action: 'invalid_query', errorCode: reminderQuery.errorCode, error: reminderQuery.error };
+  }
   const owner = buildReminderOwnerContext(user);
   const { userId, phoneNumber } = owner;
   const timezone = user?.timezone || 'America/Bogota';
@@ -53,6 +58,8 @@ export async function executeReminderReadTool({
       error: language === 'en' ? 'I could not identify the reminder owner.' : 'No pude identificar al propietario de los recordatorios.',
     };
   }
+
+  if (reminderQuery.value !== undefined) query = query.ilike('content', reminderQuery.pattern);
 
   if (filter === 'completed_today') {
     query = query
@@ -137,6 +144,7 @@ export async function executeReminderReadTool({
       reminders,
       items,
       filter,
+      ...(reminderQuery.value !== undefined ? { query: reminderQuery.value } : {}),
       timezone,
       locale,
     },

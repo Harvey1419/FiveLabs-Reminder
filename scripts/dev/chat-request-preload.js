@@ -3,8 +3,8 @@ const originalFetch = globalThis.fetch;
 const supabaseUrl = process.env.SUPABASE_URL;
 const configuredLimit = process.env.HERMES_CHAT_OPENROUTER_REQUEST_LIMIT;
 const limit = Number(configuredLimit);
-if (!Number.isSafeInteger(limit) || limit < 0 || limit > 120) {
-  throw new Error('HERMES_CHAT_OPENROUTER_REQUEST_LIMIT must be an integer from 0 to 120');
+if (!Number.isSafeInteger(limit) || limit < 0 || limit > 300) {
+  throw new Error('HERMES_CHAT_OPENROUTER_REQUEST_LIMIT must be an integer from 0 to 300');
 }
 if (!supabaseUrl) throw new Error('SUPABASE_URL is required for chat request guard');
 const database = new URL(supabaseUrl);

@@ -59,7 +59,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
             : (memoryData.source === 'calendar' ? 'calendar_event' : 'unknown'))));
 
     return {
-      position: idx + 1,
+      position: Number.isInteger(it.position) && it.position > 0 ? it.position : idx + 1,
       type: rawType,
       internalId: String(it.internalId || it.id || '').trim(),
       summary: String(it.summary || rawTitle).trim(),
@@ -105,6 +105,7 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
     notificationContent: memoryData.notificationContent || null,
     timestamp: Number.isFinite(validRestoredTimestamp) ? validRestoredTimestamp : Date.now(),
     items: normalizedItems,
+    ...(memoryData.infraFault === true ? { infraFault: true, faultReason: memoryData.faultReason || 'provider_unavailable' } : {}),
   };
 
   for (const key of keys) workingMemoryStore.set(key, payload);
@@ -117,7 +118,7 @@ export function getWorkingMemory(userOrPhone) {
   for (const key of keys) {
     const entry = workingMemoryStore.get(key);
     if (!entry) continue;
-    if (Date.now() - entry.timestamp > WORKING_MEMORY_TTL_MS) {
+    if (!Number.isFinite(entry.timestamp) || entry.timestamp > Date.now() + 60_000 || Date.now() - entry.timestamp > WORKING_MEMORY_TTL_MS) {
       workingMemoryStore.delete(key);
       continue;
     }
@@ -173,7 +174,7 @@ export function hydrateWorkingMemoryFromHistory(userOrPhone, history = [], now =
     const timestampCandidate = snapshot.timestamp || turn?.createdAt || snapshot.persistedAt || null;
     const timestampMs = timestampCandidate ? new Date(timestampCandidate).getTime() : NaN;
     if (!Number.isFinite(timestampMs) || referenceMs - timestampMs > PERSISTED_WORKING_MEMORY_MAX_AGE_MS || timestampMs > referenceMs + 60_000) {
-      continue;
+      return null;
     }
 
     if (!(Array.isArray(snapshot.items) && snapshot.items.length > 0) && !snapshot.activeEntity) return null;
@@ -189,14 +190,12 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
   const wm = getWorkingMemory(userOrPhone);
   if (!wm) return '';
 
-  if (wm.infraFault) {
-    return [
-      '[INCIDENCIA DE RED EN TURNO PREVIO]',
-      'El turno inmediatamente anterior falló debido a una interrupción temporal de red/infraestructura del proveedor LLM. NO inventes causas funcionales (como que no había recordatorios o tareas). Si el usuario pregunta qué pasó, responde con naturalidad y honestidad que hubo un microcorte momentáneo de conexión con la IA y que por favor repita su mensaje.',
-    ].join('\n');
-  }
+  const faultNotice = wm.infraFault ? [
+    '[INCIDENCIA EN TURNO PREVIO]',
+    'No se obtuvo una decisión estructurada válida de la IA; no se ejecutó ninguna acción. Puede ser un fallo del proveedor o de validación, no necesariamente de red. NO inventes la causa ni afirmes que faltaban tareas/recordatorios. Las referencias conservadas son las previamente mostradas, NO estado vivo; requieren validación contra la fuente vigente.',
+  ].join('\n') : '';
 
-  if (!wm.items || wm.items.length === 0) return '';
+  if (!wm.items || wm.items.length === 0) return faultNotice;
 
   const lines = wm.items.slice(0, 10).map((it) => {
     const typeLabel = it.type === 'calendar_event'
@@ -227,6 +226,7 @@ export function formatWorkingMemoryPrompt(userOrPhone) {
     : '';
 
   return [
+    ...(faultNotice ? [faultNotice] : []),
     '[Memoria de Trabajo del Turno Anterior — referencias, NO inventario vivo]',
     `Origen: ${sourceDesc}${containerInfo} | Período: ${wm.scope || 'general'}${wm.semanticQuery ? ` | Filtro: "${wm.semanticQuery}"` : ''}`,
     ...(containerInstruction ? [containerInstruction] : []),

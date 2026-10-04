@@ -1,3 +1,4 @@
+import { normalizeReminderQuery } from '../contracts/reminder-query.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { getWorkingMemory } from '../core/working-memory-store.js';
 import { resolveContextReference } from '../core/context-reference.js';
@@ -211,14 +212,14 @@ function buildDomainCallForNormalizedAction(action, context) {
           },
         };
       }
-      if (action.query !== undefined) {
-        return { valid: false, errorCode: 'UNSUPPORTED_FIELD', error: 'La lectura de recordatorios no admite una búsqueda por texto.' };
-      }
+      const reminderQuery = normalizeReminderQuery(action.query, language);
+      if (!reminderQuery.valid) return reminderQuery;
       return {
         valid: true,
         toolName: TOOL_NAMES.MANAGE_REMINDER,
         params: {
           action: 'list',
+          ...(reminderQuery.value !== undefined ? { query: reminderQuery.value } : {}),
           ...((action.scope || action.filter) ? { filter: action.scope || action.filter } : {}),
           ...(action.scope ? { scope: action.scope } : {}),
         },
@@ -255,7 +256,8 @@ function buildDomainCallForNormalizedAction(action, context) {
           params: {
             action: 'list',
             ...(action.entityName || action.target ? { entityName: action.entityName || action.target } : {}),
-            status: action.status || 'pending',
+            status: action.status,
+            ...(action.limit !== undefined ? { limit: action.limit } : {}),
             ...(action.scope ? { scope: action.scope } : {}),
             ...(query ? { query: String(query).trim() } : {}),
           },

@@ -974,12 +974,15 @@ export function formatLocalDateTime(date, timezone = DEFAULT_TIMEZONE, locale = 
  * @param {string} [language='es']
  * @returns {string}
  */
-export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, language = 'es') {
+export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, language = 'es', { includeYearWhenDifferent = false } = {}) {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
   if (isNaN(d.getTime())) return String(date);
 
   const now = new Date();
+  // Opt-in for reminder cards only; compare both calendar years in the user zone.
+  const year = includeYearWhenDifferent ? getLocalDateParts(d, timezone).year : null;
+  const showYear = includeYearWhenDifferent && year !== getLocalDateParts(now, timezone).year;
 
   // Get local date string for target date and current date
   const targetDateStr = d.toLocaleDateString('en-CA', { timeZone: timezone }); // 'YYYY-MM-DD'
@@ -1003,7 +1006,7 @@ export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, l
     return isEs ? `Hoy a las ${time12}` : `Today at ${time12}`;
   }
 
-  if (targetDateStr === tomorrowDateStr) {
+  if (targetDateStr === tomorrowDateStr && !showYear) {
     return isEs ? `Mañana a las ${time12}` : `Tomorrow at ${time12}`;
   }
 
@@ -1013,12 +1016,12 @@ export function formatHumanFriendlyDateTime(date, timezone = DEFAULT_TIMEZONE, l
     const dayNum = d.toLocaleDateString('es-CO', { timeZone: timezone, day: 'numeric' });
     const monthName = d.toLocaleDateString('es-CO', { timeZone: timezone, month: 'long' });
     const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    return `${capitalizedWeekday}, ${dayNum} de ${monthName} a las ${time12}`;
+    return `${capitalizedWeekday}, ${dayNum} de ${monthName}${showYear ? ` de ${year}` : ''} a las ${time12}`;
   } else {
     const weekday = d.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
     const dayNum = d.toLocaleDateString('en-US', { timeZone: timezone, day: 'numeric' });
     const monthName = d.toLocaleDateString('en-US', { timeZone: timezone, month: 'long' });
-    return `${weekday}, ${monthName} ${dayNum} at ${time12}`;
+    return `${weekday}, ${monthName} ${dayNum}${showYear ? `, ${year}` : ''} at ${time12}`;
   }
 }
 

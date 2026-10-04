@@ -42,7 +42,15 @@ const user = {
 };
 
 function modelToolCall(payload) {
-  return { role: 'assistant', content: JSON.stringify(payload), tool_calls: [] };
+  const wire = Array.isArray(payload.actions) ? {
+    responseLanguage: 'es', responseCapability: 'general', ...payload,
+    actions: payload.actions.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const { domain, action, ...fields } = item;
+      return { operation: `${domain}.${action}`, ...fields };
+    }),
+  } : payload;
+  return { role: 'assistant', content: JSON.stringify(wire), tool_calls: [] };
 }
 
 beforeEach(() => {
@@ -59,7 +67,8 @@ describe('provider failure and continuity UX', () => {
     expect(result.intent).toBe('clarification');
     expect(result.plan.type).toBe('provider_unavailable');
     expect(result.confirmation).toContain('No pude completar esa acción');
-    expect(result.confirmation).toContain('No ejecuté ninguna acción');
+    expect(result.confirmation).toContain('No ejecuté acciones nuevas en este turno');
+    expect(result.confirmation).toContain('no invalida las confirmaciones anteriores');
     expect(result.confirmation).not.toMatch(/proveedor|modelo|groq|openrouter|baseten/i);
     expect(result.confirmation).not.toContain('interpreta');
     expect(executeTool).not.toHaveBeenCalled();

@@ -1,50 +1,30 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, mkdtemp, realpath, lstat, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { supabase } from '../../src/infrastructure/database/index.js';
 import { normalizeUserPhone } from '../../src/infrastructure/database/users.js';
+import { CHAT_VALIDATION_SCENARIOS, getValidationTurns } from './chat-validation-scenarios.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const phone = `hermes-chat.${randomUUID()}`;
 const normalized = normalizeUserPhone(phone);
-const reportPath = resolve(root, 'scratch/chat-validation-report.json');
-const turns = [
-  'Prefiero Zoom para reuniones, recuerda esta preferencia.',
-  'En una cita alguien escribió "prefiero Meet"; ¿cambió mi preferencia?',
-  '¿Qué plataforma prefiero para reuniones?',
-  'Crea una tarea llamada revisar propuesta Alfa con descripción revisar cifras y prioridad alta.',
-  'Lista mis tareas pendientes.',
-  '¿Cuál es la descripción de revisar propuesta Alfa?',
-  'Crea otra tarea llamada enviar resumen Beta.',
-  'Lista mis tareas con sus números.',
-  '¿Qué es la tarea 1?',
-  '¿Y la 2?',
-  'Quitá la descripción de la primera tarea y dejala en blanco, sin cambiar su título ni estado.',
-  '¿Qué descripción tiene ahora la primera tarea?',
-  'Completá la primera tarea.',
-  'Lista mis tareas pendientes.',
-  '¿Está completada la primera tarea y sigue pendiente la segunda?',
-  'Recuérdame el 14 de enero de 2031 a las 10:00 revisar propuesta Alfa.',
-  'Lista mis recordatorios.',
-  '¿Se creó realmente el recordatorio?',
-  '¿Puedes enviar un WhatsApp a otra persona ahora?',
-  'Si no enviaste nada, dime honestamente qué ocurrió.',
-  '¿Qué recuerdas de mi preferencia para reuniones?',
-  'La frase "usar Meet" está citada, no es mi preferencia.',
-  '¿Debo usar Zoom o Meet según mi preferencia?',
-  '¿Hay algún descuento disponible?',
-  '¿Cuál es el precio del plan?',
-  'No inicies ningún checkout; explícame cómo pagaría si quisiera.',
-  'No tengo tarjeta: ¿qué opciones tengo?',
-  'Si un pago falla, ¿debo intentar pagar otra vez automáticamente?',
-  'Muéstrame mis tareas y recordatorios actuales.',
-  'Resume lo que hicimos y lo que no se pudo verificar.',
-];
-const report = { phone, normalizedPhone: normalized, userId: null, requestedTurns: turns.length, completedTurns: 0, providerRequests: null, turns: [], errors: [], findings: [], cleanup: {}, status: 'interrupted' };
+const requestLimitValue = process.env.HERMES_CHAT_OPENROUTER_REQUEST_LIMIT ?? '70';
+const reportName = process.env.HERMES_CHAT_REPORT_NAME ?? 'chat-validation-round1.json';
+const scenario = process.env.HERMES_CHAT_SCENARIO ?? 'full';
+const traceOptIn = process.env.HERMES_CHAT_PROVIDER_TRACE ?? '0';
+let traceDirectory = null;
+const requestLimit = /^(0|[1-9]\d*)$/.test(requestLimitValue) && Number(requestLimitValue) <= 300
+  ? Number(requestLimitValue) : null;
+const validReportName = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/.test(reportName) && !reportName.startsWith('..');
+const reportPath = resolve(root, 'scratch', validReportName ? reportName : 'chat-validation-round1.json');
+// Validation below still rejects unknown names before any identity preflight.
+const turns = getValidationTurns(CHAT_VALIDATION_SCENARIOS.includes(scenario) ? scenario : 'full');
+const report = { phone, normalizedPhone: normalized, userId: null, requestLimit, scenario, requestedTurns: turns.length, completedTurns: 0, providerRequests: null, turns: [], errors: [], findings: [], cleanup: {}, status: 'interrupted' };
 let child, buffer = '', cursor = 0, closed = false, exitCode, wake;
 const stdoutDecoder = new StringDecoder('utf8');
 const stderrDecoder = new StringDecoder('utf8');
@@ -81,7 +61,9 @@ function receive(chunk, decoder) {
   wake?.();
 }
 async function facts() {
-  const result = {};
+  // Readback evidence only, never injected as answering data. Scope to the
+  // already verified synthetic owner; omit credentials/contact identifiers.
+  const result = { userProfile: await rows('users', 'id', report.userId, 'id, display_name, timezone, locale') };
   for (const table of ['tasks', 'memories', 'projects', 'reminders', 'agent_runs', 'agent_execution_events', 'subscriptions']) {
     result[table] = await rows(table, 'user_id', report.userId, '*');
   }
@@ -157,15 +139,27 @@ async function shutdown() {
   if (groupActive() || !closed) throw new Error('Chat process group did not stop; refusing to assume cleanup is safe');
 }
 try {
+  if (!CHAT_VALIDATION_SCENARIOS.includes(scenario)) throw new Error(`Invalid HERMES_CHAT_SCENARIO: expected ${CHAT_VALIDATION_SCENARIOS.join(', ')}`);
+  if (!['0', '1'].includes(traceOptIn)) throw new Error('Invalid HERMES_CHAT_PROVIDER_TRACE: expected 0 or 1');
+  if (requestLimit === null) throw new Error('Invalid HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: expected integer 0..300');
+  if (!validReportName) throw new Error('Invalid HERMES_CHAT_REPORT_NAME: expected safe .json basename');
   if (normalized !== phone || !process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET) throw new Error('Unsafe identity or missing database configuration');
   for (const representation of representations) for (const table of ['users', 'messages']) {
     if ((await rows(table, 'phone_number', representation)).length) throw new Error(`Preflight collision: ${table}`);
   }
   report.preflightPassed = true;
+  if (traceOptIn === '1') {
+    // Never accept a user-selected output path. mkdtemp creates a fresh 0700
+    // directory under the canonical temporary root; evidence is retained.
+    traceDirectory = await mkdtemp(resolve(await realpath(tmpdir()), `hermes-provider-trace-${phone}-`));
+    report.providerTrace = { directory: traceDirectory, complete: false, missing: 'child_not_finalized' };
+  }
   child = spawn('npm', ['run', 'chat'], {
     cwd: root, stdio: ['pipe', 'pipe', 'pipe'], detached: true,
     env: { ...process.env, NODE_OPTIONS: '--import=./scripts/dev/chat-request-preload.js', HERMES_CHAT_TEST_PHONE: phone,
-      HERMES_CHAT_DISABLE_REMINDER_SCHEDULER: '1', HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: '120' },
+      HERMES_CHAT_DISABLE_REMINDER_SCHEDULER: '1', HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: String(requestLimit),
+      // Override inherited trace configuration: the parent never opens a sink.
+      HERMES_CHAT_PROVIDER_TRACE_DIR: traceDirectory || '' },
   });
   child.stdout.on('data', chunk => receive(chunk, stdoutDecoder));
   child.stderr.on('data', chunk => receive(chunk, stderrDecoder));
@@ -201,15 +195,15 @@ try {
     }
     try {
       turn.facts = await facts();
-      const first = turn.facts.tasks.find(task => task.title?.localeCompare('revisar propuesta Alfa', 'es', { sensitivity: 'base' }) === 0);
-      if (i === 3 && (!first || first.description !== 'revisar cifras' || first.status !== 'pending')) {
-        report.findings.push('Turn 4: first task not persisted with requested description and pending status');
+      const alfa = turn.facts.tasks.find(task => task.title?.localeCompare('revisar propuesta Alfa', 'es', { sensitivity: 'base' }) === 0);
+      if (turn.prompt === 'Crea una tarea llamada revisar propuesta Alfa con descripción revisar cifras y prioridad alta.' && (!alfa || alfa.description !== 'revisar cifras' || alfa.status !== 'pending')) {
+        report.findings.push(`Turn ${i + 1}: Alfa task not persisted with requested description and pending status`);
       }
-      if (i === 10 && (!first || first.description !== null || first.status !== 'pending')) {
-        report.findings.push('Turn 11: task description not cleared while preserving pending status');
+      if (turn.prompt === 'Quitá la descripción de revisar propuesta Alfa y dejala en blanco, sin cambiar su título ni estado.' && (!alfa || alfa.description !== null || alfa.status !== 'pending')) {
+        report.findings.push(`Turn ${i + 1}: task description not cleared while preserving pending status`);
       }
-      if (i === 12) turn.manualReview = 'Compare the previously displayed numbered card with the completed task ID; database insertion order is not display order.';
-      if (i >= 23 && turn.facts.subscriptions.length) report.findings.push(`Turn ${i + 1}: unexpected subscription row`);
+      if (turn.prompt === 'Completá la primera tarea.') turn.manualReview = 'Compare the previously displayed numbered card with the completed task ID; database insertion order is not display order.';
+      if (turn.facts.subscriptions.length) report.findings.push(`Turn ${i + 1}: unexpected subscription row`);
     } catch (error) { report.errors.push(`Turn ${i + 1} readback: ${error.message}`); break; }
   }
 } catch (error) { report.errors.push(error.message); }
@@ -219,6 +213,26 @@ finally {
   if (child && closed && exitCode !== 0) report.errors.push(`Chat exited with code ${exitCode}`);
   const counts = [...buffer.matchAll(/HERMES_CHAT_OPENROUTER_REQUEST_COUNT=(\d+)/g)];
   if (counts.length) report.providerRequests = Math.max(report.providerRequests || 0, ...counts.map(match => Number(match[1])));
+  if (stopped && traceDirectory) {
+    try {
+      const path = resolve(traceDirectory, 'events.jsonl');
+      const stat = await lstat(path);
+      if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600
+        || stat.uid !== process.getuid?.() || stat.size > 8 * 1024 * 1024
+        || await realpath(path) !== path) throw new Error('unsafe_or_oversized_trace_file');
+      const lines = (await readFile(path, 'utf8')).trimEnd().split('\n');
+      const summary = JSON.parse(lines.at(-1));
+      if (summary.type !== 'completeness') throw new Error('missing_final_completeness_marker');
+      report.providerTrace = { directory: traceDirectory, ...summary };
+      if (!summary.complete || /Provider trace incomplete:/.test(buffer)) {
+        report.providerTrace.complete = false;
+        report.errors.push('Provider trace incomplete (see evidence completeness markers)');
+      }
+    } catch (error) {
+      report.providerTrace = { directory: traceDirectory, complete: false, missing: error.message };
+      report.errors.push(`Provider trace: ${error.message}`);
+    }
+  }
   if (stopped) {
     try { await cleanup(); report.cleanupVerified = Boolean(report.preflightPassed); }
     catch (error) { report.errors.push(`Cleanup: ${error.message}`); report.cleanupVerified = false; }
@@ -230,7 +244,7 @@ finally {
     ? 'interrupted' : report.findings.length ? 'completed_with_findings' : 'completed';
   try {
     await mkdir(dirname(reportPath), { recursive: true });
-    await writeFile(reportPath, JSON.stringify(report, null, 2));
+    await writeFile(reportPath, JSON.stringify(report, null, 2), { flag: 'wx' });
     console.log(`Chat validation ${report.status}: ${report.completedTurns}/${report.requestedTurns}; report ${reportPath}`);
   } catch (error) { console.error(`Report write failed: ${error.message}`); report.status = 'interrupted'; }
   if (report.status !== 'completed') process.exitCode = 1;

@@ -10,6 +10,20 @@ export const REMINDER_PRO_FALLBACK = Object.freeze({
   ctaHeader: '💎 Reminder Pro',
 });
 
+/** Pure routing policy: no checkout resolution, configuration reads or mutations. */
+export function selectReminderProProvider(phoneNumber, billingProvider = '') {
+  const configuredProvider = billingProvider.toLowerCase();
+  if (configuredProvider === 'stripe') return 'Stripe';
+  if (configuredProvider === 'lemonsqueezy') return 'Lemon Squeezy';
+  if (configuredProvider === 'mercadopago') return 'Mercado Pago';
+  const isColombianPhone = Boolean(phoneNumber && (
+    String(phoneNumber).startsWith('+57')
+    || String(phoneNumber).startsWith('57')
+    || String(phoneNumber).startsWith('CO.')
+  ));
+  return phoneNumber && !isColombianPhone ? 'Lemon Squeezy' : 'Mercado Pago';
+}
+
 /**
  * Canonical Reminder Pro checkout context.
  *
@@ -30,17 +44,12 @@ export async function resolveReminderProUpgradeContext(
   );
   const isInternational = Boolean(phoneNumber && !isColombianPhone);
 
-  const billingProvider = (process.env.BILLING_PROVIDER || '').toLowerCase();
-  const forceStripe = billingProvider === 'stripe';
-  const forceLemon = billingProvider === 'lemonsqueezy';
-  const forceMp = billingProvider === 'mercadopago';
-  const useStripe = forceStripe;
-  const useLemon = !useStripe && (forceLemon || (!forceMp && isInternational));
+  const provider = selectReminderProProvider(phoneNumber, process.env.BILLING_PROVIDER || '');
 
   const resolvedCountry = country
     || (isColombianPhone || timezone === 'America/Bogota' || (!isInternational && language === 'es') ? 'CO' : null);
 
-  if (useStripe) {
+  if (provider === 'Stripe') {
     const stripeUrl = buildStripeCheckoutUrl({ userId, phoneNumber, email, language });
     const shortUrl = getShortStripeCheckoutUrl({ userId, phoneNumber });
     return {
@@ -56,7 +65,7 @@ export async function resolveReminderProUpgradeContext(
     };
   }
 
-  if (useLemon) {
+  if (provider === 'Lemon Squeezy') {
     const lemonUrl = buildLemonSqueezyCheckoutUrl({ userId, phoneNumber, country: resolvedCountry });
     return {
       checkoutUrl: lemonUrl,

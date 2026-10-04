@@ -131,7 +131,7 @@ async function startInteractiveSession() {
         await saveMessage({ userId: user.id, phoneNumber: user.phone_number, role: 'user', content: text });
 
         // 2. Obtener historial reciente
-        const history = await getRecentMessages(user.phone_number, 10);
+        const history = await getRecentMessages(user.phone_number, 40);
 
         // 3. Procesar turno
         const result = await routeMessage(text, user, history);
@@ -144,6 +144,7 @@ async function startInteractiveSession() {
           role: 'assistant',
           content: result.confirmation,
           intent: result.intent,
+          entities: { ...(result.entities || {}), _responseLanguage: result.language || (user.locale?.startsWith('en') ? 'en' : 'es') },
         });
 
         // 5. Extracción asíncrona de memoria

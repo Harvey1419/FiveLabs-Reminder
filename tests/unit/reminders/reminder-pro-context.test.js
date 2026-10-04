@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/integrations/mercado-pago/client.js', () => ({
   getOrCreateCanonicalPlan: vi.fn(),
@@ -7,12 +7,38 @@ vi.mock('../../../src/integrations/mercado-pago/client.js', () => ({
 const { getOrCreateCanonicalPlan } = await import('../../../src/integrations/mercado-pago/client.js');
 const {
   REMINDER_PRO_FALLBACK,
+  selectReminderProProvider,
   resolveReminderProUpgradeContext,
 } = await import('../../../src/agent/tools/reminder-pro.js');
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe('Pure Reminder Pro provider selection', () => {
+  it.each([
+    ['stripe', '+573000000001', 'Stripe'],
+    ['STRIPE', '19164158325', 'Stripe'],
+    ['lemonsqueezy', '+573000000001', 'Lemon Squeezy'],
+    ['mercadopago', '19164158325', 'Mercado Pago'],
+    ['', '+573000000001', 'Mercado Pago'],
+    ['test', 'CO.synthetic', 'Mercado Pago'],
+    ['test', '19164158325', 'Lemon Squeezy'],
+    ['', '', 'Mercado Pago'],
+  ])('selects %s for %s without checkout side effects', (billingProvider, phoneNumber, expected) => {
+    vi.clearAllMocks();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected network call'));
+    expect(selectReminderProProvider(phoneNumber, billingProvider)).toBe(expected);
+    expect(getOrCreateCanonicalPlan).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
 
 describe('Reminder Pro upgrade context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('BILLING_PROVIDER', '');
   });
 
   it('uses the canonical plan metadata and provider checkout url', async () => {
@@ -70,8 +96,8 @@ describe('Reminder Pro upgrade context', () => {
   });
 
   it('routes to Stripe checkout when BILLING_PROVIDER=stripe for both domestic and international', async () => {
-    process.env.BILLING_PROVIDER = 'stripe';
-    process.env.STRIPE_CHECKOUT_URL = 'https://buy.stripe.com/8x2dR9dZsez51usg3A73G03';
+    vi.stubEnv('BILLING_PROVIDER', 'stripe');
+    vi.stubEnv('STRIPE_CHECKOUT_URL', 'https://buy.stripe.com/8x2dR9dZsez51usg3A73G03');
 
     const colContext = await resolveReminderProUpgradeContext('+573001234567', 'es', { userId: 'user-col-1' });
     expect(colContext).toMatchObject({
@@ -93,6 +119,5 @@ describe('Reminder Pro upgrade context', () => {
       ctaButtonText: 'Pay now',
     });
     expect(intlContext.checkoutUrl).toContain('locale=en');
-    delete process.env.BILLING_PROVIDER;
   });
 });

@@ -1,61 +1,61 @@
 import {
-  saveMemory,
   searchMemories,
   getActiveMemories,
   forgetMemories,
 } from '../../infrastructure/database/index.js';
+import { extractAndSaveMemories } from '../../features/memory/service.js';
 import { formatMemoryListCard } from './formatters.js';
 import { selectMemoriesToForget } from '../orchestration/select-memory-forgetting.js';
 
 /**
  * Domain tool for managing persistent semantic memories.
  */
-export async function executeMemoryTool({ action, params = {}, user, language = 'es', correlationId = null }) {
+export async function executeMemoryTool({ action, params = {}, user, language = 'es', correlationId = null, memoryTurn = null }) {
   const userId = user?.id;
   const normalizedAction = String(action || 'save');
 
   switch (normalizedAction) {
     case 'save': {
-      const content = params.content || '';
-      const category = params.category || 'fact';
-      const topicKey = params.topicKey || null;
-
-      if (!content) {
+      // Tool parameters are model output, never the factual source.
+      if (!userId || !memoryTurn?.userText) {
         return {
           success: false,
           action: 'invalid_parameters',
           errorCode: 'INVALID_PARAMETERS',
-          error: 'Falta el contenido del recuerdo.',
-          rawSummary: 'Falta el contenido del recuerdo.',
+          error: language === 'en' ? 'The original user message is required to validate a memory.' : 'Necesito el mensaje original del usuario para validar el recuerdo.',
+          rawSummary: language === 'en' ? 'The original user message is required to validate a memory.' : 'Necesito el mensaje original del usuario para validar el recuerdo.',
         };
       }
 
-      const mem = await saveMemory({
-        userId,
-        content,
-        category,
-        topicKey,
-      });
-
-      if (!mem) {
-        return {
-          success: false,
-          action: 'database_error',
-          errorCode: 'DATABASE_ERROR',
-          error: 'No se pudo guardar la memoria.',
-          rawSummary: 'No se pudo guardar la memoria.',
-        };
+      let memories;
+      try {
+        if (!memoryTurn.result) {
+          memoryTurn.processed = true;
+          memoryTurn.result = extractAndSaveMemories({
+            userId, userText: memoryTurn.userText,
+            executionFacts: memoryTurn.executionFacts || [], throwOnError: true,
+          });
+        }
+        memories = await memoryTurn.result;
+      } catch {
+        const message = language === 'en' ? 'I could not confirm the memory save. I will not retry automatically.' : 'No pude confirmar el guardado de la memoria. No lo repetiré automáticamente.';
+        return { success: false, action: 'memory_save_failed', errorCode: 'MEMORY_SAVE_FAILED', error: message, rawSummary: message };
       }
-
+      if (!memories.length) {
+        const message = language === 'en' ? 'No supported durable memories were saved.' : 'No guardé recuerdos duraderos respaldados por tu mensaje.';
+        return { success: false, action: 'memory_not_admitted', errorCode: 'MEMORY_NOT_ADMITTED', error: message, rawSummary: message, data: { memories: [] } };
+      }
+      const content = memories.map(memory => `• ${memory.content}`).join('\n');
       const formattedCard = language === 'en'
-        ? `🧠 *Saved to Memory:*\n"${content}"`
-        : `🧠 *Guardado en mi memoria:*\n"${content}"`;
+        ? `🧠 *Saved to Memory:*\n${content}`
+        : `🧠 *Guardado en mi memoria:*\n${content}`;
 
       return {
         success: true,
         action: 'saved_memory',
         data: {
-          memory: mem,
+          memory: memories[0],
+          memories,
           formattedCard,
         },
         rawSummary: formattedCard,
@@ -63,38 +63,33 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
       };
     }
 
-    case 'search': {
-      const query = params.query || '';
-      const limit = params.limit || 5;
-
-      const results = await searchMemories({
-        userId,
-        query,
-        limit,
-      });
-
-      const formattedCard = formatMemoryListCard(results, language);
-
-      return {
-        success: true,
-        action: 'searched_memories',
-        data: {
-          memories: results,
-          formattedCard,
-        },
-        rawSummary: formattedCard,
-        formattedCard,
-      };
-    }
-
+    case 'search':
     case 'list': {
-      const limit = params.limit || 15;
-      const memories = await getActiveMemories({ userId, limit });
-      const formattedCard = formatMemoryListCard(memories, language);
+      const unavailable = () => {
+        const message = language === 'en' ? 'I could not read your memories right now.' : 'No pude consultar tus recuerdos en este momento.';
+        return { success: false, action: 'memory_read_failed', errorCode: 'MEMORY_UNAVAILABLE', error: message, rawSummary: message };
+      };
+      if (!userId) return unavailable();
+      let result;
+      try {
+        const options = { userId, limit: params.limit || (normalizedAction === 'search' ? 5 : 15), withStatus: true, throwOnError: true };
+        result = normalizedAction === 'search'
+          ? await searchMemories({ ...options, query: params.query || '' })
+          : await getActiveMemories(options);
+      } catch {
+        return unavailable();
+      }
+      if (!['available', 'partial'].includes(result?.status) || !Array.isArray(result.memories)
+        || result.memories.some(row => !row || typeof row.id !== 'string' || !row.id || typeof row.content !== 'string' || !row.content.trim())
+        || (result.status === 'partial' && !result.memories.length)) return unavailable();
+      const memories = result.memories;
+      const notice = result.status === 'partial'
+        ? (language === 'en' ? '\n\nPartial results: some memories could not be retrieved.' : '\n\nResultados parciales: no pude recuperar algunos recuerdos.') : '';
+      const formattedCard = formatMemoryListCard(memories, language) + notice;
 
       return {
         success: true,
-        action: 'listed_memories',
+        action: normalizedAction === 'search' ? 'searched_memories' : 'listed_memories',
         data: {
           memories,
           formattedCard,

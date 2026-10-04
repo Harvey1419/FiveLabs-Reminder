@@ -113,7 +113,7 @@ describe('agent live overview', () => {
 
     expect(promptWithProject).toContain('[Tareas vivas del proyecto/entidad: Apartamento]');
     expect(promptWithProject).toContain('• devolver 465.000 pesos [Mañana a las 12:00 PM]');
-    expect(promptWithProject).toContain('Estado o montos de proyectos: task.list(entityName)');
+    expect(promptWithProject).toContain('Estado/deuda/saldo: task.list(entityName)');
 
     const promptWithoutProject = buildAgentCorePrompt({
       nowStr: '2026-09-29 16:30',
