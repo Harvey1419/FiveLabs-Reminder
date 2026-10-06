@@ -47,6 +47,21 @@ function getCanonicalCard(toolName, params, result, language, timezone, onTaskRe
   if (!result?.success) return null;
   const presentation = { ...getPresentationContext(result, language, timezone), onTaskRendered };
 
+  if (toolName === TOOL_NAMES.MANAGE_SUBSCRIPTION) {
+    const data = result?.data;
+    if (Array.isArray(data?.benefits) && typeof data.hasProAccess === 'boolean') {
+      const access = data.hasProAccess
+        ? (language === 'en' ? 'You already have Reminder Pro access. No payment is needed.' : 'Ya tienes acceso a Reminder Pro. No necesitas realizar otro pago.')
+        : 'Reminder Pro';
+      return [access, ...data.benefits.map(benefit => `• ${benefit}`)].join('\n');
+    }
+    if (result.action === 'subscription_info' && data && Object.hasOwn(data, 'paymentOutcome')) {
+      return language === 'en'
+        ? `Payment provider: ${data.provider || 'unknown'}. Price, discounts and payment methods: unknown. Checkout confirmation, charge outcome, payment outcome and subscription status: unknown. Do not retry manually until the outcome is resolved.`
+        : `Proveedor de pago: ${data.provider || 'desconocido'}. Precio, descuentos y métodos de pago: desconocidos. La confirmación del checkout, cualquier cargo, el resultado del pago y el estado de suscripción son desconocidos. No reintentes manualmente hasta resolver el resultado.`;
+    }
+  }
+
   if (toolName === TOOL_NAMES.GET_UNIFIED_AGENDA && result?.data) {
     return formatCanonicalAgenda(result.data, presentation);
   }

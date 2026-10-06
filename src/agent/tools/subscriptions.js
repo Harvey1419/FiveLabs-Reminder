@@ -1,9 +1,26 @@
 import {
   cancelUserSubscription,
   getUserSubscription,
+  hasProAccess,
   createPendingSubscription,
 } from '../../infrastructure/database/index.js';
 import { resolveReminderProUpgradeContext, selectReminderProProvider } from './reminder-pro.js';
+import { buildStripeCheckoutUrl } from '../../integrations/stripe/client.js';
+
+function proFacts(hasAccess, language) {
+  return {
+    hasProAccess: hasAccess,
+    benefits: language === 'en'
+      ? ['Schedule reminders for future days', 'Set up recurring reminders']
+      : ['Programa recordatorios para días futuros', 'Configura recordatorios recurrentes'],
+  };
+}
+
+async function subscriptionFor(user, userId) {
+  return Object.hasOwn(user || {}, 'subscription')
+    ? user.subscription
+    : (userId ? getUserSubscription(userId) : null);
+}
 
 /**
  * Domain tool for managing subscriptions and billing.
@@ -14,28 +31,40 @@ export async function executeSubscriptionTool({ action, params = {}, user, langu
 
   switch (action) {
     case 'info': {
-      // Only public routing configuration is evidence here; never resolve checkout
-      // or query subscription state to answer commercial questions.
+      // Generic billing questions remain informational. Only declared plan scope
+      // can display an existing Payment Link; it never resolves or creates checkout.
       const configured = (process.env.BILLING_PROVIDER || '').toLowerCase();
       const provider = !configured || ['stripe', 'lemonsqueezy', 'mercadopago'].includes(configured)
         ? selectReminderProProvider(phoneNumber, configured)
         : null;
-      const rawSummary = language === 'en'
-        ? `💎 *Reminder Pro information*\n\nPayment provider: ${provider || 'unknown'}.\nCurrent prices and discounts are not confirmed.\nPurchase uses a secure checkout link, generated only on your explicit request. Available payment methods are shown in checkout. I cannot confirm alternative methods or card availability. This information request does not generate a checkout link.\n\nIf a payment appears to fail:\nDo not automatically repeat payment; first verify the checkout confirmation, any charge and the subscription state to avoid duplicate payment. If that state is unknown, I cannot confirm success, failure, a refund or automatic retry behavior. Do not retry manually until the outcome is resolved. If confirmation, charge and subscription disagree or remain unknown, ask the payment provider or support to resolve the original attempt first.`
-        : `💎 *Información de Reminder Pro*\n\nProveedor de pago: ${provider || 'desconocido'}.\nLos precios y descuentos vigentes no están confirmados.\nLa compra usa un enlace de pago seguro, generado solo por solicitud explícita. Los métodos disponibles se muestran en el checkout. No puedo confirmar métodos alternativos ni disponibilidad de tarjetas. Esta consulta no genera un enlace de pago.\n\nSi un pago parece fallar:\nNo repitas el pago automáticamente; primero verifica la confirmación del checkout, cualquier cargo y el estado de la suscripción para evitar un pago duplicado. Si ese estado es desconocido, no puedo confirmar éxito, fallo, reembolso ni reintentos automáticos. No reintentes manualmente hasta resolver el resultado. Si la confirmación, el cargo y la suscripción no coinciden o siguen desconocidos, pide al proveedor de pago o a soporte que resuelva primero el intento original.`;
-      return {
-        success: true,
-        action: 'subscription_info',
-        data: { provider, paymentMethods: null, price: null, discounts: null,
-          checkoutConfirmation: null, chargeOutcome: null, paymentOutcome: null, subscriptionStatus: null,
-          formattedCard: rawSummary },
-        rawSummary,
-        formattedCard: rawSummary,
-      };
+      const data = { provider, paymentMethods: null, price: null, discounts: null,
+        checkoutConfirmation: null, chargeOutcome: null, paymentOutcome: null, subscriptionStatus: null };
+      const result = { success: true, action: 'subscription_info', data };
+      if (params.scope !== 'plan') return result;
+      try {
+        if (!userId) throw new Error('Authenticated account required');
+        const subscription = await subscriptionFor(user, userId);
+        const hasAccess = hasProAccess(subscription, user);
+        Object.assign(data, proFacts(hasAccess, language));
+        if (!hasAccess && provider === 'Stripe') {
+          result.ctaUrl = buildStripeCheckoutUrl({ userId, phoneNumber, language });
+          result.ctaHeader = '💎 Reminder Pro';
+          result.ctaButtonText = language === 'en' ? 'Subscribe to Pro' : 'Suscribirse a Pro';
+        }
+        return result;
+      } catch (error) {
+        return { success: false, action: 'error', errorCode: 'SUBSCRIPTION_ENTITLEMENT_ERROR',
+          rawSummary: language === 'en' ? 'I could not verify your Pro access.' : 'No pude verificar tu acceso a Pro.' };
+      }
     }
 
     case 'get_link': {
       try {
+        const subscription = await subscriptionFor(user, userId);
+        if (hasProAccess(subscription, user)) {
+          return { success: true, action: 'subscription_already_pro', data: proFacts(true, language) };
+        }
+
         const proContext = await resolveReminderProUpgradeContext(phoneNumber, language, {
           userId,
           timezone: user?.timezone,

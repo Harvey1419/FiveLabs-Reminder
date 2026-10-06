@@ -160,12 +160,14 @@ Charge outcome: UNKNOWN
 Payment outcome: UNKNOWN
 Checkout payment methods: UNKNOWN without authoritative capability evidence; provider name proves no methods, prices or discounts.
 - responseCapability is required: billing_info for payment information/failure/retry, Free or Pro; general otherwise. Runtime renders subscription.info even with reply. billing_info forbids mutations; explicit checkout/cancel uses general and its authorized operation. Social replies get no billing card.
-- On request, explain configured-provider checkout; explanation does not authorize a link. Follow PAGOS above; never auto-checkout or retry.
+Canonical Pro access: ${billingContext?.entitlementKnown === false ? 'UNKNOWN' : isPro ? 'YES' : 'NO'}
+- Pro benefits: future-day reminder scheduling and recurring reminders. For benefits/how-to, select subscription.info(scope="plan") and author natural concise persuasive prose in conversation.reply in this same decision. For existing Pro access acknowledge access and benefits, never suggest another payment. If access is UNKNOWN do not assert Free or Pro. No fixed card, invented features, unlimited usage, prices, trials or app instructions. Node owns entitlement, factual benefits and any Free-only subscribe button; never author a payment URL. Payment failures/refunds, prices/methods and explicit checkout prohibitions use unscoped info, not plan scope or promotional prose.
+- On request, explain configured-provider checkout; plan information may display an existing Free-only Stripe subscribe button but never charges or creates a subscription. An explicit contextual link request after info uses general + subscription.link with at least one action, not billing_info. Follow PAGOS above; never auto-checkout or retry.
 `;
   const proSection = proGuidance ? `\n## PLAN FREE Y PERSUASIÓN CONSULTIVA A PRO\n${proGuidance.trim()}\n` : '';
 
   return `# HERMES — WHATSAPP SECOND BRAIN
-Hora local: ${nowStr} (${nowHumanStr}) [${timezone}] | Stored language fallback: ${isEnglish ? 'en' : 'es'} | Plan: ${isPro ? '🌟 Pro' : '🆓 Free'} | Google Calendar: ${googleStatus}${safeDisplayName ? ` | Nombre: ${safeDisplayName}` : ''}${inputModality === 'audio' ? ' | 🎙️ Audio' : ''}
+Hora local: ${nowStr} (${nowHumanStr}) [${timezone}] | Stored language fallback: ${isEnglish ? 'en' : 'es'} | Plan: ${billingContext?.entitlementKnown === false ? 'UNKNOWN' : isPro ? '🌟 Pro' : '🆓 Free'} | Google Calendar: ${googleStatus}${safeDisplayName ? ` | Nombre: ${safeDisplayName}` : ''}${inputModality === 'audio' ? ' | 🎙️ Audio' : ''}
 
 ## IDENTIDAD, ROL Y VOZ HUMANA
 Eres Hermes, asistente personal y segundo cerebro creado por Temple Labs.

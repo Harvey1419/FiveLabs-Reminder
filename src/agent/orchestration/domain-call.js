@@ -515,7 +515,8 @@ function buildDomainCallForNormalizedAction(action, context) {
       return {
         valid: true,
         toolName: TOOL_NAMES.MANAGE_SUBSCRIPTION,
-        params: { action: action.action === 'link' ? 'get_link' : action.action },
+        params: { action: action.action === 'link' ? 'get_link' : action.action,
+          ...(action.action === 'info' && action.scope ? { scope: action.scope } : {}) },
       };
 
     case 'clarification': {

@@ -28,6 +28,11 @@ describe('direct TurnIntent contract', () => {
     const [domain, action] = operation.split('.');
     expect(validateTurnIntent({ responseCapability: 'billing_info', actions: [{ domain, action, title: 'Alfa', projectless: true }] }).valid).toBe(false);
   });
+  it('accepts general checkout after info but rejects empty actions', () => {
+    const wire = { responseCapability: 'general', actions: [{ operation: 'subscription.link' }] };
+    expect(validateTurnIntent(projectStructuredTurnIntent(wire), { requireResponseCapability: true }).valid).toBe(true);
+    expect(validateTurnIntent({ responseCapability: 'general', actions: [] }, { requireResponseCapability: true }).valid).toBe(false);
+  });
   it('keeps normalization syntactic and rejects semantic aliases', () => {
     expect(normalizeIntentAction('conversation', ' Reply ')).toBe('reply');
     expect(normalizeIntentAction('calendar', 'next-event')).toBe('next_event');
@@ -98,8 +103,10 @@ describe('direct TurnIntent contract', () => {
   for (const [name, clause] of [
     ['task verification coverage', 'task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date)' ],
     ['payment capability evidence', 'Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability'],
-    ['billing information routing', 'Prices, discounts, methods, how-to and no-checkout: subscription.info, not conversation.reply'],
+    ['billing information routing', 'Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info'],
+    ['hybrid plan presentation', 'Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply'],
     ['explicit checkout only', 'subscription.link only for explicit link/open-checkout requests'],
+    ['contextual checkout capability', 'Contextual explicit link requests after info still require general + subscription.link; actions must never be empty'],
     ['checkout prohibition', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info'],
     ['action summary provenance', 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply'],
   ]) {
@@ -108,6 +115,15 @@ describe('direct TurnIntent contract', () => {
       expect(getConversationToolDefinition().function.description).toContain(clause);
     });
   }
+
+  it('validates only the existing plan scope and keeps billing checkout rejection', () => {
+    const plan = validateTurnIntent({ responseCapability: 'billing_info', actions: [{ domain: 'subscription', action: 'info', scope: 'plan' }] });
+    expect(plan.valid).toBe(true);
+    expect(plan.intent.actions[0].scope).toBe('plan');
+    expect(validateTurnIntent({ actions: [{ domain: 'subscription', action: 'info', scope: 'anything' }] }).errorCode).toBe('INVALID_SUBSCRIPTION_SCOPE');
+    expect(validateTurnIntent({ responseCapability: 'billing_info', actions: [{ domain: 'subscription', action: 'link' }] }).valid).toBe(false);
+    expect(validateTurnIntent({ responseCapability: 'general', actions: [] }).valid).toBe(false);
+  });
 
   it('retains literal reminder query constraints in the native field schema', () => {
     const query = getIntentToolDefinitions()[0].function.parameters.properties.actions.items.properties.query;

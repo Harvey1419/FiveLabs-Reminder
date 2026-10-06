@@ -413,7 +413,10 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     retrievePreferencesResult,
     user.id ? getProactive({ userId: user.id, maxEntities: 2, maxRecentEpisodes: 2 }) : Promise.resolve([]),
     getDailyOverview({ userId: user.id, phoneNumber, timezone }),
-    user.id ? getUserSubscription(user.id) : Promise.resolve(null),
+    user.id ? getUserSubscription(user.id).catch(error => {
+      console.warn('[router] subscription entitlement unavailable:', error.message);
+      return undefined;
+    }) : Promise.resolve(null),
     user.id ? getUserIntegration(user.id, 'google') : Promise.resolve(null),
   ]);
   const relevantMemories = relevantResult?.memories || [];
@@ -422,9 +425,12 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     ? 'unavailable' : [relevantResult, preferenceResult].some(result => result?.status !== 'available') ? 'partial' : 'available';
   const contextElapsedMs = Date.now() - contextStart;
 
-  const effectiveSub = subscription || user.subscription;
-  const isPro = hasProAccess(effectiveSub, user);
-  user.subscription = effectiveSub;
+  const entitlementKnown = subscription !== undefined;
+  const effectiveSub = subscription;
+  const isPro = entitlementKnown && hasProAccess(effectiveSub, user);
+  // Do not reuse stale entitlement after a failed authoritative lookup.
+  if (entitlementKnown) user.subscription = effectiveSub;
+  else delete user.subscription;
   user.isPro = isPro;
 
   // On zero-query greetings/check-ins, vector search yields 0 matches. Fallback to proactive anchors.
@@ -465,11 +471,11 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
 
   const enforceBilling = shouldEnforceBillingForUser(user);
   let proGuidance = null;
-  if (enforceBilling && !isPro) {
+  if (enforceBilling && entitlementKnown && !isPro) {
     proGuidance = [
       '- Este usuario está en Plan Free con facturación supervisada.',
       '- Cumple primero la solicitud. Explica planes solo si el usuario pregunta o un límite real bloquea lo pedido; considera el historial para evitar repetir ofertas.',
-      '- Para precios, descuentos, métodos de pago, cómo comprar y explicaciones sin checkout usa subscription.info, no conversation.reply ni subscription.link. Usa subscription.link solo ante una solicitud explícita de enlace de pago o de abrir checkout; una prohibición de checkout prevalece. No generes checkout para descubrir precios o métodos. No inventes tarifas, procesadores, navegación ni métodos alternativos a partir del historial.',
+      '- Beneficios Pro/cómo suscribirse: subscription.info(scope="plan") junto con una explicación natural breve en conversation.reply. Node entrega los hechos y el botón Stripe solo para Free. Precios, descuentos, métodos, fallos/reembolsos y prohibiciones de checkout: subscription.info sin scope; no promoción. Usa general + subscription.link solo para una solicitud explícita de enlace/checkout. No inventes tarifas, procesadores, navegación ni métodos.',
       '- No agregues publicidad a saludos u operaciones rutinarias.',
     ].join('\n');
   }
@@ -481,6 +487,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     billingContext: {
       provider: selectReminderProProvider(phoneNumber, process.env.BILLING_PROVIDER || ''),
       subscriptionStatus: subscription?.status || null,
+      entitlementKnown,
     },
     userMessage: messageText || currentUserText,
     language,
@@ -919,6 +926,15 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   // Text planned before execution is not evidence of its outcome. Operational
   // acknowledgements come exclusively from observed execution facts.
   const hasSubscriptionInfo = operationalActions.some(action => action.domain === 'subscription' && action.action === 'info');
+  const planFacts = execution.facts.filter(fact => fact.tool === TOOL_NAMES.MANAGE_SUBSCRIPTION
+    && fact.success && fact.complete && Array.isArray(fact.presentationData?.benefits)
+    && typeof fact.presentationData?.hasProAccess === 'boolean');
+  // Presentation only, after observed entitlement: never accept model-authored
+  // links or use prose as execution authority. Unscoped billing remains canonical.
+  const planProse = planFacts.length && planFacts.length === execution.facts.length
+    && !recap && conversationReply
+    && !/https?:\/\/|www\.|\[checkout_url\]|\[auth_url\]/i.test(conversationReply)
+    ? conversationReply : '';
   const hasTaskRead = execution.facts.some(fact =>
     [TOOL_NAMES.MANAGE_TASK, TOOL_NAMES.GET_UNIFIED_AGENDA].includes(fact.tool)
     && ['read', 'list'].includes(fact.requestedAction));
@@ -958,7 +974,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     });
     if (answer) framing = { before: answer, after: '' };
   }
-  if (!recap && !hasSubscriptionInfo && !hasTaskRead && (execution.excluded || []).length > 0 && execution.facts.length > 0) {
+  if (!recap && !hasSubscriptionInfo && !planFacts.length && !hasTaskRead && (execution.excluded || []).length > 0 && execution.facts.length > 0) {
     const synthesisStart = Date.now();
     const excludedFraming = await callResponseSynthesis({
       userText: currentUserText,
@@ -973,7 +989,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   }
 
   const personalAnswer = renderPersonalKnowledge(knowledgeRefs, personalKnowledge.lookup, user.id, language);
-  const nextAction = recap || hasSubscriptionInfo || simpleFieldAction || knowledgeRefs.length ? null : await resolveNextBestAction({
+  const nextAction = recap || hasSubscriptionInfo || planFacts.length || simpleFieldAction || knowledgeRefs.length ? null : await resolveNextBestAction({
     executionFacts: execution.facts,
     userText: currentUserText,
     correlationId: requestId,
@@ -990,6 +1006,8 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
       after: [framing?.after, nextAction.recommendationText].filter(Boolean).join('\n\n'),
     };
   }
+
+  if (planProse) framing = { before: [framing?.before, planProse].filter(Boolean).join('\n\n'), after: framing?.after || '' };
 
   const mixedInfoFacts = hasSubscriptionInfo && execution.facts.length > 1
     ? execution.facts.filter(fact => fact.tool === TOOL_NAMES.MANAGE_SUBSCRIPTION && fact.requestedAction === 'info') : [];

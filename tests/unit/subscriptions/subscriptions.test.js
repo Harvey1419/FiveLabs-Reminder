@@ -15,14 +15,7 @@ vi.mock('../../../src/infrastructure/database/index.js', async (importOriginal) 
     })),
     cancelReminders: vi.fn().mockResolvedValue({ cancelledCount: 0, remainingCount: 0 }),
     createPendingSubscription: vi.fn().mockResolvedValue(true),
-    getUserSubscription: vi.fn().mockResolvedValue({
-      id: 'sub-123',
-      user_id: 'test-user-uuid-1',
-      plan: 'pro',
-      status: 'authorized',
-      mp_preapproval_id: 'test_sub_123',
-      next_payment_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-    }),
+    getUserSubscription: vi.fn().mockResolvedValue(null),
     cancelUserSubscription: vi.fn().mockResolvedValue({
       success: true,
       subscription: {
@@ -288,7 +281,10 @@ describe('AI Tools & Plan Tier Gating', () => {
     expect(res.data.checkout_url).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
     expect(res.data.checkout_url).toContain('client_reference_id=test-user-1916');
     expect(res.rawSummary).toContain('https://hermes.templelabs.co/pay?ref=test-user-1916');
-    expect(res.ctaUrl).toContain('buy.stripe.com/8x2dR9dZsez51usg3A73G03');
+    expect(res.ctaUrl).toBe(res.data.checkout_url);
+    expect(res.confirmation).toBe(res.rawSummary);
+    expect(res.data.formattedCard).toBe(res.rawSummary);
+    expect(res.ctaButtonText).toBe('Pagar ahora');
     delete process.env.BILLING_PROVIDER;
   });
 
