@@ -6,8 +6,8 @@ Preserve approved footage, old media and unrelated work; no backend, checkout, p
 Original 6-run budget and explicitly renewed 2-run background scope are exhausted. No further implementation/verifier/voice launches without new authorization.
 
 ## Tasks
-- [ ] L1 — Integration and browser acceptance PASS; awaiting the feature work-unit commit.
-- [ ] L2 — Publish the verified five-file landing increment to main; remote confirmation pending.
+- [x] L1 — Integration and browser acceptance PASS; work-unit f9d10ce9086df05585eea1fdb0e33bb8be71dfe3.
+- [x] L2 — Source work-unit f9d10ce9086df05585eea1fdb0e33bb8be71dfe3 published by non-forced push; remote main identity confirmed.
 - [ ] V1 — After main, resolve audible voice versus muted waveform/transcription and inbound-audio capability; authorize a new bounded flow scope.
 - [ ] V2 — Render and technically verify the separate voice-note MP4 for human approval.
 
@@ -29,6 +29,6 @@ Native assessment is unavailable due to the explicit-untracked declaration incid
 ## Delivery
 Fetched main advanced to75334637d2bd070e9e4bfc0efb0212870bc85349 with unrelated agent work. Feature branch fast-forwarded safely; the four verified landing hashes remained identical.
 Stage only src/http/views/home.js, tests/unit/home.test.js, public/hermes-demo-loop.mp4, public/hermes-demo-loop-poster.jpg and this document.
-Work-unit commit: pending. Confirmed remote main: pending. Core CI runs on push; live foreground acceptance is manual and must not be dispatched.
+Work-unit commit: f9d10ce9086df05585eea1fdb0e33bb8be71dfe3. Confirmed remote main source checkpoint: f9d10ce9086df05585eea1fdb0e33bb8be71dfe3 (git ls-remote after successful push). Core CI runs on push; live foreground acceptance is manual and must not be dispatched.
 Source/tests:360 authored diff lines; generated assets excluded. This concise ledger keeps the source checkpoint near400 lines.
 Approved input SHA256 d6fd3b7ea70fb8e540610a6c597a4b567bb8cc6f859f9cbd417683e73b65653d remains unchanged. Voice work stays deferred until confirmed main publication and fresh scope/budget.
