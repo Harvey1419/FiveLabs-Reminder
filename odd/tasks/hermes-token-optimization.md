@@ -22,9 +22,9 @@ This PR implements safe groundwork and demonstrated redundancy only. No speculat
 Six subagent launches/continuations initially, up to two correction attempts per defect; one source writer at a time. TDD off by standing preference; ordinary relevant regressions required. Native RDD off (`clone_local`, freshly checked). No paid provider calls without a separately authorized aggregate scenario/budget. Preserve unrelated untracked `media/` and video task documents.
 
 ## Tasks
-- [x] T1: Preserve and expose bounded LLM usage/correlation telemetry. Status: done. Checks: provider-latency regressions 17/17 passed, both changed source syntax checks and diff check passed. Router metadata tested through extracted production normalizer, not full integration. Commit: recorded below after work-unit commit.
-- [ ] T2: Reuse validated dispatch policies by effective revision rather than elapsed success TTL. Status: in_progress. Checks: memory-driven dispatch policy regressions, including time advancement, changes and error recovery. Commit: pending.
-- [ ] T3: Deduplicate demonstrated static prompt/schema prose while preserving semantic rules. Status: pending. Checks: intent-contracts, agent-core-overview, live-contract-regressions, runtime-model-contract, task-context-reference-safety; before/after pure input-size measurement. Commit: pending.
+- [x] T1: Preserve and expose bounded LLM usage/correlation telemetry. Status: done. Checks: provider-latency regressions 17/17 passed, both changed source syntax checks and diff check passed. Router metadata tested through extracted production normalizer, not full integration. Commit: `a78b69106f0db25b1bcc3b013bc4aa4681cf7343`.
+- [x] T2: Reuse validated dispatch policies by effective revision rather than elapsed success TTL. Status: done. Checks: memory-driven dispatch policy 25/25 passed, syntax and diff checks passed. Commit: recorded after work-unit commit.
+- [ ] T3: Deduplicate demonstrated static prompt/schema prose while preserving semantic rules. Status: in_progress. Checks: intent-contracts, agent-core-overview, live-contract-regressions, runtime-model-contract, task-context-reference-safety; before/after pure input-size measurement. Commit: pending.
 - [ ] T4: Independent risk-directed verification and single PR publication. Status: pending. Checks: native read-only assessment, focused checks where required, one broad unit closure; `git diff --check`, source/profile/constraint readback and PR CI status. Commit: pending.
 
 ## Progress
@@ -34,7 +34,10 @@ Read-only audit completed; one implementation scout mapped edit surfaces and off
 Live model quality, cached-token support, deployed savings, and production cache miss frequency remain unverified. Existing live acceptance workflow requires provider credentials and paid calls; do not invoke it without budget approval. PR may be marked draft until these checks are addressed. Revert reviewed behavior commits or the eventual merge commit through ordinary repository policy; no data/schema migration is planned.
 
 ## T1 evidence
-Writer launch 2/6 completed: 3 files, +181/-6. Generation ID and usage survive router normalization; successful provider calls emit bounded JSON metadata with unknown counters represented as null in telemetry. Requestless background calls remain unassigned. Existing success log format changed; compatibility will be checked during independent verification. Live cache support and savings unverified.
+Writer launch 2/6 completed: 3 files, +181/-6. Generation ID and usage survive router normalization; successful provider calls emit bounded JSON metadata with unknown counters represented as null in telemetry. Requestless background calls remain unassigned. Existing success log format changed; compatibility will be checked during independent verification. Live cache support and savings unverified. Native assessment initially blocked on unrelated untracked files despite committed range; supported inspect with `untrackedScope: exclude` returned ready and excluded them without staging/deleting. RDD remains off; no native review started. The unavailable assessment requires independent verification.
+
+## T2 evidence
+Writer launch 3/6 completed: 2 files, +110/-4. Successful policies no longer expire by age; exact tenant and ordered effective evidence determine reuse until capacity eviction or process exit. Ten-second error TTL, bounded capacity, concurrent deduplication and clone isolation remain intact. Tests cover reuse after five minutes; tenant/content/timestamp/order/ID/removal invalidation; caller-filtered expiry; failed compilation recovery. No measured production savings claimed.
 
 ## Next step
-Commit T1, record identity, then dispatch one bounded writer for T2.
+Commit T2, record identity, then dispatch one bounded writer for T3.

@@ -26,7 +26,12 @@ export function reduceDispatchRules(preferences = [], rules = []) {
   };
 }
 
-/** Compile natural language once per observed revision, never at every dispatch. */
+/**
+ * Compile natural language once per observed revision, never at every dispatch.
+ * Callers must supply the complete, ordered, active preference snapshot (including
+ * filtering expiry before each call). Only tenant and compiler evidence determine
+ * reuse; successful policies remain cached until capacity eviction or process exit.
+ */
 export async function compileDispatchPolicy({ userId, preferences, complete = callChatCompletion }) {
   if (!Array.isArray(preferences) || preferences.length > 100) throw new Error('Incomplete preference snapshot');
   if (!preferences.length) return reduceDispatchRules();
@@ -35,7 +40,7 @@ export async function compileDispatchPolicy({ userId, preferences, complete = ca
   if (input.length > 24000) throw new Error('Preference snapshot exceeds policy budget');
   const revision = createHash('sha256').update(JSON.stringify([userId, evidence])).digest('hex');
   const cached = cache.get(revision);
-  if (cached && cached.expires > Date.now()) {
+  if (cached && (!cached.error || cached.expires > Date.now())) {
     if (cached.error) throw new Error(cached.error);
     return structuredClone(cached.policy);
   }
@@ -78,7 +83,7 @@ export async function compileDispatchPolicy({ userId, preferences, complete = ca
   pending.set(revision, work);
   try {
     const policy = await work;
-    cache.set(revision, { policy, expires: Date.now() + 300000 });
+    cache.set(revision, { policy });
     return structuredClone(policy);
   } catch (error) {
     cache.set(revision, { error: error.message, expires: Date.now() + 10000 });
