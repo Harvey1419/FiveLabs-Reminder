@@ -8,7 +8,7 @@ Natural, concise persuasive Pro responses use the existing model decision. Code 
 - [x] T3: Concise benefits and contextual checkout guidance (delegated writer; refined by T4).
 - [x] T4: Natural model prose plus deterministic Free-only CTA, existing info-scope forwarding (delegated writer).
 - [x] T2: Native risk assessment, independent focused tests and approved bounded integrity/syntax readback.
-- [ ] T5 (in_progress): Commit isolated Pro code/tests/docs and publish to main as explicitly requested; exclude unrelated video commits/files.
+- [x] T5: Isolated Pro code/tests/docs committed and published to main; unrelated video history excluded.
 
 ## Acceptance and evidence
 Known benefits: future-day scheduling and recurring reminders, grounded in src/agent/tools/formatters.js. Tests cover natural prose preservation, exact CTA labels/ref/locale, no CTA for Pro, repeated Free info without provider creation/pending writes, billing safety, hallucinated URL rejection, info-to-link declared intents and single initial model call.
@@ -21,3 +21,6 @@ No paid/model calls, live payment, database mutations or live WhatsApp checks pe
 
 ## Next
 Publish isolated increment. After deployment, human can verify Free plan-information button and Pro no-payment response; deployment success and actual model routing remain separate pending observations.
+
+## Publication evidence
+Feature work-unit commit a05454c352d1f4b680914ccc4089742752ba70f4; cherry-picked main behavior commit fbc2ddb1558dc7113c623a5fb024f6733c4cde59. git push origin main succeeded c0700e1..fbc2ddb; git ls-remote confirmed main at fbc2ddb1558dc7113c623a5fb024f6733c4cde59. Seven unrelated video commits stayed on feat/hermes-voice-note-demo. T1/T2/T3/T4 outcomes delivered together in this cohesive verified behavior work unit; T5 publication recorded here. Deployment and actual model routing remain unverified, no paid calls or further suite reruns.
