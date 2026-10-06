@@ -1,5 +1,61 @@
 import { describe, expect, it } from 'vitest';
 import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
+import { EXECUTE_TURN_DESCRIPTION } from '../../../src/agent/contracts/intent-contracts.js';
+import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+
+describe('static prompt deduplication', () => {
+  // Bounded c6ab77e baseline, measured with these exact synthetic inputs and
+  // the full provider schema. Characters/bytes are not token or quality proof.
+  it.each([
+    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587 },
+    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689 },
+  ])('reduces serialized prompt + unchanged schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes }) => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30',
+      nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
+      timezone: 'America/Bogota', language: 'es', isAdmin, isPro: isAdmin,
+      billingContext: { provider: 'Stripe', subscriptionStatus: isAdmin ? 'active' : 'pending', entitlementKnown: true },
+      memoryHints: 'Prefiere respuestas breves.', preferenceHints: 'No ofrecer planes sin solicitud.',
+      workingMemoryText: '[Working Memory: referencia, no estado vivo]',
+      referencedProjectTasks: '[Tareas vivas: contexto limitado]',
+      overview: { openTasks: [{ title: 'Synthetic task' }] },
+    });
+    const serialized = JSON.stringify({ prompt, schema: getStructuredTurnSchema({ isAdmin }) });
+    expect(baselineChars - serialized.length).toBeGreaterThanOrEqual(700);
+    expect(baselineChars - serialized.length).toBeLessThanOrEqual(1100);
+    expect(baselineBytes - Buffer.byteLength(serialized)).toBeGreaterThanOrEqual(700);
+    expect(baselineBytes - Buffer.byteLength(serialized)).toBeLessThanOrEqual(1100);
+    // The description is actually consumed by the foreground system prompt,
+    // not by its strict response schema. Never remove its unique action rules.
+    expect(prompt.split(EXECUTE_TURN_DESCRIPTION)).toHaveLength(2);
+    for (const context of [
+      'Prefiere respuestas breves.', 'No ofrecer planes sin solicitud.',
+      '[Working Memory: referencia, no estado vivo]', '[Tareas vivas: contexto limitado]',
+      'Tareas abiertas sin fecha: 1', 'fechas de compromisos históricos: evidencia canónica, no el año del reloj',
+      'Runtime renders subscription.info even with reply', 'Social replies get no billing card',
+      'future-day reminder scheduling and recurring reminders', 'keep prose persuasive',
+      'For existing Pro access acknowledge access and benefits, never suggest another payment',
+      'If access is UNKNOWN do not assert Free or Pro',
+      'No fixed card, invented features, unlimited usage, prices, trials or app instructions',
+      'plan information never charges or creates a subscription',
+    ]) expect(prompt).toContain(context);
+    expect(prompt.includes('Métricas administrativas')).toBe(isAdmin);
+  });
+
+  it('preserves caller-supplied Free guidance and unknown entitlement without inferring a plan', () => {
+    const proGuidance = '- Cumple primero la solicitud.\n- No agregues publicidad a saludos u operaciones rutinarias.';
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30', timezone: 'America/Bogota',
+      proGuidance, isPro: true, billingContext: { entitlementKnown: false },
+    });
+    expect(prompt).toContain(proGuidance);
+    expect(prompt).toContain('Plan: UNKNOWN');
+    expect(prompt).toContain('Canonical Pro access: UNKNOWN');
+    expect(prompt).toContain('Checkout confirmation: UNKNOWN');
+    expect(prompt).toContain('Charge outcome: UNKNOWN');
+    expect(prompt).toContain('Payment outcome: UNKNOWN');
+  });
+});
 
 describe('agent live overview', () => {
   it('exposes counts for orientation but never item content', () => {

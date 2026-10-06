@@ -23,9 +23,9 @@ Six subagent launches/continuations initially, up to two correction attempts per
 
 ## Tasks
 - [x] T1: Preserve and expose bounded LLM usage/correlation telemetry. Status: done. Checks: provider-latency regressions 17/17 passed, both changed source syntax checks and diff check passed. Router metadata tested through extracted production normalizer, not full integration. Commit: `a78b69106f0db25b1bcc3b013bc4aa4681cf7343`.
-- [x] T2: Reuse validated dispatch policies by effective revision rather than elapsed success TTL. Status: done. Checks: memory-driven dispatch policy 25/25 passed, syntax and diff checks passed. Commit: recorded after work-unit commit.
-- [ ] T3: Deduplicate demonstrated static prompt/schema prose while preserving semantic rules. Status: in_progress. Checks: intent-contracts, agent-core-overview, live-contract-regressions, runtime-model-contract, task-context-reference-safety; before/after pure input-size measurement. Commit: pending.
-- [ ] T4: Independent risk-directed verification and single PR publication. Status: pending. Checks: native read-only assessment, focused checks where required, one broad unit closure; `git diff --check`, source/profile/constraint readback and PR CI status. Commit: pending.
+- [x] T2: Reuse validated dispatch policies by effective revision rather than elapsed success TTL. Status: done. Checks: memory-driven dispatch policy 25/25 passed, syntax and diff checks passed. Commit: `c6ab77e9fa16cbfa8f63fd1981ab80b9e3b6a2d9`.
+- [x] T3: Deduplicate demonstrated static prompt/schema prose while preserving semantic rules. Status: done. Checks: five focused files 132/132 passed; both syntax checks and diff check passed; exact schemas/tool definitions unchanged against T2. Commit: recorded after work-unit commit.
+- [ ] T4: Independent risk-directed verification and single PR publication. Status: in_progress. Checks: native read-only assessment, focused checks where required, one broad unit closure; `git diff --check`, source/profile/constraint readback and PR CI status. Commit: pending.
 
 ## Progress
 Read-only audit completed; one implementation scout mapped edit surfaces and offline runners (launch 1/6). Main unchanged. Feature branch created; remote default branch verified as `main`. No applicable repository issue/label policy or PR template found; do not invent Gentle-owned labels.
@@ -39,5 +39,11 @@ Writer launch 2/6 completed: 3 files, +181/-6. Generation ID and usage survive r
 ## T2 evidence
 Writer launch 3/6 completed: 2 files, +110/-4. Successful policies no longer expire by age; exact tenant and ordered effective evidence determine reuse until capacity eviction or process exit. Ten-second error TTL, bounded capacity, concurrent deduplication and clone isolation remain intact. Tests cover reuse after five minutes; tenant/content/timestamp/order/ID/removal invalidation; caller-filtered expiry; failed compilation recovery. No measured production savings claimed.
 
+## T3 evidence
+Writer launch 4/6 completed: only billing prose duplication removed from agent-core, with regressions in two existing test files. Each removed rule maps to retained PAGOS guidance or unchanged responseCapability schema description. EXECUTE_TURN_DESCRIPTION, canonical/provider schemas and native tool definitions remain exactly equal to T2, including attachment-only variants. Measured serialized prompt+schema: Free 25,544 to 24,769 chars; Pro 25,645 to 24,870; supervised Free 26,333 to 25,558. Each saves 775 serialized characters/bytes (~3%), not a measured token reduction. Raw prompt saves 773 characters. No real-model quality equivalence claimed.
+
+## Review workload
+The combined PR is approximately 530 authored diff lines, mostly regression tests and this evidence document. User requested one PR; destination has no discovered size/exception policy. Keep reviewable work-unit commits and do not drop tests or minify to meet an advisory size budget.
+
 ## Next step
-Commit T2, record identity, then dispatch one bounded writer for T3.
+Commit T3, record identity, assess current candidate and delegate independent final verification (launch 5/6), including one offline unit closure pass. No source edits while verification runs.

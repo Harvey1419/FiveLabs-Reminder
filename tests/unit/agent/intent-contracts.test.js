@@ -1,9 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
+import { createHash } from 'node:crypto';
+import { TURN_INTENT_SCHEMA, normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
 
 import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
 
 describe('direct TurnIntent contract', () => {
+  it('retains the complete canonical and strict provider schemas from c6ab77e', () => {
+    const digest = schema => createHash('sha256').update(JSON.stringify(schema)).digest('hex');
+    expect(digest(TURN_INTENT_SCHEMA)).toBe('362e618cbcea3676cba62c75e6b68c179400dcc38a965c08a01a942cd50b4298');
+    expect(digest(getStructuredTurnSchema())).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
+    expect(digest(getStructuredTurnSchema({ isAdmin: true }))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
+  });
+
+  it('preserves mixed personal recall and independently qualified temporal actions through projection', () => {
+    const knowledgeRefs = ['pk_012345abcdef_1'];
+    const schedules = [1, 2].map(dayOffset => ({ kind: 'relative_day_time', dayOffset, hour: 15, minute: 0, clockMode: 'explicit_24h' }));
+    const wire = {
+      responseCapability: 'general', responseLanguage: 'en', knowledgeRefs,
+      actions: schedules.map(schedule => ({ operation: 'task.list', status: 'all', schedule })),
+    };
+    const result = validateTurnIntent(projectStructuredTurnIntent(wire), { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(result.intent.knowledgeRefs).toEqual(knowledgeRefs);
+    expect(result.intent.actions.map(action => action.schedule)).toEqual(schedules);
+    expect(result.intent.actions.map(({ domain, action }) => `${domain}.${action}`)).toEqual(['task.list', 'task.list']);
+    const mutation = { ...wire, actions: [{ operation: 'task.complete', target: 'Review' }] };
+    expect(validateTurnIntent(projectStructuredTurnIntent(mutation)).errorCode).toBe('INVALID_KNOWLEDGE_REFS');
+  });
   it('requires an explicit nonnullable response capability at the planner boundary', () => {
     const schema = getStructuredTurnSchema();
     expect(schema.required).toContain('responseCapability');
