@@ -146,6 +146,13 @@ function normalizeModelResponse(modelResponse) {
     unavailableReason: modelResponse.unavailableReason || null,
     refused: modelResponse.refused === true,
     structuredIntent: modelResponse.structuredIntent || null,
+    // Observability only: these fields never participate in intent validation or
+    // execution authority. Preserve usage verbatim, including missing counters.
+    ...(Object.hasOwn(modelResponse, 'generationId') ? { generationId: modelResponse.generationId } : {}),
+    ...(Object.hasOwn(modelResponse, 'usage') ? { usage: modelResponse.usage } : {}),
+    ...(Object.hasOwn(modelResponse, 'model') ? { model: modelResponse.model } : {}),
+    ...(Object.hasOwn(modelResponse, 'provider') ? { provider: modelResponse.provider } : {}),
+    ...(Object.hasOwn(modelResponse, 'routeStage') ? { routeStage: modelResponse.routeStage } : {}),
   };
 }
 

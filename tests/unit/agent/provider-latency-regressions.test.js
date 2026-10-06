@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { callChatCompletion, callMemoryExtraction } from '../../../src/agent/providers/client.js';
 
@@ -29,6 +30,20 @@ const responseFormat = {
     },
   },
 };
+
+// Exercise the production pure normalizer without importing the router's DB,
+// integration and tool graph. The boundary fails loudly if the function moves.
+const routerSource = readFileSync(new URL('../../../src/agent/orchestration/router-core.js', import.meta.url), 'utf8');
+const normalizerSource = routerSource.match(/function normalizeModelResponse\(modelResponse\) \{[\s\S]*?\n\}\n\nfunction collectIntent/);
+if (!normalizerSource) throw new Error('Router normalization boundary not found');
+const normalizeModelResponse = runInNewContext(`(${normalizerSource[0].replace(/\n\nfunction collectIntent$/, '')})`);
+
+function successEvents() {
+  return console.log.mock.calls
+    .map(([line]) => line)
+    .filter(line => typeof line === 'string' && line.startsWith('[ai-provider] success '))
+    .map(line => JSON.parse(line.slice('[ai-provider] success '.length)));
+}
 
 function structuredResponse(provider = 'Groq', intent = replyIntent) {
   return new Response(JSON.stringify({
@@ -74,6 +89,119 @@ describe('foreground provider latency policy', () => {
     vi.restoreAllMocks();
     if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = originalKey;
+  });
+
+  it('retains correlated generation and cache/reasoning usage through router normalization', async () => {
+    const usage = { prompt_tokens: 1200, completion_tokens: 80,
+      prompt_tokens_details: { cached_tokens: 900 },
+      completion_tokens_details: { reasoning_tokens: 50 } };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'gen-test-1', provider: 'Groq', model: 'openai/gpt-oss-120b', usage,
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(replyIntent) } }],
+    })));
+    const result = await callChatCompletion([{ role: 'user', content: 'private prompt marker' }], {
+      responseFormat, returnMessage: true, correlationId: 'req-test-1', purpose: 'initial',
+    });
+    expect(result.generationId).toBe('gen-test-1');
+    expect(result.usage).toEqual({ promptTokens: 1200, completionTokens: 80, reasoningTokens: 50, cachedTokens: 900 });
+    const normalized = normalizeModelResponse(result);
+    expect(normalized.usage).toBe(result.usage);
+    expect(normalized).toMatchObject({ generationId: 'gen-test-1', model: result.model, provider: 'Groq', routeStage: 'primary' });
+    expect(normalized.content).toBe(result.content);
+    expect(normalized.toolCalls).toEqual([]);
+    expect(successEvents()).toEqual([expect.objectContaining({
+      outcome: 'success', requestId: 'req-test-1', generationId: 'gen-test-1',
+      promptTokens: 1200, completionTokens: 80, reasoningTokens: 50, cachedTokens: 900,
+      purpose: 'initial', stage: 'primary', model: 'openai/gpt-oss-120b', provider: 'Groq',
+    })]);
+    // Completion already includes reasoning: do not report 80 + 50.
+    expect(successEvents()[0].completionTokens).toBe(80);
+    const logs = JSON.stringify(console.log.mock.calls);
+    expect(logs).not.toContain('private prompt marker');
+    expect(logs).not.toContain(JSON.stringify(replyIntent));
+    expect(logs).not.toContain('sk-or-test');
+  });
+
+  it('retains metadata on a nonstructured fallback without changing tool-call normalization', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(finishError())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 'gen-fallback', provider: 'Baseten', usage: { prompt_tokens: 0, completion_tokens: 5,
+          prompt_tokens_details: { cached_tokens: 0 }, completion_tokens_details: { reasoning_tokens: 0 } },
+        choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [{
+          id: 'call-test', function: { name: 'execute_turn', arguments: '{}' },
+        }] } }],
+      })));
+    const result = await callChatCompletion([], { tools: [{ type: 'function', function: { name: 'execute_turn' } }],
+      returnMessage: true, correlationId: 'req-fallback', purpose: 'initial' });
+    expect(result).toMatchObject({ generationId: 'gen-fallback', routeStage: 'secondary',
+      usage: { promptTokens: 0, completionTokens: 5, cachedTokens: 0, reasoningTokens: 0 } });
+    expect(normalizeModelResponse(result).toolCalls).toEqual([{ id: 'call-test', name: 'execute_turn', arguments: '{}' }]);
+    expect(successEvents()).toEqual([expect.objectContaining({ generationId: 'gen-fallback', requestId: 'req-fallback',
+      stage: 'secondary', cachedTokens: 0, reasoningTokens: 0 })]);
+  });
+
+  it.each([undefined, null, {}, { prompt_tokens: 0 }])('keeps missing usage unknown rather than zero: %j', async usage => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(replyIntent) } }], usage,
+    })));
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true });
+    expect(result.generationId).toBeNull();
+    expect(result.usage).toEqual({ promptTokens: usage?.prompt_tokens,
+      completionTokens: undefined, reasoningTokens: undefined, cachedTokens: undefined });
+    expect(normalizeModelResponse(result).usage).toBe(result.usage);
+    expect(successEvents()[0]).toMatchObject({ generationId: null, requestId: null,
+      promptTokens: usage?.prompt_tokens ?? null, completionTokens: null, reasoningTokens: null, cachedTokens: null,
+      provider: 'groq' });
+  });
+
+  it('bounds success telemetry and excludes credential/freeform metadata and invalid counters', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'gen-sk-or-test', provider: 'private@example.test', model: 'x'.repeat(200),
+      usage: { prompt_tokens: 'raw private marker', completion_tokens: -1,
+        prompt_tokens_details: { cached_tokens: 'sk-or-test' }, completion_tokens_details: { reasoning_tokens: 1.5 } },
+      choices: [{ finish_reason: 'stop', message: { content: 'raw private output marker' } }],
+    })));
+    const result = await callChatCompletion([{ role: 'user', content: 'raw private input marker' }], {
+      returnMessage: true, correlationId: 'unsafe\nrequest marker', purpose: 'initial',
+    });
+    expect(result.content).toBe('raw private output marker');
+    // Returned provider metadata is not rewritten just to sanitize logging.
+    expect(result.usage.promptTokens).toBe('raw private marker');
+    const [event] = successEvents();
+    expect(event).toMatchObject({ generationId: null, provider: null, requestId: null,
+      model: 'openai/gpt-oss-120b', promptTokens: null, completionTokens: null, reasoningTokens: null, cachedTokens: null });
+    const logs = JSON.stringify(console.log.mock.calls);
+    for (const secret of ['sk-or-test', 'raw private', 'private@example.test', 'request marker']) expect(logs).not.toContain(secret);
+    expect(logs.length).toBeLessThan(1000);
+  });
+
+  it('logs background memory usage with no invented foreground ownership and keeps string returns', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'gen-memory', provider: 'Groq', usage: { prompt_tokens: 100, completion_tokens: 20,
+        prompt_tokens_details: { cached_tokens: 60 }, completion_tokens_details: { reasoning_tokens: 10 } },
+      choices: [{ finish_reason: 'stop', message: { content: '<think>private reasoning</think>{"memories":[]}' } }],
+    })));
+    expect(await callMemoryExtraction([{ role: 'user', content: 'private memory input' }])).toBe('{"memories":[]}');
+    expect(successEvents()).toEqual([expect.objectContaining({ requestId: null, generationId: 'gen-memory',
+      purpose: 'memory', stage: 'memory_primary', promptTokens: 100, completionTokens: 20, reasoningTokens: 10, cachedTokens: 60 })]);
+    const logs = JSON.stringify(console.log.mock.calls);
+    expect(logs).not.toContain('private');
+    expect(logs).not.toContain('memories');
+  });
+
+  it('keeps unavailable and legacy normalization free of invented usage', () => {
+    const unavailable = normalizeModelResponse({ content: 'unavailable', unavailable: true, unavailableReason: 'timeout' });
+    expect(unavailable).toMatchObject({ unavailable: true, unavailableReason: 'timeout', toolCalls: [] });
+    expect(unavailable).not.toHaveProperty('usage');
+    expect(unavailable).not.toHaveProperty('generationId');
+    for (const input of [null, undefined, ' legacy text ', []]) {
+      const normalized = normalizeModelResponse(input);
+      expect(normalized).not.toHaveProperty('usage');
+      expect(normalized).not.toHaveProperty('generationId');
+      expect(normalized.toolCalls).toEqual([]);
+    }
+    expect(normalizeModelResponse(' legacy text ').content).toBe('legacy text');
   });
 
   it('sends strict structured output to Groq without tools', async () => {

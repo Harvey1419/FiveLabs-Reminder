@@ -336,6 +336,44 @@ function structuredResponseDiagnostic(data, choice, apiKey) {
   });
 }
 
+// OpenRouter reasoning tokens are a subset of completion tokens, not additive.
+// Keep missing counters undefined in the returned usage schema; telemetry uses
+// null for unknown so an absent counter is never mistaken for measured zero.
+function responseUsage(usage) {
+  return {
+    promptTokens: usage?.prompt_tokens,
+    completionTokens: usage?.completion_tokens,
+    reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
+    cachedTokens: usage?.prompt_tokens_details?.cached_tokens,
+  };
+}
+
+function successTelemetry(data, { apiKey, correlationId, purpose, stage, model, provider, finishReason, toolCalls, latencyMs }) {
+  // Allowlist bounded metadata only. Reject freeform strings and credentials;
+  // never serialize the response envelope, messages, output or error details.
+  const identifier = (value) => typeof value === 'string'
+    && /^[a-zA-Z0-9][a-zA-Z0-9_./: -]{0,159}$/.test(value)
+    && !(apiKey && value.includes(apiKey)) ? value : null;
+  const counter = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const usage = responseUsage(data?.usage);
+  return {
+    outcome: 'success',
+    requestId: identifier(correlationId),
+    generationId: identifier(data?.id),
+    purpose: identifier(purpose),
+    stage: identifier(stage),
+    model: identifier(data?.model) || identifier(model),
+    provider: identifier(provider),
+    finishReason: identifier(finishReason),
+    toolCalls: counter(toolCalls),
+    promptTokens: counter(usage.promptTokens),
+    completionTokens: counter(usage.completionTokens),
+    reasoningTokens: counter(usage.reasoningTokens),
+    cachedTokens: counter(usage.cachedTokens),
+    latencyMs: counter(latencyMs),
+  };
+}
+
 function unavailableText(language = 'es') {
   return language === 'en'
     ? 'I could not complete that action right now. Please try again in a moment.'
@@ -459,6 +497,7 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
   logPrefix = '[ai-client]',
   purpose = 'unspecified',
   stage = 'direct',
+  correlationId = null,
   validateStructuredContent = null,
   capture = null,
 } = {}) {
@@ -613,7 +652,10 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     }
 
     if (logPrefix) {
-      console.log(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=success finishReason=${finishReason || 'unknown'} toolCalls=${toolCalls.length} promptTokens=${usage.prompt_tokens ?? 'unknown'} completionTokens=${usage.completion_tokens ?? 'unknown'} latencyMs=${Date.now() - startMs}`);
+      console.log(`[ai-provider] success ${JSON.stringify(successTelemetry(data, {
+        apiKey, correlationId, purpose, stage, model, provider: actualProvider,
+        finishReason, toolCalls: toolCalls.length, latencyMs: Date.now() - startMs,
+      }))}`);
     }
 
     if (returnMessage) {
@@ -628,10 +670,8 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
           provider: actualProvider,
           routeStage: stage,
           ...(validatedStructuredIntent ? { structuredIntent: validatedStructuredIntent } : {}),
-          ...(strictForeground ? {
-            generationId: typeof data.id === 'string' ? data.id : null,
-            usage: { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, reasoningTokens: usage.completion_tokens_details?.reasoning_tokens },
-          } : {}),
+          generationId: typeof data.id === 'string' ? data.id : null,
+          usage: responseUsage(usage),
         },
       };
     }
