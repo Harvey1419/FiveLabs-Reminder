@@ -358,7 +358,10 @@ function successTelemetry(data, { apiKey, correlationId, purpose, stage, model, 
   const usage = responseUsage(data?.usage);
   return {
     outcome: 'success',
-    requestId: identifier(correlationId),
+    // Correlation can originate in a freeform HTTP header, not a provider enum.
+    requestId: typeof correlationId === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(correlationId)
+      ? identifier(correlationId) : null,
     generationId: identifier(data?.id),
     purpose: identifier(purpose),
     stage: identifier(stage),
@@ -652,10 +655,21 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     }
 
     if (logPrefix) {
-      console.log(`[ai-provider] success ${JSON.stringify(successTelemetry(data, {
+      const metadata = successTelemetry(data, {
         apiKey, correlationId, purpose, stage, model, provider: actualProvider,
         finishReason, toolCalls: toolCalls.length, latencyMs: Date.now() - startMs,
-      }))}`);
+      });
+      // Preserve legacy counters on one line without interpolating raw prefixes
+      // or freeform metadata into the key=value fields.
+      const field = value => value === null ? 'unknown'
+        : typeof value === 'number' ? value
+          : /^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,159}$/.test(value) ? value : 'unknown';
+      const category = logPrefix === '[ai-memory]' ? 'ai-memory'
+        : logPrefix === '[ai-response]' || logPrefix.startsWith('[ai-response req=') ? 'ai-response' : 'ai-client';
+      const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.requestId || '')
+        ? metadata.requestId : null;
+      const prefix = `[${category}${requestId ? ` req=${requestId}` : ''}]`;
+      console.log(`${prefix} attempt purpose=${field(metadata.purpose)} stage=${field(metadata.stage)} model=${field(metadata.model)} provider=${field(metadata.provider)} outcome=success finishReason=${field(metadata.finishReason)} toolCalls=${field(metadata.toolCalls)} promptTokens=${field(metadata.promptTokens)} completionTokens=${field(metadata.completionTokens)} latencyMs=${field(metadata.latencyMs)} metadata=${JSON.stringify(metadata)}`);
     }
 
     if (returnMessage) {

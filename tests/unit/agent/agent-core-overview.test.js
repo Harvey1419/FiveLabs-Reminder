@@ -21,9 +21,9 @@ describe('static prompt deduplication', () => {
       overview: { openTasks: [{ title: 'Synthetic task' }] },
     });
     const serialized = JSON.stringify({ prompt, schema: getStructuredTurnSchema({ isAdmin }) });
-    expect(baselineChars - serialized.length).toBeGreaterThanOrEqual(700);
+    expect(baselineChars - serialized.length).toBeGreaterThanOrEqual(650);
     expect(baselineChars - serialized.length).toBeLessThanOrEqual(1100);
-    expect(baselineBytes - Buffer.byteLength(serialized)).toBeGreaterThanOrEqual(700);
+    expect(baselineBytes - Buffer.byteLength(serialized)).toBeGreaterThanOrEqual(650);
     expect(baselineBytes - Buffer.byteLength(serialized)).toBeLessThanOrEqual(1100);
     // The description is actually consumed by the foreground system prompt,
     // not by its strict response schema. Never remove its unique action rules.
@@ -38,6 +38,7 @@ describe('static prompt deduplication', () => {
       'If access is UNKNOWN do not assert Free or Pro',
       'No fixed card, invented features, unlimited usage, prices, trials or app instructions',
       'plan information never charges or creates a subscription',
+      'responseCapability is required', 'billing_info forbids mutations', 'never auto-checkout or retry',
     ]) expect(prompt).toContain(context);
     expect(prompt.includes('Métricas administrativas')).toBe(isAdmin);
   });

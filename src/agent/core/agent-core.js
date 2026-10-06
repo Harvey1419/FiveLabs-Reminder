@@ -162,7 +162,7 @@ Checkout payment methods: UNKNOWN without authoritative capability evidence; pro
 - Runtime renders subscription.info even with reply. Social replies get no billing card.
 Canonical Pro access: ${billingContext?.entitlementKnown === false ? 'UNKNOWN' : isPro ? 'YES' : 'NO'}
 - Pro benefits: future-day reminder scheduling and recurring reminders. For benefits/how-to, keep prose persuasive. For existing Pro access acknowledge access and benefits, never suggest another payment. If access is UNKNOWN do not assert Free or Pro. No fixed card, invented features, unlimited usage, prices, trials or app instructions.
-- On request, explain configured-provider checkout; plan information never charges or creates a subscription. Follow PAGOS above.
+- responseCapability is required; billing_info forbids mutations; never auto-checkout or retry. On request, explain configured-provider checkout; plan information never charges or creates a subscription. Follow PAGOS above.
 `;
   const proSection = proGuidance ? `\n## PLAN FREE Y PERSUASIÓN CONSULTIVA A PRO\n${proGuidance.trim()}\n` : '';
 

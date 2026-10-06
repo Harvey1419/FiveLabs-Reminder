@@ -41,8 +41,8 @@ const normalizeModelResponse = runInNewContext(`(${normalizerSource[0].replace(/
 function successEvents() {
   return console.log.mock.calls
     .map(([line]) => line)
-    .filter(line => typeof line === 'string' && line.startsWith('[ai-provider] success '))
-    .map(line => JSON.parse(line.slice('[ai-provider] success '.length)));
+    .filter(line => typeof line === 'string' && line.includes(' outcome=success ') && line.includes(' metadata='))
+    .map(line => JSON.parse(line.slice(line.indexOf(' metadata=') + ' metadata='.length)));
 }
 
 function structuredResponse(provider = 'Groq', intent = replyIntent) {
@@ -91,6 +91,32 @@ describe('foreground provider latency policy', () => {
     else process.env.OPENROUTER_API_KEY = originalKey;
   });
 
+  it('keeps the exact live acceptance counter compatible with one success line and excludes memory and failures', async () => {
+    const requestId = '12345678-1234-1234-1234-123456789abc';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(finishError())
+      .mockResolvedValueOnce(structuredResponse('Baseten'))
+      .mockResolvedValueOnce(structuredResponse('Groq'));
+    await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'initial', correlationId: requestId });
+    // Copy the unchanged acceptance consumer's predicate, not a new JSON predicate.
+    const countAcceptedInitial = () => console.log.mock.calls
+      .map(args => args.join(' '))
+      .filter(line => line.includes('attempt purpose=initial') && line.includes('outcome=success')).length;
+    expect(countAcceptedInitial()).toBe(1);
+    const initialLines = console.log.mock.calls.map(([line]) => line);
+    expect(initialLines).toHaveLength(2); // One route transition and one success, not duplicate success logs.
+    const successLine = initialLines.find(line => line.includes('outcome=success'));
+    expect(successLine).toContain(`[ai-client req=${requestId}] attempt purpose=initial stage=secondary model=openai/gpt-oss-120b provider=Baseten outcome=success finishReason=stop toolCalls=0 promptTokens=1200 completionTokens=30 latencyMs=`);
+    const failures = console.warn.mock.calls.map(args => args.join(' '));
+    expect(failures.some(line => line.includes('attempt purpose=initial') && line.includes('outcome=failed'))).toBe(true);
+    expect(failures.some(line => line.includes('outcome=success'))).toBe(false);
+    await callMemoryExtraction([]);
+    expect(countAcceptedInitial()).toBe(1);
+    expect(successEvents()).toHaveLength(2);
+    expect(console.log.mock.calls.at(-1)[0]).toContain('[ai-memory] attempt purpose=memory');
+    expect(successEvents()[1].requestId).toBeNull();
+  });
+
   it('retains correlated generation and cache/reasoning usage through router normalization', async () => {
     const usage = { prompt_tokens: 1200, completion_tokens: 80,
       prompt_tokens_details: { cached_tokens: 900 },
@@ -100,7 +126,7 @@ describe('foreground provider latency policy', () => {
       choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(replyIntent) } }],
     })));
     const result = await callChatCompletion([{ role: 'user', content: 'private prompt marker' }], {
-      responseFormat, returnMessage: true, correlationId: 'req-test-1', purpose: 'initial',
+      responseFormat, returnMessage: true, correlationId: '12345678-1234-1234-1234-123456789abc', purpose: 'initial',
     });
     expect(result.generationId).toBe('gen-test-1');
     expect(result.usage).toEqual({ promptTokens: 1200, completionTokens: 80, reasoningTokens: 50, cachedTokens: 900 });
@@ -110,7 +136,7 @@ describe('foreground provider latency policy', () => {
     expect(normalized.content).toBe(result.content);
     expect(normalized.toolCalls).toEqual([]);
     expect(successEvents()).toEqual([expect.objectContaining({
-      outcome: 'success', requestId: 'req-test-1', generationId: 'gen-test-1',
+      outcome: 'success', requestId: '12345678-1234-1234-1234-123456789abc', generationId: 'gen-test-1',
       promptTokens: 1200, completionTokens: 80, reasoningTokens: 50, cachedTokens: 900,
       purpose: 'initial', stage: 'primary', model: 'openai/gpt-oss-120b', provider: 'Groq',
     })]);
@@ -137,7 +163,7 @@ describe('foreground provider latency policy', () => {
     expect(result).toMatchObject({ generationId: 'gen-fallback', routeStage: 'secondary',
       usage: { promptTokens: 0, completionTokens: 5, cachedTokens: 0, reasoningTokens: 0 } });
     expect(normalizeModelResponse(result).toolCalls).toEqual([{ id: 'call-test', name: 'execute_turn', arguments: '{}' }]);
-    expect(successEvents()).toEqual([expect.objectContaining({ generationId: 'gen-fallback', requestId: 'req-fallback',
+    expect(successEvents()).toEqual([expect.objectContaining({ generationId: 'gen-fallback', requestId: null,
       stage: 'secondary', cachedTokens: 0, reasoningTokens: 0 })]);
   });
 
@@ -153,6 +179,9 @@ describe('foreground provider latency policy', () => {
     expect(successEvents()[0]).toMatchObject({ generationId: null, requestId: null,
       promptTokens: usage?.prompt_tokens ?? null, completionTokens: null, reasoningTokens: null, cachedTokens: null,
       provider: 'groq' });
+    const line = console.log.mock.calls.find(([line]) => line.includes('outcome=success'))[0];
+    expect(line).toContain(`promptTokens=${usage?.prompt_tokens ?? 'unknown'} completionTokens=unknown`);
+    expect(line).toContain('toolCalls=0');
   });
 
   it('bounds success telemetry and excludes credential/freeform metadata and invalid counters', async () => {
@@ -174,6 +203,19 @@ describe('foreground provider latency policy', () => {
     const logs = JSON.stringify(console.log.mock.calls);
     for (const secret of ['sk-or-test', 'raw private', 'private@example.test', 'request marker']) expect(logs).not.toContain(secret);
     expect(logs.length).toBeLessThan(1000);
+  });
+
+  it.each(['15550001234', 'Synthetic Person', 'Synthetic-Person', undefined])('omits freeform header correlation from the entire success line: %j', async correlationId => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(structuredResponse());
+    await callChatCompletion([], { responseFormat, returnMessage: true, correlationId, purpose: 'initial' });
+    expect(successEvents()).toHaveLength(1);
+    expect(successEvents()[0].requestId).toBeNull();
+    const lines = console.log.mock.calls.map(([line]) => line);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('[ai-client] attempt purpose=initial');
+    expect(lines[0]).not.toContain(' req=');
+    if (correlationId) expect(lines[0]).not.toContain(correlationId);
+    expect(lines[0].length).toBeLessThan(1000);
   });
 
   it('logs background memory usage with no invented foreground ownership and keeps string returns', async () => {
