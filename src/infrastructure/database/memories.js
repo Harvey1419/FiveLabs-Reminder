@@ -366,7 +366,7 @@ export async function searchMemories({
       searchTasks.push(
         (async () => {
           try {
-            const queryEmbedding = await generateEmbedding(query);
+            const queryEmbedding = await generateEmbedding(query, { queryOwner: userId });
             if (!queryEmbedding && strictRead) throw new Error('Memory embedding is unavailable.');
             if (queryEmbedding) {
               const { data: matched, error: rpcErr } = await supabase.rpc('match_memories', {

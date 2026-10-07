@@ -4,6 +4,7 @@ import { getOrCreateUserByPhone, normalizeUserPhone, updateUserTimezone } from '
 import { routeMessage } from '../../src/agent/orchestration/router.js';
 import { saveMessage, getRecentMessages } from '../../src/infrastructure/database/messages.js';
 import { extractAndSaveMemories } from '../../src/features/memory/service.js';
+import { withQueryEmbeddingScope } from '../../src/integrations/ai/embeddings.js';
 import { supabase, markReminderAsSent } from '../../src/infrastructure/database/index.js';
 import { formatLocalDateTime } from '../../src/shared/time.js';
 
@@ -127,6 +128,7 @@ async function startInteractiveSession() {
       }
 
       try {
+        await withQueryEmbeddingScope(user.id, async () => {
         // 1. Guardar mensaje usuario
         await saveMessage({ userId: user.id, phoneNumber: user.phone_number, role: 'user', content: text });
 
@@ -155,6 +157,7 @@ async function startInteractiveSession() {
           assistantReply: result.confirmation,
           executionFacts: result.executionFacts,
           memoryDisposition: result.memoryDisposition,
+        });
         });
 
       } catch (err) {

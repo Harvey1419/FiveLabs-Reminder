@@ -4,6 +4,23 @@
  * text-embedding-3-small to 768 dimensions instead of requiring a migration.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+const queryEmbeddingContext = new AsyncLocalStorage();
+const QUERY_EMBEDDING_CAPACITY = 32;
+const MEMORY_EMBEDDING_DIMENSIONS = 768;
+
+/** Ephemeral vector reuse only; database reads and memory writes are never cached. */
+export function withQueryEmbeddingScope(userId, work) {
+  return queryEmbeddingContext.run({ userId, entries: new Map() }, work);
+}
+
+/** Capture only this store, never execution leases or other ambient authority. */
+export function captureQueryEmbeddingScope(work) {
+  const context = queryEmbeddingContext.getStore();
+  return (...args) => queryEmbeddingContext.run(context, () => work(...args));
+}
+
 function getOpenRouterApiKey() {
   return process.env.OPENROUTER_API_KEY?.replace(/"/g, '').trim()
     || (process.env.AI_API_KEY?.startsWith('sk-or-') ? process.env.AI_API_KEY.trim() : null);
@@ -31,7 +48,7 @@ async function requestEmbeddings(input, requestInput = input) {
       body: JSON.stringify({
         model: MEMORY_EMBEDDING_MODEL,
         input: requestInput,
-        dimensions: 768,
+        dimensions: MEMORY_EMBEDDING_DIMENSIONS,
         encoding_format: 'float',
       }),
       signal: AbortSignal.timeout(6000),
@@ -43,7 +60,7 @@ async function requestEmbeddings(input, requestInput = input) {
         .slice()
         .sort((a, b) => a.index - b.index)
         .map((item) => item.embedding);
-      if (embeddings.length === input.length && embeddings.every((embedding) => Array.isArray(embedding) && embedding.length === 768)) {
+      if (embeddings.length === input.length && embeddings.every((embedding) => Array.isArray(embedding) && embedding.length === MEMORY_EMBEDDING_DIMENSIONS)) {
         return embeddings;
       }
       console.warn('[embeddingService] OpenRouter returned an invalid embedding shape.');
@@ -66,9 +83,29 @@ export async function generateEmbeddings(texts) {
   return requestEmbeddings(input);
 }
 
-export async function generateEmbedding(text) {
+export async function generateEmbedding(text, { queryOwner } = {}) {
   if (!text || typeof text !== 'string' || text.trim().length === 0) return null;
   const cleanText = text.trim();
-  const embeddings = await requestEmbeddings([cleanText], cleanText);
-  return embeddings?.[0] || null;
+  const context = queryEmbeddingContext.getStore();
+  const requestVector = async () => (await requestEmbeddings([cleanText], cleanText))?.[0] || null;
+  // Legacy calls, including save embeddings, bypass query reuse even for equal text.
+  if (!queryOwner || context?.userId !== queryOwner) return requestVector();
+
+  const key = JSON.stringify([queryOwner, MEMORY_EMBEDDING_MODEL, MEMORY_EMBEDDING_DIMENSIONS, cleanText]);
+  let pending = context.entries.get(key);
+  if (!pending) {
+    if (context.entries.size >= QUERY_EMBEDDING_CAPACITY) {
+      context.entries.delete(context.entries.keys().next().value);
+    }
+    pending = requestVector().then(vector => {
+      if (!vector && context.entries.get(key) === pending) context.entries.delete(key);
+      return vector;
+    }, error => {
+      if (context.entries.get(key) === pending) context.entries.delete(key);
+      throw error;
+    });
+    context.entries.set(key, pending);
+  }
+  const vector = await pending;
+  return vector ? vector.slice() : null;
 }
