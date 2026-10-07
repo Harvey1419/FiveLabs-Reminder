@@ -8,8 +8,8 @@
 const SPANISH_INVERTED_PUNCTUATION_RE = /[¿¡]/;
 const SPANISH_SPECIAL_CHARS_RE = /[ñÑáéíóúÁÉÍÓÚ]/;
 
-const EXPLICIT_SPANISH_DIRECTIVE_RE = /^(?:habla(?:me)? en (?:español|castellano)|en español(?: por favor| porfa)?|speak in spanish|cambia(?:r)? mi idioma a español)/i;
-const EXPLICIT_ENGLISH_DIRECTIVE_RE = /^(?:speak in english|in english(?: please)?|habla(?:me)? en ingl[eé]s|cambia(?:r)? mi idioma a ingl[eé]s)/i;
+export const EXPLICIT_SPANISH_DIRECTIVE_RE = /^(?:habla(?:me)? en (?:español|castellano)|en español(?: por favor| porfa)?|speak in spanish|cambia(?:r)? mi idioma a español)/i;
+export const EXPLICIT_ENGLISH_DIRECTIVE_RE = /^(?:speak in english|in english(?: please)?|habla(?:me)? en ingl[eé]s|cambia(?:r)? mi idioma a ingl[eé]s)/i;
 
 const SPANISH_TOKENS = new Set([
   'hola', 'buen', 'bueno', 'buenos', 'buenas', 'dia', 'dias', 'días', 'tarde', 'tardes', 'noche', 'noches',

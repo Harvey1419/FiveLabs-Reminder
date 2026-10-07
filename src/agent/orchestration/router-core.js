@@ -27,6 +27,7 @@ import { isAdminUser } from '../../shared/auth.js';
 import { nowISO, nowHuman, computeOffsetMinutes } from '../../shared/time.js';
 import { updateUserPreferences } from '../../infrastructure/database/users.js';
 import { extractCurrentUserText } from '../../shared/current-user-input.js';
+import { detectLanguageFromText, EXPLICIT_ENGLISH_DIRECTIVE_RE, EXPLICIT_SPANISH_DIRECTIVE_RE } from '../../shared/language-detection.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
 import { parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
 import {
@@ -359,9 +360,15 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   const currentUserText = extractCurrentUserText(messageText, options?.currentUserText);
   let timezone = user.timezone || 'America/Bogota';
   const phoneNumber = user.phone_number;
+  const isProfileEnglish = Boolean(user.locale?.startsWith('en'));
+  const detectedUserLanguage = detectLanguageFromText(currentUserText);
+  const isExplicitEnglish = EXPLICIT_ENGLISH_DIRECTIVE_RE.test(currentUserText?.trim?.() || '');
+  const isExplicitSpanish = EXPLICIT_SPANISH_DIRECTIVE_RE.test(currentUserText?.trim?.() || '');
   const conversationLanguage = [...history].reverse().find(turn => turn.role === 'assistant'
     && ['en', 'es'].includes(turn.entities?._responseLanguage))?.entities?._responseLanguage;
-  let language = conversationLanguage || (user.locale?.startsWith('en') ? 'en' : 'es');
+  let language = isProfileEnglish
+    ? (isExplicitSpanish ? 'es' : 'en')
+    : (isExplicitEnglish || (conversationLanguage === 'en' && detectedUserLanguage !== 'es') ? 'en' : 'es');
   const applyDecisionContext = async (decision) => {
     language = decision.responseLanguage || language;
     let update = decision.profileUpdate;
