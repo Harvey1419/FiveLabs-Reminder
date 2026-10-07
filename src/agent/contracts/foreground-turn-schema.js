@@ -29,7 +29,7 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
-  schema.required = [...schema.required, 'responseLanguage', 'responseCapability'];
+  schema.required = [...schema.required, 'responseLanguage', 'responseCapability', 'learningCandidates'];
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']
@@ -73,6 +73,15 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
       description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
     };
   }
+  // Shared temporal instructions are stated once, on schedule. endSchedule
+  // keeps every field/enum/bound and references exactly the same semantics.
+  // structuredClone preserves schedule/endSchedule's shared canonical node;
+  // detach before changing descriptions so schedule keeps the actual guidance.
+  action.properties.endSchedule = structuredClone(action.properties.endSchedule);
+  action.properties.endSchedule.description = 'End time; use the same temporal field semantics as schedule.';
+  for (const field of ['kind', 'allDay', 'clockMode']) {
+    action.properties.endSchedule.properties[field].description = `Same semantics as schedule.${field}.`;
+  }
   return strictProviderSchema(schema);
 }
 
@@ -80,7 +89,7 @@ export function stripStructuredNulls(value) {
   if (Array.isArray(value)) return value.map(stripStructuredNulls);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value)
-    .filter(([, child]) => child !== null)
+    .filter(([key, child]) => child !== null || key === 'learningCandidates')
     .map(([key, child]) => [key, stripStructuredNulls(child)]));
 }
 

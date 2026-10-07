@@ -13,6 +13,8 @@ export function extractMemoryInBackground({
   assistantReply,
   executionFacts = [],
   memoryDisposition = 'extract',
+  learningCandidates,
+  learningCandidatesProvided = false,
 }) {
   if (!userId || !userText) return;
 
@@ -33,6 +35,8 @@ export function extractMemoryInBackground({
     executionFacts,
     // The semantic classifier handles questions and mixed turns.
     memoryDisposition,
+    learningCandidates,
+    learningCandidatesProvided,
   }));
   setImmediate(captureQueryEmbeddingScope(async () => {
     extractionQueue = extractionQueue

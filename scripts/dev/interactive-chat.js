@@ -169,6 +169,8 @@ async function startInteractiveSession() {
           assistantReply: result.confirmation,
           executionFacts: result.executionFacts,
           memoryDisposition: result.memoryDisposition,
+          learningCandidates: result.learningCandidates,
+          learningCandidatesProvided: result.learningCandidatesProvided === true,
         });
         });
 

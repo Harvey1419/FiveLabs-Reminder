@@ -898,6 +898,8 @@ export async function processWebhookMessage(req) {
           assistantReply: result.confirmation ?? '',
           executionFacts: result.executionFacts || [],
           memoryDisposition: result.memoryDisposition || 'extract',
+          learningCandidates: result.learningCandidates,
+          learningCandidatesProvided: result.learningCandidatesProvided === true,
         }));
       } else {
         console.log(`[memory-extractor req=${correlationId}] skipped attachment-only turn`);

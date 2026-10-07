@@ -181,7 +181,11 @@ export async function executeTurnIntent(intent, context) {
   const records = [];
   const facts = [];
   // Scoped to this execution only; all save actions process the full source turn.
-  const memoryTurn = { userText: context.userMessage, executionFacts: facts, processed: false, result: null };
+  const memoryTurn = {
+    userText: context.userMessage, executionFacts: facts, processed: false, result: null,
+    learningCandidates: intent.learningCandidates,
+    learningCandidatesProvided: intent.learningCandidatesProvided === true,
+  };
   const approvalActions = [];
   let targetResolutionAttempted = false;
   const runTool = async (options) => {

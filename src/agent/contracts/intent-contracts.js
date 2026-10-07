@@ -91,7 +91,7 @@ const actionSchema = {
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'], description: 'Required for task.list. Explicit model-selected status; all preserves both states for unfiltered reads. Dated all uses due dates, not completion dates.' },
     recapMode: { type: 'string', enum: ['historical', 'current'], description: 'historical: renders recorded evidence; evidenceRefs optionally narrows it. current: explicit reads, content=null.' },
     evidenceRefs: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', minLength: 36, maxLength: 36 }, description: 'conversation.reply or historical recap: select supplied operational evidence refs. Content with refs is discarded, never verified prose; Node renders owned historical proof, not fresh state. Personal recall uses TURN knowledgeRefs or natural content without operational refs. No additional actions.' },
-    returnFields: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: ['description', 'status', 'due_date', 'completed_at', 'priority'] }, description: 'task.list only: simple field question on returned rows; Node renders actual fields (null=absent, missing=unknown). Keep query, entityName, status and date filters. This explicit typed projection takes precedence over answerFromResults for a single task read. No ordinal identity or calculations; for complex interpretation leave returnFields absent and use answerFromResults.' },
+    returnFields: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: ['description', 'status', 'due_date', 'completed_at', 'priority'] }, description: 'task.list only: select for simple actual status/date/notes questions on returned rows; Node renders actual fields (null=absent, missing=unknown). Keep query, entityName, status and date filters. This explicit typed projection takes precedence over answerFromResults for a single task read. No ordinal identity or calculations; for complex interpretation leave returnFields absent and use answerFromResults.' },
     scope: { type: 'string', description: `For entity.delete / project.delete: "all" deletes EVERY project/entity across the user account; "no_tasks" deletes only projects that have zero tasks. For single projects, leave scope null/omitted. subscription.info: plan ONLY for Pro benefits or how to subscribe (not payment failures, refunds, prices/methods or explicit checkout prohibition); otherwise omit. Agenda, task, and reminder scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today', 'tomorrow', 'day_after_tomorrow', 'this_week', 'next_week'] },
     query: { type: 'string', description: 'Text filter for titles or memory content; reminder.list searches literal case-insensitive content (1–200 trimmed characters, no * or NUL), never dates or times. For any dated read (agenda, reminders, tasks, calendar), put the date in schedule using calendar_date_time and allDay=true; a date string in query does not restrict the date window.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
@@ -118,6 +118,40 @@ const actionSchema = {
   required: ['domain', 'action'],
 };
 
+// Proposal bounds mirror the existing extraction/admission contract. This is
+// source metadata, never effect authority or a model-selected owner.
+export const LEARNING_CANDIDATES_SCHEMA = Object.freeze({
+  type: 'array', maxItems: 16,
+  description: 'CURRENT trusted user text ONLY; propose all useful durable facts, normally 0–3, [] if none. Assistant/history/attachments are not evidence. Exact contiguous quotes necessary, not sufficient; check full-turn quotation, denial, correction, attribution. Exclude tasks, appointments, transient actions, debts/balances, greetings/temporary states; retain independent mixed-turn facts even with memory.save. Atomic compact Spanish sentence per fact/preference/decision/episode. Lasting language/style qualifies, not utterance language/one-time requests; denial implies no opposite. Changed fact: reuse supplied topicKey; unchanged: omit. New keys: stable, value-independent; profile/<aspect> for self identity/residence/work, preference/<aspect> for lasting preferences, else <entity_type>/<slug>/<aspect>. Optional clean canonical entity hints; pet topics never authorize physical writes. Node independently admits before persistence.',
+  items: {
+    type: 'object', additionalProperties: false,
+    properties: {
+      topicKey: { type: 'string', minLength: 1, maxLength: 100 },
+      category: { type: 'string', enum: ['fact', 'decision', 'preference', 'episode'] },
+      content: { type: 'string', minLength: 1, maxLength: 180 },
+      evidence: { type: 'string', minLength: 1, maxLength: 180 },
+      entityName: { type: 'string', minLength: 1, maxLength: 80 },
+      entityCategory: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other'] },
+    },
+    required: ['topicKey', 'category', 'content', 'evidence'],
+  },
+});
+
+export function validLearningCandidates(candidates) {
+  const { properties, required } = LEARNING_CANDIDATES_SCHEMA.items;
+  return Array.isArray(candidates) && candidates.length <= LEARNING_CANDIDATES_SCHEMA.maxItems
+    && candidates.every(item => item && typeof item === 'object' && !Array.isArray(item)
+      && Object.keys(item).every(key => Object.hasOwn(properties, key))
+      && required.every(key => Object.hasOwn(item, key))
+      && Object.entries(item).every(([key, value]) => {
+        const field = properties[key];
+        if (value === null && !required.includes(key)) return true;
+        return typeof value === 'string' && value.trim().length > 0
+          && (!field.maxLength || value.length <= field.maxLength)
+          && (!field.enum || field.enum.includes(value));
+      }));
+}
+
 export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
@@ -125,6 +159,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
     responseCapability: { type: 'string', enum: ['general', 'billing_info'], description: 'Required foreground presentation authority: billing_info for payment information/failure/retry (Free or Pro), even with conversation.reply; general otherwise. billing_info preserves declared reads/recap alongside its safe card; never checkout or mutations.' },
     answerFromResults: { type: 'boolean', description: 'True when the user asks for an interpretation, calculation or comparison that needs live reads. Emit the required read actions; after observing their results Hermes will answer. For complex interpretation leave returnFields absent. For ordinary listings, simple task.list returnFields questions or mutations leave false/null; a single task.list returnFields projection takes precedence over a redundant true flag.' },
     knowledgeRefs: { type: 'array', minItems: 0, maxItems: 8, uniqueItems: true, items: { type: 'string', maxLength: 32 }, description: 'Turn RESPONSE metadata: for mixed tasks + personal recall select supplied pk_ refs from memory hints here, not in tool actions. Supplements canonical cards/fields and historical summaries with recorded personal quotations, never fresh operational state. Ordinary inventories need no answerFromResults just for personal recall. Only reads/conversation allowed; never mutations or guessed refs. Ordinary personal chat may use content without refs.' },
+    learningCandidates: LEARNING_CANDIDATES_SCHEMA,
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
@@ -308,6 +343,10 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
   if ((requireResponseCapability || intent.responseCapability !== undefined)
     && !TURN_INTENT_SCHEMA.properties.responseCapability.enum.includes(intent.responseCapability)) {
     return { valid: false, errorCode: 'INVALID_RESPONSE_CAPABILITY', error: 'An explicit supported response capability is required.' };
+  }
+  const learningCandidatesProvided = Object.hasOwn(intent, 'learningCandidates');
+  if (learningCandidatesProvided && !validLearningCandidates(intent.learningCandidates)) {
+    return { valid: false, errorCode: 'INVALID_LEARNING_CANDIDATES', error: 'Learning proposals require a bounded typed array; use [] when none qualify.' };
   }
   const turnContext = validateTurnContext(intent);
   if (!turnContext.valid) return turnContext;
@@ -494,6 +533,12 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     if (domain === 'conversation' && ['reply', 'recap'].includes(action) && raw.evidenceRefs !== undefined) delete normalizedAction.content;
     normalizedActions.push(normalizedAction);
   }
+  if (Array.isArray(intent.knowledgeRefs)) {
+    const validPersonalRefs = intent.knowledgeRefs.filter(ref => typeof ref === 'string' && /^pk_[a-f0-9]{12}_[1-9][0-9]?$/.test(ref));
+    if (validPersonalRefs.length > 0 && validPersonalRefs.length < intent.knowledgeRefs.length) {
+      intent.knowledgeRefs = validPersonalRefs;
+    }
+  }
   const hasKnowledgeRefs = intent.knowledgeRefs != null
     && !(Array.isArray(intent.knowledgeRefs) && intent.knowledgeRefs.length === 0);
   if (hasKnowledgeRefs && (!Array.isArray(intent.knowledgeRefs)
@@ -530,6 +575,7 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     valid: true,
     intent: {
       ...turnContext.context,
+      ...(learningCandidatesProvided ? { learningCandidates: intent.learningCandidates, learningCandidatesProvided: true } : {}),
       ...(intent.responseCapability !== undefined ? { responseCapability: intent.responseCapability } : {}),
       ...(intent.answerFromResults !== undefined ? { answerFromResults: intent.answerFromResults } : {}),
       ...(hasKnowledgeRefs ? { knowledgeRefs: intent.knowledgeRefs } : {}),

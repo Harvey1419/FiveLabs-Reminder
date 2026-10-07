@@ -5,11 +5,26 @@ import { TURN_INTENT_SCHEMA, normalizeIntentAction, validateTurnIntent, getInten
 import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
 
 describe('direct TurnIntent contract', () => {
-  it('retains the complete canonical and strict provider schemas from c6ab77e', () => {
+  it('retains every old constraint with only additive learning metadata and description changes', () => {
+    // Restore only the explicitly changed descriptions and remove only the new
+    // root metadata. The old exact hashes still protect all fields/enums/bounds,
+    // operation relationships, required lists, nullability and property order.
+    const previousSchema = (schema, provider = false) => {
+      const previous = structuredClone(schema);
+      delete previous.properties.learningCandidates;
+      previous.required = previous.required.filter(key => key !== 'learningCandidates');
+      const fields = previous.properties.actions.items.properties;
+      fields.returnFields.description = fields.returnFields.description.replace('select for simple actual status/date/notes questions', 'simple field question');
+      if (provider) {
+        fields.endSchedule.description = fields.schedule.description;
+        for (const key of ['kind', 'allDay', 'clockMode']) fields.endSchedule.properties[key].description = fields.schedule.properties[key].description;
+      }
+      return previous;
+    };
     const digest = schema => createHash('sha256').update(JSON.stringify(schema)).digest('hex');
-    expect(digest(TURN_INTENT_SCHEMA)).toBe('362e618cbcea3676cba62c75e6b68c179400dcc38a965c08a01a942cd50b4298');
-    expect(digest(getStructuredTurnSchema())).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
-    expect(digest(getStructuredTurnSchema({ isAdmin: true }))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
+    expect(digest(previousSchema(TURN_INTENT_SCHEMA))).toBe('362e618cbcea3676cba62c75e6b68c179400dcc38a965c08a01a942cd50b4298');
+    expect(digest(previousSchema(getStructuredTurnSchema(), true))).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
+    expect(digest(previousSchema(getStructuredTurnSchema({ isAdmin: true }), true))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
   });
 
   it('preserves mixed personal recall and independently qualified temporal actions through projection', () => {

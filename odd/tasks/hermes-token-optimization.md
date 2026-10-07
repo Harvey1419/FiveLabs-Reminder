@@ -1,211 +1,96 @@
 # Hermes token optimization
 
-## Outcome and authorization
-Reduce duplicated input and repeated work while preserving GPT-OSS-120B, provider/reasoning configuration, full action capabilities, canonical backend authority, mixed-turn memory and natural replies. User authorized implementation, feature commits, branch push and one review PR to `Harvey1419/FiveLabs-Reminder`, base `main`. No merge or deployment.
+## Outcome and authority
+Reduce repeated chat generations and total input/output tokens without changing GPT-OSS-120B, provider routing, reasoning, full action capacity, natural replies, independent memory admission or backend authorization.
 
-- Base: `dca8c1da4ba0479ae94e6d1822a8f46556983b48`.
 - Branch: `perf/hermes-token-optimization`.
-- Single draft PR: https://github.com/Harvey1419/FiveLabs-Reminder/pull/111 .
-- Verified behavior commit: `560541826c5d31e46f3ccecf810f580f4c5e0efc`.
-- Live-tested head: `60df34c04b696220dbe9960cfcb11e937ab1d464` (subsequent implementation commits were documentation only).
+- Single PR: https://github.com/Harvey1419/FiveLabs-Reminder/pull/111 (draft).
+- Base: `dca8c1da4ba0479ae94e6d1822a8f46556983b48`.
+- Current verified/published candidate: `3d4f93c1f0b959fa2c417d8d4a8c5291bb97e75e`.
+- User explicitly authorizes implementation, work-unit commits, push and updating the SAME PR; no merge or deployment. User requests unattended completion, not per-step permission loops.
+- TDD off; fresh clone-local RDD off. Ordinary functional checks remain required.
+- Preserve unrelated media, evidence and video task files. Never publish credentials, raw traces, phase handles or synthetic owner IDs.
 
-## Scope and non-goals
-This is the first bounded optimization increment: usage telemetry, revision-keyed policy reuse and demonstrated prompt deduplication. No weaker validators, semantic regex routing, reduced action limit, compact wire, new retries, model/provider changes, memory-admission fusion, schema migration or new production service. Broader memory/context and invalid-generation changes remain follow-ups requiring causal evidence. Preserve unrelated local video/media work.
+## Completed increments
+| Work | Evidence |
+| --- | --- |
+| T1 Usage and UUID-or-null correlation telemetry | `a78b691`, compatibility/privacy `5605418` |
+| T2 Revision-keyed tenant dispatch-policy reuse | `c6ab77e` |
+| T3 Static billing prompt deduplication | `acf1bb7`, `5605418` |
+| T7 Exact tenant-scoped query-vector reuse, not result reuse | `311e641`; independent offline/live proof |
+| T9 One owned validation identity across batches; durable request reservations | `ac0bf6d`; FK/header correction `60a6eaf`; independent 114 tests |
+| T10 Captured causal observer producer/validator mismatch | Private baseline trace; checkpoint `28716f6` |
+| T11 Scoped observer producer constraint and restored unchanged size/compatibility gates | `0835a8a`, final `3d4f93c` |
 
-## Tasks
-- [x] T1: Preserve bounded usage/correlation telemetry. Unknown counters remain unknown; reasoning is a completion subset. Compatible single success line with UUID-or-null correlation. Commits `a78b69106f0db25b1bcc3b013bc4aa4681cf7343`, correction `560541826c5d31e46f3ccecf810f580f4c5e0efc`.
-- [x] T2: Reuse validated dispatch policies by exact tenant/effective ordered preference revision, not five-minute success expiry. Preserve ten-second error TTL, capacity, concurrent sharing and clone isolation. Commit `c6ab77e9fa16cbfa8f63fd1981ab80b9e3b6a2d9`.
-- [x] T3: Deduplicate billing prompt guidance while retaining explicit safeguards and identical schemas. Commits `acf1bb7023322ab8a58f2278c492e801574c8d76`, correction `560541826c5d31e46f3ccecf810f580f4c5e0efc`.
-- [ ] T4: Final review/merge gates. Status partial: PR published, independent verification recorded, Core CI FAILED; five baseline budget assertions unresolved. Documentation checkpoint `9605cf4c032b13d13262ff37c76bb9c9525246f4` / publication `60df34c04b696220dbe9960cfcb11e937ab1d464`.
-- [ ] T5: Actual-model quality/cost verification. Status partial: first real paced CLI conversation and cleanup verified; five invalid-generation attempts and one relevance issue observed. No baseline A/B run or general quality/savings certification.
-- [ ] T6: Diagnose and address irrelevant recall using observed decision/effect provenance. Status partial/pending: diagnostic verifier 2/6 parsed logs and proved runtime does not automatically inherit old knowledgeRefs; current model ref selection versus freeform content replay remains unproven without raw decision. No prompt/schema/relevance fix authorized by this evidence yet.
-- [x] T7: Reduce identical embedding-query work without sharing tenant search results or weakening memory admission. Status done at writer verification: 176/176 offline tests passed across 17 files, including 12 new query-scope regressions; five source syntax checks and diff check passed. Independent closure/live measurement pending T8. Work-unit commit `311e6416ed3c35809d0629392ba9bcd81ac1fa32`.
-- [ ] T8: Independently verify the second increment and perform only necessary bounded real reproductions. Status partial: independent 176/176 passed, broad 1,553 passed / five known baseline failures; postcheck executed 10 turns, 47 API calls (32 chat / 15 embeddings), cleanup verified. No trace was captured; interpretation fallback and relevance remain pending. Same PR #111.
-- [x] T9: Make the existing validation runner support one proven owned identity across correction batches, durable aggregate accounting and built-in three-second pacing. Status done: corrected guardian independently114/114 passed, live baseline executed with durable49 calls, one owner retained/no active child/lease. Commitsac0bf6d and60a6eaf; final phase cleanup pending T12.
-- [x] T10: Capture bounded baseline decisions/failures on that owned phase before any semantic prompt fix. Status done with partial trace: verifier4/6 executedone10turnbatch; available successful raw choices+validation prove turn7 mismatch. Missing upstream error envelopes2, no replay. Private handle is in project memory only, never public docs.
-- [x] T11: Resolve CI size gates and evidence-proven reply/fallback defects without weakening validators or capabilities. Status done at renewedwriter1/2 verification132/132ninefilesincludingsevencompatcases; canonical/model/observer codeunchanged, exactsizes/schemahashsnapshotsstronger, hard6000/2600unchanged. Independentfull/livepending T12. Newcommit recorded after checkpoint.
-- [ ] T12: Independent closure, real regression confirmation, same-PR publication and green CI before ready-for-review. Status pendingrenewedverifier2/2: requirefullgreenonchangedcandidate withcorrectedguardenv, onefreshownedcycleonlyifmodelcheckneeded(closedoldphasecannotresume), max120APIextra, cleanuponce. Priorfull7CI+4guardenvfailed; no readyclaim.
+At `3d4f93c`: 132 focused and 1,613 full unit tests passed, all 125 source/script syntax checks passed, six external-network negatives passed. Core CI and GitGuardian were green at the last target-bound read. This is NOT proof that the original chat-generation goal was met.
 
-## Budgets and preferences
-TDD off and clone-local RDD off. Initial six implementation delegations were explicitly renewed by two for corrections/final verification; all eight used. Subsequent live phases and continuations were individually authorized; no remaining allowance automatically authorizes another round or fix.
+Previous prompt measurement: Free serialized input 25,544/25,587 characters/bytes to 24,146/24,192; admin 25,645/25,689 to 24,247/24,294. This saves 1,398 characters / 1,395 bytes, not measured tokens. Context 5,998 characters (<6,000), description 2,287 (<2,600); thresholds were not raised. Query reuse reduced embeddings but chat generations remained roughly 3–4 per message.
 
-User granted a ceiling of 1,000 OpenRouter requests after implementation, using the existing key without exposure. User later explicitly authorized fresh synthetic Supabase identities, owned writes and deletion of only their associated records. Latest renewed scope: one canary creation/deletion proof, then at most one ten-turn CLI conversation, three-second interturn pauses, cap 120 provider requests including embeddings and every fallback. **Actual aggregate usage: 60/1,000; remaining ceiling 940.** The first live run is closed. User subsequently said Adelante to the proposed next increment; renewed scope below controls any additional work.
+## Current tasks
+- [ ] **T13 — Implement central-call reduction.** In progress. The first writer stopped before edits or paid calls because the parent incorrectly assigned credential access and private live-run outputs/deletion to a code-only role. Corrected routing: writer only implements code/tests and performs non-mutating syntax/diff checks; verifier runs actual functional/live commands. Code now implemented in 13 source/test files (+370/-32 including the new 156-line test). Syntax/diff checks passed; functional/live checks remain pending. Owning foreground schema and intent executor were explicitly added to the scoped surfaces by the parent; no runtime credential/output access granted to the writer.
+- [ ] **T14 — Verify the original goal using the existing runner.** Verification finished; acceptance PARTIAL/BLOCKED (persistent English locale failed and total-token usage incomplete). User explicitly selects unchanged `closure-cases` (10 turns), one fresh phase with hard cap **80**, three-second pacing and final cleanup. Compare with the recorded pre-change 3d4 run; disclose that this is a historical fixed-scenario comparison, NOT a new simultaneous controlled A/B or same-identity before/after. Do not repeat another baseline or invent a 12-turn corpus.
+- [ ] **T15 — Publish verified result in the same PR.** Checkpoint publication in progress; keep DRAFT, not ready. Source checkpoint commit identity will be recorded below. Commit source/tests/docs together, push same branch, replace stale PR description, observe CI at the exact delivered HEAD. Mark ready only when agreed performance/functional gates have observed evidence; no merge/deploy.
 
-## Independent offline verification
-Final source candidate `5605418`:
-- 98/98 focused regressions passed in five files.
-- Broad closure: **1,541 passed / 5 failed**, 1,546 tests; 142 files passed / 3 failed in 78.34s. Suite is not green.
-- Four changed-source syntax checks and both diff checks passed.
-- Canonical/provider schemas, operations, tools, EXECUTE_TURN_DESCRIPTION and all admin/attachment variants equal to base. Model/provider profiles, reasoning and call-chain paths unchanged.
-- Credentials discarded, dotenv disabled, dummy Kapso key and ephemeral external-network guard; existing test-owned temporary fixtures allowed.
-- 282 tracked source/test digest before/after: `13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45`. Task bookkeeping and unrelated media excluded.
+### T13 design
+The primary validated decision also proposes grounded learning candidates from CURRENT trusted user input. Preserve legacy callers with absent metadata. With supplied validated metadata, reuse existing literal grounding, current-text eligibility, independent semantic admission and owner-bound persistence, without another extraction generation. Empty proposals require no extraction/admission; new grounded proposals still require independent admission. Explicit memory saves and queued/CLI learning must not duplicate or drop mixed facts. Metadata does not authorize effects; actual authenticated owner remains authoritative.
 
-Three introduced wording failures, legacy success-counter compatibility and correlation-metadata privacy were corrected without weakening existing acceptance assertions. UUID-only evidence applies to the changed success path, not all pre-existing failure/router logs.
+Use existing typed `returnFields` for simple task status/date/note questions; retain additional model interpretation for genuinely complex derivations. Deduplicate redundant provider descriptions without deleting unique semantic rules or changing existing fields/enums/bounds/actions/ref/time authority. Additive learning metadata is permitted; no validators weakened, new regex routing, extra classifiers/retries, smaller models, DB migration or new runner.
 
-### Five established baseline failures
-Files are byte-identical to base. Pure representative-input evaluation proves the same limits fail at base; no base suite was executed.
+### Acceptance and stop conditions
+- Target at least **30% fewer chat generations** and **20% fewer total generation tokens** for the fixed messages. Ordinary turns aim for 1–2 generations; required complex steps still count.
+- Preserve personal facts, contact-preference supersession, locale, task creation/note removal/status, mixed recall, quoted/untrusted exclusion, ownership and strict backend checks.
+- Report usage coverage. Reasoning is a completion subset and cache is an input subset: never add either again. Unknown usage/invoice cost remains unknown; historical comparison cannot prove universal savings or causality.
+- One coherent implementation and one independent functional/live closure; at most two corrections for observed introduced defects, at most six delegations overall. Three writer dispatches consumed (first safety stop, bounded mapping continuation, implementation). Zero new paid requests so far. Independent verifier slot4 passed all 136 focused tests but broad closure had 28 introduced compatibility failures: 26 outdated producer fixtures supplied null for the new required array, and two exact recap anchors were removed. Live stopped before any paid call. Correction slot5 fixed producer fixtures, restored recap anchors and added actual-current input savings checks; 112/112 relevant tests and syntax/diff passed. Actual Free/admin input is 24,835/24,936 characters and 24,881/24,983 bytes (709 characters/706 bytes saved), native schemas 18,996/19,012 characters, contexts 5,742/5,826 and description 2,287. Old reconstructed snapshots remain explicitly compatibility controls, not current savings proof. Final verifier slot6 performs one post-correction broad closure then user-selected live workflow; no further automatic source/model round beyond this budget. No diagnostic/summary scope expansion or new infrastructure.
+- The known summary/reference failure is a follow-up, not the optimization gate unless newly introduced, a reproducible agreed-scenario regression, data integrity or security.
+- Never claim completion while required proof fails or is unavailable. Safety/budget stops produce honest draft status and cleanup, not additional paid rounds.
 
-| Assertion under tests/unit/agent | Base | Candidate | Limit |
-| --- | ---: | ---: | ---: |
-| audio-and-task-notes.test.js:21 prompt | 6,799 | 6,120 | <6,000 |
-| epistemic-state-authority.test.js:31 description | 3,003 | 3,003 | <2,600 |
-| epistemic-state-authority.test.js:67 prompt | 7,393 | 6,714 | <6,000 |
-| runtime-context-budget.test.js:30 prompt | 7,393 | 6,714 | <6,000 |
-| runtime-context-budget.test.js:73 description | 3,003 | 3,003 | <2,600 |
+## Live execution selected by the user
+Existing authorized key stays private in process environment. The verifier may use secure SDK/dotenv bootstrap, never print keys or give them to the code-only writer. Expected generated outputs are the runner's private `hermes-chat-phase-*` directory (receipt/journal/lock/batch reports) and private `hermes-provider-trace-*` directory; these are verification outputs, not source edit surfaces.
 
-Native read-only assessment remained unavailable because unrelated untracked scope was not adopted by committed-only ASSESS after supported inspect exclusion. No staging/deleting unrelated paths or repeated authority operations; conservative independent verification applied. RDD stayed off.
+```sh
+HERMES_CHAT_OPENROUTER_REQUEST_LIMIT=80 node scripts/dev/run-chat-validation.js --phase create
+HERMES_CHAT_SCENARIO=closure-cases HERMES_CHAT_PROVIDER_TRACE=1 node scripts/dev/run-chat-validation.js --phase run <handle>
+node scripts/dev/run-chat-validation.js --phase finalize <handle>
+```
 
-## Measured prompt reduction
-Corrected representative serialized prompt + schema decreases by **681 characters/bytes**, raw prompt by 679:
-- Free: 25,544 → 24,863.
-- Pro: 25,645 → 24,964.
-- Representative supervised Free: 25,684 → 25,003.
+Create once, retain the same identity if a bounded correction is needed, restart CLI on changed code, finalize once after owned processes stop. All attempts/embeddings/fallbacks/timeouts count against the phase cap. Complete finalization must establish all 14 zero-residue readbacks. No customer records, scheduler, WhatsApp delivery, payment or integration effects. Old phase handles are closed and must never be resumed. The temporary `core-cost-cases` fixture was removed; scenario source is unchanged.
 
-These are characters, not tokens. The 18,307-character provider schema and its constraints remain unchanged. Actual A/B token/cost savings and production policy miss frequency are not measured.
+## Final current-increment verification
+Independent final closure: **1,639/1,639 tests, 148 files**, six external-network negatives, all changed JS syntax and diff checks passed. Model/provider/reasoning/temperature/max-tokens/streaming configuration and all pre-existing schema constraints were preserved in actual captured requests (ignoring only additive learning metadata/descriptions).
 
-## Live validation: real CLI and Supabase
-Reused `scripts/dev/run-chat-validation.js` → `npm run chat`, unchanged `closure-cases` fixture, fresh `hermes-chat.<UUID>` identities, ephemeral ownership/network guards, scheduler disabled and provider trace off. No actual WhatsApp delivery, payment or integration effects. Source/test/config remained unchanged.
+Existing user-selected create → closure-cases → finalize executed once: **10/10 turns**, 3,001–3,003 ms pauses. The trace lacks five upstream events, but has zero unfinished calls and no IO errors; exit 1 reflects trace incompleteness, not an unexecuted conversation. API spend **36/80**, finalization once, journal finalized, lease null/no lock, writer/child/group inactive, **all 14 owner-bound residue readbacks zero**. No customer or payment/WhatsApp/integration effects.
 
-Canary: absence proven, POST 201 created one user, DELETE 200 removed one user filtered by exact ID/phone; 14 final owner-scoped readbacks returned zero. This proved DELETE works despite OPTIONS not advertising it.
+| Fixed historical scenario metric | Before 3d4 | After current code |
+| --- | ---: | ---: |
+| Chat generations | 33 | 21 |
+| Embeddings | 16 | 15 |
+| All requests | 49 | 36 |
+| Separate extraction calls | 9 | 0 |
+| Independent admission calls | 4 | 3 |
+| Initial calls including fallback | 16 | 16 |
+| Policy compilation | 3 | 2 |
+| Observer calls | 1 | 0 |
+| Known chat usage coverage | 29/33 | 16/21 |
+| Known input tokens | 101,881 | 76,317 |
+| Known completion tokens | 15,762 | 13,761 |
+| Known combined tokens | 117,643 | 90,078 |
 
-One real candidate conversation executed **10/10 turns**, not ten unqualified quality passes:
-1. Persisted synthetic name, residence and dog name.
-2. Rejected a quoted language instruction; answered in Spanish.
-3. Stored telephone contact preference.
-4. Updated preference to text messages, previous preference inactive.
-5. Created a pending task with exact requested description.
-6. Cleared only description to null; same task ID, title and pending status.
-7. Answered in English and confirmed pending task.
-8. Listed task and recalled dog correctly.
-9. Recalled text-message preference correctly **but appended an irrelevant dog-memory quotation**.
-10. Summarized observed task/preference state coherently.
+Observed chat reduction **36.36%**, known-token reduction **23.43%**. **Total-token reduction is NOT proven**: four before/five after generations lack usage; invoice/embedding cost unknown. Do not advertise reduced admission/policy calls as pure optimization: the missing English preference may account for those differences. First-primary validity **5/10 → 4/10**; after six initial failures recovered through existing fallbacks (including two upstream rejections of `learningCandidates:null`). This is not evidence of improved validity or universally one-call turns (chat per turn 3,2,2,4,2,1,1,2,2,2).
 
-The actual fixture did not contain separate name/city queries, a post-deletion standalone note query or a quoted-city case. Earlier pre-run narrative indexing was corrected; no conversation replay.
+**Acceptance blocker:** Turn 7 explicitly requested English from now on. The accepted decision selected responseLanguage=en, learningCandidates=[], profileUpdate=null. DB locale remained es-CO through turn 10, with no durable English preference; historical before ended en-US. The scenario differs in acceptance, although introduced causality is not definitively proven. Name/city/dog were durably stored; old phone preference inactive/new text preference active; quoted English instruction not persisted; task note cleared to NULL with same ID/title/pending status; mixed dog/task and contact recall worked. Summary returned historical prose; its verification-limit wording is a separate quality follow-up.
 
-### Real request accounting
-- **60 calls = 34 chat + 26 embeddings**, ledger and exit counter agree.
-- Chat: 29 GPT-OSS/Groq, four GPT-OSS/Cerebras, one GLM/Baseten through the unchanged configured fallback chain.
-- All HTTP 200; **five structured-output rejection/validation failures** recovered through existing routes. HTTP success is not contract validity.
-- 59 responses with usage: 111,171 input tokens; 14,983 completion; 10,876 reasoning included in completion; 7,424 cached included in input.
-- Reported usage cost **USD 0.03006367**; one missing usage envelope, invoice total unverified.
-- Pauses 3.001–3.010 seconds; message intervals 11.132–18.734 seconds.
-- Wait after write 6.036–13.540 seconds, including DB/routing/memory. Auxiliary observer responsePromptAt/responseWallMs captured retained prompt text and must not be used as latency.
+Current static representative input saves 709 characters/706 bytes versus the original fixture, but live initial wire across 16 bodies **grew 434,981 → 444,124 bytes**. Bytes are not tokens; no per-call input reduction or universal quality/cost claim.
 
-### Shutdown and cleanup
-npm/chat exit 0, owned process group stopped and no workers remaining. Removed one owned task, six memories, twenty messages and the fresh CLI user. All fourteen final ownership readbacks returned zero; no owned runs/prepared actions remained. Canary and conversation identities both removed. No customer records adopted or deleted.
+Six-delegation budget exhausted; **no further automatic source correction, model run or verifier**. Preserve this code/test/evidence checkpoint in the SAME draft PR, report both remaining gates, no ready/merge/deploy. Source checkpoint: pending commit identity.
 
-Local detailed evidence (not automatically published):
-- odd/evidence/hermes-token-optimization/live-cli-2.json
-- scratch/chat-validation-hermes-token-3364a624-deeb-4aee-bfff-857c5ea98ba5.json
+## Recorded baseline and remaining limits
+Actual aggregate used: **241/1,000 requests** (205 prior + 36 current). New phase is CLOSED, its unused 44 requests do not authorize another cycle; all old handles remain closed.
 
-## Earlier preparation failures
-Prior isolated batches selected zero runnable tests or failed offline collection gates; no paid calls. Paced isolated phase also stopped before any key/network use. First CLI OPTIONS preflight did not establish cleanup but was not a permission denial. Prior artifacts remain local, accurately marked blocked/partial; none are live passes. This preparation overhead did not alter Hermes or consume provider budget.
+Most recent 3d4 baseline: unchanged 10-turn closure scenario, **49 requests = 33 chat + 16 embeddings**. Available chat usage 29/33: 101,881 input + 15,762 completion; 11,581 reasoning already included in completion, 3,584 cached input already included in input. Embedding usage/invoice cost unavailable. Trace had four missing upstream envelopes, zero unfinished events/IO errors. Full phase finalized with all 14 readbacks zero, no owned processes.
 
-## Review and next step
-Keep the same PR #111 in draft. Core CI failed and GitGuardian succeeded at last observation. No automatic merge/deploy. Remaining work requires a newly bounded scope: address/disposition baseline CI gates, diagnose invalid-generation attempts from sanitized causal evidence, remove irrelevant recall contamination, and broaden actual-model coverage (Free/Pro, temporal/multiaction, memory/reference cases). Do not claim these findings were introduced by the optimization without baseline comparison, or treat current-only results as A/B savings proof.
+Task pending/notes, dog recall and changed contact preference worked; final summary failed after required `excluded` missing, invalid personal refs mixed with operational UUID-shaped refs, then unusable JSON. Introduced causality was not proven. No irrelevant-recall fix or broad production/WhatsApp/Free-Pro/temporal quality certification claimed. Optional temporal/multiaction live cases remain skipped. Native inspect/assessment for the new candidate was attempted once: inspect declared RDD disabled and did not adopt the supplied intended new test, assess remained unassessable due untracked declaration. No retry, authority mutation or unrelated staging/deletion. Native plan treats candidate as high risk and requires independent verification; no native approval claimed. Independent conservative verification is required.
 
-## Second increment authorization
-User said Adelante to diagnosing invalid generations, duplicate memory/embedding work and irrelevant recall on the same PR, preserving intelligence and full capabilities. New initial work budget: six delegations/continuations, at most two correction attempts per defect; writes sequential. Scout 1/6 performs targeted source/evidence mapping only. If raw failed model output is missing, obtain the smallest bounded synthetic trace before another prompt/schema change; do not invent causality or weaken validation. Native RDD and TDD remain off.
-
-Freeze acceptance after mapping and before checks: explicit personal/mixed recall remains supported; unrelated prior memory must not contaminate a current answer unless the actual current decision authorizes that evidence; identical tenant-scoped query vectors may be reused but searches still execute with owner predicates; changed text/model/dimensions never reuse improperly; no knowledge lost from mixed operational/personal turns and independent admission retained. Five existing CI size assertions are not silently weakened or fixed outside this scope.
-
-Additional live cap: 120 requests total for this increment, including every attempt, embedding and fallback; aggregate already spent 60, so at most 180/1,000 after this scope. Remaining allowance is not authorization for new rounds. Use the proven existing CLI runner, fresh synthetic ownership, three-second pauses, scheduler/side effects disabled and zero-residue cleanup. Trace opt-in, if needed, must be private/synthetic/credential-redacted and bounded. Diagnostic verifier 2/6 is authorized for at most 60 API requests to capture six unchanged closure-cases turns (1,4,5,6,8,9: personal seed, text preference, task creation, note removal, task+dog recall, contact question), three-second pauses and proven owner guards/cleanup. Skip paid reproduction if local evidence suffices. Expected artifacts: odd/evidence/hermes-token-optimization/increment-2-diagnosis.json, fresh scratch/chat-validation-hermes-token-inc2-<UUID>.json, and existing runner opt-in private fresh TMP hermes-provider-trace-*/events.jsonl (0700 directory/0600 file, credential redaction, completeness proof, no public/raw trace upload). Actual current decision/validation fields are required before prompt/schema fixes; no inferred cause from missing evidence. Remaining 60 of this increment is reserved for post-change verification; all API calls counted and no extra rounds. No paid call by the source scout. Stop at exhausted budget or uncertain cleanup; report concrete evidence and proposed next step rather than continue automatically.
-
-## Second increment diagnostic progress
-Read-only verifier 2/6 parsed retained artifacts in memory, without new paid calls or source writes. Five observed failures: turn 2 initial/primary structured_generation_rejection (actions minItems zero); turn 6 initial/primary INVALID_EVIDENCE_REFS; turn 7 observed_answer primary UNKNOWN and secondary UNKNOWN; turn 9 initial/primary MISSING_CONTENT. Raw choice content/current knowledgeRefs are absent from inspected logs. Fresh personal-knowledge nonce and ref handling do not inherit previous-turn refs automatically; current wrong-ref selection versus repeated freeform text remains unresolved.
-
-Source mapping proves the two attachment-free query paths pass the same trimmed current input and fixed embedding model/dimensions; twenty query calls plus six distinct save embeddings fit the ledger. Exact request bodies were not retained. Search results must remain separate and user-filtered; only identical query vectors may be shared. Existing turn-lease AsyncLocalStorage is private and exited for background extraction, and CLI lacks that scope; do not reuse lease state or long-lived working memory as a vector cache. Minimal independent scope/queue capture and tests are being mapped.
-
-The diagnostic verifier's read-only role cannot author the conditional trace adapter or reports. No paid trace ran; do not override that role or build a large ad-hoc harness to bypass it. Existing proof is insufficient for a speculative prompt/schema patch; preserve this gap and proceed only with source-grounded work.
-
-### T7 frozen acceptance and surfaces
-Production surfaces: src/integrations/ai/embeddings.js; src/infrastructure/database/memories.js; scripts/dev/interactive-chat.js; src/http/webhooks/whatsapp.js; src/jobs/memory-extractor.js. One new focused regression file tests/unit/memory/query-embedding-reuse.test.js plus targeted existing memory/messaging regressions. No router, admission contracts, prompt, lease or model configuration changes.
-
-Independent embedding-only AsyncLocalStorage stores one owner-bound query-vector map. It must never snapshot/bind all AsyncLocalStorage stores or carry execution lease/signal into learning. Wrap the resolved-user webhook processing and existing CLI route+extraction block; capture/re-enter only the embedding scope across the shared memory queue. No global scope registry/cache or retained search results. Query metadata is optional; memory-save embeddings bypass reuse. Key exact effective provider input + owner + model + dimensions; pending requests coalesce, null/rejected vectors evict, consumers receive clones, entries bounded per scope. Different turn/user/input never share incorrectly; existing model and 768-dimensional requests remain unchanged. Every search still executes owner-filtered RPC/sparse/topic/hydration queries. Preserve mixed personal facts and independent admission.
-
-Frozen deterministic checks: concurrent and sequential same-query reuse; new turn/owner/query isolation; exact model/dimension identity without new config overrides; failure recovery; clone/capacity isolation; two owner-filtered searches after one vector; saves still embed; captured queued scope survives withoutTurnLease while lease authority remains absent. Credential-free offline focused runner: npx vitest run --config tests/config/vitest.unit.js tests/unit/memory tests/unit/agent/memory-save-unification.test.js tests/unit/messaging/inbound-turn-worker.test.js tests/unit/agent/mixed-personal-response.test.js tests/unit/agent/response-knowledge-scope.test.js. Independent closure after writer returns. Paid usage still aggregate60/1000 and increment0/120; unused trace allowance does not authorize arbitrary runs. Expected live check after source proof remains capped60 requests and requires an exact safe existing-runner invocation.
-
-## T7 writer evidence
-Writer 3/6 completed five linked production edits and one new 211-line regression file, 273 additions / 16 deletions (task bookkeeping excluded). Cache is a 32-entry owner-bound embedding-only AsyncLocalStorage map; pending identical queries coalesce, null/rejections evict, returned vectors clone. Saves/legacy calls bypass. CLI/webhook wrap resolved-owner processing; queue captures/re-enters only embedding state at enqueue and .then, preserving withoutTurnLease. No search-result caching, router/admission/prompt/model/provider/reasoning changes.
-
-Focused sanitized command passed 176 tests in 17 files: local Vitest unit config over tests/unit/memory plus memory-save-unification, inbound-turn-worker, mixed-personal-response and response-knowledge-scope. Source syntax and diff checks passed. New regressions cover sequential/concurrent reuse, user/turn/query isolation, failure eviction, clones/capacity, saves, two owned searches after one vector, queued context with absent lease/signal and unchanged mixed-turn admission. Entry-point structural assertions are not full transport integration proof.
-
-Writer digest used a different 294-path manifest including new untracked test, not a match to the previous manifest; independent verifier must define exact tracked source/test/script/package inventory on the committed candidate. No live requests in this increment yet (aggregate60/1000). No relevance fix or measured token/API savings claimed yet.
-
-Expected independent live validation, only after static/offline gates: reuse the previously proven CLI invocation with fresh identity, three-second pauses, closure-cases ten unchanged turns, cap60 API attempts, scheduler off/ownership guards/cleanup. No new adapter authored by read-only verifier; exact existing command and approved variable substitutions only. Local outputs: fresh scratch/chat-validation-hermes-token-inc2-validation-<UUID>.json and odd/evidence/hermes-token-optimization/increment-2-validation.json. Existing supported trace opt-in is now separately authorized on this SAME post-change run if the prior invocation safely supports the parameter substitution: HERMES_CHAT_PROVIDER_TRACE=1, fresh private 0700 TMP directory / 0600 file, owned/no symlink/bounded/completeness checks. No extra API requests or new adapter; no raw trace/key/reasoning upload. If unsafe/unavailable, leave trace off and report the gap rather than block the otherwise valid count check. Stop after one run, cleanup even on failure; compare observed query embeddings with first26-call sample descriptively, without asserting statistical equivalence or all-output quality. Private/synthetic details remain local; sanitized result in same PR. Source frozen during verification at 311e641. Native ASSESS on the new committed range returned unassessable for unrelated untracked inventory; no retries or staging/deleting unrelated files. Returned plan requires conservative independent verification.
-
-## T8 independent progress
-Static review passed all five syntax checks and both diff checks. Defined inventory: 295 tracked src/tests/scripts/package.json paths, sorted path+NUL+bytes+NUL; frozen digest `5f24bb4a6c7a8b1f1b6d49f0717ee436c4bf36ad5801c48ceb3d3a74cc8709ef`. Three files containing the five baseline budget assertions are byte-identical to 0a95fb5. No canonical/router/provider/admission/current-user-input change or introduced static blocker.
-
-Verifier 4/6 did not run functional commands because its transcript lacked the required exact offline guard invocation; parent supplied an ephemeral no-file data-URL guard and sanitized local Vitest command to continuation 5/6. Six external-network negative checks passed. Independent focused 17 files / 176 tests passed in 2.97s; broad 143 files passed / 3 failed, 1,553 tests passed / 5 failed in 79.60s. Failures are exactly the five prior size budgets, not weakened; no introduced blocker observed. No paid calls during offline stage. The same previously successful CLI heredoc, only approved literal candidate/cap/report/trace substitutions, is being reused for one post-change conversation; no newly authored live harness.
-
-## Closure authorization and current truth
-User explicitly requested completing all reported gates in one go and leaving the same PR ready to merge, without reduced intelligence/capabilities. New bounded closure: six delegations/continuations, at most two correction attempts per defect, writes sequential. User then clarified one test identity per correction cycle, not create/delete for every batch. No further work had started during that clarification pause; parent acknowledged it rather than claiming background progress.
-
-Post-T7 observed totals: 47 calls (32 chat/15 embeddings) versus prior60 (34/26), 46HTTP200 +1HTTP429, five structured invalid attempts +one rate limit. Actual spending now107/1000; remaining893. Usage45/47:106283input14978completion(11158reasoning subset),7168cached input subset,USD0.02933494reported/two missing usage envelopes. Candidate-only before/after counts descriptive, not universal causal A/B savings. English used but one durable language preference memory was absent compared with prior sample; turn7 honest overtechnical fallback; turn9 pertinent preference quote/noNube in this sample is not a relevance fix. Fresh canary/CLI users fully removed,14zero cleanup readbacks/no workers. T7 source311e641 remains local; PR head still0a95fb5 until publication.
-
-Closure paid cap300 additional requests, including every retry/embedding/timeout, from aggregate107 (at most407/1000 after scope). Begin with no paid requests by writer. Capture before changing semantic generation logic; post-fix exact-case checks and one agreed broader pass. If a safety/cleanup/authority issue or work budget exhaustion remains, stop with exact evidence, never claim merge-ready. No silent validator relaxation, smaller models, reduced reasoning/action limits or raised budget assertions.
-
-### T9 acceptance
-Reuse the existing CLI runner, not a new test framework. One fresh synthetic user owned by the closure phase; require safe ownership proof for resume, never just adopt a supplied ID/shared default phone. A private generated phase handle bound to repository and database may carry initial creation proof; verify owner/file permissions/no symlinks, fresh absence and exact ID/phone match. Restart CLI between code revisions so new modules load while the same identity/state remains. All batches keep aggregate request accounting across restarts; lock/concurrency and interrupted accounting must fail closed. Only scoped case-state resets if needed; full owned-row cleanup once on phase finalization/terminal abort, after all owned processes stop, with zero-residue readback. Legacy one-shot behavior stays safe/backward compatible.
-
-Built-in runner pacing3seconds and bounded metadata-only request telemetry/private trace opt-in must remove need for large ephemeral adapters. Use existing provider trace producer and trace modes, never output credentials/raw reasoning. This dev validation support must not change model/provider/reasoning configuration, LLM schemas or production behavior. Tests cover wrong owner/target/repository, unsafe handles, resume after closure, pending process refusal, request caps across batches and final cleanup/receipt errors. Exact command examples returned for the verifier to execute without authoring adapters.
-
-## T9 writer evidence and commands
-Five changed dev/test files (new private session helper, existing runner/preload/CLI and new lifecycle tests); 718 additions / 16 deletions including 30 new regressions. This exceeds advisory review size; keep a separate work-unit commit within the user-requested single PR. No production/provider/prompt/schema changes. Unit suite 98/98 across four files, four dev-script syntax checks and diff check passed. No phase/user/API calls created by writer.
-
-The helper generates private canonical TMP hermes-chat-phase-<UUID>-<generated>/phase.json plus events.jsonl, bound to repo/database/phone/user ID; locking, parent-child proof and fsynced reservations before each chat/embedding HTTP. Closed/wrong-owner/target/unsafe handles fail closed. Failed batches retain state and require explicit finalization; active/reused PIDs or malformed journals refuse unsafe recovery/cleanup. No case-reset API. Native ASSESS for this new committed range remains unassessable due unrelated untracked inventory; no retry or unrelated staging/deletion, conservative independent safety required before live writes. CLI phase mode runs the same interactive entrypoint in a new Node process (rather than an npm intermediary), allowing direct parent proof and code reload. One-shot default preserved.
-
-Exact supported commands, after staging required SDK keys securely in environment (never argv):
-- Create ONCE: DOTENV_CONFIG_PATH=/dev/null KAPSO_API_KEY=dummy HERMES_CHAT_OPENROUTER_REQUEST_LIMIT=300 node scripts/dev/run-chat-validation.js --phase create
-- Baseline/resume: DOTENV_CONFIG_PATH=/dev/null KAPSO_API_KEY=dummy HERMES_CHAT_SCENARIO=closure-cases HERMES_CHAT_PROVIDER_TRACE=1 node scripts/dev/run-chat-validation.js --phase run <returned-handle>
-- Finalize ONCE at closure/terminal abandonment: DOTENV_CONFIG_PATH=/dev/null KAPSO_API_KEY=dummy node scripts/dev/run-chat-validation.js --phase finalize <returned-handle>
-
-Phase handle and private reports must remain local. Reports are sibling batch-<UUID>.json files; trace paths/completeness recorded there. Cap300 is phase-wide; parent must stop unnecessary extra batches and reconcile spend into total107/1000 prior. Independent verifier must review phase ownership/FK predicates, journal locks and process shutdown BEFORE writes. On terminal safety issue finalize only after owned processes stop, never leave unexplained data. On normal baseline success preserve phase identity/state for T11/T12; parent receives private handle for continuity, not raw keys.
-
-## T9 independent safety blocker
-Closure verifier2/6 independently passed98tests/foursyntax/range+workingdiff. It proved a guardian bypass by source: memories.superseded_by→memories(id) and reminders.parent_reminder_id→reminders(id) payload references lacked target-owner lookup while other FKs were checked. Schema evidence schema.sql123/60; supersession is used by memories.js164/212. No actual cross-owner write occurred. No phase/key staging/SDK operations/models were launched; aggregate remains107/1000, closure0/300.
-
-Correct only scripts/dev/chat-validation-session.js and its existing new test file, adding owned/foreign/null cases and pre-I/O denial; no app/prompt/schema changes. Work budget writer3/6 then verifier4/6, leaving product writer5/6 and finalverifier6/6 ifbaseline givescausalevidence. Static manifest297paths sha ecf3d512da8300780649c78aaac67bade5f6e149bc36b321383ccc5d1e09ff59 unchanged at initialac0. No user data or processes to clean.
-
-## T9 guardian correction evidence
-Closure writer3/6 added superseded_by→memories and parent_reminder_id→reminders using the existing non-null FK loop; two-file diff35+/1-. Sixteen POST/PATCH owned/foreign/null/malformed cases passed; focused114/114 across four files, syntax and diff passed, no live activity. Parent added a small HTTP content-negotiation compatibility correction: cloned verification GET headers request application/json rather than inheriting SDK application/vnd.pgrst.object+json; original mutation headers/body stay unchanged. Existing FK cases now assert both header behaviors. This final mechanical adjustment awaits verifier4/6 execution before any real DB activity; do not claim114 on the altered candidate until independently rerun.
-
-Correction checkpoint committed next, then verifier4/6 reviews and runs exact installed phase baseline. No new production/prompt/validator changes; no safety shortcut or raised tests. Aggregate107/1000 unchanged, closure0/300, no phase owner exists yet.
-
-## T10 actual baseline and causal finding
-Independentguardian114/114passed,4syntax/range+workingdiff. Manifest297paths unchangedsha66e4915ff889e810e3556780f386d1a8b65359810198bb2f2d357c96cc48c720 on60a6eaf. One baseline10/10completed, durable49=32chat17embeddings; closure49/300, aggregate156/1000. Active user/data intentionally retained per request, child/group inactive and journallease=null/no lock; private phase handle/userID and trace locations are stored in project memory topic verification/hermes-closure-private-phase, not public Git. Finalization required at T12/end or terminal abandonment.
-
-Trace116events544155bytes, ownedcanonical700/600 no symlink, unfinished0/ioErrorfalse, missingEvents2 expected upstream error-choice gaps. Exit1 is trace-incomplete, not guardian failure or evidence that successful choices are unavailable. Turn7 rawcalls20/21 both HTTP200 finishstop: kindderived, answer50chars (taskstillpending), evidencecall_1, owned taskClaims fieldsstatus/referencePositionnull, taskCoveragereturned_rows, knowledgeRefsnull. Wire schema accepts string, task identities/evidence/field types valid; validator observed-answer.js473 rejects nonemptyanswer because availablepersonalKnowledge.size4. All task-backed model prose is already discarded by runtime; rendering uses verified typed fields. This is a producer/runtime mismatch, not truncation or wrong scope. SubsequentGLM429 separate.
-
-Parent read-only scoped capability check: do NOT globally blank all operational derivations merely because any personal sources exist. Narrow outgoing answer constraint to task-backed+personal context where runtime already discards prose; preserve nonpersonal unused-prose acceptance and non-task derived answers. Canonical claim/coverage/ref validation remains unchanged. Ensure current raw50char producer-invalid output remains rejected and a producer-conformant emptyanswer+same verifiedclaims yields realpending status. No semantic regex/newclassifier/newwire/state or weaker validation.
-
-Turn9 current lookup includedcontact+dog but acceptedreplyrefsabsent, cleancontacttext; no dog selected or replayed. Original contamination remains unproven; no targetedrecallpatch claimed. CI scope instruction description3003→≤~2200 preservingeveryrule/values/constraints, provider/canonical schemas and full capabilities. Existing<6000/<2600 assertions must pass unchanged, not raised. Currentphase data differs initiallocaleesCO fromolderenUS, and repeatedcase state would not be controlled A/B costproof.
-
-## T11 writer evidence
-Writer5/6 completed seven files146+/22-: description-only compaction; observed-answer producer constrains answer enum[''] ONLY taskBacked&&personalKnowledge.size>0; unavailable/exception copy simplified while verified facts/unknowns/inventory bounds remain; producer/compatibility regressions; existing fixtureclosure-recheck equals finalfourclosure-cases turns verbatim, no reseeding/duplicate tasks.
-
-Focused8files146/146passed. All five existing<6000/<2600 gates green, original three budget test files unchanged. Description3003→2276chars; contextualprompt6714→5987; audioprompt6120→5393. Headroom contextual13chars, not broad margin. Exactcanonical/native parameters/fourprovider-schemavariantsunchanged; contract outside description, baseANSWER_SCHEMA,taskClaimRows,canonicalvalidator/coverage byteidentical. Intentionalwordingassertionsupdated, schemafingerprintsretained. No claimedtokeninvoice/relevancefix beforelive.
-
-Rawbaseline nonemptyanswer remainsinvalid; scopedproducer-conformant emptyanswer+verifiedclaims renders actualpending; invalid/stale claims stillreject; mixedtask+recall,unknownrefs,nonpersonalunusedprose andnon-taskderived/recapcompat retained. Parentcodeinspectionconfirmed task-backed prose alreadyunused, so scopedwire restrictiondoesnot discard a previouslypublished answer. No prompt/API call bywriter. Recheck command: same securely staged SDKenv, HERMES_CHAT_SCENARIO=closure-recheck HERMES_CHAT_PROVIDER_TRACE=1 node scripts/dev/run-chat-validation.js --phase run <private existing handle>. Final verifiermustnotreate anotheruser; preservephase49/300current/aggregate156 beforepostcheck andfinalize once atclosureend. Fullunit/buildpolicyCIactualgreenrequiredbeforePRready. Native ASSESS on the new source range remains unassessable because unrelated untracked inventory; no retry/staging/deleting unrelated paths, final independent verifier6/6 applies conservative plan.
-
-## Final closure blocker and cleanup
-Candidate0835independent146focus passed2.44s,all125src/scripts JS syntax/range/workingdiffpassed. Full normal mocks1606passed7failed147files80.92s. Guarded broad suppliedlate executedverbatim1602passed11failed81.43s,6negative networkchecks. Seven candidate compatibility failures: google-calendar-v3.js185 phrase no niegues acceso en conversation.reply; router-native-orchestration.js105 andagent-product-quality.js81 historicalRECAPphrases; pro-consultative-onboarding.js95 missingpayment-warningphrase bothFree/Pro; agent-core-overview.js25 bothadmin variants saving1409exceedsold1100maxsavingassertion. Do notclassifythemoldbaselineoractualmodelregressions withoutproof. Sizebudgetthreefilesnowpassunchanged6000/2600; original seven compatible requirements need reconciliation.
-
-Guardedrunextra fourphase lifecyclechildfixtures reflectparenthostTMPDIR inherited by supplied guard while spawnedfixturechildrengetonlyPATH; normalcleared envpassed. Correctfutureguardenv TMPDIRhandling tosameclearedroot, not weakenphaseownership orfixturetests. No post-fix4turnmodelcheck oroptional8caseacceptance executed. Aggregate remains156/1000; phase49/300 closed, not reusable.
-
-Finalverifier executedinstalledfinalizationONCE afterprocessstop. All14ownershipreadbacks zero, finalizedreceipt spent49,closedtrue/lease=null/lockabsent/no ownedrunIDs orpreparedtargets; owner+associated rowsremoved,no unrelated deletion. Privatebaseline trace/evidence retained(partial2missing upstream envelopes), no newtrace. Userpreference reusedONEidentity withinclosedcycle fulfilled; do notresumeclosedhandle oradoptitnextphase.
-
-Manifest297source/test/script/packagepaths stablehash8432d839de2dead08586fd696cb029057a6745989166c91af9d5cb3c51f6b80f. Source/model/providercanonical paramsandguardsunchangedexceptintentionaldescription/scopedwire/copiedfallback changes. PR111 draft mustremainNOTready; source0835alreadypushed, no merge/deploy.
-
-Six-slot budget exhausted and safely stopped; user then explicitly approved a NEW TWO-delegation compatibility closure (one bounded writer, one independent verifier) with at most120 additionalAPIcalls, no model/capabilities change, no weaker6000/2600 limits, no merge/deploy. Priorphaseclosed/userremoved, aggregate156/1000, max276 afterrenewedscope. Newwriter1/2 restores allrequiredcalendar/recap/paymentwarningphrases whilecompactsourcepassesunchangedbudgets; oldarbitrary1100maxSAVINGSassert replacedbystrongerexactsize snapshot/schema/rule proof, notblindlyraisedproductbudget. ParentprovidedofflineguardmustDROP inheritedTMPDIR so parent andfixturechildren use sameclearedcanonicaltemp root, no productionguard weakening or testfixturepermissionchanges. No source/paidroundafterthese2slotswithoutnewauthorization.
-
-## Renewed compatibility writer evidence
-Writer1/2 changedonlyintent-contracts descriptionandagent-core-overview tests,19+/14-. Restoredexactcalendar access/no denialconversationreply,EnglishhistoricalRECAP/currentreads/evidenceRefs andpayment-method warnings. Removedredundantcopyretainedviaunchangedcore/schema; alloldowned/temporal/language/null/profile/billing/capabilitiesconstraints preserved.
-
-Focusedninefilesfinal132/132passed2.98s afteroneordinarywordingcorrection(initial129/3reported,notceremonialTDD). Bothsyntax/diffpass. Context5998chars/6039bytes (two-charheadroom);audio5404/5435;description2287/2297. FixedFreebefore25544/25587→24146/24192,admin25645/25689→24247/24294. Saving1398chars1395bytes,notTokenestimate. Exactafterchar+UTF8 snapshotsandfull-schemaSHA replaceoldmaxSAVINGS1100;minimum650andallcontext/semanticchecksretained;productmaxlimitsunchanged. Nativeparameters/canonicalguards/opregistry/fourprovidervariants equal0835outsidechangeddescription.
-
-Finalverifier2/2 next: suppliedofflineguardenv mustclearTMPDIRso spawnedfixturechildren andparentuseidenticalcanonicalroot; don'teditphasebinding/testsforguardenvbug. No focusedduplicateunchangedrun unlessindependentneeded; oncefullgreen thenonefreshownedphase(currentclosedhandleNOTreuse) tocheckactual10turnsneededtosetuptaskandmemorybeforeerrorcase. AdditionalAPIcap120includesallfalse/fallback/embedding,outsideacceptancecountsand1000aggregateprior156. Userreuseidentityapplieseachcurrentcycle,finalcleanupONCE. No model/DBcallswriter, no newactualphaseyet.
+PR body is stale (initial increment and 60-request evidence); final publication must replace it truthfully. Detailed historical task journal is preserved in Engram task mirror history (3818, revisions before this reconciliation); this file now records current decisions and verified checkpoints rather than repeating old inventories.
 
 ## Rollback
-No data migration. Before merge, close the draft/branch through ordinary policy. After merge, use a reviewed revert of the squash/merge commit with explicit human approval (`git revert -m 1 <merge-sha>` for a merge commit). Preserve telemetry compatibility/privacy if selectively reverting. No automatic destructive operation.
+No migration. Keep all increments in the same PR as explicitly requested. After merge, a reviewed revert of the squash/merge commit can roll back the PR; no automatic destructive Git operation, rollback, merge or deployment.

@@ -1,4 +1,5 @@
 import { validateMemoryCandidates } from './validate-candidates.js';
+import { validLearningCandidates } from '../../agent/contracts/intent-contracts.js';
 import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
 import { saveMemory, searchMemories, getActiveMemories, getStandingMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
@@ -134,13 +135,18 @@ export async function extractAndSaveMemories({
   assistantReply,
   executionFacts = [],
   memoryDisposition = 'extract',
+  learningCandidates,
+  learningCandidatesProvided = false,
   throwOnError = false,
 }) {
   // An explicit save already ran this same pipeline on the entire source turn,
   // including independent facts. Do not repeat even an empty or failed attempt.
   if (memoryDisposition === 'processed' || !userId || !userText) return [];
 
-  if (memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
+  // A raw flag alone cannot suppress extraction. Only a complete typed
+  // proposal decision from the validated caller can use this path.
+  const useProposals = learningCandidatesProvided === true && validLearningCandidates(learningCandidates);
+  if (!useProposals && memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
     console.log('[memoryService] SKIPPED extraction: unresolved operational-only turn.');
     return [];
   }
@@ -158,25 +164,28 @@ export async function extractAndSaveMemories({
   }
 
   try {
-    const messages = [
-      { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
-      {
-        role: 'user',
-        content: buildMemoryExtractionInput({ userText: eligibleText, executionFacts, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
-      },
-    ];
-
-    const rawResponse = await callMemoryExtraction(messages, {
-      temperature: 0,
-      max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
-      timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
-    });
-    const candidates = parseJsonArray(rawResponse, throwOnError);
+    let candidates = learningCandidates;
+    if (!useProposals) {
+      const messages = [
+        { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
+        {
+          role: 'user',
+          content: buildMemoryExtractionInput({ userText: eligibleText, executionFacts, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
+        },
+      ];
+      const rawResponse = await callMemoryExtraction(messages, {
+        temperature: 0,
+        max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
+        timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
+      });
+      candidates = parseJsonArray(rawResponse, throwOnError);
+    }
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
     const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES)
       .map(item => item && typeof item === 'object' ? { ...item, evidence: recoverLiteralEvidence(item.evidence, eligibleText) } : item)
       .filter(item => !getMemoryCandidateRejection(item, eligibleText));
+    if (!grounded.length) return [];
     const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts, throwOnError });
     const saved = [];
     for (const item of admitted) {

@@ -68,7 +68,9 @@ function withNullPlaceholders(value, schema = TURN_INTENT_SCHEMA) {
   if (Array.isArray(value)) return value.map((item) => withNullPlaceholders(item, schema.items));
   if (schema.properties && value && typeof value === 'object') {
     const result = Object.fromEntries(Object.entries(schema.properties).map(([key, child]) => [
-      key, Object.hasOwn(value, key) ? withNullPlaceholders(value[key], child) : null,
+      // Canonical optionality is not producer nullability: this one additive
+      // root field is a complete proposal decision, [] when nothing qualifies.
+      key, Object.hasOwn(value, key) ? withNullPlaceholders(value[key], child) : (key === 'learningCandidates' ? [] : null),
     ]));
     for (const key of Object.keys(value)) {
       if (!Object.hasOwn(result, key)) {
@@ -89,6 +91,7 @@ function providerResponse(message) {
 function structuredResponse(intent) {
   const providerIntent = {
     ...intent,
+    learningCandidates: Object.hasOwn(intent, 'learningCandidates') ? intent.learningCandidates : [],
     responseLanguage: Object.hasOwn(intent, 'responseLanguage') ? intent.responseLanguage : 'es',
     responseCapability: Object.hasOwn(intent, 'responseCapability') ? intent.responseCapability : 'general',
     actions: intent.actions.map((item) => {
@@ -293,7 +296,7 @@ describe('foreground strict Structured Outputs boundary', () => {
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     const expectedCanonical = structuredClone(canonicalSnapshot);
-    expectedCanonical.required.push('responseLanguage', 'responseCapability');
+    expectedCanonical.required.push('responseLanguage', 'responseCapability', 'learningCandidates');
     const providerSchema = payload.response_format.json_schema.schema;
     const action = expectedCanonical.properties.actions.items;
     const domains = action.properties.domain.enum.filter((domain) => isAdmin || domain !== 'admin');
@@ -319,8 +322,12 @@ describe('foreground strict Structured Outputs boundary', () => {
         description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
       };
     }
+    const fields = expectedCanonical.properties.actions.items.properties;
+    fields.endSchedule = structuredClone(fields.endSchedule);
+    fields.endSchedule.description = 'End time; use the same temporal field semantics as schedule.';
+    for (const field of ['kind', 'allDay', 'clockMode']) fields.endSchedule.properties[field].description = `Same semantics as schedule.${field}.`;
     expectStrictSchema(providerSchema, expectedCanonical);
-    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', responseCapability: 'general', actions: [replyAction] }, { isAdmin, requireResponseCapability: true });
+    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', responseCapability: 'general', learningCandidates: [], actions: [replyAction] }, { isAdmin, requireResponseCapability: true });
     expect(TURN_INTENT_SCHEMA.required).toEqual(['actions']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.required).toEqual(['domain', 'action']);
     expect(TURN_INTENT_SCHEMA.properties.actions.items.properties.schedule.required).toEqual(['kind']);
@@ -332,7 +339,7 @@ describe('foreground strict Structured Outputs boundary', () => {
     const result = await routeMessage('Recuérdame llamar a Pedro mañana a las 5', user, [], turnOptions);
 
     expect(validateTurnIntent).toHaveBeenCalledTimes(2); // Provider admission, then router admission.
-    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', responseCapability: 'general', actions: [reminderAction] }, { isAdmin: false, requireResponseCapability: true });
+    expect(validateTurnIntent).toHaveBeenCalledWith({ responseLanguage: 'es', responseCapability: 'general', learningCandidates: [], actions: [reminderAction] }, { isAdmin: false, requireResponseCapability: true });
     expect(validateTurnIntent.mock.results[0].value.valid).toBe(true);
     expect(result.plan.type).toBe('turn_intent');
     expect(executeTool).toHaveBeenCalledTimes(1);

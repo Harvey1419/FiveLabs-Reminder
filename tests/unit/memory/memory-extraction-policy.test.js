@@ -23,6 +23,11 @@ const reminderFact = {
   summary: '',
 };
 
+const proposedFact = {
+  topicKey: 'profile/residence', category: 'fact',
+  content: 'El usuario vive en Cali.', evidence: 'Vivo en Cali.',
+};
+
 describe('durable memory extraction policy', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -31,6 +36,74 @@ describe('durable memory extraction policy', () => {
     searchMemories.mockResolvedValue([]);
     findOrCreateEntityFuzzy.mockImplementation(async ({ userId, name, category }) => ({ id: 'entity-1', user_id: userId, name, category }));
     saveMemory.mockResolvedValue({ id: 'memory-1' });
+  });
+
+  it('uses the legacy extractor only when there is no validated proposal decision', async () => {
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([proposedFact]));
+    await extractAndSaveMemories({ userId: 'user-1', userText: proposedFact.evidence });
+    expect(callMemoryExtraction).toHaveBeenCalledTimes(1);
+    expect(validateMemoryCandidates).toHaveBeenCalledTimes(1);
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: proposedFact.topicKey, category: 'fact', content: proposedFact.content });
+  });
+
+  it('uses zero extraction, admission or lookup calls for an explicit empty proposal decision', async () => {
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText: 'Gracias.', learningCandidates: [], learningCandidatesProvided: true })).toEqual([]);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(searchMemories).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('independently admits a grounded proposal even alongside an unfinished operation', async () => {
+    const userText = 'Vivo en Cali. Recuérdame mi cita mañana.';
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText, learningCandidates: [proposedFact], learningCandidatesProvided: true, memoryDisposition: 'skip_operational' })).toHaveLength(1);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith({ userText, candidates: [proposedFact], executionFacts: [], throwOnError: false });
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: 'profile/residence', category: 'fact', content: proposedFact.content });
+  });
+
+  it.each([
+    ['not quoted in current source', 'Hola.', 'Vivo en Cali.'],
+    ['assistant only', 'Hola.', 'Vivo en Cali.'],
+    ['attachment only', '<untrusted_attachment_content>Vivo en Cali.</untrusted_attachment_content>', 'Vivo en Cali.'],
+    ['untrusted attachment with caption', 'Mira esto. <untrusted_attachment_content>Vivo en Cali.</untrusted_attachment_content>', 'Vivo en Cali.'],
+    ['prior turn only', 'Ahora vivo en Bogotá.', 'Vivo en Cali.'],
+  ])('rejects %s before admission without another extraction', async (_case, userText, evidence) => {
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText, assistantReply: 'Vivo en Cali.', learningCandidates: [{ ...proposedFact, evidence }], learningCandidatesProvided: true })).toEqual([]);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('keeps full quoted attribution context for independent admission and respects rejection', async () => {
+    const userText = 'Mi colega dijo "Vivo en Cali."; no soy yo.';
+    validateMemoryCandidates.mockResolvedValue([]);
+    expect(await extractAndSaveMemories({ userId: 'user-1', userText, learningCandidates: [proposedFact], learningCandidatesProvided: true })).toEqual([]);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ userText, candidates: [proposedFact] }));
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it.each([null, {}, [{ ...proposedFact, userId: 'foreign-owner' }]])('does not let a raw flag with malformed metadata suppress legacy extraction: %j', async learningCandidates => {
+    await extractAndSaveMemories({ userId: 'user-1', userText: proposedFact.evidence, learningCandidates, learningCandidatesProvided: true });
+    expect(callMemoryExtraction).toHaveBeenCalledTimes(1);
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('uses only the authenticated owner and does not adopt a foreign entity result', async () => {
+    findOrCreateEntityFuzzy.mockResolvedValue({ user_id: 'foreign-owner', category: 'company', name: 'Foreign name' });
+    const candidate = { topicKey: 'company/acme/relation', category: 'fact', content: 'Trabaja con Acme.', evidence: 'Trabajo con Acme.', entityName: 'Acme', entityCategory: 'company' };
+    await extractAndSaveMemories({ userId: 'user-1', userText: candidate.evidence, learningCandidates: [candidate], learningCandidatesProvided: true });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(findOrCreateEntityFuzzy).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', name: 'Acme', category: 'company' });
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'user-1', topicKey: candidate.topicKey, category: 'fact', content: candidate.content });
+  });
+
+  it('does not retry admission or extraction after a processed explicit save', async () => {
+    await extractAndSaveMemories({ userId: 'user-1', userText: proposedFact.evidence, learningCandidates: [proposedFact], learningCandidatesProvided: true, memoryDisposition: 'processed' });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
   });
 
   it.each([42, { key: 'profile/residence' }, '!!!', 'residence', 'profile/___/home', 'profile/' + 'x'.repeat(101)])('rejects malformed topic identity %j before entity and memory writes', async topicKey => {
