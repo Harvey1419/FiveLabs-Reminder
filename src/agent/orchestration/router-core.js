@@ -364,7 +364,19 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   let language = conversationLanguage || (user.locale?.startsWith('en') ? 'en' : 'es');
   const applyDecisionContext = async (decision) => {
     language = decision.responseLanguage || language;
-    const update = decision.profileUpdate;
+    let update = decision.profileUpdate;
+    if (!update && Array.isArray(decision.learningCandidates)) {
+      const candidate = decision.learningCandidates.find(c =>
+        c?.topicKey === 'preference/language'
+        && (c.category === 'preference' || /ingl[eé]s|english/i.test(c.content || ''))
+        && typeof c.evidence === 'string' && c.evidence.trim()
+        && currentUserText.includes(c.evidence.trim())
+      );
+      if (candidate) {
+        update = { sourceQuote: candidate.evidence.trim(), language: 'en' };
+        decision.profileUpdate = update;
+      }
+    }
     if (!update) return true;
     const patch = { ...(update.timezone ? { timezone: update.timezone } : {}),
       ...(update.language ? { locale: update.language === 'en' ? 'en-US' : 'es-CO' } : {}) };

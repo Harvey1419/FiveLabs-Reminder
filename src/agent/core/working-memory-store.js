@@ -92,6 +92,23 @@ export function saveWorkingMemory(userOrPhone, memoryData = {}, { restoredTimest
       : null)
     || null;
 
+  if (memoryData.source === 'notification') {
+    const isInteractiveActive = existingEntry
+      && existingEntry.source !== 'notification'
+      && (Date.now() - existingEntry.timestamp < 10 * 60 * 1000);
+
+    if (isInteractiveActive) {
+      const updated = {
+        ...existingEntry,
+        lastAction: memoryData.lastAction !== undefined ? memoryData.lastAction : existingEntry.lastAction,
+        notificationReminderId: explicitNotifId || memoryData.notificationReminderId || existingEntry.notificationReminderId,
+        notificationContent: memoryData.notificationContent !== undefined ? memoryData.notificationContent : existingEntry.notificationContent,
+      };
+      for (const key of keys) workingMemoryStore.set(key, updated);
+      return;
+    }
+  }
+
   const validRestoredTimestamp = restoredTimestamp === null ? NaN : Number(restoredTimestamp);
   const payload = {
     source: memoryData.source || 'unified',

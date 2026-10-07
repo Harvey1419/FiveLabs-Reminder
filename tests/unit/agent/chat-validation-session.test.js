@@ -54,7 +54,7 @@ function childReservations(handle, token, count, crash = false) {
     phaseChildProof(handle, context, token, { register: true });
     for (let i = 0; i < Number(count); i++) reservePhaseRequest(handle, context, token, i % 2 ? 'embeddings' : 'chat');
     if (crash === 'true') process.exit(7);
-  `, handle, token, context.root, context.database, String(count), String(crash)], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+  `, handle, token, context.root, context.database, String(count), String(crash)], { encoding: 'utf8', env: { PATH: process.env.PATH, ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}) } });
 }
 
 describe('owned validation phase (no DB/API/network)', () => {
@@ -110,7 +110,7 @@ describe('owned validation phase (no DB/API/network)', () => {
         catch (error) { if (!error.message.includes('cap reached')) throw error; }
       }
       console.log('MOCK_HTTP_CALLS=' + calls);
-    `], { encoding: 'utf8', env: { PATH: process.env.PATH, SUPABASE_URL: context.database,
+    `], { encoding: 'utf8', env: { PATH: process.env.PATH, ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}), SUPABASE_URL: context.database,
       HERMES_CHAT_PHASE_HANDLE: handle, HERMES_CHAT_PHASE_TOKEN: token,
       HERMES_CHAT_TEST_PHONE: readPhase(handle, context).phone, HERMES_CHAT_DISABLE_REMINDER_SCHEDULER: '1',
       HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: '300' } });
@@ -193,7 +193,7 @@ describe('owned validation phase (no DB/API/network)', () => {
       const [handle, root, database] = process.argv.slice(1);
       const context = { root, database };
       acquirePhase(handle, context); beginPhaseBatch(handle, context);
-    `, handle, context.root, context.database], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    `, handle, context.root, context.database], { encoding: 'utf8', env: { PATH: process.env.PATH, ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}) } });
     expect(result.status, result.stderr).toBe(0);
     expect((await finalizePhase(client, handle, context)).spent).toBe(0);
     expect(readPhase(handle, context).closed).toBe(true);

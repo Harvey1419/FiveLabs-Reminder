@@ -293,7 +293,7 @@ export async function checkAndDispatchNudges() {
       await incrementReminderNudge(reminder.id, nextCount);
 
       const wmPayload = {
-        source: 'reminder',
+        source: 'notification',
         scope: 'today',
         lastAction: 'nudge',
         notificationReminderId: reminder.id,
@@ -418,7 +418,7 @@ export async function processReminder(reminder) {
 
     const cleanSummary = stripReminderPrefix(reminder.content);
     const wmPayload = {
-      source: 'reminder',
+      source: 'notification',
       scope: 'today',
       lastAction: isAdvance ? 'advance_notice_dispatched' : 'reminder_dispatched',
       notificationReminderId: isAdvance ? null : reminder.id,

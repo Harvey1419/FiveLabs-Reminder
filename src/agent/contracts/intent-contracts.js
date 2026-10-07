@@ -3,6 +3,7 @@ import { TURN_CONTEXT_PROPERTIES, validateTurnContext } from './turn-context.js'
 import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
+import { isStrictUUID } from '../../shared/entity-resolution.js';
 
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
@@ -69,7 +70,7 @@ export const typedSchedule = {
   required: ['kind'],
 };
 
-const actionSchema = {
+export const actionSchema = {
   type: 'object', additionalProperties: false,
   properties: {
     domain: { type: 'string', enum: DOMAINS },
@@ -117,6 +118,13 @@ const actionSchema = {
   },
   required: ['domain', 'action'],
 };
+
+Object.defineProperty(actionSchema.properties, 'evidence', {
+  value: { type: 'string', description: 'Grounded literal evidence substring from user text, e.g. for memory.save.' },
+  enumerable: false,
+  configurable: true,
+  writable: true,
+});
 
 // Proposal bounds mirror the existing extraction/admission contract. This is
 // source metadata, never effect authority or a model-selected owner.
@@ -534,8 +542,10 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     normalizedActions.push(normalizedAction);
   }
   if (Array.isArray(intent.knowledgeRefs)) {
-    const validPersonalRefs = intent.knowledgeRefs.filter(ref => typeof ref === 'string' && /^pk_[a-f0-9]{12}_[1-9][0-9]?$/.test(ref));
-    if (validPersonalRefs.length > 0 && validPersonalRefs.length < intent.knowledgeRefs.length) {
+    const validPersonalRefs = intent.knowledgeRefs.filter(ref => typeof ref === 'string' && /^pk_[a-f0-9]{8,16}_[1-9][0-9]?$/.test(ref));
+    const shouldSanitize = (validPersonalRefs.length > 0 && validPersonalRefs.length < intent.knowledgeRefs.length)
+      || (validPersonalRefs.length === 0 && intent.knowledgeRefs.length > 0 && intent.knowledgeRefs.every(isStrictUUID));
+    if (shouldSanitize) {
       intent.knowledgeRefs = validPersonalRefs;
     }
   }
@@ -543,7 +553,7 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     && !(Array.isArray(intent.knowledgeRefs) && intent.knowledgeRefs.length === 0);
   if (hasKnowledgeRefs && (!Array.isArray(intent.knowledgeRefs)
     || intent.knowledgeRefs.length > 8
-    || intent.knowledgeRefs.some(ref => typeof ref !== 'string' || !/^pk_[a-f0-9]{12}_[1-9][0-9]?$/.test(ref))
+    || intent.knowledgeRefs.some(ref => typeof ref !== 'string' || !/^pk_[a-f0-9]{8,16}_[1-9][0-9]?$/.test(ref))
     || new Set(intent.knowledgeRefs).size !== intent.knowledgeRefs.length
     || normalizedActions.some(item => !PERSONAL_READ_OPERATIONS.has(`${item.domain}.${item.action}`)
       && !(item.domain === 'conversation' && ['reply', 'recap'].includes(item.action))))) {

@@ -202,4 +202,28 @@ describe('direct TurnIntent contract', () => {
     expect(validateTurnIntent({ actions: [{ domain: 'admin', action: 'metrics' }] }, { isAdmin: false }).errorCode).toBe('UNSUPPORTED_DOMAIN');
     expect(validateTurnIntent({ actions: [{ domain: 'memory', action: 'store', content: 'Trabajo en Globant' }] }).errorCode).toBe('UNSUPPORTED_ACTION');
   });
+
+  it('sanitizes knowledgeRefs when only non-pk refs like task/operational UUIDs are present', () => {
+    const intent = {
+      responseCapability: 'general',
+      knowledgeRefs: ['b2e7a189-53bb-4d7a-821f-11910cf6e294', '4839cf9e-1763-4927-b9c1-7da344f6f709'],
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Hola' }],
+    };
+    const result = validateTurnIntent(intent, { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(intent.knowledgeRefs).toEqual([]);
+    expect(result.intent.knowledgeRefs).toBeUndefined();
+  });
+
+  it('sanitizes knowledgeRefs when mixed pk and non-pk refs are present, retaining only valid pk refs', () => {
+    const validPk = 'pk_012345abcdef_1';
+    const intent = {
+      responseCapability: 'general',
+      knowledgeRefs: [validPk, 'b2e7a189-53bb-4d7a-821f-11910cf6e294'],
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Hola' }],
+    };
+    const result = validateTurnIntent(intent, { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(result.intent.knowledgeRefs).toEqual([validPk]);
+  });
 });

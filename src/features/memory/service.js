@@ -188,11 +188,20 @@ export async function extractAndSaveMemories({
       const explicit = memorySaveActions.flatMap(action => {
         if (action?.domain !== 'memory' || action.action !== 'save'
           || typeof action.content !== 'string') return [];
-        const start = eligibleText.indexOf(action.content);
-        if (start < 0) return [];
+        let extractedOrProvidedEvidence = null;
+        if (typeof action.evidence === 'string' && action.evidence.trim()) {
+          const verified = recoverLiteralEvidence(action.evidence.trim(), eligibleText);
+          if (typeof verified === 'string' && eligibleText.includes(verified)) {
+            extractedOrProvidedEvidence = verified;
+          }
+        }
+        if (!extractedOrProvidedEvidence) {
+          extractedOrProvidedEvidence = extractGroundedSpan(action.content, eligibleText);
+        }
+        if (!extractedOrProvidedEvidence || !eligibleText.includes(extractedOrProvidedEvidence)) return [];
         const candidate = {
           topicKey: action.topicKey, category: action.category, content: action.content,
-          evidence: eligibleText.slice(start, start + action.content.length),
+          evidence: extractedOrProvidedEvidence,
           ...(Object.hasOwn(action, 'entityName') ? { entityName: action.entityName } : {}),
           ...(Object.hasOwn(action, 'entityCategory') ? { entityCategory: action.entityCategory } : {}),
         };
@@ -474,6 +483,57 @@ export function buildMemoryExtractionInput({ userText, existingMemories = [], ex
 export function getMemoryEligibleText(userText) {
   // Preserve mixed turns intact. Semantic admission decides eligibility per fact.
   return String(userText || '').trim();
+}
+
+export function extractGroundedSpan(content, sourceText) {
+  if (typeof content !== 'string' || typeof sourceText !== 'string') return null;
+  const cleanContent = content.trim();
+  const cleanSource = sourceText.trim();
+  if (!cleanContent || !cleanSource) return null;
+
+  if (sourceText.includes(cleanContent)) {
+    const idx = sourceText.indexOf(cleanContent);
+    return sourceText.slice(idx, idx + cleanContent.length);
+  }
+
+  const sourceLower = sourceText.toLowerCase();
+  const contentLower = cleanContent.toLowerCase();
+
+  const caseIdx = sourceLower.indexOf(contentLower);
+  if (caseIdx >= 0) {
+    return sourceText.slice(caseIdx, caseIdx + cleanContent.length);
+  }
+
+  const contentWords = cleanContent.split(/\s+/).filter(Boolean);
+
+  for (let windowSize = contentWords.length; windowSize >= 2; windowSize--) {
+    for (let i = 0; i <= contentWords.length - windowSize; i++) {
+      const phrase = contentWords.slice(i, i + windowSize).join(' ').toLowerCase();
+      const pIdx = sourceLower.indexOf(phrase);
+      if (pIdx >= 0) {
+        let startIdx = pIdx;
+        let endIdx = pIdx + phrase.length;
+        for (let j = i - 1; j >= 0; j--) {
+          const w = contentWords[j].toLowerCase();
+          const wIdx = sourceLower.lastIndexOf(w, startIdx);
+          if (wIdx >= 0 && (startIdx - (wIdx + w.length)) <= 2) {
+            startIdx = wIdx;
+          }
+        }
+        for (let j = i + windowSize; j < contentWords.length; j++) {
+          const w = contentWords[j].toLowerCase();
+          const wIdx = sourceLower.indexOf(w, endIdx);
+          if (wIdx >= 0 && (wIdx - endIdx) <= 2) {
+            endIdx = wIdx + w.length;
+          }
+        }
+        const span = sourceText.slice(startIdx, endIdx).trim();
+        return (span.length > 0 && span.length <= 180) ? span : null;
+      }
+    }
+  }
+
+  return null;
 }
 
 // Source canonicalization only; semantic admission still evaluates the full turn.

@@ -261,7 +261,7 @@ const ANSWER_SCHEMA = {
     kind: { type: 'string', enum: ['inventory', 'derived', 'insufficient', 'recap', 'task_status'] },
     answer: { type: 'string' },
     evidenceCallIds: { type: 'array', maxItems: 12, items: { type: 'string' } },
-    knowledgeRefs: { type: ['array', 'null'], maxItems: 8, items: { type: 'string', pattern: '^pk_[a-f0-9]{12}_[1-9][0-9]?$' } },
+    knowledgeRefs: { type: ['array', 'null'], maxItems: 8, items: { type: 'string', pattern: '^pk_[a-f0-9]{8,16}_[1-9][0-9]?$' } },
     taskCoverage: { type: 'string', enum: ['returned_rows', 'both_statuses', 'unknown', 'not_applicable'] },
     taskClaims: { type: 'array', maxItems: 12, items: {
       type: 'object', additionalProperties: false,
