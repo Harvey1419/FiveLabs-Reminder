@@ -6,7 +6,8 @@ Reduce repeated chat generations and total input/output tokens without changing 
 - Branch: `perf/hermes-token-optimization`.
 - Single PR: https://github.com/Harvey1419/FiveLabs-Reminder/pull/111 (draft).
 - Base: `dca8c1da4ba0479ae94e6d1822a8f46556983b48`.
-- Current verified/published candidate: `3d4f93c1f0b959fa2c417d8d4a8c5291bb97e75e`.
+- Previous verified/published candidate: `3d4f93c1f0b959fa2c417d8d4a8c5291bb97e75e`.
+- Current source checkpoint: `250ff21b68a42248d6060d05b24537a0a8bb5abf` (full offline checks pass; live acceptance remains blocked).
 - User explicitly authorizes implementation, work-unit commits, push and updating the SAME PR; no merge or deployment. User requests unattended completion, not per-step permission loops.
 - TDD off; fresh clone-local RDD off. Ordinary functional checks remain required.
 - Preserve unrelated media, evidence and video task files. Never publish credentials, raw traces, phase handles or synthetic owner IDs.
@@ -81,7 +82,7 @@ Observed chat reduction **36.36%**, known-token reduction **23.43%**. **Total-to
 
 Current static representative input saves 709 characters/706 bytes versus the original fixture, but live initial wire across 16 bodies **grew 434,981 → 444,124 bytes**. Bytes are not tokens; no per-call input reduction or universal quality/cost claim.
 
-Six-delegation budget exhausted; **no further automatic source correction, model run or verifier**. Preserve this code/test/evidence checkpoint in the SAME draft PR, report both remaining gates, no ready/merge/deploy. Source checkpoint: pending commit identity.
+Six-delegation budget exhausted; **no further automatic source correction, model run or verifier**. Preserve this code/test/evidence checkpoint in the SAME draft PR, report both remaining gates, no ready/merge/deploy. Source checkpoint: `250ff21b68a42248d6060d05b24537a0a8bb5abf`, `perf(agent): reuse validated primary learning proposals`. It contains source, tests and this feature evidence; publication is a draft checkpoint, not an accepted/merge-ready outcome.
 
 ## Recorded baseline and remaining limits
 Actual aggregate used: **241/1,000 requests** (205 prior + 36 current). New phase is CLOSED, its unused 44 requests do not authorize another cycle; all old handles remain closed.
