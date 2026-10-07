@@ -1,5 +1,87 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
+import { EXECUTE_TURN_DESCRIPTION } from '../../../src/agent/contracts/intent-contracts.js';
+import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+
+describe('static prompt deduplication', () => {
+  // Bounded c6ab77e baseline, measured with these exact synthetic inputs and
+  // the full provider schema. Characters/bytes are not token or quality proof.
+  // Actual current serialization must meet the original savings minimum.
+  // Reconstructed old fingerprints are compatibility controls, not savings.
+  it.each([
+    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24146, afterBytes: 24192, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
+    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24247, afterBytes: 24294, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
+  ])('reduces actual serialized prompt + additive schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes, afterChars, afterBytes, schemaHash }) => {
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30',
+      nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
+      timezone: 'America/Bogota', language: 'es', isAdmin, isPro: isAdmin,
+      billingContext: { provider: 'Stripe', subscriptionStatus: isAdmin ? 'active' : 'pending', entitlementKnown: true },
+      memoryHints: 'Prefiere respuestas breves.', preferenceHints: 'No ofrecer planes sin solicitud.',
+      workingMemoryText: '[Working Memory: referencia, no estado vivo]',
+      referencedProjectTasks: '[Tareas vivas: contexto limitado]',
+      overview: { openTasks: [{ title: 'Synthetic task' }] },
+    });
+    const schema = getStructuredTurnSchema({ isAdmin });
+    // Genuine additive schema growth is not token savings. Preserve the exact
+    // old wire snapshot after reverting ONLY the declared additive/description
+    // differences, rather than raising the context or description budgets.
+    const previousSchema = structuredClone(schema);
+    delete previousSchema.properties.learningCandidates;
+    previousSchema.required = previousSchema.required.filter(key => key !== 'learningCandidates');
+    const fields = previousSchema.properties.actions.items.properties;
+    fields.returnFields.description = fields.returnFields.description.replace('select for simple actual status/date/notes questions', 'simple field question');
+    fields.endSchedule.description = fields.schedule.description;
+    for (const key of ['kind', 'allDay', 'clockMode']) fields.endSchedule.properties[key].description = fields.schedule.properties[key].description;
+    // The exact original recap wording is restored in the current prompt.
+    const previousPrompt = prompt;
+    expect(createHash('sha256').update(JSON.stringify(previousSchema)).digest('hex')).toBe(schemaHash);
+    const previousSerialized = JSON.stringify({ prompt: previousPrompt, schema: previousSchema });
+    expect(previousSerialized.length).toBe(afterChars);
+    expect(Buffer.byteLength(previousSerialized, 'utf8')).toBe(afterBytes);
+    const currentSerialized = JSON.stringify({ prompt, schema });
+    const currentBytes = Buffer.byteLength(currentSerialized, 'utf8');
+    process.stdout.write(`CORE_INPUT_METRICS ${JSON.stringify({ isAdmin, serializedChars: currentSerialized.length, serializedBytes: currentBytes, nativeSchemaChars: JSON.stringify(schema).length, contextChars: prompt.length, descriptionChars: EXECUTE_TURN_DESCRIPTION.length })}\n`);
+    expect(baselineChars - currentSerialized.length).toBeGreaterThanOrEqual(650);
+    expect(baselineBytes - currentBytes).toBeGreaterThanOrEqual(650);
+    expect(prompt.length).toBeLessThan(6000);
+    expect(EXECUTE_TURN_DESCRIPTION.length).toBeLessThan(2600);
+    expect(schema.properties.learningCandidates.type).toBe('array');
+    expect(schema.properties.learningCandidates.maxItems).toBe(16);
+    expect(schema.required).toContain('learningCandidates');
+    // The description is actually consumed by the foreground system prompt,
+    // not by its strict response schema. Never remove its unique action rules.
+    expect(prompt.split(EXECUTE_TURN_DESCRIPTION)).toHaveLength(2);
+    for (const context of [
+      'Prefiere respuestas breves.', 'No ofrecer planes sin solicitud.',
+      '[Working Memory: referencia, no estado vivo]', '[Tareas vivas: contexto limitado]',
+      'Tareas abiertas sin fecha: 1', 'fechas de compromisos históricos: evidencia canónica, no el año del reloj',
+      'Runtime renders subscription.info even with reply', 'Social replies get no billing card',
+      'future-day reminder scheduling and recurring reminders', 'keep prose persuasive',
+      'For existing Pro access acknowledge access and benefits, never suggest another payment',
+      'If access is UNKNOWN do not assert Free or Pro',
+      'No fixed card, invented features, unlimited usage, prices, trials or app instructions',
+      'plan information never charges or creates a subscription',
+      'responseCapability is required', 'billing_info forbids mutations', 'never auto-checkout or retry',
+    ]) expect(prompt).toContain(context);
+    expect(prompt.includes('Métricas administrativas')).toBe(isAdmin);
+  });
+
+  it('preserves caller-supplied Free guidance and unknown entitlement without inferring a plan', () => {
+    const proGuidance = '- Cumple primero la solicitud.\n- No agregues publicidad a saludos u operaciones rutinarias.';
+    const prompt = buildAgentCorePrompt({
+      nowStr: '2026-10-01 11:30', timezone: 'America/Bogota',
+      proGuidance, isPro: true, billingContext: { entitlementKnown: false },
+    });
+    expect(prompt).toContain(proGuidance);
+    expect(prompt).toContain('Plan: UNKNOWN');
+    expect(prompt).toContain('Canonical Pro access: UNKNOWN');
+    expect(prompt).toContain('Checkout confirmation: UNKNOWN');
+    expect(prompt).toContain('Charge outcome: UNKNOWN');
+    expect(prompt).toContain('Payment outcome: UNKNOWN');
+  });
+});
 
 describe('agent live overview', () => {
   it('exposes counts for orientation but never item content', () => {

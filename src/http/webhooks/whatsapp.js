@@ -24,6 +24,7 @@ import {
   updateTask,
 } from '../../infrastructure/database/index.js';
 import { extractMemoryInBackground } from '../../jobs/memory-extractor.js';
+import { withQueryEmbeddingScope } from '../../integrations/ai/embeddings.js';
 import { transcribeAudio } from '../../integrations/media/transcription.js';
 import { processDocumentOrImage } from '../../integrations/media/document-processor.js';
 import { getNearestCityFromCoordinates } from '../../shared/time.js';
@@ -299,6 +300,7 @@ export async function processWebhookMessage(req) {
       if (!user?.id) throw Object.assign(new Error('User persistence unavailable'), { code: 'USER_STORAGE_UNAVAILABLE' });
       await assertTurnLease();
 
+      return withQueryEmbeddingScope(user.id, async () => {
       let messageText = message.text?.body || message.text || body.text || body.data?.text || '';
       const caption = message.caption || message.image?.caption || message.document?.caption || '';
 
@@ -896,10 +898,13 @@ export async function processWebhookMessage(req) {
           assistantReply: result.confirmation ?? '',
           executionFacts: result.executionFacts || [],
           memoryDisposition: result.memoryDisposition || 'extract',
+          learningCandidates: result.learningCandidates,
+          learningCandidatesProvided: result.learningCandidatesProvided === true,
         }));
       } else {
         console.log(`[memory-extractor req=${correlationId}] skipped attachment-only turn`);
       }
+      });
     });
 
   } catch (error) {

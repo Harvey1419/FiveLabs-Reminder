@@ -33,7 +33,25 @@ export function buildPersonalKnowledge(userId, memories = [], preferences = []) 
 export function renderPersonalKnowledge(refs, lookup, userId, language) {
   const selected = [...new Set(refs)].slice(0, 8);
   if (!selected.length) return '';
-  const facts = selected.map(ref => lookup.get(ref));
+  const facts = selected.map(ref => {
+    if (lookup.has(ref)) return lookup.get(ref);
+    if (typeof ref === 'string') {
+      const match = ref.match(/^pk_([a-f0-9]+)_([1-9][0-9]?)$/);
+      if (match) {
+        const [, candidateNonce, suffix] = match;
+        for (const [key, value] of lookup.entries()) {
+          const keyMatch = key.match(/^pk_([a-f0-9]+)_([1-9][0-9]?)$/);
+          if (keyMatch && keyMatch[2] === suffix) {
+            const actualNonce = keyMatch[1];
+            if (candidateNonce.length >= 6 && actualNonce.startsWith(candidateNonce.slice(0, 6))) {
+              return value;
+            }
+          }
+        }
+      }
+    }
+    return lookup.get(ref);
+  });
   const quotes = facts.filter(fact => fact?.userId === userId).map(fact => `“${fact.content}”`);
   const missing = facts.some(fact => !fact || fact.userId !== userId);
   return [quotes.length ? (language === 'en' ? 'What I have recorded about you:' : 'Lo que tengo registrado de ti:') : '',

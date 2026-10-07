@@ -146,6 +146,13 @@ function normalizeModelResponse(modelResponse) {
     unavailableReason: modelResponse.unavailableReason || null,
     refused: modelResponse.refused === true,
     structuredIntent: modelResponse.structuredIntent || null,
+    // Observability only: these fields never participate in intent validation or
+    // execution authority. Preserve usage verbatim, including missing counters.
+    ...(Object.hasOwn(modelResponse, 'generationId') ? { generationId: modelResponse.generationId } : {}),
+    ...(Object.hasOwn(modelResponse, 'usage') ? { usage: modelResponse.usage } : {}),
+    ...(Object.hasOwn(modelResponse, 'model') ? { model: modelResponse.model } : {}),
+    ...(Object.hasOwn(modelResponse, 'provider') ? { provider: modelResponse.provider } : {}),
+    ...(Object.hasOwn(modelResponse, 'routeStage') ? { routeStage: modelResponse.routeStage } : {}),
   };
 }
 
@@ -357,7 +364,19 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   let language = conversationLanguage || (user.locale?.startsWith('en') ? 'en' : 'es');
   const applyDecisionContext = async (decision) => {
     language = decision.responseLanguage || language;
-    const update = decision.profileUpdate;
+    let update = decision.profileUpdate;
+    if (!update && Array.isArray(decision.learningCandidates)) {
+      const candidate = decision.learningCandidates.find(c =>
+        c?.topicKey === 'preference/language'
+        && (c.category === 'preference' || /ingl[eé]s|english/i.test(c.content || ''))
+        && typeof c.evidence === 'string' && c.evidence.trim()
+        && currentUserText.includes(c.evidence.trim())
+      );
+      if (candidate) {
+        update = { sourceQuote: candidate.evidence.trim(), language: 'en' };
+        decision.profileUpdate = update;
+      }
+    }
     if (!update) return true;
     const patch = { ...(update.timezone ? { timezone: update.timezone } : {}),
       ...(update.language ? { locale: update.language === 'en' ? 'en-US' : 'es-CO' } : {}) };
@@ -441,7 +460,8 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   user.preferences = standingPreferences || [];
 
   const personalKnowledge = buildPersonalKnowledge(user.id, effectiveMemories, standingPreferences);
-  const knowledgeHint = record => personalKnowledge.refs.has(record) ? ` [${personalKnowledge.refs.get(record)}]` : '';
+  const knowledgeHint = record => personalKnowledge.refs.has(record)
+    ? ` [${personalKnowledge.refs.get(record)}] [topicKey=${record.topic_key}]` : '';
   const memoryHints = effectiveMemories.length > 0
     ? effectiveMemories.map((memory) => `- [${memory.contextCategory || memory.category || 'memoria'}]${knowledgeHint(memory)} ${memory.content}`).join('\n')
     : '';
@@ -809,7 +829,9 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     saveWorkingMemory(workingMemoryKey, view, { restoredTimestamp: currentMemory.timestamp });
   }
 
-  if (!await applyDecisionContext(collected.intent)) return { language, intent: 'clarification', executionFacts: [] };
+  const learningMetadata = collected.intent.learningCandidatesProvided === true
+    ? { learningCandidates: collected.intent.learningCandidates, learningCandidatesProvided: true } : {};
+  if (!await applyDecisionContext(collected.intent)) return { language, intent: 'clarification', executionFacts: [], ...learningMetadata };
   const semanticIntent = bindAuthoritativeFollowupTargets(collected.intent, dailyOverview, workingMemory);
   console.log(`[router req=${requestId}] semantic intent actions=${semanticIntent.actions.map(summarizeAction).join(' | ')}`);
   const runtimeIntent = normalizeTurnIntentForRuntime(semanticIntent, {
@@ -821,6 +843,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
 
   const evidenceSelection = runtimeIntent.actions.find(action => action.evidenceRefs !== undefined);
   if (evidenceSelection) return {
+    ...learningMetadata,
     intent: 'chat', language,
     entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
     confirmation: [renderOperationalEvidence(rawPastTurns, evidenceSelection.evidenceRefs, user.id, language), renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language)].filter(Boolean).join('\n\n'),
@@ -830,6 +853,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   const recap = runtimeIntent.actions.find(action => action.domain === 'conversation' && action.action === 'recap');
   if (recap?.recapMode === 'historical' && runtimeIntent.responseCapability !== 'billing_info') {
     return {
+      ...learningMetadata,
       intent: 'chat',
       entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
       language,
@@ -872,6 +896,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     if (personalAnswer) confirmation += `\n\n${personalAnswer}`;
     console.log(`[router req=${requestId}] structured conversation out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms)`);
     return {
+      ...learningMetadata,
       intent: 'chat',
       entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
       language,
@@ -1045,6 +1070,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   console.log(`[router req=${requestId}] action out in ${Date.now() - startMs}ms (context=${contextElapsedMs}ms model=${modelElapsedMs}ms tools=${toolElapsedMs}ms actions=${runtimeIntent.actions.length})`);
 
   return {
+    ...learningMetadata,
     intent: inferIntentFromTool(primary?.toolName),
     entities: conversationStateEntities(user, {
       _turnMetadata: { kind: 'operational_result', mutationReceipts: mutationReceiptsFromFacts(execution.facts),

@@ -29,7 +29,10 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
-  schema.required = [...schema.required, 'responseLanguage', 'responseCapability'];
+  schema.required = [...schema.required, 'responseLanguage', 'responseCapability', 'learningCandidates'];
+  // Whole-turn contrast: answering the task clause must not erase independent
+  // durable metadata. These are field excerpts, not complete wire objects.
+  schema.properties.learningCandidates.description = 'CURRENT user ONLY: all useful durable facts, 0–3 usual; [] NEVER null. No assistant/history/attachments. Exact contiguous quote≠sufficient: full-turn quotes/denial/correction/attribution. No tasks/appointments/transient actions/debts/balances/greetings/temporary states; keep mixed facts with memory.save. Atomic compact Spanish. Lasting language/style yes, utterance/one-turn no; denial≠opposite. Changed reuse topicKey; unchanged omit. New stable value-independent keys: self identity/residence/work profile/<aspect>; lasting preference preference/<aspect>; else <entity_type>/<slug>/<aspect>. Clean canonical hints optional; pet≠physical write. Node independently admits. English always + status: profileUpdate={sourceQuote:"English always",language:en}, learningCandidates=[{topicKey:preference/language,category:preference,content:"Prefiere inglés.",evidence:"English always"}], task.list(status=all). Quoted/one-turn: profileUpdate=null; learningCandidates=[]; read.';
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']
@@ -73,6 +76,15 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
       description: 'For an explicit AM/PM or 24h time, output hour 0..23 and explicit_24h (3 PM = 15, noon = 12, midnight = 0). For a genuinely ambiguous 12h time keep hour 1..12 and ambiguous_12h. Do not invent AM/PM.',
     };
   }
+  // Shared temporal instructions are stated once, on schedule. endSchedule
+  // keeps every field/enum/bound and references exactly the same semantics.
+  // structuredClone preserves schedule/endSchedule's shared canonical node;
+  // detach before changing descriptions so schedule keeps the actual guidance.
+  action.properties.endSchedule = structuredClone(action.properties.endSchedule);
+  action.properties.endSchedule.description = 'End time; use the same temporal field semantics as schedule.';
+  for (const field of ['kind', 'allDay', 'clockMode']) {
+    action.properties.endSchedule.properties[field].description = `Same semantics as schedule.${field}.`;
+  }
   return strictProviderSchema(schema);
 }
 
@@ -80,16 +92,34 @@ export function stripStructuredNulls(value) {
   if (Array.isArray(value)) return value.map(stripStructuredNulls);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value)
-    .filter(([, child]) => child !== null)
+    .filter(([key, child]) => child !== null || key === 'learningCandidates')
     .map(([key, child]) => [key, stripStructuredNulls(child)]));
 }
 
 /** Convert the provider-only qualified operation into canonical TurnIntent. */
 export function projectStructuredTurnIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
+  let actions = value.actions;
+  if (actions.length > 1) {
+    const hasOperational = actions.some(item => {
+      const op = String(item?.operation || '').toLowerCase();
+      return op && op !== 'conversation.reply' && op !== 'conversation.recap';
+    });
+    if (hasOperational) {
+      actions = actions.filter(item => {
+        const op = String(item?.operation || '').toLowerCase();
+        if (op === 'conversation.reply') {
+          const hasContent = typeof item.content === 'string' && item.content.trim().length > 0;
+          const hasEvidence = Array.isArray(item.evidenceRefs) && item.evidenceRefs.length > 0;
+          return hasContent || hasEvidence;
+        }
+        return true;
+      });
+    }
+  }
   return {
     ...value,
-    actions: value.actions.map((item) => {
+    actions: actions.map((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item) || item.operation === undefined) return item;
       const operation = String(item.operation || '').trim().toLowerCase();
       const parts = operation.split('.');

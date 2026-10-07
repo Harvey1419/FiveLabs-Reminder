@@ -4,8 +4,89 @@ import { callChatCompletion } from '../../../src/agent/providers/client.js';
 import { answerFromObservedReads, mutationReceiptsFromFacts, historicalMutationReceipts } from '../../../src/agent/orchestration/observed-answer.js';
 import { createExecutionFact } from '../../../src/agent/core/execution-facts.js';
 import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names.js';
+import { matchesSchema } from '../../../src/agent/contracts/schema-value.js';
 const input = { userText: 'Muéstrame la agenda', facts: [{ success: true, complete: true, callId: 'read1', presentationData: { tasks: [] } }], language: 'es' };
 describe('observed answer composition', () => {
+  const owner = 'offline-owner';
+  const personalKnowledge = new Map([
+    ['pk_012345abcdef_1', { userId: owner, content: 'Me llamo Lucía.' }],
+    ['pk_012345abcdef_2', { userId: owner, content: 'Vivo en Medellín.' }],
+    ['pk_012345abcdef_3', { userId: owner, content: 'Mi perra se llama Nube.' }],
+    ['pk_012345abcdef_4', { userId: owner, content: 'Prefiero mensajes de texto.' }],
+  ]);
+  const taskFact = { success: true, complete: true, callId: 'call_1',
+    tool: TOOL_NAMES.MANAGE_TASK, requestedAction: 'list',
+    presentationData: { tasks: [{ id: 'owned-task', user_id: owner, title: 'llamar al veterinario', status: 'pending', description: null }] } };
+  const baseline = { kind: 'derived', answer: 'The task "llamar al veterinario" is still pending.',
+    evidenceCallIds: ['call_1'], knowledgeRefs: null, taskCoverage: 'returned_rows',
+    taskClaims: [{ callId: 'call_1', itemId: 'owned-task', referencePosition: null, fields: ['status'] }] };
+
+  it.each(['derived', 'recap', 'task_status'])('constrains unused task prose with four available personal sources (%s)', async kind => {
+    callChatCompletion.mockClear();
+    callChatCompletion.mockImplementationOnce(async (_messages, options) => {
+      const schema = options.responseFormat.json_schema.schema;
+      const raw = { ...baseline, kind };
+      expect(schema.properties.answer).toEqual({ type: 'string', enum: [''] });
+      expect(matchesSchema(raw, schema)).toBe(false);
+      expect(options.validateStructuredContent(JSON.stringify(raw)).valid).toBe(false);
+      const aligned = { ...raw, answer: '' };
+      expect(matchesSchema(aligned, schema)).toBe(true);
+      expect(options.validateStructuredContent(JSON.stringify(aligned)).valid).toBe(true);
+      for (const taskClaims of [
+        [{ ...aligned.taskClaims[0], itemId: 'unowned' }],
+        [{ ...aligned.taskClaims[0], callId: 'stale_call' }],
+        [{ ...aligned.taskClaims[0], fields: ['invented'] }],
+      ]) expect(options.validateStructuredContent(JSON.stringify({ ...aligned, taskClaims })).valid).toBe(false);
+      return { content: JSON.stringify(aligned) };
+    });
+    const refs = vi.fn(), outcome = vi.fn();
+    const answer = await answerFromObservedReads({ userText: 'Is llamar al veterinario still pending?',
+      facts: [taskFact], language: 'en', userId: owner, personalKnowledge,
+      onKnowledgeRefs: refs, onInterpretationOutcome: outcome });
+    expect(answer).toContain('llamar al veterinario: pending.');
+    expect(answer).not.toMatch(/interpretation|could not verify|Lucía|Medellín|Nube|mensajes/);
+    expect(refs).toHaveBeenCalledWith([]);
+    expect(outcome).toHaveBeenCalledWith('accepted');
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves canonical unused task prose without personal context', async () => {
+    callChatCompletion.mockImplementationOnce(async (_messages, options) => {
+      expect(options.responseFormat.json_schema.schema.properties.answer).toEqual({ type: 'string' });
+      expect(options.validateStructuredContent(JSON.stringify(baseline)).valid).toBe(true);
+      return { content: JSON.stringify(baseline) };
+    });
+    expect(await answerFromObservedReads({ userText: 'Task status?', facts: [taskFact], language: 'en', userId: owner }))
+      .toBe('llamar al veterinario: pending.');
+  });
+
+  it.each(['derived', 'recap'])('retains non-task %s prose and does not narrow its wire with personal sources', async kind => {
+    const fact = { success: true, complete: true, callId: 'calc', requestedAction: 'read', presentationData: { values: [2, 3] } };
+    const answer = { kind, answer: '2 + 3 = 5', evidenceCallIds: ['calc'], taskClaims: [], taskCoverage: 'not_applicable', knowledgeRefs: null };
+    for (const sources of [new Map(), personalKnowledge]) {
+      callChatCompletion.mockImplementationOnce(async (_messages, options) => {
+        expect(options.responseFormat.json_schema.schema.properties.answer).toEqual({ type: 'string' });
+        expect(matchesSchema(answer, options.responseFormat.json_schema.schema)).toBe(true);
+        // The existing personal-context canonical boundary is unchanged.
+        expect(options.validateStructuredContent(JSON.stringify(answer)).valid).toBe(sources.size === 0);
+        return { content: JSON.stringify(sources.size ? { ...answer, answer: '' } : answer) };
+      });
+      const result = await answerFromObservedReads({ userText: 'What is the sum?', facts: [fact], language: 'en', userId: owner, personalKnowledge: sources });
+      if (!sources.size) expect(result).toContain('2 + 3 = 5');
+    }
+  });
+
+  it('uses natural unavailable copy while retaining actual fields and source limits', async () => {
+    callChatCompletion.mockResolvedValueOnce({ unavailable: true });
+    const outcome = vi.fn();
+    const answer = await answerFromObservedReads({ userText: 'Compare all tasks', facts: [taskFact], language: 'en', userId: owner, onInterpretationOutcome: outcome });
+    expect(answer).toContain("I couldn't finish this answer.");
+    expect(answer).toContain('llamar al veterinario: pending; description: absent.');
+    expect(answer).toContain('unsupported comparisons or calculations remain unknown');
+    expect(answer).toContain('not a resolved comparison or complete inventory');
+    expect(answer).not.toMatch(/schema|JSON|validator|protocol|provider/);
+    expect(outcome).toHaveBeenCalledWith('unavailable');
+  });
   it('retains separate confirmed creations on partial failure even when prose omits them', async () => {
     callChatCompletion.mockClear();
     callChatCompletion.mockResolvedValue({ content: JSON.stringify({ kind: 'derived', answer: 'Task pending', evidenceCallIds: ['read1'] }) });

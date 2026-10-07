@@ -1,4 +1,5 @@
 import { validateMemoryCandidates } from './validate-candidates.js';
+import { validLearningCandidates } from '../../agent/contracts/intent-contracts.js';
 import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
 import { saveMemory, searchMemories, getActiveMemories, getStandingMemories, findOrCreateEntityFuzzy } from '../../infrastructure/database/index.js';
 import { callMemoryExtraction } from '../../agent/providers/client.js';
@@ -134,13 +135,19 @@ export async function extractAndSaveMemories({
   assistantReply,
   executionFacts = [],
   memoryDisposition = 'extract',
+  learningCandidates,
+  learningCandidatesProvided = false,
+  memorySaveActions = [],
   throwOnError = false,
 }) {
   // An explicit save already ran this same pipeline on the entire source turn,
   // including independent facts. Do not repeat even an empty or failed attempt.
   if (memoryDisposition === 'processed' || !userId || !userText) return [];
 
-  if (memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
+  // A raw flag alone cannot suppress extraction. Only a complete typed
+  // proposal decision from the validated caller can use this path.
+  const useProposals = learningCandidatesProvided === true && validLearningCandidates(learningCandidates);
+  if (!useProposals && memoryDisposition === 'skip_operational' && executionFacts.length === 0) {
     console.log('[memoryService] SKIPPED extraction: unresolved operational-only turn.');
     return [];
   }
@@ -158,25 +165,68 @@ export async function extractAndSaveMemories({
   }
 
   try {
-    const messages = [
-      { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
-      {
-        role: 'user',
-        content: buildMemoryExtractionInput({ userText: eligibleText, executionFacts, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
-      },
-    ];
-
-    const rawResponse = await callMemoryExtraction(messages, {
-      temperature: 0,
-      max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
-      timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
-    });
-    const candidates = parseJsonArray(rawResponse, throwOnError);
+    let candidates = learningCandidates;
+    if (!useProposals) {
+      const messages = [
+        { role: 'system', content: MEMORY_EXTRACTION_PROMPT },
+        {
+          role: 'user',
+          content: buildMemoryExtractionInput({ userText: eligibleText, executionFacts, existingMemories: await findRelatedActiveMemories(userId, eligibleText) }),
+        },
+      ];
+      const rawResponse = await callMemoryExtraction(messages, {
+        temperature: 0,
+        max_tokens: MEMORY_EXTRACTION_MAX_TOKENS,
+        timeoutMs: MEMORY_EXTRACTION_TIMEOUT_MS,
+      });
+      candidates = parseJsonArray(rawResponse, throwOnError);
+    }
+    if (useProposals) {
+      // Explicit saves are proposals, not facts. Only complete typed fields
+      // whose content is a literal current trusted-source span may join the
+      // batch. Full-turn semantic admission still decides whether to save.
+      const explicit = memorySaveActions.flatMap(action => {
+        if (action?.domain !== 'memory' || action.action !== 'save'
+          || typeof action.content !== 'string') return [];
+        let extractedOrProvidedEvidence = null;
+        if (typeof action.evidence === 'string' && action.evidence.trim()) {
+          const verified = recoverLiteralEvidence(action.evidence.trim(), eligibleText);
+          if (typeof verified === 'string' && eligibleText.includes(verified)) {
+            extractedOrProvidedEvidence = verified;
+          }
+        }
+        if (!extractedOrProvidedEvidence) {
+          extractedOrProvidedEvidence = extractGroundedSpan(action.content, eligibleText);
+        }
+        if (!extractedOrProvidedEvidence || !eligibleText.includes(extractedOrProvidedEvidence)) return [];
+        const candidate = {
+          topicKey: action.topicKey, category: action.category, content: action.content,
+          evidence: extractedOrProvidedEvidence,
+          ...(Object.hasOwn(action, 'entityName') ? { entityName: action.entityName } : {}),
+          ...(Object.hasOwn(action, 'entityCategory') ? { entityCategory: action.entityCategory } : {}),
+        };
+        return validLearningCandidates([candidate]) ? [candidate] : [];
+      });
+      candidates = [...candidates, ...explicit];
+    }
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
-    const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES)
+    let grounded = (useProposals ? candidates : candidates.slice(0, MEMORY_MAX_CANDIDATES))
       .map(item => item && typeof item === 'object' ? { ...item, evidence: recoverLiteralEvidence(item.evidence, eligibleText) } : item)
       .filter(item => !getMemoryCandidateRejection(item, eligibleText));
+    if (useProposals) {
+      const seen = new Set();
+      grounded = grounded.filter(item => {
+        const identity = JSON.stringify([item.topicKey, item.category, item.content, item.entityName ?? null, item.entityCategory ?? null]);
+        if (seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      });
+      // Do not silently truncate independent facts or later save actions.
+      // Preserve the existing admission cap and fail the whole batch visibly.
+      if (grounded.length > MEMORY_MAX_CANDIDATES) throw new Error('Memory proposal batch exceeds the candidate limit.');
+    }
+    if (!grounded.length) return [];
     const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts, throwOnError });
     const saved = [];
     for (const item of admitted) {
@@ -433,6 +483,57 @@ export function buildMemoryExtractionInput({ userText, existingMemories = [], ex
 export function getMemoryEligibleText(userText) {
   // Preserve mixed turns intact. Semantic admission decides eligibility per fact.
   return String(userText || '').trim();
+}
+
+export function extractGroundedSpan(content, sourceText) {
+  if (typeof content !== 'string' || typeof sourceText !== 'string') return null;
+  const cleanContent = content.trim();
+  const cleanSource = sourceText.trim();
+  if (!cleanContent || !cleanSource) return null;
+
+  if (sourceText.includes(cleanContent)) {
+    const idx = sourceText.indexOf(cleanContent);
+    return sourceText.slice(idx, idx + cleanContent.length);
+  }
+
+  const sourceLower = sourceText.toLowerCase();
+  const contentLower = cleanContent.toLowerCase();
+
+  const caseIdx = sourceLower.indexOf(contentLower);
+  if (caseIdx >= 0) {
+    return sourceText.slice(caseIdx, caseIdx + cleanContent.length);
+  }
+
+  const contentWords = cleanContent.split(/\s+/).filter(Boolean);
+
+  for (let windowSize = contentWords.length; windowSize >= 2; windowSize--) {
+    for (let i = 0; i <= contentWords.length - windowSize; i++) {
+      const phrase = contentWords.slice(i, i + windowSize).join(' ').toLowerCase();
+      const pIdx = sourceLower.indexOf(phrase);
+      if (pIdx >= 0) {
+        let startIdx = pIdx;
+        let endIdx = pIdx + phrase.length;
+        for (let j = i - 1; j >= 0; j--) {
+          const w = contentWords[j].toLowerCase();
+          const wIdx = sourceLower.lastIndexOf(w, startIdx);
+          if (wIdx >= 0 && (startIdx - (wIdx + w.length)) <= 2) {
+            startIdx = wIdx;
+          }
+        }
+        for (let j = i + windowSize; j < contentWords.length; j++) {
+          const w = contentWords[j].toLowerCase();
+          const wIdx = sourceLower.indexOf(w, endIdx);
+          if (wIdx >= 0 && (wIdx - endIdx) <= 2) {
+            endIdx = wIdx + w.length;
+          }
+        }
+        const span = sourceText.slice(startIdx, endIdx).trim();
+        return (span.length > 0 && span.length <= 180) ? span : null;
+      }
+    }
+  }
+
+  return null;
 }
 
 // Source canonicalization only; semantic admission still evaluates the full turn.

@@ -9,9 +9,33 @@ import { StringDecoder } from 'node:string_decoder';
 import { supabase } from '../../src/infrastructure/database/index.js';
 import { normalizeUserPhone } from '../../src/infrastructure/database/users.js';
 import { CHAT_VALIDATION_SCENARIOS, getValidationTurns } from './chat-validation-scenarios.js';
+import { createPhase, readPhase, acquirePhase, verifyPhaseOwner, beginPhaseBatch,
+  endPhaseBatch, finalizePhase } from './chat-validation-session.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const phone = `hermes-chat.${randomUUID()}`;
+const args = process.argv.slice(2);
+const phaseMode = args[0] === '--phase' ? args[1] : null;
+const phaseHandle = args[2];
+const context = { root, database: process.env.SUPABASE_URL };
+if (args.length && (!['create', 'run', 'finalize'].includes(phaseMode) ||
+    args.length !== (phaseMode === 'create' ? 2 : 3))) {
+  throw new Error('Usage: --phase create | --phase run <handle> | --phase finalize <handle>');
+}
+if (phaseMode === 'create' || phaseMode === 'finalize') {
+  const result = phaseMode === 'create'
+    ? { handle: await createPhase(supabase, context, Number(process.env.HERMES_CHAT_OPENROUTER_REQUEST_LIMIT ?? '300')) }
+    : await finalizePhase(supabase, phaseHandle, context);
+  console.log(JSON.stringify(result));
+  process.exit(0);
+}
+let phaseState, releasePhase, batchToken;
+if (phaseMode === 'run') {
+  // Lock before any DB access. The retained handle is also the rescue identity.
+  releasePhase = acquirePhase(phaseHandle, context);
+  try { phaseState = readPhase(phaseHandle, context); await verifyPhaseOwner(supabase, phaseState); }
+  catch (error) { releasePhase(); throw error; }
+}
+const phone = phaseState?.phone ?? `hermes-chat.${randomUUID()}`;
 const normalized = normalizeUserPhone(phone);
 const requestLimitValue = process.env.HERMES_CHAT_OPENROUTER_REQUEST_LIMIT ?? '70';
 const reportName = process.env.HERMES_CHAT_REPORT_NAME ?? 'chat-validation-round1.json';
@@ -21,11 +45,15 @@ let traceDirectory = null;
 const requestLimit = /^(0|[1-9]\d*)$/.test(requestLimitValue) && Number(requestLimitValue) <= 300
   ? Number(requestLimitValue) : null;
 const validReportName = /^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/.test(reportName) && !reportName.startsWith('..');
-const reportPath = resolve(root, 'scratch', validReportName ? reportName : 'chat-validation-round1.json');
+const reportPath = phaseState ? resolve(dirname(phaseHandle), `batch-${randomUUID()}.json`)
+  : resolve(root, 'scratch', validReportName ? reportName : 'chat-validation-round1.json');
 // Validation below still rejects unknown names before any identity preflight.
 const turns = getValidationTurns(CHAT_VALIDATION_SCENARIOS.includes(scenario) ? scenario : 'full');
-const report = { phone, normalizedPhone: normalized, userId: null, requestLimit, scenario, requestedTurns: turns.length, completedTurns: 0, providerRequests: null, turns: [], errors: [], findings: [], cleanup: {}, status: 'interrupted' };
-let child, buffer = '', cursor = 0, closed = false, exitCode, wake;
+const report = { phone, normalizedPhone: normalized, userId: phaseState?.userId ?? null, requestLimit: phaseState?.cap ?? requestLimit, scenario, requestedTurns: turns.length, completedTurns: 0, providerRequests: null, turns: [], errors: [], findings: [], cleanup: {}, status: 'interrupted' };
+let child, buffer = '', cursor = 0, closed = false, leaderExited = false, exitCode, wake, abortSignal;
+const onInterrupt = () => { abortSignal = true; wake?.(); };
+process.on('SIGINT', onInterrupt);
+process.on('SIGTERM', onInterrupt);
 const stdoutDecoder = new StringDecoder('utf8');
 const stderrDecoder = new StringDecoder('utf8');
 const prompt = '\n👤 Tú: ';
@@ -46,6 +74,7 @@ function waitFor(predicate, ms = 90000) {
     const timeout = setTimeout(() => { wake = null; reject(new Error(`Timed out waiting for ${predicate.name || 'CLI output'}`)); }, ms);
     const check = () => {
       try {
+        if (abortSignal) throw new Error('Validation interrupted; finalizing owned process before retaining phase');
         const result = predicate();
         if (result !== undefined) { clearTimeout(timeout); wake = null; accept(result); }
         else if (closed) { clearTimeout(timeout); wake = null; reject(new Error(`Chat exited (${exitCode}) before next prompt`)); }
@@ -57,7 +86,10 @@ function waitFor(predicate, ms = 90000) {
 }
 function receive(chunk, decoder) {
   buffer += decoder.write(chunk);
-  if (buffer.length > 200000) { buffer = buffer.slice(-100000); cursor = Math.min(cursor, buffer.length); }
+  if (buffer.length > 200000) {
+    const removed = buffer.length - 100000;
+    buffer = buffer.slice(removed); cursor = Math.max(0, cursor - removed);
+  }
   wake?.();
 }
 async function facts() {
@@ -122,6 +154,7 @@ function groupActive() {
 }
 function signalGroup(signal) {
   if (!groupActive()) return;
+  if (leaderExited) throw new Error('Leader already exited; refusing to signal a potentially reused PID');
   try { process.kill(-child.pid, signal); }
   catch (error) { if (error.code !== 'ESRCH') throw error; }
 }
@@ -130,6 +163,9 @@ async function shutdown() {
   if (!closed && child.stdin.writable) child.stdin.write('/exit\n');
   const until = Date.now() + 4000;
   while (!closed && Date.now() < until) await new Promise(done => setTimeout(done, 50));
+  // After leader close, never signal a possibly reused PID. Refuse cleanup if
+  // any group still exists; a resumed process cannot kill unknown processes.
+  if (leaderExited && groupActive()) throw new Error('Process group outlived leader; cleanup deferred');
   if (groupActive()) signalGroup('SIGTERM');
   const grace = Date.now() + 3000;
   while (groupActive() && Date.now() < grace) await new Promise(done => setTimeout(done, 50));
@@ -144,26 +180,31 @@ try {
   if (requestLimit === null) throw new Error('Invalid HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: expected integer 0..300');
   if (!validReportName) throw new Error('Invalid HERMES_CHAT_REPORT_NAME: expected safe .json basename');
   if (normalized !== phone || !process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET) throw new Error('Unsafe identity or missing database configuration');
-  for (const representation of representations) for (const table of ['users', 'messages']) {
-    if ((await rows(table, 'phone_number', representation)).length) throw new Error(`Preflight collision: ${table}`);
+  if (!phaseState) {
+    for (const representation of representations) for (const table of ['users', 'messages']) {
+      if ((await rows(table, 'phone_number', representation)).length) throw new Error(`Preflight collision: ${table}`);
+    }
   }
   report.preflightPassed = true;
+  if (phaseState) batchToken = beginPhaseBatch(phaseHandle, context);
   if (traceOptIn === '1') {
     // Never accept a user-selected output path. mkdtemp creates a fresh 0700
     // directory under the canonical temporary root; evidence is retained.
     traceDirectory = await mkdtemp(resolve(await realpath(tmpdir()), `hermes-provider-trace-${phone}-`));
     report.providerTrace = { directory: traceDirectory, complete: false, missing: 'child_not_finalized' };
   }
-  child = spawn('npm', ['run', 'chat'], {
+  child = spawn(phaseState ? process.execPath : 'npm', phaseState ? ['scripts/dev/interactive-chat.js'] : ['run', 'chat'], {
     cwd: root, stdio: ['pipe', 'pipe', 'pipe'], detached: true,
     env: { ...process.env, NODE_OPTIONS: '--import=./scripts/dev/chat-request-preload.js', HERMES_CHAT_TEST_PHONE: phone,
-      HERMES_CHAT_DISABLE_REMINDER_SCHEDULER: '1', HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: String(requestLimit),
+      HERMES_CHAT_DISABLE_REMINDER_SCHEDULER: '1', HERMES_CHAT_OPENROUTER_REQUEST_LIMIT: String(phaseState?.cap ?? requestLimit),
+      HERMES_CHAT_PHASE_HANDLE: phaseState ? resolve(phaseHandle) : '', HERMES_CHAT_PHASE_TOKEN: batchToken ?? '',
       // Override inherited trace configuration: the parent never opens a sink.
       HERMES_CHAT_PROVIDER_TRACE_DIR: traceDirectory || '' },
   });
   child.stdout.on('data', chunk => receive(chunk, stdoutDecoder));
   child.stderr.on('data', chunk => receive(chunk, stderrDecoder));
   child.on('error', error => { report.errors.push(error.message); closed = true; wake?.(); });
+  child.on('exit', () => { leaderExited = true; });
   child.on('close', code => { closed = true; exitCode = code; wake?.(); });
   const banner = await waitFor(function initialBanner() {
     const match = buffer.match(/Usuario de prueba activo:\s*([^\s]+)\s*\(ID:\s*([^,\s)]+)/);
@@ -175,6 +216,11 @@ try {
   if (owned.length !== 1 || owned[0].phone_number !== normalized) throw new Error('Banner ownership mismatch');
   await waitFor(function firstPrompt() { const at = buffer.indexOf(prompt, cursor); if (at >= 0) { cursor = at + prompt.length; return true; } });
   for (let i = 0; i < turns.length; i++) {
+    const pauseStart = Date.now();
+    await new Promise(done => setTimeout(done, 3000));
+    const pauseMs = Date.now() - pauseStart;
+    if (abortSignal) throw new Error('Validation interrupted during pacing');
+    if (closed || !child.stdin.writable) throw new Error('Chat stopped before paced input');
     const start = Date.now();
     child.stdin.write(`${turns[i]}\n`);
     const output = await waitFor(function nextPrompt() {
@@ -186,7 +232,8 @@ try {
     });
     const counts = [...output.matchAll(/HERMES_CHAT_OPENROUTER_REQUEST_COUNT=(\d+)/g)];
     if (counts.length) report.providerRequests = Math.max(report.providerRequests || 0, ...counts.map(match => Number(match[1])));
-    const turn = { number: i + 1, prompt: turns[i], response: output.slice(0, 12000), durationMs: Date.now() - start };
+    const turn = { number: i + 1, prompt: turns[i], response: output.slice(0, 12000), pauseMs,
+      responsePromptAt: Date.now(), responseWaitMs: Date.now() - start, durationMs: Date.now() - start };
     report.turns.push(turn);
     report.completedTurns++;
     if (/Error en turno:|OpenRouter request cap reached|Chat validation blocked outbound request:/.test(output)) {
@@ -233,19 +280,31 @@ finally {
       report.errors.push(`Provider trace: ${error.message}`);
     }
   }
-  if (stopped) {
+  if (stopped && phaseState) {
+    try {
+      if (batchToken) endPhaseBatch(phaseHandle, context, batchToken);
+      const finalPhase = readPhase(phaseHandle, context);
+      report.providerRequests = finalPhase.spent;
+      report.providerRequestKinds = finalPhase.requests;
+      report.phaseHandle = resolve(phaseHandle);
+      report.cleanupDeferred = 'Identity retained until explicit phase finalization';
+    } catch (error) { report.errors.push(`Phase receipt: ${error.message}`); }
+  } else if (stopped) {
     try { await cleanup(); report.cleanupVerified = Boolean(report.preflightPassed); }
     catch (error) { report.errors.push(`Cleanup: ${error.message}`); report.cleanupVerified = false; }
   } else {
     report.errors.push('Cleanup deferred: chat process may still write; manual intervention required');
     report.cleanupVerified = false;
   }
-  report.status = report.errors.length || report.completedTurns !== report.requestedTurns || !report.cleanupVerified
+  report.status = report.errors.length || report.completedTurns !== report.requestedTurns || (!phaseState && !report.cleanupVerified)
     ? 'interrupted' : report.findings.length ? 'completed_with_findings' : 'completed';
   try {
     await mkdir(dirname(reportPath), { recursive: true });
-    await writeFile(reportPath, JSON.stringify(report, null, 2), { flag: 'wx' });
+    await writeFile(reportPath, JSON.stringify(report, null, 2), { flag: 'wx', mode: 0o600 });
     console.log(`Chat validation ${report.status}: ${report.completedTurns}/${report.requestedTurns}; report ${reportPath}`);
   } catch (error) { console.error(`Report write failed: ${error.message}`); report.status = 'interrupted'; }
+  process.off('SIGINT', onInterrupt);
+  process.off('SIGTERM', onInterrupt);
+  try { releasePhase?.(); } catch (error) { console.error(`Phase lock release failed: ${error.message}`); report.status = 'interrupted'; }
   if (report.status !== 'completed') process.exitCode = 1;
 }

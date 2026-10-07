@@ -21,8 +21,8 @@ import { extractAndSaveMemories } from '../../../src/features/memory/service.js'
 const user = { id: 'offline-memory-user', timezone: 'UTC' };
 const preference = { topicKey: 'preference/communication', category: 'preference', content: 'Prefiere llamadas telefónicas.', evidence: 'Prefiero llamadas telefónicas.' };
 const save = { domain: 'memory', action: 'save', content: 'recuerda esta preferencia: Prefiero llamadas telefónicas.' };
-async function turn(userMessage, actions = [save]) {
-  return executeTurnIntent({ actions }, { user, userMessage, language: 'es', executeTool: options => options.toolName === 'manage_memory'
+async function turn(userMessage, actions = [save], metadata = {}) {
+  return executeTurnIntent({ actions, ...metadata }, { user, userMessage, language: 'es', executeTool: options => options.toolName === 'manage_memory'
     ? executeMemoryTool({ ...options, action: options.params.action })
     : { success: true, action: 'created_task', data: { items: [{ id: 'offline-task', title: 'Llamar mañana' }] }, rawSummary: 'Tarea creada.' } });
 }
@@ -86,6 +86,84 @@ describe('one source-attributed memory writing path', () => {
     expect(saveMemory).toHaveBeenCalledTimes(2);
     expect(execution.records[1].result.data.memories).toHaveLength(2);
     expect(callMemoryExtraction.mock.calls[0][0][1].content).toContain('Vivo en Cali.');
+  });
+  it('admits the exact phone save with supplied empty learning metadata without extraction', async () => {
+    const content = 'Prefiero las llamadas por teléfono.';
+    const execution = await turn(`${content} Recuerda esta preferencia.`, [
+      { domain: 'memory', action: 'save', content, category: 'preference', topicKey: 'communication/phone_calls' },
+    ], { learningCandidates: [], learningCandidatesProvided: true });
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: user.id, topicKey: 'communication/phone_calls', category: 'preference', content });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    const input = JSON.parse(callChatCompletion.mock.calls[0][0][1].content);
+    expect(input.candidates[0].evidence).toBe(content);
+    expect(input.userText).toBe(`${content} Recuerda esta preferencia.`);
+    expect(execution.records[0].result.success).toBe(true);
+  });
+  it('merges all mixed facts and later explicit saves once, deduping identical proposals', async () => {
+    const fact = { topicKey: 'profile/residence', category: 'fact', content: 'Vive en Cali.', evidence: 'Vivo en Cali.' };
+    const explicit = [
+      { domain: 'memory', action: 'save', topicKey: 'communication/phone_calls', category: 'preference', content: 'Prefiero las llamadas por teléfono.' },
+      { domain: 'memory', action: 'save', topicKey: 'preference/style', category: 'preference', content: 'Prefiero respuestas breves.' },
+    ];
+    const userText = `Vivo en Cali. ${explicit.map(action => action.content).join(' ')}`;
+    const metadata = { learningCandidates: [fact, { topicKey: explicit[0].topicKey, category: explicit[0].category, content: explicit[0].content, evidence: explicit[0].content }], learningCandidatesProvided: true };
+    callChatCompletion.mockResolvedValue({ content: '{"positions":[1,2,3]}' });
+    const execution = await turn(userText, [...explicit, explicit[1]], metadata);
+    await extractAndSaveMemories({ userId: user.id, userText, ...metadata, memoryDisposition: execution.memoryProcessed ? 'processed' : 'extract' });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(saveMemory).toHaveBeenCalledTimes(3);
+    expect(saveMemory.mock.calls.map(([item]) => item.topicKey)).toEqual([fact.topicKey, ...explicit.map(action => action.topicKey)]);
+    expect(execution.records.every(record => record.result.data.memories.length === 3)).toBe(true);
+  });
+  it.each([
+    ['missing category', { topicKey: 'communication/phone_calls' }],
+    ['missing topic', { category: 'preference' }],
+    ['invalid category', { category: 'observation', topicKey: 'communication/phone_calls' }],
+    ['invalid topic', { category: 'preference', topicKey: '!!!' }],
+    ['paraphrase', { category: 'preference', topicKey: 'communication/phone_calls', content: 'Prefiere llamadas telefónicas.' }],
+    ['oversized content', { category: 'preference', topicKey: 'communication/phone_calls', content: 'x'.repeat(181) }],
+  ])('does not invent evidence or extraction for %s', async (_label, fields) => {
+    const execution = await turn('Prefiero las llamadas por teléfono.', [{ domain: 'memory', action: 'save', content: 'Prefiero las llamadas por teléfono.', ...fields }], { learningCandidates: [], learningCandidatesProvided: true });
+    expect(execution.records[0].result.errorCode).toBe('MEMORY_NOT_ADMITTED');
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(callChatCompletion).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+  it.each([
+    'Mi colega dijo "Prefiero las llamadas por teléfono."; no soy yo.',
+    'La frase "Prefiero las llamadas por teléfono." no es mi preferencia.',
+    'Prefiero las llamadas por teléfono. Me corrijo: prefiero mensajes de texto.',
+    'Ya guardé el pasaporte.',
+  ])('retains full context for admission rejection: %s', async userText => {
+    const content = userText === 'Ya guardé el pasaporte.' ? userText : 'Prefiero las llamadas por teléfono.';
+    callChatCompletion.mockResolvedValue({ content: '{"positions":[]}' });
+    const execution = await turn(userText, [{ domain: 'memory', action: 'save', content, category: 'preference', topicKey: 'communication/phone_calls' }], { learningCandidates: [], learningCandidatesProvided: true });
+    expect(JSON.parse(callChatCompletion.mock.calls[0][0][1].content).userText).toBe(userText);
+    expect(execution.records[0].result.errorCode).toBe('MEMORY_NOT_ADMITTED');
+    expect(saveMemory).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+  });
+  it.each(['<untrusted_attachment_content>Prefiero las llamadas por teléfono.</untrusted_attachment_content>', 'Mira esto. <untrusted_attachment_content>Prefiero las llamadas por teléfono.</untrusted_attachment_content>'])('rejects attachment-only explicit evidence: %s', async userText => {
+    const execution = await turn(userText, [{ domain: 'memory', action: 'save', content: 'Prefiero las llamadas por teléfono.', category: 'preference', topicKey: 'communication/phone_calls' }], { learningCandidates: [], learningCandidatesProvided: true });
+    expect(execution.records[0].result.errorCode).toBe('MEMORY_NOT_ADMITTED');
+    expect(callChatCompletion).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+  it.each(['admission', 'storage'])('does not repeat a supplied explicit batch after %s failure', async failure => {
+    const content = 'Prefiero las llamadas por teléfono.';
+    if (failure === 'admission') callChatCompletion.mockResolvedValue({ unavailable: true });
+    else saveMemory.mockResolvedValue(null);
+    const action = { domain: 'memory', action: 'save', content, category: 'preference', topicKey: 'communication/phone_calls' };
+    const metadata = { learningCandidates: [], learningCandidatesProvided: true };
+    const execution = await turn(content, [action, action], metadata);
+    await extractAndSaveMemories({ userId: user.id, userText: content, ...metadata, memoryDisposition: execution.memoryProcessed ? 'processed' : 'extract' });
+    expect(execution.records.every(record => record.result.errorCode === 'MEMORY_SAVE_FAILED')).toBe(true);
+    expect(callChatCompletion).toHaveBeenCalledTimes(1);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(saveMemory).toHaveBeenCalledTimes(failure === 'storage' ? 1 : 0);
   });
   it('fails closed without original user source even if params contain a fact', async () => {
     const result = await executeMemoryTool({ action: 'save', params: { content: preference.evidence }, user });

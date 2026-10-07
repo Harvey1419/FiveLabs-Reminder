@@ -50,7 +50,7 @@ const assistantTurns = [
   'Which contact method do I prefer now?',
   'Please summarize what we did and what could not be verified.',
 ];
-export const CHAT_VALIDATION_SCENARIOS = Object.freeze(['full', 'final-cases', 'summary-cases', 'assistant-cases', 'closure-cases', 'recovery-cases']);
+export const CHAT_VALIDATION_SCENARIOS = Object.freeze(['full', 'final-cases', 'summary-cases', 'assistant-cases', 'closure-cases', 'closure-recheck', 'recovery-cases']);
 export function getValidationTurns(scenario = 'full') {
   switch (scenario) {
     case 'full': return [...fullTurns];
@@ -58,6 +58,7 @@ export function getValidationTurns(scenario = 'full') {
     case 'summary-cases': return [fullTurns[9], fullTurns[4], 'Resume lo que hicimos: qué tarea y recordatorio creaste y cuál es su estado actual.'];
     case 'assistant-cases': return [...assistantTurns];
     case 'closure-cases': return [0, 4, 5, 6, 8, 10, 12, 13, 15, 16].map(index => assistantTurns[index]);
+    case 'closure-recheck': return getValidationTurns('closure-cases').slice(-4);
     case 'recovery-cases': return [
       fullTurns[0], fullTurns[4], fullTurns[6], fullTurns[9], fullTurns[12], fullTurns[13], fullTurns[11],
       'Borra únicamente la descripción de la tarea 99; no elimines tareas.',

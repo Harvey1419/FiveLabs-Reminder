@@ -34,6 +34,9 @@ export async function executeMemoryTool({ action, params = {}, user, language = 
           memoryTurn.result = extractAndSaveMemories({
             userId, userText: memoryTurn.userText,
             executionFacts: memoryTurn.executionFacts || [], throwOnError: true,
+            learningCandidates: memoryTurn.learningCandidates,
+            learningCandidatesProvided: memoryTurn.learningCandidatesProvided === true,
+            memorySaveActions: memoryTurn.memorySaveActions || [],
           });
         }
         memories = await memoryTurn.result;

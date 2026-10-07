@@ -48,6 +48,7 @@ it.each([false, true])('existing observer recovers omitted primary selection or 
     if (options.purpose === 'observed_answer') {
       const payload = JSON.parse(messages[1].content);
       expect(payload.personalSources).toHaveLength(1);
+      expect(options.responseFormat.json_schema.schema.properties.answer).toEqual({ type: 'string', enum: [''] });
       const answer = { kind: 'inventory', answer: '', evidenceCallIds: [payload.observedReads[0].callId], taskClaims: [], taskCoverage: 'returned_rows', knowledgeRefs: [unknown ? 'pk_000000000000_1' : payload.personalSources[0].ref] };
       expect(options.validateStructuredContent(JSON.stringify(answer)).valid).toBe(true);
       expect(options.validateStructuredContent(JSON.stringify({ ...answer, answer: 'Your dog is invented' })).valid).toBe(false);
@@ -61,6 +62,24 @@ it.each([false, true])('existing observer recovers omitted primary selection or 
     expect(result.confirmation).not.toContain('Nube');
     expect(result.confirmation).toContain('could not support that part');
   } else expect(result.confirmation).toContain('“Mi perro se llama Nube.”');
+  expect(callChatCompletion).toHaveBeenCalledTimes(2);
+});
+it('combines typed pending status with a current selected personal quotation', async () => {
+  callChatCompletion.mockImplementation(async (messages, options) => {
+    if (options.purpose !== 'observed_answer') return { content: JSON.stringify({ responseLanguage: 'en', responseCapability: 'general',
+      answerFromResults: true, actions: [{ operation: 'task.list', status: 'pending' }] }) };
+    const payload = JSON.parse(messages[1].content);
+    const answer = { kind: 'derived', answer: '', evidenceCallIds: [payload.observedReads[0].callId],
+      taskClaims: [{ callId: payload.observedReads[0].callId, itemId: 'actual', referencePosition: null, fields: ['status'] }],
+      taskCoverage: 'returned_rows', knowledgeRefs: [payload.personalSources[0].ref] };
+    expect(options.validateStructuredContent(JSON.stringify(answer)).valid).toBe(true);
+    expect(options.validateStructuredContent(JSON.stringify({ ...answer, taskClaims: [{ ...answer.taskClaims[0], itemId: 'foreign' }] })).valid).toBe(false);
+    return { content: JSON.stringify(answer) };
+  });
+  const result = await routeMessage('Is my task pending, and is my dog Nube?', user, []);
+  expect(result.confirmation).toContain('Comprar comida: pending.');
+  expect(result.confirmation).toContain('“Mi perro se llama Nube.”');
+  expect(result.confirmation).not.toContain('could not verify');
   expect(callChatCompletion).toHaveBeenCalledTimes(2);
 });
 it('historical summary supplements history with recorded personal facts, not live state', async () => {

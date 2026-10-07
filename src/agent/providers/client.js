@@ -336,6 +336,47 @@ function structuredResponseDiagnostic(data, choice, apiKey) {
   });
 }
 
+// OpenRouter reasoning tokens are a subset of completion tokens, not additive.
+// Keep missing counters undefined in the returned usage schema; telemetry uses
+// null for unknown so an absent counter is never mistaken for measured zero.
+function responseUsage(usage) {
+  return {
+    promptTokens: usage?.prompt_tokens,
+    completionTokens: usage?.completion_tokens,
+    reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
+    cachedTokens: usage?.prompt_tokens_details?.cached_tokens,
+  };
+}
+
+function successTelemetry(data, { apiKey, correlationId, purpose, stage, model, provider, finishReason, toolCalls, latencyMs }) {
+  // Allowlist bounded metadata only. Reject freeform strings and credentials;
+  // never serialize the response envelope, messages, output or error details.
+  const identifier = (value) => typeof value === 'string'
+    && /^[a-zA-Z0-9][a-zA-Z0-9_./: -]{0,159}$/.test(value)
+    && !(apiKey && value.includes(apiKey)) ? value : null;
+  const counter = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const usage = responseUsage(data?.usage);
+  return {
+    outcome: 'success',
+    // Correlation can originate in a freeform HTTP header, not a provider enum.
+    requestId: typeof correlationId === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(correlationId)
+      ? identifier(correlationId) : null,
+    generationId: identifier(data?.id),
+    purpose: identifier(purpose),
+    stage: identifier(stage),
+    model: identifier(data?.model) || identifier(model),
+    provider: identifier(provider),
+    finishReason: identifier(finishReason),
+    toolCalls: counter(toolCalls),
+    promptTokens: counter(usage.promptTokens),
+    completionTokens: counter(usage.completionTokens),
+    reasoningTokens: counter(usage.reasoningTokens),
+    cachedTokens: counter(usage.cachedTokens),
+    latencyMs: counter(latencyMs),
+  };
+}
+
 function unavailableText(language = 'es') {
   return language === 'en'
     ? 'I could not complete that action right now. Please try again in a moment.'
@@ -459,6 +500,7 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
   logPrefix = '[ai-client]',
   purpose = 'unspecified',
   stage = 'direct',
+  correlationId = null,
   validateStructuredContent = null,
   capture = null,
 } = {}) {
@@ -613,7 +655,21 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     }
 
     if (logPrefix) {
-      console.log(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=success finishReason=${finishReason || 'unknown'} toolCalls=${toolCalls.length} promptTokens=${usage.prompt_tokens ?? 'unknown'} completionTokens=${usage.completion_tokens ?? 'unknown'} latencyMs=${Date.now() - startMs}`);
+      const metadata = successTelemetry(data, {
+        apiKey, correlationId, purpose, stage, model, provider: actualProvider,
+        finishReason, toolCalls: toolCalls.length, latencyMs: Date.now() - startMs,
+      });
+      // Preserve legacy counters on one line without interpolating raw prefixes
+      // or freeform metadata into the key=value fields.
+      const field = value => value === null ? 'unknown'
+        : typeof value === 'number' ? value
+          : /^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,159}$/.test(value) ? value : 'unknown';
+      const category = logPrefix === '[ai-memory]' ? 'ai-memory'
+        : logPrefix === '[ai-response]' || logPrefix.startsWith('[ai-response req=') ? 'ai-response' : 'ai-client';
+      const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.requestId || '')
+        ? metadata.requestId : null;
+      const prefix = `[${category}${requestId ? ` req=${requestId}` : ''}]`;
+      console.log(`${prefix} attempt purpose=${field(metadata.purpose)} stage=${field(metadata.stage)} model=${field(metadata.model)} provider=${field(metadata.provider)} outcome=success finishReason=${field(metadata.finishReason)} toolCalls=${field(metadata.toolCalls)} promptTokens=${field(metadata.promptTokens)} completionTokens=${field(metadata.completionTokens)} latencyMs=${field(metadata.latencyMs)} metadata=${JSON.stringify(metadata)}`);
     }
 
     if (returnMessage) {
@@ -628,10 +684,8 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
           provider: actualProvider,
           routeStage: stage,
           ...(validatedStructuredIntent ? { structuredIntent: validatedStructuredIntent } : {}),
-          ...(strictForeground ? {
-            generationId: typeof data.id === 'string' ? data.id : null,
-            usage: { promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, reasoningTokens: usage.completion_tokens_details?.reasoning_tokens },
-          } : {}),
+          generationId: typeof data.id === 'string' ? data.id : null,
+          usage: responseUsage(usage),
         },
       };
     }

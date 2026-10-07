@@ -1,9 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
+import { createHash } from 'node:crypto';
+import { TURN_INTENT_SCHEMA, normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
 
 import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
 
 describe('direct TurnIntent contract', () => {
+  it('retains every old constraint with only additive learning metadata and description changes', () => {
+    // Restore only the explicitly changed descriptions and remove only the new
+    // root metadata. The old exact hashes still protect all fields/enums/bounds,
+    // operation relationships, required lists, nullability and property order.
+    const previousSchema = (schema, provider = false) => {
+      const previous = structuredClone(schema);
+      delete previous.properties.learningCandidates;
+      previous.required = previous.required.filter(key => key !== 'learningCandidates');
+      const fields = previous.properties.actions.items.properties;
+      fields.returnFields.description = fields.returnFields.description.replace('select for simple actual status/date/notes questions', 'simple field question');
+      if (provider) {
+        fields.endSchedule.description = fields.schedule.description;
+        for (const key of ['kind', 'allDay', 'clockMode']) fields.endSchedule.properties[key].description = fields.schedule.properties[key].description;
+      }
+      return previous;
+    };
+    const digest = schema => createHash('sha256').update(JSON.stringify(schema)).digest('hex');
+    expect(digest(previousSchema(TURN_INTENT_SCHEMA))).toBe('362e618cbcea3676cba62c75e6b68c179400dcc38a965c08a01a942cd50b4298');
+    expect(digest(previousSchema(getStructuredTurnSchema(), true))).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
+    expect(digest(previousSchema(getStructuredTurnSchema({ isAdmin: true }), true))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
+  });
+
+  it('preserves mixed personal recall and independently qualified temporal actions through projection', () => {
+    const knowledgeRefs = ['pk_012345abcdef_1'];
+    const schedules = [1, 2].map(dayOffset => ({ kind: 'relative_day_time', dayOffset, hour: 15, minute: 0, clockMode: 'explicit_24h' }));
+    const wire = {
+      responseCapability: 'general', responseLanguage: 'en', knowledgeRefs,
+      actions: schedules.map(schedule => ({ operation: 'task.list', status: 'all', schedule })),
+    };
+    const result = validateTurnIntent(projectStructuredTurnIntent(wire), { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(result.intent.knowledgeRefs).toEqual(knowledgeRefs);
+    expect(result.intent.actions.map(action => action.schedule)).toEqual(schedules);
+    expect(result.intent.actions.map(({ domain, action }) => `${domain}.${action}`)).toEqual(['task.list', 'task.list']);
+    const mutation = { ...wire, actions: [{ operation: 'task.complete', target: 'Review' }] };
+    expect(validateTurnIntent(projectStructuredTurnIntent(mutation)).errorCode).toBe('INVALID_KNOWLEDGE_REFS');
+  });
   it('requires an explicit nonnullable response capability at the planner boundary', () => {
     const schema = getStructuredTurnSchema();
     expect(schema.required).toContain('responseCapability');
@@ -100,18 +138,18 @@ describe('direct TurnIntent contract', () => {
   });
 
   // These assertions protect planning instructions, not live model compliance.
-  for (const [name, clause] of [
-    ['task verification coverage', 'task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date)' ],
-    ['payment capability evidence', 'Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability'],
-    ['billing information routing', 'Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info'],
-    ['hybrid plan presentation', 'Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply'],
-    ['explicit checkout only', 'subscription.link only for explicit link/open-checkout requests'],
-    ['contextual checkout capability', 'Contextual explicit link requests after info still require general + subscription.link; actions must never be empty'],
-    ['checkout prohibition', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info'],
-    ['action summary provenance', 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply'],
+  for (const [name, clause, compactClause] of [
+    ['task verification coverage', 'task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date)', 'task.list: status requerido; ambos="all"; fechas: completed+pending (all usa due_date)' ],
+    ['payment capability evidence', 'Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability', 'PayPal/transferencia/Apple Pay/secciones: solo capacidad verificada'],
+    ['billing information routing', 'Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info', 'Precios/descuentos/métodos/fallos/reembolsos/no-checkout: subscription.info sin scope/promoción'],
+    ['hybrid plan presentation', 'Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply', 'Pro/how-to: subscription.info(scope="plan")+conversation.reply fundamentado'],
+    ['explicit checkout only', 'subscription.link only for explicit link/open-checkout requests', 'subscription.link only for explicit link/open-checkout requests'],
+    ['contextual checkout capability', 'Contextual explicit link requests after info still require general + subscription.link; actions must never be empty', 'tras info: general+link; actions no vacío'],
+    ['checkout prohibition', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info'],
+    ['action summary provenance', 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply', 'RECAP: historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply'],
   ]) {
     it(`documents ${name} in both planning and conversation contracts`, () => {
-      expect(getIntentToolDefinitions()[0].function.description).toContain(clause);
+      expect(getIntentToolDefinitions()[0].function.description).toContain(compactClause);
       expect(getConversationToolDefinition().function.description).toContain(clause);
     });
   }
@@ -164,4 +202,42 @@ describe('direct TurnIntent contract', () => {
     expect(validateTurnIntent({ actions: [{ domain: 'admin', action: 'metrics' }] }, { isAdmin: false }).errorCode).toBe('UNSUPPORTED_DOMAIN');
     expect(validateTurnIntent({ actions: [{ domain: 'memory', action: 'store', content: 'Trabajo en Globant' }] }).errorCode).toBe('UNSUPPORTED_ACTION');
   });
+
+  it('sanitizes knowledgeRefs when only non-pk refs like task/operational UUIDs are present', () => {
+    const intent = {
+      responseCapability: 'general',
+      knowledgeRefs: ['b2e7a189-53bb-4d7a-821f-11910cf6e294', '4839cf9e-1763-4927-b9c1-7da344f6f709'],
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Hola' }],
+    };
+    const result = validateTurnIntent(intent, { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(intent.knowledgeRefs).toEqual([]);
+    expect(result.intent.knowledgeRefs).toBeUndefined();
+  });
+
+  it('sanitizes knowledgeRefs when mixed pk and non-pk refs are present, retaining only valid pk refs', () => {
+    const validPk = 'pk_012345abcdef_1';
+    const intent = {
+      responseCapability: 'general',
+      knowledgeRefs: [validPk, 'b2e7a189-53bb-4d7a-821f-11910cf6e294'],
+      actions: [{ domain: 'conversation', action: 'reply', content: 'Hola' }],
+    };
+    const result = validateTurnIntent(intent, { requireResponseCapability: true });
+    expect(result.valid).toBe(true);
+    expect(result.intent.knowledgeRefs).toEqual([validPk]);
+  });
+
+  it('drops empty conversation.reply during projectStructuredTurnIntent when operational actions are present', () => {
+    const rawWire = {
+      responseCapability: 'general',
+      actions: [
+        { operation: 'task.list', status: 'all' },
+        { operation: 'conversation.reply', content: null },
+      ],
+    };
+    const projected = projectStructuredTurnIntent(rawWire);
+    expect(projected.actions).toHaveLength(1);
+    expect(projected.actions[0]).toEqual({ domain: 'task', action: 'list', status: 'all' });
+  });
 });
+

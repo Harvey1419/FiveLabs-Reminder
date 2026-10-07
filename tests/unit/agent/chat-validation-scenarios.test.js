@@ -24,6 +24,20 @@ it('revalidates critical closure cases without replaying already proven setup', 
   expect(getValidationTurns('closure-cases')).toEqual([0, 4, 5, 6, 8, 10, 12, 13, 15, 16].map(index => assistant[index]));
   expect(getValidationTurns('closure-cases')).toHaveLength(10);
 });
+it('rechecks only the four unchanged final closure turns on retained state', () => {
+  expect(CHAT_VALIDATION_SCENARIOS).toContain('closure-recheck');
+  const turns = getValidationTurns('closure-recheck');
+  expect(turns).toHaveLength(4);
+  expect(turns).toEqual(getValidationTurns('closure-cases').slice(6));
+  expect(turns).toEqual([
+    'Responde en inglés a partir de ahora y dime si llamar al veterinario sigue pendiente.',
+    'Show my pending tasks and tell me whether my dog is named Nube.',
+    'Which contact method do I prefer now?',
+    'Please summarize what we did and what could not be verified.',
+  ]);
+  turns.pop();
+  expect(getValidationTurns('closure-recheck')).toHaveLength(4);
+});
 it('covers invalid-reference recovery and real creation proof within the existing runner', () => {
   const turns = getValidationTurns('recovery-cases');
   expect(turns).toHaveLength(13);

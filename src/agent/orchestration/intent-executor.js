@@ -181,7 +181,13 @@ export async function executeTurnIntent(intent, context) {
   const records = [];
   const facts = [];
   // Scoped to this execution only; all save actions process the full source turn.
-  const memoryTurn = { userText: context.userMessage, executionFacts: facts, processed: false, result: null };
+  const memoryTurn = {
+    userText: context.userMessage, executionFacts: facts, processed: false, result: null,
+    learningCandidates: intent.learningCandidates,
+    learningCandidatesProvided: intent.learningCandidatesProvided === true,
+    // Collect the whole batch before the first save caches its pipeline result.
+    memorySaveActions: actions.filter(action => action.domain === 'memory' && action.action === 'save'),
+  };
   const approvalActions = [];
   let targetResolutionAttempted = false;
   const runTool = async (options) => {

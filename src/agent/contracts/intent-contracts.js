@@ -3,6 +3,7 @@ import { TURN_CONTEXT_PROPERTIES, validateTurnContext } from './turn-context.js'
 import { TOOL_NAMES } from './tool-names.js';
 import { AGENDA_SCOPES } from '../../shared/agenda-scopes.js';
 import { ENTITY_WRITE_CATEGORIES } from '../../shared/entity-categories.js';
+import { isStrictUUID } from '../../shared/entity-resolution.js';
 
 const DOMAINS = Object.freeze([
   'conversation', 'agenda', 'reminder', 'task', 'project', 'entity', 'calendar', 'memory', 'subscription', 'clarification', 'admin',
@@ -69,7 +70,7 @@ export const typedSchedule = {
   required: ['kind'],
 };
 
-const actionSchema = {
+export const actionSchema = {
   type: 'object', additionalProperties: false,
   properties: {
     domain: { type: 'string', enum: DOMAINS },
@@ -91,7 +92,7 @@ const actionSchema = {
     status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'cancelled', 'all'], description: 'Required for task.list. Explicit model-selected status; all preserves both states for unfiltered reads. Dated all uses due dates, not completion dates.' },
     recapMode: { type: 'string', enum: ['historical', 'current'], description: 'historical: renders recorded evidence; evidenceRefs optionally narrows it. current: explicit reads, content=null.' },
     evidenceRefs: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', minLength: 36, maxLength: 36 }, description: 'conversation.reply or historical recap: select supplied operational evidence refs. Content with refs is discarded, never verified prose; Node renders owned historical proof, not fresh state. Personal recall uses TURN knowledgeRefs or natural content without operational refs. No additional actions.' },
-    returnFields: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: ['description', 'status', 'due_date', 'completed_at', 'priority'] }, description: 'task.list only: simple field question on returned rows; Node renders actual fields (null=absent, missing=unknown). Keep query, entityName, status and date filters. This explicit typed projection takes precedence over answerFromResults for a single task read. No ordinal identity or calculations; for complex interpretation leave returnFields absent and use answerFromResults.' },
+    returnFields: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: ['description', 'status', 'due_date', 'completed_at', 'priority'] }, description: 'task.list only: select for simple actual status/date/notes questions on returned rows; Node renders actual fields (null=absent, missing=unknown). Keep query, entityName, status and date filters. This explicit typed projection takes precedence over answerFromResults for a single task read. No ordinal identity or calculations; for complex interpretation leave returnFields absent and use answerFromResults.' },
     scope: { type: 'string', description: `For entity.delete / project.delete: "all" deletes EVERY project/entity across the user account; "no_tasks" deletes only projects that have zero tasks. For single projects, leave scope null/omitted. subscription.info: plan ONLY for Pro benefits or how to subscribe (not payment failures, refunds, prices/methods or explicit checkout prohibition); otherwise omit. Agenda, task, and reminder scopes include: ${AGENDA_SCOPES.join(', ')}.` },
     filter: { type: 'string', enum: ['upcoming', 'pending_today', 'remaining_today', 'created_today', 'completed_today', 'tomorrow', 'day_after_tomorrow', 'this_week', 'next_week'] },
     query: { type: 'string', description: 'Text filter for titles or memory content; reminder.list searches literal case-insensitive content (1–200 trimmed characters, no * or NUL), never dates or times. For any dated read (agenda, reminders, tasks, calendar), put the date in schedule using calendar_date_time and allDay=true; a date string in query does not restrict the date window.' }, projectless: { type: 'boolean', description: 'For task.create, true only when there is no named grouping or shared purpose. Never true for actionable items grouped under an implicit or explicit purpose/container, even if the user never says list or project; provide entityName instead.' },
@@ -118,6 +119,47 @@ const actionSchema = {
   required: ['domain', 'action'],
 };
 
+Object.defineProperty(actionSchema.properties, 'evidence', {
+  value: { type: 'string', description: 'Grounded literal evidence substring from user text, e.g. for memory.save.' },
+  enumerable: false,
+  configurable: true,
+  writable: true,
+});
+
+// Proposal bounds mirror the existing extraction/admission contract. This is
+// source metadata, never effect authority or a model-selected owner.
+export const LEARNING_CANDIDATES_SCHEMA = Object.freeze({
+  type: 'array', maxItems: 16,
+  description: 'CURRENT trusted user text ONLY; propose all useful durable facts, normally 0–3, [] if none. Assistant/history/attachments are not evidence. Exact contiguous quotes necessary, not sufficient; check full-turn quotation, denial, correction, attribution. Exclude tasks, appointments, transient actions, debts/balances, greetings/temporary states; retain independent mixed-turn facts even with memory.save. Atomic compact Spanish sentence per fact/preference/decision/episode. Lasting language/style qualifies, not utterance language/one-time requests; denial implies no opposite. Changed fact: reuse supplied topicKey; unchanged: omit. New keys: stable, value-independent; profile/<aspect> for self identity/residence/work, preference/<aspect> for lasting preferences, else <entity_type>/<slug>/<aspect>. Optional clean canonical entity hints; pet topics never authorize physical writes. Node independently admits before persistence.',
+  items: {
+    type: 'object', additionalProperties: false,
+    properties: {
+      topicKey: { type: 'string', minLength: 1, maxLength: 100 },
+      category: { type: 'string', enum: ['fact', 'decision', 'preference', 'episode'] },
+      content: { type: 'string', minLength: 1, maxLength: 180 },
+      evidence: { type: 'string', minLength: 1, maxLength: 180 },
+      entityName: { type: 'string', minLength: 1, maxLength: 80 },
+      entityCategory: { type: 'string', enum: ['person', 'company', 'project', 'place', 'pet', 'asset', 'other'] },
+    },
+    required: ['topicKey', 'category', 'content', 'evidence'],
+  },
+});
+
+export function validLearningCandidates(candidates) {
+  const { properties, required } = LEARNING_CANDIDATES_SCHEMA.items;
+  return Array.isArray(candidates) && candidates.length <= LEARNING_CANDIDATES_SCHEMA.maxItems
+    && candidates.every(item => item && typeof item === 'object' && !Array.isArray(item)
+      && Object.keys(item).every(key => Object.hasOwn(properties, key))
+      && required.every(key => Object.hasOwn(item, key))
+      && Object.entries(item).every(([key, value]) => {
+        const field = properties[key];
+        if (value === null && !required.includes(key)) return true;
+        return typeof value === 'string' && value.trim().length > 0
+          && (!field.maxLength || value.length <= field.maxLength)
+          && (!field.enum || field.enum.includes(value));
+      }));
+}
+
 export const TURN_INTENT_SCHEMA = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
@@ -125,6 +167,7 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
     responseCapability: { type: 'string', enum: ['general', 'billing_info'], description: 'Required foreground presentation authority: billing_info for payment information/failure/retry (Free or Pro), even with conversation.reply; general otherwise. billing_info preserves declared reads/recap alongside its safe card; never checkout or mutations.' },
     answerFromResults: { type: 'boolean', description: 'True when the user asks for an interpretation, calculation or comparison that needs live reads. Emit the required read actions; after observing their results Hermes will answer. For complex interpretation leave returnFields absent. For ordinary listings, simple task.list returnFields questions or mutations leave false/null; a single task.list returnFields projection takes precedence over a redundant true flag.' },
     knowledgeRefs: { type: 'array', minItems: 0, maxItems: 8, uniqueItems: true, items: { type: 'string', maxLength: 32 }, description: 'Turn RESPONSE metadata: for mixed tasks + personal recall select supplied pk_ refs from memory hints here, not in tool actions. Supplements canonical cards/fields and historical summaries with recorded personal quotations, never fresh operational state. Ordinary inventories need no answerFromResults just for personal recall. Only reads/conversation allowed; never mutations or guessed refs. Ordinary personal chat may use content without refs.' },
+    learningCandidates: LEARNING_CANDIDATES_SCHEMA,
     actions: { type: 'array', minItems: 1, maxItems: 12, items: actionSchema },
     excluded: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { quote: { type: 'string' }, reason: { type: 'string', enum: ['prohibited', 'context_only', 'superseded', 'hypothetical'] } }, required: ['quote', 'reason'] } },
   },
@@ -135,15 +178,16 @@ const READ_AND_PAYMENT_GUIDANCE = `LECTURAS: task.list requires status: unfilter
 PAGOS: Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply from this same decision; Node supplies verified entitlement, benefits and a Free-only existing Stripe subscribe button. No model-authored URL. Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info, never promotional plan scope; Node supplies uncertainty/safety. conversation.reply alone is not billing authority. subscription.link only for explicit link/open-checkout requests. Contextual explicit link requests after info still require general + subscription.link; actions must never be empty. How-to alone stays side-effect-free info. Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability. Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info. Unknown payment outcome never authorizes retry; no checkout to discover capabilities.
 RECAP: conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply. Solo recap refs normalize to partial history.`;
 
-export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent is mandatory for every turn. Orden explícita manda; contexto resuelve referencias, nunca IDs internos.
+export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent mandatory for every turn; orden manda.
 AUTORIDAD DE ESTADO: Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura (agenda.read, calendar.list, reminder.list, task.list), incluso monto/fecha/estado. NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
-CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear sin target; mutar con contextRef o target, cambio no es identidad. reminder.update modifica; reminder.cancel elimina; reminder.acknowledge confirma seguimiento real (Completion is not an update).
-TAREAS: 'tareas' usa task; Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(target). Proyectos: project+task.create; borrar project.delete, vacíos scope="no_tasks". Montos: title; notas: description; renombre: newName.
-CALENDARIO: agenda.read reúne tareas, recordatorios y eventos; calendar.list/search solo eventos, calendar.create citas. Node gestiona Google; no niegues acceso en conversation.reply.
-reminder.create exige orden diferida. Preguntas JAMÁS autorizan mutaciones.
-Temporal meaning must remain typed según schema. 'Same day' hereda fecha de Working Memory; rectificación descarta propuestas previas. Solicita clarification.request con missingFields solo por faltantes genuinos.
-Mensajes mixtos: todas las acciones en actions (también cita+recordatorios); no ejecutables en excluded. Confirma solo resultados observados, no planes. Conserva cards sin repetirlas.
-${READ_AND_PAYMENT_GUIDANCE}`;
+CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear sin target; mutar:contextRef/target; cambio≠ID. reminder.update/cancel: cambia/borra; reminder.acknowledge: seguimiento (Completion is not an update). reminder.create diferido; preguntas≠mutaciones.
+Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(target). project+task.create; project.delete, vacíos scope="no_tasks". Montos:title; notas:description; renombre:newName.
+CALENDARIO: agenda.read todo; calendar.list/search eventos; calendar.create citas. no niegues acceso en conversation.reply.
+Temporal meaning must remain typed según schema. Same day=fecha Working Memory. clarification.request+missingFields: faltantes genuinos.
+todas las acciones en actions; resto:excluded. Confirma solo resultados observados, no planes; no repitas cards.
+task.list: status requerido; ambos="all"; fechas: completed+pending (all usa due_date).
+PAGOS: Pro/how-to: subscription.info(scope="plan")+conversation.reply fundamentado; Botón Stripe existente solo Free; sin URLs. Precios/descuentos/métodos/fallos/reembolsos/no-checkout: subscription.info sin scope/promoción. subscription.link only for explicit link/open-checkout requests; tras info: general+link; actions no vacío. Never invent PayPal, bank transfer, Apple Pay. PayPal/transferencia/Apple Pay/secciones: solo capacidad verificada. Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info. Unknown payment outcome never authorizes retry; no checkout descubre capacidades.
+RECAP: conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. RECAP: historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply. Solo refs: historia parcial.`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -307,6 +351,10 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
   if ((requireResponseCapability || intent.responseCapability !== undefined)
     && !TURN_INTENT_SCHEMA.properties.responseCapability.enum.includes(intent.responseCapability)) {
     return { valid: false, errorCode: 'INVALID_RESPONSE_CAPABILITY', error: 'An explicit supported response capability is required.' };
+  }
+  const learningCandidatesProvided = Object.hasOwn(intent, 'learningCandidates');
+  if (learningCandidatesProvided && !validLearningCandidates(intent.learningCandidates)) {
+    return { valid: false, errorCode: 'INVALID_LEARNING_CANDIDATES', error: 'Learning proposals require a bounded typed array; use [] when none qualify.' };
   }
   const turnContext = validateTurnContext(intent);
   if (!turnContext.valid) return turnContext;
@@ -493,11 +541,19 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     if (domain === 'conversation' && ['reply', 'recap'].includes(action) && raw.evidenceRefs !== undefined) delete normalizedAction.content;
     normalizedActions.push(normalizedAction);
   }
+  if (Array.isArray(intent.knowledgeRefs)) {
+    const validPersonalRefs = intent.knowledgeRefs.filter(ref => typeof ref === 'string' && /^pk_[a-f0-9]{8,16}_[1-9][0-9]?$/.test(ref));
+    const shouldSanitize = (validPersonalRefs.length > 0 && validPersonalRefs.length < intent.knowledgeRefs.length)
+      || (validPersonalRefs.length === 0 && intent.knowledgeRefs.length > 0 && intent.knowledgeRefs.every(isStrictUUID));
+    if (shouldSanitize) {
+      intent.knowledgeRefs = validPersonalRefs;
+    }
+  }
   const hasKnowledgeRefs = intent.knowledgeRefs != null
     && !(Array.isArray(intent.knowledgeRefs) && intent.knowledgeRefs.length === 0);
   if (hasKnowledgeRefs && (!Array.isArray(intent.knowledgeRefs)
     || intent.knowledgeRefs.length > 8
-    || intent.knowledgeRefs.some(ref => typeof ref !== 'string' || !/^pk_[a-f0-9]{12}_[1-9][0-9]?$/.test(ref))
+    || intent.knowledgeRefs.some(ref => typeof ref !== 'string' || !/^pk_[a-f0-9]{8,16}_[1-9][0-9]?$/.test(ref))
     || new Set(intent.knowledgeRefs).size !== intent.knowledgeRefs.length
     || normalizedActions.some(item => !PERSONAL_READ_OPERATIONS.has(`${item.domain}.${item.action}`)
       && !(item.domain === 'conversation' && ['reply', 'recap'].includes(item.action))))) {
@@ -529,6 +585,7 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     valid: true,
     intent: {
       ...turnContext.context,
+      ...(learningCandidatesProvided ? { learningCandidates: intent.learningCandidates, learningCandidatesProvided: true } : {}),
       ...(intent.responseCapability !== undefined ? { responseCapability: intent.responseCapability } : {}),
       ...(intent.answerFromResults !== undefined ? { answerFromResults: intent.answerFromResults } : {}),
       ...(hasKnowledgeRefs ? { knowledgeRefs: intent.knowledgeRefs } : {}),
