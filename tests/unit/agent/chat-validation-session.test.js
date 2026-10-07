@@ -281,6 +281,45 @@ describe('phase-only SDK transport ownership', () => {
     await expect(guardPhaseDatabaseRequest(url('prepared_actions'), { method: 'POST', body: JSON.stringify({ run_id: run }) }, state, fetch, context.database)).rejects.toThrow('unowned foreign key');
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+  const selfReferences = [['memories', 'superseded_by'], ['reminders', 'parent_reminder_id']];
+  it.each(selfReferences.flatMap(([table, key]) => ['POST', 'PATCH'].flatMap(method =>
+    ['owned', 'foreign', 'null', 'malformed'].map(kind => [table, key, method, kind]))))(
+    'guards %s.%s on %s with a %s target before mutation', async (table, key, method, kind) => {
+      const targetId = randomUUID();
+      const target = kind === 'null' ? null : kind === 'malformed' ? 'not-a-uuid' : targetId;
+      const body = JSON.stringify({ user_id: state.userId, [key]: target });
+      const mutation = vi.fn(async () => response([]));
+      const fetch = vi.fn(async (input, init) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        if (request.method !== 'GET') return mutation(request);
+        const lookup = new URL(request.url);
+        expect(lookup.pathname).toBe(`/rest/v1/${table}`);
+        expect([...lookup.searchParams.entries()]).toEqual([
+          ['select', 'id'], ['id', `eq.${targetId}`], ['user_id', `eq.${state.userId}`],
+        ]);
+        // Owner verification must stay array-shaped even for SDK .single() mutations.
+        expect(request.headers.get('accept')).toBe('application/json');
+        // A foreign row is absent from the owner-filtered lookup.
+        return response(kind === 'owned' ? [{ id: targetId }] : []);
+      });
+      const result = guardPhaseDatabaseRequest(url(table), {
+        method, body, headers: { Accept: 'application/vnd.pgrst.object+json' },
+      }, state, fetch, context.database);
+      if (kind === 'foreign' || kind === 'malformed') {
+        await expect(result).rejects.toThrow(kind === 'foreign' ? 'unowned foreign key' : 'invalid foreign key');
+        expect(mutation).not.toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledTimes(kind === 'foreign' ? 1 : 0);
+      } else {
+        await result;
+        expect(mutation).toHaveBeenCalledTimes(1);
+        expect(fetch).toHaveBeenCalledTimes(kind === 'owned' ? 2 : 1);
+        const request = mutation.mock.calls[0][0];
+        expect(request.method).toBe(method);
+        expect(request.headers.get('accept')).toBe('application/vnd.pgrst.object+json');
+        expect(new URL(request.url).searchParams.get('user_id')).toBe(`eq.${state.userId}`);
+        expect(await request.text()).toBe(body);
+      }
+    });
   it('refuses an upsert whose supplied ID already belongs to a foreign tenant', async () => {
     const fetch = vi.fn(async () => response([{ id: randomUUID(), user_id: 'foreign' }]));
     await expect(guardPhaseDatabaseRequest(url('tasks'), { method: 'POST', body: JSON.stringify({ id: randomUUID(), user_id: state.userId }) }, state, fetch, context.database)).rejects.toThrow('foreign upsert');

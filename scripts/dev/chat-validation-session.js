@@ -240,6 +240,9 @@ export async function finalizePhase(client, handle, context) {
 export async function guardPhaseDatabaseRequest(input, init, state, fetchImpl, database) {
   const request = new Request(input, init);
   const url = new URL(request.url), method = request.method;
+  // SDK .single() headers belong to the mutation, not array-shaped owner checks.
+  const verificationHeaders = new Headers(request.headers);
+  verificationHeaders.set('Accept', 'application/json');
   const base = `${databaseIdentity(database)}/rest/v1/`;
   if (!url.href.startsWith(base)) fail('wrong database request');
   const table = url.pathname.slice(new URL(base).pathname.length);
@@ -262,7 +265,7 @@ export async function guardPhaseDatabaseRequest(input, init, state, fetchImpl, d
     const check = new URL(`${base}${target}`);
     check.searchParams.set('select', 'id'); check.searchParams.set('id', `eq.${id}`);
     check.searchParams.set('user_id', `eq.${state.userId}`);
-    const response = await fetchImpl(check, { headers: request.headers });
+    const response = await fetchImpl(check, { headers: verificationHeaders });
     const result = await response.json();
     if (!response.ok || !Array.isArray(result) || result.length !== 1 || result[0].id !== id) fail('unowned foreign key');
   }
@@ -287,10 +290,10 @@ export async function guardPhaseDatabaseRequest(input, init, state, fetchImpl, d
     if (value.id && table !== 'users') {
       if (table === 'prepared_actions') fail('supplied prepared-action ID');
       const check = new URL(`${base}${table}`); check.searchParams.set('select', 'id,user_id'); check.searchParams.set('id', `eq.${value.id}`);
-      const response = await fetchImpl(check, { headers: request.headers }); const result = await response.json();
+      const response = await fetchImpl(check, { headers: verificationHeaders }); const result = await response.json();
       if (!response.ok || !Array.isArray(result) || result.some(row => row.user_id !== state.userId)) fail('foreign upsert ID');
     }
-    for (const [key, target] of Object.entries({ run_id: 'agent_runs', project_id: 'projects', entity_id: 'entities', task_id: 'tasks', reminder_id: 'reminders' })) {
+    for (const [key, target] of Object.entries({ run_id: 'agent_runs', project_id: 'projects', entity_id: 'entities', task_id: 'tasks', reminder_id: 'reminders', superseded_by: 'memories', parent_reminder_id: 'reminders' })) {
       if (value[key] != null) await ownedForeign(target, value[key]);
     }
     if (table === 'prepared_actions' && method === 'POST' && !value.run_id) fail('missing prepared action owner');
