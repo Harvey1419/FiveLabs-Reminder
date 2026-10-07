@@ -434,6 +434,10 @@ export async function answerFromObservedReads({ userText, facts, language, corre
   const fallbackAnswer = currentRecap || failed
     ? [usefulFallback, fallback].filter(Boolean).join('\n\n') || null
     : taskBacked ? [insufficient, usefulFallback, fallback].filter(Boolean).join('\n\n') : null;
+  const unavailableCopy = language === 'en'
+    ? "I couldn't finish this answer. The returned facts still stand; unsupported comparisons or calculations remain unknown."
+    : 'No pude completar esta interpretación. Los datos obtenidos siguen siendo válidos; lo que no respaldan sigue desconocido.';
+  const unavailableFallback = fallbackAnswer?.replace(insufficient, unavailableCopy) || fallbackAnswer;
   const frozen = referenceSnapshot === false ? false : freezeTaskReferenceSnapshot(referenceSnapshot);
   if (frozen === false) return fallbackAnswer;
   const references = (frozen?.items || []).map(item => ({ position: item.position, itemId: item.internalId, title: item.title }));
@@ -482,12 +486,16 @@ export async function answerFromObservedReads({ userText, facts, language, corre
       { role: 'user', content: payload },
     ], {
       purpose: 'observed_answer', tools: null, toolChoice: 'none', returnMessage: true,
-      responseFormat: { type: 'json_schema', json_schema: { name: 'hermes_observed_answer', strict: true, schema: { ...ANSWER_SCHEMA, required: [...ANSWER_SCHEMA.required, 'taskClaims', 'taskCoverage', 'knowledgeRefs'] } } },
+      responseFormat: { type: 'json_schema', json_schema: { name: 'hermes_observed_answer', strict: true, schema: { ...ANSWER_SCHEMA,
+        properties: taskBacked && personalKnowledge.size > 0
+          ? { ...ANSWER_SCHEMA.properties, answer: { type: 'string', enum: [''] } }
+          : ANSWER_SCHEMA.properties,
+        required: [...ANSWER_SCHEMA.required, 'taskClaims', 'taskCoverage', 'knowledgeRefs'] } } },
       validateStructuredContent: validate, max_tokens: 2048, language, correlationId,
     });
     if (result?.unavailable || !validate(result?.content).valid) {
       onInterpretationOutcome(result?.unavailable ? 'unavailable' : 'rejected');
-      return fallbackAnswer;
+      return result?.unavailable ? unavailableFallback : fallbackAnswer;
     }
     const answer = JSON.parse(result.content);
     onKnowledgeRefs(answer.knowledgeRefs || []);
@@ -512,6 +520,6 @@ export async function answerFromObservedReads({ userText, facts, language, corre
     return [text, coverage, (currentRecap || failed || answer.kind === 'recap') ? fallback : ''].filter(Boolean).join('\n\n') || null;
   } catch {
     onInterpretationOutcome('unavailable');
-    return fallbackAnswer;
+    return unavailableFallback;
   }
 }

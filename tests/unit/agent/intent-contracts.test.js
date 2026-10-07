@@ -123,18 +123,18 @@ describe('direct TurnIntent contract', () => {
   });
 
   // These assertions protect planning instructions, not live model compliance.
-  for (const [name, clause] of [
-    ['task verification coverage', 'task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date)' ],
-    ['payment capability evidence', 'Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability'],
-    ['billing information routing', 'Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info'],
-    ['hybrid plan presentation', 'Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply'],
-    ['explicit checkout only', 'subscription.link only for explicit link/open-checkout requests'],
-    ['contextual checkout capability', 'Contextual explicit link requests after info still require general + subscription.link; actions must never be empty'],
-    ['checkout prohibition', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info'],
-    ['action summary provenance', 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply'],
+  for (const [name, clause, compactClause] of [
+    ['task verification coverage', 'task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date)', 'task.list: status requerido; ambos="all"; fechas: completed+pending (all usa due_date)' ],
+    ['payment capability evidence', 'Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability', 'PayPal/transferencia/Apple Pay/secciones: solo capacidad verificada'],
+    ['billing information routing', 'Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info', 'Precios/descuentos/métodos/fallos/reembolsos/no-checkout: subscription.info sin scope/promoción'],
+    ['hybrid plan presentation', 'Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply', 'Pro/how-to: subscription.info(scope="plan")+conversation.reply fundamentado'],
+    ['explicit checkout only', 'subscription.link only for explicit link/open-checkout requests', 'subscription.link only for explicit link/open-checkout requests'],
+    ['contextual checkout capability', 'Contextual explicit link requests after info still require general + subscription.link; actions must never be empty', 'tras info: general+link; actions no vacío'],
+    ['checkout prohibition', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info', 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info'],
+    ['action summary provenance', 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply', 'RECAP: historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply'],
   ]) {
     it(`documents ${name} in both planning and conversation contracts`, () => {
-      expect(getIntentToolDefinitions()[0].function.description).toContain(clause);
+      expect(getIntentToolDefinitions()[0].function.description).toContain(compactClause);
       expect(getConversationToolDefinition().function.description).toContain(clause);
     });
   }
