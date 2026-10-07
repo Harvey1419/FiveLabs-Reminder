@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
 import { EXECUTE_TURN_DESCRIPTION } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
@@ -6,10 +7,12 @@ import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground
 describe('static prompt deduplication', () => {
   // Bounded c6ab77e baseline, measured with these exact synthetic inputs and
   // the full provider schema. Characters/bytes are not token or quality proof.
+  // Expanded description deduplication exceeds T3's old 1100 maximum savings;
+  // exact new snapshots protect these fixtures without raising runtime budgets.
   it.each([
-    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587 },
-    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689 },
-  ])('reduces serialized prompt + unchanged schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes }) => {
+    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24146, afterBytes: 24192, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
+    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24247, afterBytes: 24294, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
+  ])('reduces serialized prompt + unchanged schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes, afterChars, afterBytes, schemaHash }) => {
     const prompt = buildAgentCorePrompt({
       nowStr: '2026-10-01 11:30',
       nowHumanStr: 'jueves, 1 de octubre de 2026, 11:30 a. m.',
@@ -20,11 +23,13 @@ describe('static prompt deduplication', () => {
       referencedProjectTasks: '[Tareas vivas: contexto limitado]',
       overview: { openTasks: [{ title: 'Synthetic task' }] },
     });
-    const serialized = JSON.stringify({ prompt, schema: getStructuredTurnSchema({ isAdmin }) });
+    const schema = getStructuredTurnSchema({ isAdmin });
+    expect(createHash('sha256').update(JSON.stringify(schema)).digest('hex')).toBe(schemaHash);
+    const serialized = JSON.stringify({ prompt, schema });
+    expect(serialized.length).toBe(afterChars);
+    expect(Buffer.byteLength(serialized, 'utf8')).toBe(afterBytes);
     expect(baselineChars - serialized.length).toBeGreaterThanOrEqual(650);
-    expect(baselineChars - serialized.length).toBeLessThanOrEqual(1100);
-    expect(baselineBytes - Buffer.byteLength(serialized)).toBeGreaterThanOrEqual(650);
-    expect(baselineBytes - Buffer.byteLength(serialized)).toBeLessThanOrEqual(1100);
+    expect(baselineBytes - Buffer.byteLength(serialized, 'utf8')).toBeGreaterThanOrEqual(650);
     // The description is actually consumed by the foreground system prompt,
     // not by its strict response schema. Never remove its unique action rules.
     expect(prompt.split(EXECUTE_TURN_DESCRIPTION)).toHaveLength(2);
