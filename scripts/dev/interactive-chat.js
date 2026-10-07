@@ -7,6 +7,9 @@ import { extractAndSaveMemories } from '../../src/features/memory/service.js';
 import { withQueryEmbeddingScope } from '../../src/integrations/ai/embeddings.js';
 import { supabase, markReminderAsSent } from '../../src/infrastructure/database/index.js';
 import { formatLocalDateTime } from '../../src/shared/time.js';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { phaseChildProof, verifyPhaseOwner } from './chat-validation-session.js';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -27,7 +30,16 @@ async function startInteractiveSession() {
 
   const configuredPhone = process.env.HERMES_CHAT_TEST_PHONE;
   const testPhone = configuredPhone === undefined ? '+573009998877' : normalizeUserPhone(configuredPhone);
-  if (configuredPhone !== undefined) {
+  const phaseHandle = process.env.HERMES_CHAT_PHASE_HANDLE;
+  let phaseUser;
+  if (phaseHandle) {
+    const state = phaseChildProof(phaseHandle, {
+      root: resolve(dirname(fileURLToPath(import.meta.url)), '../..'), database: process.env.SUPABASE_URL,
+    }, process.env.HERMES_CHAT_PHASE_TOKEN);
+    if (state.phone !== configuredPhone) throw new Error('Synthetic phase phone mismatch');
+    phaseUser = await verifyPhaseOwner(supabase, state);
+  }
+  if (configuredPhone !== undefined && !phaseHandle) {
     if (!/^hermes-chat\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(testPhone)) {
       throw new Error('HERMES_CHAT_TEST_PHONE must be a generated hermes-chat UUID identity');
     }
@@ -40,8 +52,8 @@ async function startInteractiveSession() {
       }
     }
   }
-  const user = await getOrCreateUserByPhone(testPhone);
-  if (configuredPhone !== undefined && (!user.id || !user.is_new)) throw new Error('Synthetic identity was not freshly created; refusing session');
+  const user = phaseUser ?? await getOrCreateUserByPhone(testPhone);
+  if (configuredPhone !== undefined && !phaseHandle && (!user.id || !user.is_new)) throw new Error('Synthetic identity was not freshly created; refusing session');
   console.log(`👤 Usuario de prueba activo: ${user.phone_number} (ID: ${user.id}, TZ: ${user.timezone})\n`);
 
   // --- Live Background Scheduler for Test Bench ---
