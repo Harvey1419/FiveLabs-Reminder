@@ -226,4 +226,18 @@ describe('direct TurnIntent contract', () => {
     expect(result.valid).toBe(true);
     expect(result.intent.knowledgeRefs).toEqual([validPk]);
   });
+
+  it('drops empty conversation.reply during projectStructuredTurnIntent when operational actions are present', () => {
+    const rawWire = {
+      responseCapability: 'general',
+      actions: [
+        { operation: 'task.list', status: 'all' },
+        { operation: 'conversation.reply', content: null },
+      ],
+    };
+    const projected = projectStructuredTurnIntent(rawWire);
+    expect(projected.actions).toHaveLength(1);
+    expect(projected.actions[0]).toEqual({ domain: 'task', action: 'list', status: 'all' });
+  });
 });
+

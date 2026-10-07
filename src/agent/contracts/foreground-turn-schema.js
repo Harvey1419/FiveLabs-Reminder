@@ -99,9 +99,27 @@ export function stripStructuredNulls(value) {
 /** Convert the provider-only qualified operation into canonical TurnIntent. */
 export function projectStructuredTurnIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
+  let actions = value.actions;
+  if (actions.length > 1) {
+    const hasOperational = actions.some(item => {
+      const op = String(item?.operation || '').toLowerCase();
+      return op && op !== 'conversation.reply' && op !== 'conversation.recap';
+    });
+    if (hasOperational) {
+      actions = actions.filter(item => {
+        const op = String(item?.operation || '').toLowerCase();
+        if (op === 'conversation.reply') {
+          const hasContent = typeof item.content === 'string' && item.content.trim().length > 0;
+          const hasEvidence = Array.isArray(item.evidenceRefs) && item.evidenceRefs.length > 0;
+          return hasContent || hasEvidence;
+        }
+        return true;
+      });
+    }
+  }
   return {
     ...value,
-    actions: value.actions.map((item) => {
+    actions: actions.map((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item) || item.operation === undefined) return item;
       const operation = String(item.operation || '').trim().toLowerCase();
       const parts = operation.split('.');
