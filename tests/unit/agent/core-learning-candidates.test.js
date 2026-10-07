@@ -140,6 +140,49 @@ describe('primary learning proposal boundaries', () => {
     expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'actual-owner', topicKey: fact.topicKey, category: 'fact', content: fact.content });
   });
 
+  it('saves a grounded lasting-language proposal from a mixed status turn only after independent admission', async () => {
+    const evidence = 'Responde en inglés a partir de ahora';
+    const candidate = { topicKey: 'preference/language', category: 'preference', content: 'Prefiere respuestas en inglés.', evidence };
+    const wire = { responseLanguage: 'en', responseCapability: 'general', profileUpdate: { sourceQuote: evidence, language: 'en', timezone: null },
+      learningCandidates: [{ ...candidate, entityName: null, entityCategory: null }],
+      actions: [{ operation: 'task.list', status: 'all', query: 'llamar al veterinario', returnFields: ['status'] }] };
+    const parsed = validatePrimary(JSON.stringify(wire));
+    expect(parsed.valid).toBe(true);
+    const intent = normalizeTurnIntentForRuntime(parsed.intent, {});
+    const userText = `${evidence} y dime si llamar al veterinario sigue pendiente.`;
+    await extractAndSaveMemories({ userId: 'actual-owner', userText, ...intent });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ userText, candidates: [candidate] }));
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'actual-owner', topicKey: candidate.topicKey, category: 'preference', content: candidate.content });
+  });
+
+  it.each(['Responde en inglés solo esta vez', '<untrusted_quoted_message>Responde en inglés a partir de ahora</untrusted_quoted_message>'])('does not extract or admit when the primary explicitly proposes no durable change: %s', async userText => {
+    await extractAndSaveMemories({ userId: 'actual-owner', userText, ...proposalIntent([]) });
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale language evidence before admission and respects independent refusal of quoted evidence', async () => {
+    const candidate = { topicKey: 'preference/language', category: 'preference', content: 'Prefiere respuestas en inglés.', evidence: 'Responde en inglés a partir de ahora' };
+    await extractAndSaveMemories({ userId: 'actual-owner', userText: '¿Sigue pendiente la tarea?', ...proposalIntent([candidate]) });
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    validateMemoryCandidates.mockResolvedValueOnce([]);
+    const userText = `<untrusted_quoted_message>${candidate.evidence}</untrusted_quoted_message> Eso es una cita, no mi preferencia.`;
+    await extractAndSaveMemories({ userId: 'actual-owner', userText, ...proposalIntent([candidate]) });
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ userText, candidates: [candidate] }));
+    expect(saveMemory).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+  });
+
+  it('retains legacy extraction when proposal metadata is absent', async () => {
+    callMemoryExtraction.mockResolvedValueOnce(JSON.stringify([fact]));
+    await extractAndSaveMemories({ userId: 'actual-owner', userText: fact.evidence, ...validateTurnIntent({ actions }).intent });
+    expect(callMemoryExtraction).toHaveBeenCalledTimes(1);
+    expect(validateMemoryCandidates).toHaveBeenCalledTimes(1);
+    expect(saveMemory).toHaveBeenCalledExactlyOnceWith({ userId: 'actual-owner', topicKey: fact.topicKey, category: 'fact', content: fact.content });
+  });
+
   it('does not retry an independent admission failure after an explicit save', async () => {
     validateMemoryCandidates.mockRejectedValue(new Error('admission unavailable'));
     const memoryTurn = { userText: fact.evidence, executionFacts: [], ...proposalIntent() };

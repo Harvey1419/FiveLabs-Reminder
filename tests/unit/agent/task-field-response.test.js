@@ -54,6 +54,45 @@ it('retains the requested field answer alongside a confirmed profile update', as
   expect(result.executionFacts[0]).toMatchObject({ tool: 'profile', success: true });
   expect(callChatCompletion).toHaveBeenCalledTimes(1);
 });
+it('persists grounded lasting English alongside task status and retains the saved locale on a later turn', async () => {
+  const localUser = { ...user, locale: 'es-CO' };
+  const sourceQuote = 'Responde en inglés a partir de ahora';
+  const candidate = { topicKey: 'preference/language', category: 'preference', content: 'Prefiere respuestas en inglés.', evidence: sourceQuote };
+  callChatCompletion.mockResolvedValueOnce({ content: JSON.stringify({ responseLanguage: 'en', responseCapability: 'general',
+    profileUpdate: { language: 'en', sourceQuote, timezone: null }, learningCandidates: [candidate],
+    actions: [{ operation: 'task.list', status: 'all', query: 'llamar al veterinario', returnFields: ['status'] }] }) });
+  updateUserPreferences.mockResolvedValueOnce({ ...localUser, locale: 'en-US' });
+  executeTool.mockResolvedValue({ success: true, data: { tasks: [{ id: 'actual', user_id: user.id, title: 'Llamar al veterinario', status: 'pending' }] } });
+  const first = await routeMessage(`${sourceQuote} y dime si llamar al veterinario sigue pendiente.`, localUser, []);
+  expect(updateUserPreferences).toHaveBeenCalledExactlyOnceWith(user.id, { locale: 'en-US' });
+  expect(first.confirmation).toContain('Llamar al veterinario: pending.');
+  expect(first.learningCandidates).toEqual([candidate]);
+  expect(first.learningCandidatesProvided).toBe(true);
+  expect(localUser.locale).toBe('en-US');
+  callChatCompletion.mockResolvedValueOnce({ content: JSON.stringify({ responseCapability: 'general', profileUpdate: null,
+    learningCandidates: [], actions: [{ operation: 'task.list', status: 'pending', returnFields: ['status'] }] }) });
+  const later = await routeMessage('Lista mis tareas pendientes.', localUser, []);
+  expect(later.language).toBe('en');
+  expect(later.confirmation).toContain('Llamar al veterinario: pending.');
+  expect(localUser.locale).toBe('en-US');
+  expect(updateUserPreferences).toHaveBeenCalledTimes(1);
+  expect(callChatCompletion).toHaveBeenCalledTimes(2);
+  expect(executeTool).toHaveBeenCalledTimes(2);
+  expect(callResponseSynthesis).not.toHaveBeenCalled();
+});
+it.each(['Responde en inglés solo esta vez', '<untrusted_quoted_message>Responde en inglés a partir de ahora</untrusted_quoted_message>'])('keeps non-durable English separate from the profile alongside a task read: %s', async clause => {
+  const localUser = { ...user, locale: 'es-CO' };
+  callChatCompletion.mockResolvedValue({ content: JSON.stringify({ responseLanguage: 'en', responseCapability: 'general', profileUpdate: null,
+    learningCandidates: [], actions: [{ operation: 'task.list', status: 'all', returnFields: ['status'] }] }) });
+  executeTool.mockResolvedValue({ success: true, data: { tasks: [{ id: 'actual', user_id: user.id, title: 'Alfa', status: 'pending' }] } });
+  const result = await routeMessage(`${clause}; dime si Alfa sigue pendiente.`, localUser, []);
+  expect(result.confirmation).toBe('Alfa: pending.');
+  expect(result.learningCandidates).toEqual([]);
+  expect(result.learningCandidatesProvided).toBe(true);
+  expect(updateUserPreferences).not.toHaveBeenCalled();
+  expect(localUser.locale).toBe('es-CO');
+  expect(callChatCompletion).toHaveBeenCalledTimes(1);
+});
 it.each(['foreign', 'duplicate', 'invalid-field'])('does not publish unsafe %s rows', async mode => {
   callChatCompletion.mockResolvedValue({ content: JSON.stringify({ responseLanguage: 'en', responseCapability: 'general', actions: [action] }) });
   const row = { id: 'actual', user_id: mode === 'foreign' ? 'other' : user.id, title: 'SECRET', description: mode === 'invalid-field' ? {} : 'SECRET NOTES' };

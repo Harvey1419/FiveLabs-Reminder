@@ -30,6 +30,9 @@ export function strictProviderSchema(schema) {
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
   schema.required = [...schema.required, 'responseLanguage', 'responseCapability', 'learningCandidates'];
+  // Whole-turn contrast: answering the task clause must not erase independent
+  // durable metadata. These are field excerpts, not complete wire objects.
+  schema.properties.learningCandidates.description = 'CURRENT user ONLY: all useful durable facts, 0–3 usual; [] NEVER null. No assistant/history/attachments. Exact contiguous quote≠sufficient: full-turn quotes/denial/correction/attribution. No tasks/appointments/transient actions/debts/balances/greetings/temporary states; keep mixed facts with memory.save. Atomic compact Spanish. Lasting language/style yes, utterance/one-turn no; denial≠opposite. Changed reuse topicKey; unchanged omit. New stable value-independent keys: self identity/residence/work profile/<aspect>; lasting preference preference/<aspect>; else <entity_type>/<slug>/<aspect>. Clean canonical hints optional; pet≠physical write. Node independently admits. English always + status: profileUpdate={sourceQuote:"English always",language:en}, learningCandidates=[{topicKey:preference/language,category:preference,content:"Prefiere inglés.",evidence:"English always"}], task.list(status=all). Quoted/one-turn: profileUpdate=null; learningCandidates=[]; read.';
   const action = schema.properties.actions.items;
   const domains = attachmentOnly
     ? ['conversation']
