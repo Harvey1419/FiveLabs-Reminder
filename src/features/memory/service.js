@@ -137,6 +137,7 @@ export async function extractAndSaveMemories({
   memoryDisposition = 'extract',
   learningCandidates,
   learningCandidatesProvided = false,
+  memorySaveActions = [],
   throwOnError = false,
 }) {
   // An explicit save already ran this same pipeline on the entire source turn,
@@ -180,11 +181,42 @@ export async function extractAndSaveMemories({
       });
       candidates = parseJsonArray(rawResponse, throwOnError);
     }
+    if (useProposals) {
+      // Explicit saves are proposals, not facts. Only complete typed fields
+      // whose content is a literal current trusted-source span may join the
+      // batch. Full-turn semantic admission still decides whether to save.
+      const explicit = memorySaveActions.flatMap(action => {
+        if (action?.domain !== 'memory' || action.action !== 'save'
+          || typeof action.content !== 'string') return [];
+        const start = eligibleText.indexOf(action.content);
+        if (start < 0) return [];
+        const candidate = {
+          topicKey: action.topicKey, category: action.category, content: action.content,
+          evidence: eligibleText.slice(start, start + action.content.length),
+          ...(Object.hasOwn(action, 'entityName') ? { entityName: action.entityName } : {}),
+          ...(Object.hasOwn(action, 'entityCategory') ? { entityCategory: action.entityCategory } : {}),
+        };
+        return validLearningCandidates([candidate]) ? [candidate] : [];
+      });
+      candidates = [...candidates, ...explicit];
+    }
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
-    const grounded = candidates.slice(0, MEMORY_MAX_CANDIDATES)
+    let grounded = (useProposals ? candidates : candidates.slice(0, MEMORY_MAX_CANDIDATES))
       .map(item => item && typeof item === 'object' ? { ...item, evidence: recoverLiteralEvidence(item.evidence, eligibleText) } : item)
       .filter(item => !getMemoryCandidateRejection(item, eligibleText));
+    if (useProposals) {
+      const seen = new Set();
+      grounded = grounded.filter(item => {
+        const identity = JSON.stringify([item.topicKey, item.category, item.content, item.entityName ?? null, item.entityCategory ?? null]);
+        if (seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      });
+      // Do not silently truncate independent facts or later save actions.
+      // Preserve the existing admission cap and fail the whole batch visibly.
+      if (grounded.length > MEMORY_MAX_CANDIDATES) throw new Error('Memory proposal batch exceeds the candidate limit.');
+    }
     if (!grounded.length) return [];
     const admitted = await validateMemoryCandidates({ userText: eligibleText, candidates: grounded, executionFacts, throwOnError });
     const saved = [];

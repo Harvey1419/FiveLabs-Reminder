@@ -90,6 +90,38 @@ describe('durable memory extraction policy', () => {
     expect(saveMemory).not.toHaveBeenCalled();
   });
 
+  it('preserves absent-metadata extraction even with complete explicit save fields', async () => {
+    callMemoryExtraction.mockResolvedValue(JSON.stringify([proposedFact]));
+    await extractAndSaveMemories({ userId: 'user-1', userText: proposedFact.evidence, memorySaveActions: [{ domain: 'memory', action: 'save', ...proposedFact, content: proposedFact.evidence }] });
+    expect(callMemoryExtraction).toHaveBeenCalledTimes(1);
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ candidates: [proposedFact] }));
+  });
+
+  it('does not repair invalid foreign-owner learning metadata with explicit action fields', async () => {
+    await extractAndSaveMemories({ userId: 'user-1', userText: proposedFact.evidence, learningCandidates: [{ ...proposedFact, userId: 'foreign-owner' }], learningCandidatesProvided: true, memorySaveActions: [{ domain: 'memory', action: 'save', ...proposedFact, content: proposedFact.evidence }] });
+    expect(callMemoryExtraction).toHaveBeenCalledTimes(1);
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
+  it('accepts all sixteen distinct merged candidates at the existing cap', async () => {
+    const facts = Array.from({ length: 15 }, (_, index) => ({ topicKey: `profile/aspect_${index}`, category: 'fact', content: `Dato ${index}.`, evidence: `Dato ${index}.` }));
+    const action = { domain: 'memory', action: 'save', topicKey: 'preference/style', category: 'preference', content: 'Prefiero respuestas breves.' };
+    await extractAndSaveMemories({ userId: 'user-1', userText: [...facts.map(item => item.evidence), action.content].join(' '), learningCandidates: facts, learningCandidatesProvided: true, memorySaveActions: [action, action], throwOnError: true });
+    expect(validateMemoryCandidates).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ candidates: [...facts, { topicKey: action.topicKey, category: action.category, content: action.content, evidence: action.content }] }));
+    expect(saveMemory).toHaveBeenCalledTimes(16);
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+  });
+
+  it('fails a merged batch above sixteen visibly rather than dropping later actions or facts', async () => {
+    const facts = Array.from({ length: 16 }, (_, index) => ({ topicKey: `profile/aspect_${index}`, category: 'fact', content: `Dato ${index}.`, evidence: `Dato ${index}.` }));
+    const action = { domain: 'memory', action: 'save', topicKey: 'preference/style', category: 'preference', content: 'Prefiero respuestas breves.' };
+    await expect(extractAndSaveMemories({ userId: 'user-1', userText: [...facts.map(item => item.evidence), action.content].join(' '), learningCandidates: facts, learningCandidatesProvided: true, memorySaveActions: [action], throwOnError: true })).rejects.toThrow('Memory proposal batch exceeds the candidate limit.');
+    expect(validateMemoryCandidates).not.toHaveBeenCalled();
+    expect(callMemoryExtraction).not.toHaveBeenCalled();
+    expect(saveMemory).not.toHaveBeenCalled();
+  });
+
   it('uses only the authenticated owner and does not adopt a foreign entity result', async () => {
     findOrCreateEntityFuzzy.mockResolvedValue({ user_id: 'foreign-owner', category: 'company', name: 'Foreign name' });
     const candidate = { topicKey: 'company/acme/relation', category: 'fact', content: 'Trabaja con Acme.', evidence: 'Trabajo con Acme.', entityName: 'Acme', entityCategory: 'company' };
