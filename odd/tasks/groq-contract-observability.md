@@ -25,7 +25,7 @@ Observed structured-output failures trigger additional provider attempts. The pr
 - Branch point and initial review boundary: `17fb1fe79ac9da911ea6ab9af400de968342a1d1`.
 - Delivery strategy: `exception-ok`, single future PR without a line limit, explicitly requested by the user in the organization question.
 - Initial forecast: 400-500 authored changed lines. Authorized continuation forecast: T3 approximately 200-350 and T4 approximately 650-1,000 additional lines including tests/docs. These are advisory estimates, not size constraints.
-- Work-unit boundaries: T1 contract; T2 observability; T3 actual provider-description compaction; T4 reproducible evaluation. Do not publish automatically.
+- Work-unit boundaries: T1 contract; T2 observability; T3 actual provider-description compaction; T4 reproducible evaluation; T5 authorized live comparison evidence. Do not publish automatically.
 - Running authored count for the five work-unit commits: 3,287 lines (3,085 insertions + 202 deletions), including feature-document updates and the compatibility repair; metadata-only closeout commits and the user's language commit are excluded. User-approved size exception remains in effect; no code was omitted to meet a line target.
 
 ## Tasks and acceptance
@@ -92,6 +92,21 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Reminder grading uses owned subject expectations, declared fixture-only alternatives and resolved date/hour/minute/mode. Unsupported paraphrases are unresolved, not counted as correct or declared backend bugs. Canonical validity alone does not establish semantic correctness.
   - Safety/compatibility: no user language source/test changes; request-builder and validation parity retained. Default dry-run is offline; paid mode requires explicit execution and caps. Reports retain bounded synthetic decisions and provenance, not private prompts or raw provider errors.
   - Native assessment: high/unassessable from the existing untracked inventory; independent verification completed without starting RDD. Unit commit: `4fccb50` (`test(agent): add reproducible isolated Groq contract comparison`).
+- [x] **T5: Run the authorized controlled Groq comparison.**
+  - Route: delegated direct execution; bounded paid inference and report analysis require a fresh worker.
+  - Explicit native-question consent: 50 fixed-context pairs, maximum 100 generation attempts and $1.50; same configured Hermes OpenRouter key, synthetic conversations only, no business actions or production changes.
+  - Fresh endpoint pricing confirmed before execution: Groq GPT-OSS-120B prompt $0.15/M, completion $0.60/M, cache read $0.075/M. Conservative local reservations remain based on documented assumptions, not discounts or missing counters.
+  - Freeze comparison sources at the current local commit; runtime/language/validators are shared between arms, only initial-schema descriptions differ. Do not mutate source to influence the result.
+  - Run the verified runner with explicit caps, Groq pinning, no automatic retries or fallback, and six-second deadlines. Unknown charges remain reserved; all generation attempts count toward the cap.
+  - Retain sanitized decisions, paired outcomes, native usage, cost uncertainty and typed failures under `odd/evidence/groq-contract-evaluation/`; never retain real conversations, secrets or raw provider error text.
+  - Compare actual input tokens, semantic correctness, deadline success and paired accepted-response latency. Keep errors and unresolved paraphrases separate; do not claim causality from unpaired medians.
+  - Artifact: `odd/evidence/groq-contract-evaluation/groq-description-comparison-2026-10-08-50pairs.json`; SHA-256 `5a8c6b544abcb55da1512ddb2f9c00938048fdc86bb60a88e2b972e0c07e092f`. Exact sources remained frozen at `415af39`; private runner artifacts use mode 0600.
+  - Execution: 100 attempts / 50 fixed-context pairs, 2026-10-08 20:00:55.452–20:06:50.567 UTC, concurrency one, Groq only, no retries/fallback; no HTTP 429 or timeouts observed. This does not establish prevention of future rate limits or WhatsApp latency.
+  - Billing: 90 usage-reported charges sum to $0.115977600; conservative rounded ledger records $0.115977611 plus $0.110013928 unknown-cost reservations, total $0.225991539 under documented assumptions. Three exact-ID checks confirmed $0.004230600 already included. Reservations are not an invoice guarantee.
+  - Verified reduction: 35 comparable initial-phase pairs saved exactly 317 native prompt tokens each, 199,352 -> 188,257 total (5.57%). Forty initial-schema pairs saved 1,540 bytes each; total request bytes 1,226,047 -> 1,164,447 (5.02%). Suspended schemas were unchanged. Comparable completion usage increased 36,063 -> 37,181; total-cost improvement is not established.
+  - Frozen evaluation: both arms 43/50 canonically valid; baseline 24/50 versus current 21/50 deadline-correct. The 17 pairs correct in both arms had median within-pair current-minus-baseline latency +200.94 ms; mean +104.95 ms, descriptive bootstrap interval -248.94 to +602.48 ms. No faster or slower causal conclusion is supported.
+  - Independent audit reproduced counts, bytes, native usage, ledger rounding and paired statistics. It found a representation-specific AM/PM date assertion; fixing that assertion alone would recover no fully correct decisions because ambiguity also failed independently. Current quoted-agenda pair 37 is unresolved due redacted scope, while two others genuinely omit the requested temporal scope. Do not describe all frozen semantic failures as proven business errors.
+  - Result: actual input reduction demonstrated; quality preservation and faster responses not demonstrated. Recommendation: hold production acceptance. Source/runtime, user language changes, production, and RDD preference remain unchanged. Evidence commit: pending local close.
 
 ## Verification plan
 
@@ -119,7 +134,8 @@ Focused checks are estimated at 10-60 seconds; the full unit suite at 2-10 minut
 - The user explicitly authorized T3/T4 in the order optimization -> corrected evaluation -> larger comparison, and asked to prioritize Groq while deferring Haiku.
 - Prior live before/after comparison used 14 remaining calls and exhausted its 24-call cap. Requests were byte-identical and no code-caused latency/token improvement was demonstrated. Do not reuse that exhausted allowance.
 - The user paused writes to inject language corrections, then authorized resumption after commit `106f28f`. Reconciliation found the current T4 wrappers preserve those corrections; previous test receipts are not accepted as proof of this new snapshot.
-- T3 and T4 are committed and independently verified offline against the user language commit. Next: request fresh authorization for a controlled 50-pair/100-generation Groq comparison, with a proposed $1.50 cap and fresh price confirmation before inference. No paid calls have been made in this continuation; no push, PR or deployment is authorized.
+- T5 completed and independently audited within its caps. The comparison demonstrated 317 fewer native input tokens per comparable initial pair, not a speed gain or preserved quality. Do not automatically promote the compaction to production or issue further paid calls.
+- Next decision: review the retained evidence and, if authorized, correct date-equivalence grading and replay the existing decisions offline with frozen primary results preserved. No new inference is needed for that audit. Production adoption, additional optimization scope, push, PR and deployment remain user decisions.
 
 ## References
 
