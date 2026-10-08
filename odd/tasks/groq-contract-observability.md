@@ -26,7 +26,7 @@ Observed structured-output failures trigger additional provider attempts. The pr
 - Delivery strategy: `exception-ok`, single future PR without a line limit, explicitly requested by the user in the organization question.
 - Initial forecast: 400-500 authored changed lines. Authorized continuation forecast: T3 approximately 200-350 and T4 approximately 650-1,000 additional lines including tests/docs. These are advisory estimates, not size constraints.
 - Work-unit boundaries: T1 contract; T2 observability; T3 actual provider-description compaction; T4 reproducible evaluation. Do not publish automatically.
-- Running authored count for the three work-unit commits: 1,060 lines (939 insertions + 121 deletions), including feature-document updates and the compatibility repair. User-approved size exception remains in effect; no code was omitted to meet a line target.
+- Running authored count for the five work-unit commits: 3,287 lines (3,085 insertions + 202 deletions), including feature-document updates and the compatibility repair; metadata-only closeout commits and the user's language commit are excluded. User-approved size exception remains in effect; no code was omitted to meet a line target.
 
 ## Tasks and acceptance
 
@@ -85,13 +85,13 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Preserve current turn-language guards and clarification sanitizers. Add English-context and callback-first parity coverage within existing authorized test surfaces; execute user language regressions without rewriting their expectations.
   - Future evidence is restricted to `odd/evidence/groq-contract-evaluation/`; pre-existing evidence remains untouched.
   - Verification: offline dry-run, isolation/semantic-grader tests, production-wire parity tests, full offline units and independent verification as required.
-  - Commit and proof: pending.
+  - Commit and proof: recorded in the closure below.
   - Closure: resumed baseline 218 tests passed; observed resume RED 4 failed / 44 passed. An independent verifier found reminder-subject/minute grading gaps; observed correction RED 13 failed / 75 passed, then 88 evaluation tests and 269 focused tests passed. Final full offline suite: 1,872 tests passed in 155 files. Independent follow-up repeated 88 tests and canonical-valid negative controls; parent repeated the 88-test command successfully.
   - Dry-run proof: fourteen matched fixed-context pairs, 28 passing synthetic decisions, zero attempts/credential lookups/network requests. Fifty-pair simulation yields 100 synthetic decisions and a conservative reservation forecast of $1.159516217 under documented price assumptions; 61,600 serialized bytes saved across initial-schema cases. Native token savings, model quality and latency remain unknown.
   - English fixture: 26,188 -> 24,648 UTF-8 request bytes, identical 6,786-byte messages. The comparison is schema-only with current language behavior preserved; continuation/approval schemas are identical and have no compaction saving.
   - Reminder grading uses owned subject expectations, declared fixture-only alternatives and resolved date/hour/minute/mode. Unsupported paraphrases are unresolved, not counted as correct or declared backend bugs. Canonical validity alone does not establish semantic correctness.
   - Safety/compatibility: no user language source/test changes; request-builder and validation parity retained. Default dry-run is offline; paid mode requires explicit execution and caps. Reports retain bounded synthetic decisions and provenance, not private prompts or raw provider errors.
-  - Native assessment: high/unassessable from the existing untracked inventory; independent verification completed without starting RDD. Unit commit: pending local close.
+  - Native assessment: high/unassessable from the existing untracked inventory; independent verification completed without starting RDD. Unit commit: `4fccb50` (`test(agent): add reproducible isolated Groq contract comparison`).
 
 ## Verification plan
 
@@ -115,11 +115,11 @@ Focused checks are estimated at 10-60 seconds; the full unit suite at 2-10 minut
 - Additional authorized Haiku experiment: ten attempts, observed Vertex nullable-enum and 42-versus-16 union-limit rejections. Generation-only adapters remained in memory; no model switch or repository changes. Known cost $0.00570645, conservative bound $0.07160057. No semantic-quality or latency conclusion for Haiku.
 - Verification limitations: provider behavior is mocked; no production latency, recovery from live 429 responses, integration database checks, or live-model efficacy is certified. Diagnostics do not prevent rate limits and no automatic 429 retry was added.
 - Authorized test-surface additions: `tests/unit/agent/structured-protocol-responses.test.js` and `tests/unit/agent/core-learning-candidates.test.js`, each explicitly approved by the user.
-- Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`, compaction `21f51ba`. T4 is verified offline and awaiting its local commit.
+- Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`, compaction `21f51ba`, reproducible evaluation `4fccb50`. The user's language commit `106f28f` remains preserved.
 - The user explicitly authorized T3/T4 in the order optimization -> corrected evaluation -> larger comparison, and asked to prioritize Groq while deferring Haiku.
 - Prior live before/after comparison used 14 remaining calls and exhausted its 24-call cap. Requests were byte-identical and no code-caused latency/token improvement was demonstrated. Do not reuse that exhausted allowance.
 - The user paused writes to inject language corrections, then authorized resumption after commit `106f28f`. Reconciliation found the current T4 wrappers preserve those corrections; previous test receipts are not accepted as proof of this new snapshot.
-- T3 and T4 are independently verified offline against the user language commit. Next: close T4 locally and request fresh authorization for a controlled 50-pair/100-generation Groq comparison. No paid calls have been made in this continuation; no push, PR or deployment is authorized.
+- T3 and T4 are committed and independently verified offline against the user language commit. Next: request fresh authorization for a controlled 50-pair/100-generation Groq comparison, with a proposed $1.50 cap and fresh price confirmation before inference. No paid calls have been made in this continuation; no push, PR or deployment is authorized.
 
 ## References
 
