@@ -25,10 +25,30 @@ function resolvedParts(schedule, fixture) {
   return { resolved, parts };
 }
 
+const stripReminderPrefix = text => subjectKey(text).replace(/^(recordatorio|recordar|recordarme|reminder|remind me)\s*:?\s*/i, '').trim();
+
 function subjectAssertion(check, fixture, action) {
   const expected = REMINDER_EXPECTATIONS[fixture.id];
   const actual = reminderSubject(action);
-  const matched = typeof actual === 'string' && expected.subjectAliases.some(alias => subjectKey(alias) === subjectKey(actual));
+  if (typeof actual !== 'string' || !actual.trim()) {
+    check('reminder_subject', false, 'subject_missing_or_empty', 'unresolved');
+    return;
+  }
+  const f = folded(actual);
+  const hasNegation = /\b(no|nunca|jamas|evitar|cancelar|dont|do not|never|stop)\b/i.test(f);
+  if (hasNegation) {
+    check('reminder_subject', false, 'negation_or_contradiction_detected', 'unresolved');
+    return;
+  }
+  const hasAddedScope = /\b(y\s+|and\s+|ademas|tambien|as well as|along with)\b/i.test(f);
+  if (hasAddedScope) {
+    check('reminder_subject', false, 'unrequested_additional_task_detected', 'unresolved');
+    return;
+  }
+
+  const cleanActual = stripReminderPrefix(actual);
+  const normalizedAliases = new Set((expected.subjectAliases || []).map(stripReminderPrefix));
+  const matched = normalizedAliases.has(cleanActual);
   check('reminder_subject', matched, matched ? 'declared_owned_subject_equivalence' : 'subject_not_in_declared_aliases', matched ? 'passed' : 'unresolved');
 }
 

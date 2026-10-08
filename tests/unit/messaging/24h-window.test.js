@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { isWithin24HourWindow } from '../../../src/integrations/whatsapp/kapso-client.js';
 import { userCache } from '../../../src/infrastructure/database/users.js';

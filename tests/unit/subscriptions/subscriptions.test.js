@@ -27,6 +27,11 @@ vi.mock('../../../src/infrastructure/database/index.js', async (importOriginal) 
   };
 });
 
+vi.mock('../../../src/infrastructure/database/memories.js', () => ({
+  getReminderConfirmationPreference: vi.fn().mockResolvedValue(null),
+  getReminderDispatchPolicy: vi.fn().mockResolvedValue(null),
+}));
+
 describe('Subscription Access Control (hasProAccess)', () => {
   it('should grant Pro access to admin users unconditionally', () => {
     const adminUser = { is_admin: true };
