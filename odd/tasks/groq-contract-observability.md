@@ -2,7 +2,7 @@
 
 ## Objective
 
-Preserve Hermes capabilities and Groq-first routing while strengthening the initial structured-decision boundary and adding truthful, privacy-safe request, latency, and rate-limit diagnostics.
+Preserve Hermes capabilities and Groq-first routing while strengthening structured decisions, measuring attempts, reducing the actual provider-description payload, and building a reproducible synthetic before/after evaluation.
 
 ## Problem and rationale
 
@@ -24,8 +24,8 @@ Observed structured-output failures trigger additional provider attempts. The pr
 - Branch: `fix/groq-contract-observability`.
 - Branch point and initial review boundary: `17fb1fe79ac9da911ea6ab9af400de968342a1d1`.
 - Delivery strategy: `exception-ok`, single future PR without a line limit, explicitly requested by the user in the organization question.
-- Forecast: 400-500 authored changed lines including tests; this is not a code-size constraint.
-- Work-unit boundaries: T1 contract; T2 observability. Do not publish automatically.
+- Initial forecast: 400-500 authored changed lines. Authorized continuation forecast: T3 approximately 200-350 and T4 approximately 650-1,000 additional lines including tests/docs. These are advisory estimates, not size constraints.
+- Work-unit boundaries: T1 contract; T2 observability; T3 actual provider-description compaction; T4 reproducible evaluation. Do not publish automatically.
 - Running authored count for the three work-unit commits: 1,060 lines (939 insertions + 121 deletions), including feature-document updates and the compatibility repair. User-approved size exception remains in effect; no code was omitted to meet a line target.
 
 ## Tasks and acceptance
@@ -57,6 +57,33 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Closure: conflicting outer/nested/provider codes now keep rate-limit provenance uncertain. Observed RED 4 failed / 28 passed, then 121 provider-focused tests passed. Full offline suite: 1,761 tests passed in 153 files. Independent verifier first checked 190 tests and identified the conflict bug; follow-up checked 32 tests and 22 provenance cases with no remaining blocker. Parent repeated the 121-test command and whitespace check successfully.
   - Native risk assessment remained high/unassessable because pre-existing untracked paths were undeclared; completed the independent-verifier path without starting RDD. RDD outcome: disabled/unmanaged.
   - Unit commit: `8a4d337` (`feat(agent): add privacy-safe provider attempt diagnostics`).
+- [x] **T3: Reduce actual provider descriptions without weakening contracts.**
+  - Route: delegated direct; source preparation and multiple non-trivial files require a bounded writer.
+  - Baseline for this continuation: `1290e81`.
+  - Compact field-local provider descriptions only; keep canonical descriptions, validators, operations, types, bounds, required fields, nullability and runtime capabilities unchanged.
+  - Preserve every replaced obligation in explicit model-visible guidance with a documented rule-to-surface map. Initially leave sensitive learning admission guidance intact.
+  - Detach shared temporal nodes before editing; avoid accidental schedule changes through aliases.
+  - Keep all four description-stripped provider variants and the full canonical schema unchanged.
+  - Measure actual serialized request and schema UTF-8 bytes against the baseline. Exploration found approximately 1.8-2.1 KB of plausible reduction; this is not measured token or latency improvement.
+  - Separate structural fingerprints from intentionally changed descriptions; preserve budget guards and semantic assertions rather than regenerate arbitrary goldens.
+  - No new provider unions, references, classifiers, model changes, reasoning reduction, history truncation or simultaneous dynamic-context deduplication.
+  - Verification: observed regression RED/GREEN, focused contract/budget suites, full offline units, syntax/whitespace checks and independent verification as required.
+  - Commit and proof: pending.
+  - Closure: baseline 250 tests passed; observed RED 6 failed / 8 passed; focused GREEN 269 passed; full offline suite 1,780 passed in 154 files. Independent verifier and parent each ran 139 focused tests successfully, confirming explicit rule preservation and all four unchanged description-stripped schema variants.
+  - Actual wire measurements: normal non-admin request 24,913 -> 23,373 UTF-8 bytes, schema 19,058 -> 17,518; admin request 24,929 -> 23,389. Normal saving: 1,540 bytes (6.18%). Attachment-only request 11,253 -> 10,767, saving 486 bytes. Messages remain 5,511 bytes. Native tokens, live acceptance, quality and latency are not yet measured.
+  - Canonical SHA-256 remains `40c6cd8f9ba705137012e006127a34ef8edd0da8f929a57874cd705056a9b905`. Risk assessment: high/unassessable due the untracked inventory; independent verification completed without starting RDD.
+  - Unit commit: pending local close.
+- [ ] **T4: Build a reproducible offline-default Groq comparison harness.**
+  - Route: delegated direct; multiple implementation/testing files require a bounded writer.
+  - Use the real pure prompt, request and validation boundaries for baseline/current sources; do not import executable production evaluation drivers or database actions.
+  - Default dry-run blocks network and credential access. Paid mode requires explicit execution, generation/cost caps and fresh user authorization.
+  - Correct date/time, task-description, reference and durable-preference grading; accept canonical alternatives and preserve safe synthetic decisions for review.
+  - Separate matched fixed-context pairs from divergent conversations. Failed parents stop dependent turns; never fabricate successful history.
+  - Record actual payload sizes, provider-native usage, typed failures, deadline success, correctness and cost; exclude fast errors from response-latency medians.
+  - Retain a tested pure request/validation seam without changing production request fields or routing behavior.
+  - Future evidence is restricted to `odd/evidence/groq-contract-evaluation/`; pre-existing evidence remains untouched.
+  - Verification: offline dry-run, isolation/semantic-grader tests, production-wire parity tests, full offline units and independent verification as required.
+  - Commit and proof: pending.
 
 ## Verification plan
 
@@ -81,7 +108,9 @@ Focused checks are estimated at 10-60 seconds; the full unit suite at 2-10 minut
 - Verification limitations: provider behavior is mocked; no production latency, recovery from live 429 responses, integration database checks, or live-model efficacy is certified. Diagnostics do not prevent rate limits and no automatic 429 retry was added.
 - Authorized test-surface additions: `tests/unit/agent/structured-protocol-responses.test.js` and `tests/unit/agent/core-learning-candidates.test.js`, each explicitly approved by the user.
 - Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`. No tracked source changes remain after those commits.
-- Next step: user-owned review/publication decision for one future PR. A production comparison or provider/retry strategy requires separate authorization. No push, PR or deployment was performed; source verification used no paid calls, separate from the authorized Haiku experiment recorded above.
+- The user explicitly authorized T3/T4 in the order optimization -> corrected evaluation -> larger comparison, and asked to prioritize Groq while deferring Haiku.
+- Prior live before/after comparison used 14 remaining calls and exhausted its 24-call cap. Requests were byte-identical and no code-caused latency/token improvement was demonstrated. Do not reuse that exhausted allowance.
+- T3 is implemented and independently verified offline; proceed to T4 after the local work-unit commit. Present a fresh budget before any larger paid comparison. No push, PR or deployment is authorized.
 
 ## References
 

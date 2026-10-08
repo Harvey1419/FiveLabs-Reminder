@@ -19,6 +19,7 @@ import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 function inspectProjection(node) {
   expect(node).not.toHaveProperty('anyOf');
   expect(node).not.toHaveProperty('oneOf');
+  expect(node).not.toHaveProperty('allOf');
   expect(node).not.toHaveProperty('$ref');
   if (node.properties) {
     expect(node.additionalProperties).toBe(false);
@@ -136,14 +137,13 @@ describe('Groq strict provider projection regressions', () => {
   it('preserves every optional scalar constraint and removes null without changing false or zero', () => {
     const action = getStructuredTurnSchema().properties.actions.items;
     expect(action.properties.priority).toEqual({ type: ['string', 'null'], enum: [...TURN_INTENT_SCHEMA.properties.actions.items.properties.priority.enum, null] });
-    expect(action.properties.advanceMinutes).toEqual({
+    expect(action.properties.advanceMinutes).toMatchObject({
       type: ['integer', 'null'],
       minimum: 1,
       maximum: 10080,
-      ...(TURN_INTENT_SCHEMA.properties.actions.items.properties.advanceMinutes.description
-        ? { description: TURN_INTENT_SCHEMA.properties.actions.items.properties.advanceMinutes.description }
-        : {}),
     });
+    expect(action.properties.advanceMinutes.description).toContain('Calendar notification offset');
+    expect(action.properties.advanceMinutes.description).toContain('desired state, not a separate action');
     expect(stripStructuredNulls({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0, offsetMinutes: null } }))
       .toEqual({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0 } });
   });

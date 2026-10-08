@@ -30,6 +30,12 @@ export function strictProviderSchema(schema) {
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
   schema.required = [...schema.required, 'responseLanguage', 'responseCapability', 'learningCandidates'];
+  // Provider prose only: every field obligation remains local, except language
+  // precedence/voice already stated in full in the initial system message.
+  // See docs/agent/groq-contract-evaluation.md for the rule-to-surface map.
+  schema.properties.responseLanguage.description = 'Language for the entire response, including cards/questions; follow the system language precedence and Spanish voice.';
+  schema.properties.answerFromResults.description = 'True for interpretation/calculation/comparison needing live reads: emit those reads, then Hermes answers from results; keep returnFields absent. False/null for listings/simple returnFields/mutations. A single task.list returnFields projection takes precedence over redundant true.';
+  schema.properties.knowledgeRefs.description = 'Turn RESPONSE metadata, not tool actions: select supplied pk_ refs from memory hints for mixed tasks/personal recall. Add recorded personal quotations, never fresh operational state, to cards/fields/historical summaries. Inventories need no answerFromResults for recall. Only reads/conversation; no mutations or guessed refs. Personal chat may use content without refs.';
   // Whole-turn contrast: answering the task clause must not erase independent
   // durable metadata. These are field excerpts, not complete wire objects.
   schema.properties.learningCandidates.description = 'CURRENT user ONLY: all useful durable facts, 0–3 usual; [] NEVER null. No assistant/history/attachments. Exact contiguous quote≠sufficient: full-turn quotes/denial/correction/attribution. No tasks/appointments/transient actions/debts/balances/greetings/temporary states; keep mixed facts with memory.save. Atomic compact Spanish. Lasting language/style yes, utterance/one-turn no; denial≠opposite. Changed reuse topicKey; unchanged omit. New stable value-independent keys: self identity/residence/work profile/<aspect>; lasting preference preference/<aspect>; else <entity_type>/<slug>/<aspect>. Clean canonical hints optional; pet≠physical write. Node independently admits. English always + status: profileUpdate={sourceQuote:"English always",language:en}, learningCandidates=[{topicKey:preference/language,category:preference,content:"Prefiere inglés.",evidence:"English always"}], task.list(status=all). Quoted/one-turn: profileUpdate=null; learningCandidates=[]; read.';
@@ -64,6 +70,20 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
     ...sharedProperties,
   };
   action.required = ['operation'];
+  const descriptions = {
+    contextRef: 'Select an existing reminder/task/calendar event displayed in Working Memory by position, time, recurrence or title. contextRef is the sole operative identity; omit target; redundant labels ignored by Node.',
+    target: 'Human reference to an EXISTING item, never internal IDs. Required for existing-object mutations without contextRef, except reminder.acknowledge with one authoritative active follow-up bound by Node. With contextRef omit target; redundant labels ignored. entity.delete: project/list name; deleting a project deletes all its tasks in cascade; never scope="all" for one project.',
+    entityName: 'entity.create/upsert: own name. task.list/create: implicit/explicit container name, even a system domain name (e.g. "reminder", "trabajo"). task.complete/update/delete: include the owning named container to prevent duplicate titles crossing containers.',
+    category: 'entity.create/upsert: person/company/project/place/asset/other only; omitted=other; pet is not a physical write category. project=task container. Memory fact/preference/decision/episode/observation belongs in memory.save, not entity fields.',
+    projectless: 'task.create: true only with no named grouping or shared purpose. Grouped implicit/explicit purpose requires entityName, even without the words list/project; never projectless=true.',
+    evidenceRefs: 'conversation.reply/historical recap: supplied operational refs only. Content with refs is discarded, not verified prose; Node renders owned historical proof, not fresh state. Personal recall: TURN knowledgeRefs or natural content without operational refs. No additional actions.',
+    returnFields: 'task.list only: simple actual status/date/notes from returned rows; Node renders fields (null=absent, missing=unknown). Keep query/entityName/status/date filters. Single task read: takes precedence over answerFromResults. No ordinal identity or calculations; complex interpretation: returnFields absent, answerFromResults.',
+    query: 'Title/memory text filter. reminder.list: literal case-insensitive content, 1–200 trimmed characters, no * or NUL; never dates/times. Dated agenda/reminder/task/calendar reads: schedule with calendar_date_time and allDay=true; query dates do not restrict the window.',
+    recurrence: 'daily|weekdays|weekly|monthly|yearly|hourly. Sub-daily: hourly:N = every N hours (hourly:6 = every 6 hours); interval:Xm / interval:Xh = every X minutes/hours. Plain hourly means exactly every 1 hour only.',
+    advanceMinutes: 'Advance offset in minutes. Calendar notification offset; reminders prefer deliveryPolicy: desired state, not a separate action.',
+    deliveryPolicy: 'Reminder desired delivery state: only when explicitly requested/changed by the user or to preserve known state. Never invent advance notice.',
+  };
+  for (const [field, description] of Object.entries(descriptions)) action.properties[field].description = description;
   action.properties.schedule.description += ' A complete reminder.create needs a usable schedule. If part is missing, keep known components on the partial action, declare missingFields and put the clarification question on that action; at most one clarification.request may accompany the incomplete draft. Each action retains its own known date/time components.';
   action.properties.schedule.properties.dayOffset.description = 'Number of local calendar days from the current message date: 0=today, 1=tomorrow, 2=day after tomorrow. When a day is shared by multiple requests, repeat that dayOffset in every applicable schedule; never reset it to 0 merely because the day appears in a preceding clause.';
   action.properties.schedule.properties.offsetMinutes.description = 'Duration from now, only for relative_offset. For every other kind use null. Do not compute a duration instead of preserving the requested calendar day and clock time.';
@@ -82,7 +102,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   // detach before changing descriptions so schedule keeps the actual guidance.
   action.properties.endSchedule = structuredClone(action.properties.endSchedule);
   action.properties.endSchedule.description = 'End time; use the same temporal field semantics as schedule.';
-  for (const field of ['kind', 'allDay', 'clockMode']) {
+  for (const field of ['kind', 'allDay', 'clockMode', 'dayOffset', 'offsetMinutes']) {
     action.properties.endSchedule.properties[field].description = `Same semantics as schedule.${field}.`;
   }
   return strictProviderSchema(schema);

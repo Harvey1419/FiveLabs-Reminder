@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
-import { EXECUTE_TURN_DESCRIPTION } from '../../../src/agent/contracts/intent-contracts.js';
+import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+
+const baselineSource = execFileSync('git', ['show', '1290e81:src/agent/contracts/foreground-turn-schema.js'], { encoding: 'utf8' });
+const baselineProjection = new Function('TURN_INTENT_SCHEMA', 'getCanonicalOperations', 'parseCanonicalOperation',
+  baselineSource.replace(/^import \{[\s\S]*?\} from .*?;\n/, '').replaceAll('export function ', 'function ')
+    + '\nreturn getStructuredTurnSchema;')(TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation);
 
 describe('static prompt deduplication', () => {
   // Bounded c6ab77e baseline, measured with these exact synthetic inputs and
@@ -27,7 +33,10 @@ describe('static prompt deduplication', () => {
     // Genuine additive schema growth is not token savings. Preserve the exact
     // old wire snapshot after reverting ONLY the declared additive/description
     // differences, rather than raising the context or description budgets.
-    const previousSchema = structuredClone(schema);
+    // T3 intentionally compacts descriptions. Reconstruct compatibility from
+    // the immutable pre-T3 source; actual current serialization still passes
+    // the original historical saving/budget guards below, without inflation.
+    const previousSchema = baselineProjection({ isAdmin });
     delete previousSchema.properties.learningCandidates;
     previousSchema.required = previousSchema.required.filter(key => key !== 'learningCandidates');
     const fields = previousSchema.properties.actions.items.properties;
