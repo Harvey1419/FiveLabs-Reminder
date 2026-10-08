@@ -210,11 +210,37 @@ function enforceCurrentProfileSource(validation, currentUserText) {
   return { ...validation, intent };
 }
 
-function parseStructuredTurnDecision(modelResponse, { isAdmin = false } = {}) {
+function sanitizeHallucinatedEvidenceRefs(intent, hasHistoricalEvidence) {
+  if (hasHistoricalEvidence || !intent || !Array.isArray(intent.actions)) return intent;
+  return {
+    ...intent,
+    actions: intent.actions.map(action => {
+      if (!action || typeof action !== 'object') return action;
+      const op = String(action.operation || `${action.domain}.${action.action}`).toLowerCase();
+      if ((op === 'conversation.reply' || (action.domain === 'conversation' && action.action === 'reply'))
+        && action.evidenceRefs !== undefined && typeof action.content === 'string' && action.content.trim()) {
+        const { evidenceRefs: _unused, ...cleaned } = action;
+        return cleaned;
+      }
+      return action;
+    }),
+  };
+}
+
+function parseStructuredTurnDecision(modelResponse, { isAdmin = false, hasHistoricalEvidence = true } = {}) {
   if (modelResponse?.unavailable) return { unavailable: true, validation: null };
   if (modelResponse?.toolCalls?.length) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión foreground no admite llamadas a herramientas.' } };
-  if (modelResponse?.structuredIntent) return { unavailable: false, validation: validateTurnIntent(modelResponse.structuredIntent, { isAdmin, requireResponseCapability: true }) };
-  return { unavailable: false, validation: validateStructuredTurnContent(modelResponse?.content, { isAdmin }) };
+  if (modelResponse?.structuredIntent) {
+    const canonical = sanitizeHallucinatedEvidenceRefs(modelResponse.structuredIntent, hasHistoricalEvidence);
+    return { unavailable: false, validation: validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true }) };
+  }
+  const parsed = parseIntentArguments(modelResponse?.content);
+  if (!parsed) return { unavailable: false, validation: { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' } };
+  const canonical = sanitizeHallucinatedEvidenceRefs(
+    projectStructuredTurnIntent(stripStructuredNulls(parsed)),
+    hasHistoricalEvidence
+  );
+  return { unavailable: false, validation: validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true }) };
 }
 
 function validateStructuredTurnContent(content, { isAdmin = false } = {}) {
@@ -732,7 +758,8 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   }
 
   const historicalEvidence = operationalEvidenceFromHistory(rawPastTurns, user.id);
-  if (historicalEvidence.length) messages[0].content += `\nOperational evidence (actual prior outcomes: success on read/list means a real query succeeded then, not unverified cache. Say last observed; no new query is not a failed query. Bounded history, not fresh state; select evidenceRefs on recap, older/overflow may be missing): ${JSON.stringify(historicalEvidence)}`;
+  const hasHistoricalEvidence = historicalEvidence.length > 0;
+  if (hasHistoricalEvidence) messages[0].content += `\nOperational evidence (actual prior outcomes: success on read/list means a real query succeeded then, not unverified cache. Say last observed; no new query is not a failed query. Bounded history, not fresh state; select evidenceRefs on recap, older/overflow may be missing): ${JSON.stringify(historicalEvidence)}`;
 
   const turnResponseFormat = {
 
@@ -771,7 +798,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   let modelElapsedMs = Date.now() - modelStart;
   const decision = normalizeModelResponse(modelResponse);
   console.log(`[router req=${requestId}] model decision in ${modelElapsedMs}ms structuredChars=${decision.content.length} unavailable=${decision.unavailable}`);
-  const structuredDecision = parseStructuredTurnDecision(decision, { isAdmin });
+  const structuredDecision = parseStructuredTurnDecision(decision, { isAdmin, hasHistoricalEvidence });
   let collected = structuredDecision.unavailable ? { valid: true, intent: null } : structuredDecision.validation;
   collected = enforceCurrentProfileSource(collected, currentUserText);
   collected = enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn);
@@ -848,15 +875,24 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
   });
   console.log(`[router req=${requestId}] runtime intent actions=${runtimeIntent.actions.map(summarizeAction).join(' | ')}`);
 
+  const fallbackGreetingOrNotice = (lang) => (rawPastTurns?.length === 0
+    ? (lang === 'en' ? 'Hello! How can I help you today?' : '¡Hola! ¿En qué puedo ayudarte hoy?')
+    : (lang === 'en' ? 'No prior operational actions or evidence are recorded in this conversation.' : 'No hay acciones ni evidencia operativa previa registrada en esta conversación.'));
+
   const evidenceSelection = runtimeIntent.actions.find(action => action.evidenceRefs !== undefined);
-  if (evidenceSelection) return {
-    ...learningMetadata,
-    intent: 'chat', language,
-    entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
-    confirmation: [renderOperationalEvidence(rawPastTurns, evidenceSelection.evidenceRefs, user.id, language), renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language)].filter(Boolean).join('\n\n'),
-    executionFacts: [], ctaUrl: null, ctaHeader: null, ctaButtonText: null,
-    memoryDisposition: 'skip_operational',
-  };
+  if (evidenceSelection) {
+    const renderedEvidence = hasHistoricalEvidence
+      ? renderOperationalEvidence(rawPastTurns, evidenceSelection.evidenceRefs, user.id, language)
+      : fallbackGreetingOrNotice(language);
+    return {
+      ...learningMetadata,
+      intent: 'chat', language,
+      entities: conversationStateEntities(user, { _turnMetadata: { kind: 'conversation' } }),
+      confirmation: [renderedEvidence, renderPersonalKnowledge(runtimeIntent.knowledgeRefs || [], personalKnowledge.lookup, user.id, language)].filter(Boolean).join('\n\n'),
+      executionFacts: [], ctaUrl: null, ctaHeader: null, ctaButtonText: null,
+      memoryDisposition: 'skip_operational',
+    };
+  }
   const recap = runtimeIntent.actions.find(action => action.domain === 'conversation' && action.action === 'recap');
   if (recap?.recapMode === 'historical' && runtimeIntent.responseCapability !== 'billing_info') {
     return {

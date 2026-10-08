@@ -59,3 +59,33 @@ it.each([{ unavailable: true }, { unavailable: true, refused: true }])('failed t
   expect(result.confirmation).not.toContain('No ejecuté ninguna acción.');
   expect(executeTool).not.toHaveBeenCalled();
 });
+
+it('first turn with empty history preserves conversational greeting when model hallucinates evidenceRefs', async () => {
+  const unknown = '12345678-1234-1234-1234-123456789abc';
+  callChatCompletion.mockResolvedValue({
+    content: JSON.stringify({
+      responseLanguage: 'es',
+      responseCapability: 'general',
+      actions: [{ operation: 'conversation.reply', content: '¡Hola! ¿Cómo estás?', evidenceRefs: [unknown] }],
+    }),
+  });
+  const result = await routeMessage('hopla', user, []);
+  expect(result.confirmation).toBe('¡Hola! ¿Cómo estás?');
+  expect(result.confirmation).not.toContain('no está disponible');
+  expect(executeTool).not.toHaveBeenCalled();
+});
+
+it('first turn with empty history falls back to friendly greeting when evidenceSelection has no content', async () => {
+  const unknown = '12345678-1234-1234-1234-123456789abc';
+  callChatCompletion.mockResolvedValue({
+    content: JSON.stringify({
+      responseLanguage: 'es',
+      responseCapability: 'general',
+      actions: [{ operation: 'conversation.reply', content: null, evidenceRefs: [unknown] }],
+    }),
+  });
+  const result = await routeMessage('hopla', user, []);
+  expect(result.confirmation).toBe('¡Hola! ¿En qué puedo ayudarte hoy?');
+  expect(result.confirmation).not.toContain('no está disponible');
+  expect(executeTool).not.toHaveBeenCalled();
+});
