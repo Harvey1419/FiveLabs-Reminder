@@ -174,9 +174,21 @@ export const TURN_INTENT_SCHEMA = Object.freeze({
   required: ['actions'],
 });
 
-const READ_AND_PAYMENT_GUIDANCE = `LECTURAS: task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date).
-PAGOS: Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply from this same decision; Node supplies verified entitlement, benefits and a Free-only existing Stripe subscribe button. No model-authored URL. Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info, never promotional plan scope; Node supplies uncertainty/safety. conversation.reply alone is not billing authority. subscription.link only for explicit link/open-checkout requests. Contextual explicit link requests after info still require general + subscription.link; actions must never be empty. How-to alone stays side-effect-free info. Never invent PayPal, bank transfer, Apple Pay or app sections without tool-backed provider capability. Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info. Unknown payment outcome never authorizes retry; no checkout to discover capabilities.
-RECAP: conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply. Solo recap refs normalize to partial history.`;
+// Phase-specific renderings share safety clauses without expanding the compact
+// foreground contract into the conversation tool's explanatory prose.
+const CHECKOUT_AUTHORITY = 'subscription.link only for explicit link/open-checkout requests';
+const CHECKOUT_PROHIBITION = 'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info';
+const UNKNOWN_PAYMENT = 'Unknown payment outcome never authorizes retry';
+const PAYMENT_METHOD_EVIDENCE = 'Never invent PayPal, bank transfer, Apple Pay';
+const RECAP_READ_GUIDANCE = 'conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history.';
+const READ_AND_PAYMENT_GUIDANCE = Object.freeze({
+  compact: `task.list: status requerido; ambos="all"; fechas: completed+pending (all usa due_date).
+PAGOS: Pro/how-to: subscription.info(scope="plan")+conversation.reply fundamentado; Botón Stripe existente solo Free; sin URLs. Precios/descuentos/métodos/fallos/reembolsos/no-checkout: subscription.info sin scope/promoción. ${CHECKOUT_AUTHORITY}; tras info: general+link; actions no vacío. ${PAYMENT_METHOD_EVIDENCE}. PayPal/transferencia/Apple Pay/secciones: solo capacidad verificada. ${CHECKOUT_PROHIBITION}. ${UNKNOWN_PAYMENT}; no checkout descubre capacidades.
+RECAP: ${RECAP_READ_GUIDANCE} RECAP: historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply. Solo refs: historia parcial.`,
+  conversation: `LECTURAS: task.list requires status: unfiltered both states="all"; dated comparisons need completed+pending reads (all uses due_date).
+PAGOS: Pro benefits/how-to: subscription.info(scope="plan") plus natural concise grounded prose in conversation.reply from this same decision; Node supplies verified entitlement, benefits and a Free-only existing Stripe subscribe button. No model-authored URL. Prices, discounts, methods, failures/refunds and no-checkout: unscoped subscription.info, never promotional plan scope; Node supplies uncertainty/safety. conversation.reply alone is not billing authority. ${CHECKOUT_AUTHORITY}. Contextual explicit link requests after info still require general + subscription.link; actions must never be empty. How-to alone stays side-effect-free info. ${PAYMENT_METHOD_EVIDENCE} or app sections without tool-backed provider capability. ${CHECKOUT_PROHIBITION}. ${UNKNOWN_PAYMENT}; no checkout to discover capabilities.
+RECAP: ${RECAP_READ_GUIDANCE} Social: reply. Solo recap refs normalize to partial history.`,
+});
 
 export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent mandatory for every turn; orden manda.
 AUTORIDAD DE ESTADO: Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura (agenda.read, calendar.list, reminder.list, task.list), incluso monto/fecha/estado. NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
@@ -185,7 +197,7 @@ Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(ta
 CALENDARIO: agenda.read todo; calendar.list/search eventos; calendar.create citas. no niegues acceso en conversation.reply.
 Temporal meaning must remain typed según schema. Same day=fecha Working Memory. clarification.request+missingFields: faltantes genuinos.
 todas las acciones en actions; resto:excluded. Confirma solo resultados observados, no planes; no repitas cards.
-${READ_AND_PAYMENT_GUIDANCE}`;
+${READ_AND_PAYMENT_GUIDANCE.compact}`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);
@@ -199,7 +211,7 @@ export function getConversationToolDefinition() {
     function: {
       name: TOOL_NAMES.REPLY_TO_USER,
       description: `Reply naturally only when the answer does not depend on current operational state. If the truth could change because DB/Calendar changed without a new user message, conversation.reply is forbidden: emit the matching live read instead. Facts in <user_memories> must be answered directly in conversation.reply. Never claim or derive unverified task, project, reminder, calendar, subscription, pending proposal, entity, or agenda state here.
-${READ_AND_PAYMENT_GUIDANCE}`,
+${READ_AND_PAYMENT_GUIDANCE.conversation}`,
       parameters: {
         type: 'object',
         additionalProperties: false,

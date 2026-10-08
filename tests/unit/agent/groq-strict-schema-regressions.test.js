@@ -30,31 +30,44 @@ function inspectProjection(node) {
 }
 
 describe('Groq strict provider projection regressions', () => {
-  it('states strict wire obligations without treating nullable fields as semantic permission', () => {
+  it('preserves existing nullable prompt guidance and schema-enforced completeness', () => {
     const prompt = buildAgentCorePrompt({ timezone: 'America/Bogota' });
+    const before = structuredClone(TURN_INTENT_SCHEMA);
     for (const options of [{}, { isAdmin: true }, { attachmentOnly: true }, { isAdmin: true, attachmentOnly: true }]) {
-      const description = getStructuredTurnSchema(options).description;
-      for (const text of [description, prompt]) {
-        expect(text).toContain('Emit every property');
-        expect(text).toContain('inapplicable nullable fields must be null');
-        expect(text).toContain('learningCandidates=[]');
-        expect(text).toContain('semantic prerequisites');
-      }
+      const schema = getStructuredTurnSchema(options);
+      expect(schema.description).toBe(TURN_INTENT_SCHEMA.description);
+      inspectProjection(schema);
+      expect(schema.properties.learningCandidates.type).toBe('array');
+      expect(schema.properties.learningCandidates.description).toContain('[] NEVER null');
+      expect(schema.properties.responseLanguage.type).toBe('string');
+      expect(schema.properties.responseCapability.type).toBe('string');
+      expect(schema.properties.actions.items.properties.operation.type).toBe('string');
+      expect(schema.properties.actions.items.properties.content.type).toEqual(['string', 'null']);
     }
+    expect(TURN_INTENT_SCHEMA).toEqual(before);
+    expect(prompt.split('campos opcionales deben ser null cuando no apliquen.')).toHaveLength(2);
+    expect(prompt.split(EXECUTE_TURN_DESCRIPTION)).toHaveLength(2);
   });
 
   it('shares payment and recap guidance across both decision descriptions', () => {
     const conversation = getConversationToolDefinition().function.description;
-    expect(EXECUTE_TURN_DESCRIPTION).toContain('LECTURAS:');
-    const shared = EXECUTE_TURN_DESCRIPTION.slice(EXECUTE_TURN_DESCRIPTION.indexOf('LECTURAS:'));
-    expect(conversation).toContain(shared);
-    for (const rule of ['scope="plan"', 'Free-only existing Stripe', 'No model-authored URL',
-      'unscoped subscription.info', 'conversation.reply alone is not billing authority',
-      'general + subscription.link', 'actions must never be empty', 'How-to alone stays side-effect-free',
-      'tool-backed provider capability', 'NO subscription.link or mutation',
-      'Unknown payment outcome never authorizes retry', 'no checkout to discover capabilities',
-      'historical renders recorded facts', 'Current: explicit reads, not history', 'Solo recap refs normalize to partial history']) {
-      expect(shared).toContain(rule);
+    for (const rule of ['scope="plan"', 'subscription.link only for explicit link/open-checkout requests',
+      'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info',
+      'Unknown payment outcome never authorizes retry']) {
+      expect(EXECUTE_TURN_DESCRIPTION).toContain(rule);
+      expect(conversation).toContain(rule);
+    }
+    for (const [compact, expanded] of [
+      ['Botón Stripe existente solo Free; sin URLs', 'Free-only existing Stripe subscribe button. No model-authored URL'],
+      ['subscription.info sin scope/promoción', 'unscoped subscription.info, never promotional plan scope'],
+      ['tras info: general+link; actions no vacío', 'general + subscription.link; actions must never be empty'],
+      ['solo capacidad verificada', 'tool-backed provider capability'],
+      ['no checkout descubre capacidades', 'no checkout to discover capabilities'],
+      ['historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply', 'historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply'],
+      ['Solo refs: historia parcial', 'Solo recap refs normalize to partial history'],
+    ]) {
+      expect(EXECUTE_TURN_DESCRIPTION).toContain(compact);
+      expect(conversation).toContain(expanded);
     }
   });
 

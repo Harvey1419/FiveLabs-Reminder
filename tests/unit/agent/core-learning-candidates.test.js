@@ -29,9 +29,12 @@ const { extractMemoryInBackground } = await import('../../../src/jobs/memory-ext
 // Exercise the production foreground parser without importing its live graph.
 // Same bounded source-boundary technique as provider-latency-regressions.
 const source = readFileSync(new URL('../../../src/agent/orchestration/router-core.js', import.meta.url), 'utf8');
-const parser = source.match(/function validateStructuredTurnContent\(content, \{ isAdmin = false \} = \{\}\) \{[\s\S]*?\n\}/);
+const parser = source.match(/function validateStructuredTurnContent\(content, \{[^\n]*\} = \{\}\) \{[\s\S]*?\n\}/);
 if (!parser) throw new Error('Foreground validation boundary not found');
-const validatePrimary = runInNewContext(`(${parser[0]})`, { parseIntentArguments, projectStructuredTurnIntent, stripStructuredNulls, validateTurnIntent });
+const sanitizer = source.match(/function sanitizeHallucinatedEvidenceRefs\(intent, hasHistoricalEvidence\) \{[\s\S]*?\n\}/);
+if (!sanitizer) throw new Error('Foreground evidence sanitizer not found');
+const sanitizeHallucinatedEvidenceRefs = runInNewContext(`(${sanitizer[0]})`);
+const validatePrimary = runInNewContext(`(${parser[0]})`, { parseIntentArguments, projectStructuredTurnIntent, stripStructuredNulls, validateTurnIntent, sanitizeHallucinatedEvidenceRefs });
 
 const fact = { topicKey: 'profile/residence', category: 'fact', content: 'El usuario vive en Cali.', evidence: 'Vivo en Cali.' };
 const actions = [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }];
