@@ -78,6 +78,18 @@ afterEach(() => {
 });
 
 describe('initial provider structured validation boundary', () => {
+  it('preserves the user English guard after callback-first canonical acceptance of Spanish model metadata', async () => {
+    const payload = { responseLanguage: 'es', responseCapability: 'general', learningCandidates: [], actions: [
+      { operation: 'reminder.create', content: 'buy the costume', missingFields: ['time'], question: '¿A qué hora deseas que te recuerde?' },
+    ] };
+    const { validation, result } = await providerBoundary(payload, [], 'Remind me to buy the costume');
+    expect(validation.valid).toBe(true);
+    expect(validation.intent.responseLanguage).toBe('es'); // Validators do not own language resolution.
+    expect(result.language).toBe('en');
+    expect(result.confirmation).toBe('What time should I remind you about “buy the costume”?');
+    expect(result.confirmation).not.toContain('¿');
+    expect(executeTool).not.toHaveBeenCalled();
+  });
   it.each([[inventedRef], ['unknown'], [false], 'invalid', [], [inventedRef, inventedRef]].map(refs => ({ refs })))(
     'preserves ordinary reply content without historical evidence: $refs', async ({ refs }) => {
       const { validation, result } = await providerBoundary(wire([reply(refs)]));

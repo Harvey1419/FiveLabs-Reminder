@@ -29,6 +29,7 @@ import { updateUserPreferences } from '../../infrastructure/database/users.js';
 import { extractCurrentUserText } from '../../shared/current-user-input.js';
 import { detectLanguageFromText, EXPLICIT_ENGLISH_DIRECTIVE_RE, EXPLICIT_SPANISH_DIRECTIVE_RE } from '../../shared/language-detection.js';
 import { TOOL_NAMES } from '../contracts/tool-names.js';
+import { validateForegroundContent, enforceForegroundProfileSource, sanitizeForegroundEvidenceRefs } from '../contracts/foreground-turn-validation.js';
 import { parseIntentArguments, validateTurnIntent } from '../contracts/intent-contracts.js';
 import {
   getStructuredTurnSchema,
@@ -199,32 +200,11 @@ function conversationReplyFromActions(actions = []) {
 // Initial-turn source boundary only. A stale optional update must not block
 // independent conversation/reads, nor permit mutations under the old context.
 function enforceCurrentProfileSource(validation, currentUserText) {
-  if (!validation?.valid || !validation.intent?.profileUpdate) return validation;
-  const quote = validation.intent.profileUpdate.sourceQuote;
-  if (quote && currentUserText.includes(quote)) return validation;
-  const safe = validation.intent.actions.every(({ domain, action }) =>
-    PERSONAL_READ_OPERATIONS.has(`${domain}.${action}`)
-    || (domain === 'conversation' && ['reply', 'recap'].includes(action)));
-  if (!safe) return { valid: false, errorCode: 'INVALID_TURN_CONTEXT', error: 'Profile evidence is not from the current user turn.' };
-  const { profileUpdate, ...intent } = validation.intent;
-  return { ...validation, intent };
+  return enforceForegroundProfileSource(validation, currentUserText);
 }
 
 function sanitizeHallucinatedEvidenceRefs(intent, hasHistoricalEvidence) {
-  if (hasHistoricalEvidence || !intent || !Array.isArray(intent.actions)) return intent;
-  return {
-    ...intent,
-    actions: intent.actions.map(action => {
-      if (!action || typeof action !== 'object') return action;
-      const op = String(action.operation || `${action.domain}.${action.action}`).toLowerCase();
-      if ((op === 'conversation.reply' || (action.domain === 'conversation' && action.action === 'reply'))
-        && action.evidenceRefs !== undefined && typeof action.content === 'string' && action.content.trim()) {
-        const { evidenceRefs: _unused, ...cleaned } = action;
-        return cleaned;
-      }
-      return action;
-    }),
-  };
+  return sanitizeForegroundEvidenceRefs(intent, hasHistoricalEvidence);
 }
 
 function parseStructuredTurnDecision(modelResponse, { isAdmin = false, hasHistoricalEvidence = true } = {}) {
@@ -244,13 +224,7 @@ function parseStructuredTurnDecision(modelResponse, { isAdmin = false, hasHistor
 }
 
 function validateStructuredTurnContent(content, { isAdmin = false, hasHistoricalEvidence = true } = {}) {
-  const parsed = parseIntentArguments(content);
-  if (!parsed) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' };
-  const canonical = sanitizeHallucinatedEvidenceRefs(
-    projectStructuredTurnIntent(stripStructuredNulls(parsed)),
-    hasHistoricalEvidence
-  );
-  return validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true });
+  return validateForegroundContent(content, { isAdmin, hasHistoricalEvidence });
 }
 
 function enforceAttachmentOnlyIntent(collected, isAttachmentOnlyTurn) {

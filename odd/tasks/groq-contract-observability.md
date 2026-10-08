@@ -68,22 +68,30 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Separate structural fingerprints from intentionally changed descriptions; preserve budget guards and semantic assertions rather than regenerate arbitrary goldens.
   - No new provider unions, references, classifiers, model changes, reasoning reduction, history truncation or simultaneous dynamic-context deduplication.
   - Verification: observed regression RED/GREEN, focused contract/budget suites, full offline units, syntax/whitespace checks and independent verification as required.
-  - Commit and proof: pending.
+  - Commit and proof: recorded in the closure below.
   - Closure: baseline 250 tests passed; observed RED 6 failed / 8 passed; focused GREEN 269 passed; full offline suite 1,780 passed in 154 files. Independent verifier and parent each ran 139 focused tests successfully, confirming explicit rule preservation and all four unchanged description-stripped schema variants.
   - Actual wire measurements: normal non-admin request 24,913 -> 23,373 UTF-8 bytes, schema 19,058 -> 17,518; admin request 24,929 -> 23,389. Normal saving: 1,540 bytes (6.18%). Attachment-only request 11,253 -> 10,767, saving 486 bytes. Messages remain 5,511 bytes. Native tokens, live acceptance, quality and latency are not yet measured.
   - Canonical SHA-256 remains `40c6cd8f9ba705137012e006127a34ef8edd0da8f929a57874cd705056a9b905`. Risk assessment: high/unassessable due the untracked inventory; independent verification completed without starting RDD.
-  - Unit commit: pending local close.
-- [ ] **T4: Build a reproducible offline-default Groq comparison harness.**
+  - Unit commit: `21f51ba` (`perf(agent): compact provider descriptions without weakening contracts`). RDD remains disabled.
+- [x] **T4: Build a reproducible offline-default Groq comparison harness.**
   - Route: delegated direct; multiple implementation/testing files require a bounded writer.
   - Use the real pure prompt, request and validation boundaries for baseline/current sources; do not import executable production evaluation drivers or database actions.
+  - Resume checkpoint: preserve user-owned language commit `106f28f`. Compare schema compaction with an explicitly labeled `mixed_source_schema_only` baseline: current prompt/runtime/validators in both arms, only the baseline provider-schema projection from `1290e81`. Record per-source provenance and do not present this as execution of the entire historical runtime.
   - Default dry-run blocks network and credential access. Paid mode requires explicit execution, generation/cost caps and fresh user authorization.
   - Correct date/time, task-description, reference and durable-preference grading; accept canonical alternatives and preserve safe synthetic decisions for review.
   - Separate matched fixed-context pairs from divergent conversations. Failed parents stop dependent turns; never fabricate successful history.
   - Record actual payload sizes, provider-native usage, typed failures, deadline success, correctness and cost; exclude fast errors from response-latency medians.
   - Retain a tested pure request/validation seam without changing production request fields or routing behavior.
+  - Preserve current turn-language guards and clarification sanitizers. Add English-context and callback-first parity coverage within existing authorized test surfaces; execute user language regressions without rewriting their expectations.
   - Future evidence is restricted to `odd/evidence/groq-contract-evaluation/`; pre-existing evidence remains untouched.
   - Verification: offline dry-run, isolation/semantic-grader tests, production-wire parity tests, full offline units and independent verification as required.
   - Commit and proof: pending.
+  - Closure: resumed baseline 218 tests passed; observed resume RED 4 failed / 44 passed. An independent verifier found reminder-subject/minute grading gaps; observed correction RED 13 failed / 75 passed, then 88 evaluation tests and 269 focused tests passed. Final full offline suite: 1,872 tests passed in 155 files. Independent follow-up repeated 88 tests and canonical-valid negative controls; parent repeated the 88-test command successfully.
+  - Dry-run proof: fourteen matched fixed-context pairs, 28 passing synthetic decisions, zero attempts/credential lookups/network requests. Fifty-pair simulation yields 100 synthetic decisions and a conservative reservation forecast of $1.159516217 under documented price assumptions; 61,600 serialized bytes saved across initial-schema cases. Native token savings, model quality and latency remain unknown.
+  - English fixture: 26,188 -> 24,648 UTF-8 request bytes, identical 6,786-byte messages. The comparison is schema-only with current language behavior preserved; continuation/approval schemas are identical and have no compaction saving.
+  - Reminder grading uses owned subject expectations, declared fixture-only alternatives and resolved date/hour/minute/mode. Unsupported paraphrases are unresolved, not counted as correct or declared backend bugs. Canonical validity alone does not establish semantic correctness.
+  - Safety/compatibility: no user language source/test changes; request-builder and validation parity retained. Default dry-run is offline; paid mode requires explicit execution and caps. Reports retain bounded synthetic decisions and provenance, not private prompts or raw provider errors.
+  - Native assessment: high/unassessable from the existing untracked inventory; independent verification completed without starting RDD. Unit commit: pending local close.
 
 ## Verification plan
 
@@ -107,10 +115,11 @@ Focused checks are estimated at 10-60 seconds; the full unit suite at 2-10 minut
 - Additional authorized Haiku experiment: ten attempts, observed Vertex nullable-enum and 42-versus-16 union-limit rejections. Generation-only adapters remained in memory; no model switch or repository changes. Known cost $0.00570645, conservative bound $0.07160057. No semantic-quality or latency conclusion for Haiku.
 - Verification limitations: provider behavior is mocked; no production latency, recovery from live 429 responses, integration database checks, or live-model efficacy is certified. Diagnostics do not prevent rate limits and no automatic 429 retry was added.
 - Authorized test-surface additions: `tests/unit/agent/structured-protocol-responses.test.js` and `tests/unit/agent/core-learning-candidates.test.js`, each explicitly approved by the user.
-- Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`. No tracked source changes remain after those commits.
+- Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`, compaction `21f51ba`. T4 is verified offline and awaiting its local commit.
 - The user explicitly authorized T3/T4 in the order optimization -> corrected evaluation -> larger comparison, and asked to prioritize Groq while deferring Haiku.
 - Prior live before/after comparison used 14 remaining calls and exhausted its 24-call cap. Requests were byte-identical and no code-caused latency/token improvement was demonstrated. Do not reuse that exhausted allowance.
-- T3 is implemented and independently verified offline; proceed to T4 after the local work-unit commit. Present a fresh budget before any larger paid comparison. No push, PR or deployment is authorized.
+- The user paused writes to inject language corrections, then authorized resumption after commit `106f28f`. Reconciliation found the current T4 wrappers preserve those corrections; previous test receipts are not accepted as proof of this new snapshot.
+- T3 and T4 are independently verified offline against the user language commit. Next: close T4 locally and request fresh authorization for a controlled 50-pair/100-generation Groq comparison. No paid calls have been made in this continuation; no push, PR or deployment is authorized.
 
 ## References
 

@@ -1,4 +1,183 @@
-# Groq provider-description compaction
+# Reproduce the Groq contract comparison offline
+
+T4 adds a console-only, offline-default **schema-only** comparison. Both arms use
+the same current Hermes prompt, canonical inputs, request builder, phase schemas
+and validators; only the initial provider projection comes from trusted local
+baseline `1290e81` in the baseline arm. The report labels this explicitly as
+`mixed_source_schema_only`, not an entire historical-runtime comparison. It uses
+actual Hermes functions with
+owned **fake** contexts. It does not import production evaluation drivers, DB,
+Google authentication implementations, dotenv or application servers.
+
+## Quick path: no inference or credentials
+
+```sh
+node --experimental-vm-modules scripts/evals/groq-contract/runner.js --dry-run --baseline-ref=1290e81
+node --experimental-vm-modules scripts/evals/groq-contract/runner.js --dry-run --baseline-ref=1290e81 --pairs=50
+```
+
+Omitting `--dry-run` still defaults to dry-run. The report contains actual
+serialized UTF-8 body/message/schema bytes, source commits and per-file hashes,
+schema/policy versions, synthetic canonical decisions, independent assertions and
+in-memory mock receipts. **Attempts are zero; native usage, cost and latency are
+unknown**, not generated statistics. The forecast reserves each complete wire
+body using one input-token budget unit per UTF-8 byte, plus the actual 8192/4096
+maximum output limit. This conservative reservation is not a tokenizer or a
+measured native prompt-token count. No private hashes are uploaded as metadata.
+
+`--repetitions=N` repeats the fourteen fixtures; `--pairs=N` takes precedence and
+requests an exact pair count, cycling those fixtures. The report includes counts
+per case: fifty pairs give three or four occurrences per case, not an exactly
+uniform distribution. Baseline/current order rotates AB/BA by case and
+repetition. Fifty fixed-context pairs forecast 100 attempted generations; this
+does **not** authorize those calls or promise their native tokens, quality or
+latency. The prior paid allowance is exhausted. Any paid comparison needs a fresh
+user-approved budget.
+
+## Comparison and authority boundaries
+
+| Boundary | Implementation |
+|---|---|
+| Request parity | `request-payload.js` is shared by the real client and harness. Existing mocked fetch-body checks and all T3 byte/hash checks remain. Production deadline placement, routing, captures, counters and lifecycle are unchanged. |
+| Validation | `foreground-turn-validation.js` contains the actual no-owned-history sanitizer and current-user profile-source enforcement. Named router wrappers preserve initial callback and defensive follow-up behavior. Approval/continuation use their actual parsers and validators, not TurnIntent validation. |
+| Trusted baseline | Local hexadecimal commit ref resolved to a validated 40-character commit before `execFileSync`/`git show`; no shell, checkout, worktree, remote fetch or temporary baseline files. Only the `1290e81` provider projection is substituted. Current canonical full identity and all four description-stripped provider fingerprints are checked before comparison. The exact legacy wire extractor is retained only for parity tests, never as a historical client execution path. |
+| Policy provenance | Each file records origin/ref/hash. The policy digest includes current core-prompt source, response policy, router language guards, domain-call/executor clarification guards and language detection. Effect-owning guard modules are hashed read-only, never evaluated. Current English locks are therefore shared between both arms, rather than silently confounded with schema compaction. |
+| Virtual modules | Static named-import/export adapter with explicit pure-module allowlist, deny-by-default imports and explicit identical synthetic Google/entity adapters. The VM is **not a security sandbox** for malicious source. Regex extraction is intentionally fragile: changed layouts fail closed and require review. |
+| Fixture clock | `2026-10-08T16:30:00Z`, local 11:30 in `America/Bogota`; owned fake IDs, task descriptions, literal source origins and preferences. Dates are checked as actual typed year/month/day components, not invented `date` fields. No backend calendar arithmetic or persisted execution is claimed. |
+| Structural checks | Known fixtures are completed with nulls from the actual provider schema and checked with the repository's `matchesSchema` subset, then actual canonical validators. This is not a complete JSON Schema implementation or Ajv substitute; existing structural schema tests remain authoritative. |
+| Safe artifacts | Retain allowlisted decision structure, targets, schedules, source/selection metadata, native billing identifiers, assertion outcomes and fixture-only projections. Freeform error envelopes, headers, raw prompts/history, failed-generation text and model-invented strings are never retained. Known live keys are scrubbed from identifiers and decision strings. |
+
+The fourteen scenarios cover greeting; no-history personal recall; tomorrow with a
+missing clock and its 3 PM continuation; AM/PM ambiguity; explicit calendar
+components; the second owned task's **description**; complete status/description
+projection; a live agenda read beside a malicious quoted deletion; independent
+lasting English preference, dog fact and task read; destructive preparation and
+cancellation; plus an English-profile reminder and its neutral `4:45` continuation
+beside old Spanish history. Both English fixtures use the current mandatory
+English prompt lock. `task.list` uses an actual permitted title/container filter, never
+`contextRef`; mutations retain the backend's own reference restrictions.
+`time`/`main_time` alternatives are accepted only where the actual contract
+accepts them. An already-recorded preference/fact need not be redundantly saved.
+Generated acknowledgements never prove execution or persistence.
+
+### Reminder semantic grading correction
+
+Canonical validity is necessary, not proof that a decision preserves the requested
+subject or complete clock. Grader-only `REMINDER_EXPECTATIONS` has literal owned
+date/subject expectations and `owned-reminder-semantics-v1` provenance. It is not
+part of fixture text, context, wire schemas or model messages; no alias guidance
+is sent to the model.
+
+| Assertion | Actual grading boundary |
+|---|---|
+| `reminder_subject` | Effective create content/title, or continuation delta merged with the owned pending subject. Absent delta content preserves the parent; changed content is checked. |
+| `date_year`, `date_month`, `date_day` | Actual `resolveTypedSchedule` with the explicit owned reference time/timezone; continuation schedules use actual `mergePendingSchedule` first. Equivalent calendar/relative date representations and inferred current year are accepted when they resolve correctly. |
+| `clock_hour`, `clock_minute`, `clock_mode` | Independent resolved 15:00 assertions plus unambiguous PM/24-hour representation. Omitted minute can infer zero through the actual resolver; 15:59 cannot pass. Explicit 3 PM and 15:00 representations are accepted where the contract allows them. |
+| Pending/ambiguous clocks | No invented hour/minute/mode for missing time. AM/PM ambiguity remains explicitly represented; date checks do not turn an inferred date-only probe into an execution receipt. Explicit all-day replacement is rejected. |
+
+Declared Spanish subject aliases: `Llamar al dentista`, `Llamar a mi dentista`,
+`Llamar al odontólogo`, `Recordatorio: llamar al dentista`. Declared English aliases:
+`buy the costume`, `purchase the costume`, `Reminder: buy the costume`.
+Matching only ignores case, diacritic marks, repeated whitespace and the finite
+punctuation set `.,:;!?¿¡"'“”‘’()[]{}`. No prefix stripping, fuzzy matching, quotation
+authority or generated model judgement is inferred. Undeclared paraphrases fail
+the acceptance gate with an explicit **unresolved** subject assertion, not a claim
+that the backend performed a wrong action. Declared aliases are retained safely
+for post-review but never expand from chain-generated strings.
+
+The correction observed **13 failed / 75 passed** before the grader fix, including
+the verifier's three canonical-valid probes: continuation 15:59, an unrelated
+dated-reminder subject, and an unrelated missing-time subject. All negative
+semantic probes assert actual canonical validation succeeds before checking the
+grader. Positive coverage includes declared aliases, absent continuation content,
+PM alternatives, inferred zero minutes and equivalent anchored calendar dates.
+Canonical validators do **not** own runtime language resolution. A callback-first
+`structuredIntent` regression verifies that the user language guard and English
+clarification sanitization remain intact; the unchanged user
+`dynamic-language-resolution.test.js` is also run. The harness itself does not
+execute domain tools or certify backend question sanitization.
+
+### Fixed snapshots versus chains
+
+The default `--mode=fixed` compares identical supplied context snapshots, including
+predeclared synthetic suspended-run snapshots. These isolate wire compaction;
+continuations do not claim that another evaluated model turn succeeded.
+
+`--mode=chain` instead derives deterministic mock pending drafts from **each
+variant's actual valid, semantically correct decision**. A failed parent stops
+dependent children (`parent_failed`); no successful history is fabricated.
+Divergent or missing contexts are marked unmatched and excluded from paired byte
+and native prompt-token deltas. All effects remain in memory. Mock receipt
+projections distinguish actual fixture `description`/`status`, null/absent data
+and unknown fields; they are not persisted backend checks.
+
+## Future paid execution: disabled unless explicitly requested
+
+The implemented live path requires all of:
+`--live --max-generations=N --max-cost-usd=X --explicit-known-pricing`.
+Flags and positive finite budgets are validated **before credential lookup**.
+Only caller-provided `OPENROUTER_API_KEY` is read, after that validation; no dotenv
+or key files are loaded. No credits/account inspection occurs. The API host is
+fixed to OpenRouter; the route is hard-pinned to GPT-OSS-120b/Groq with provider
+fallbacks disabled, temperature 0, medium excluded reasoning, no tools/web,
+8192 initial / 4096 suspended-response limits, and a 6000 ms deadline.
+
+No retries or alternative providers exist in this harness. Every POST attempt,
+including HTTP 400/429 and timeout, consumes the shared run generation cap.
+Hard CLI ceilings are 100 attempted generations and $5. Before POST, the ledger
+reserves full wire-byte input at $0.15/M plus a full-size $0.15/M cache-write
+contingency, and maximum output at $0.60/M; no cache discount is assumed.
+These are **explicit known-price assumptions**, not freshly queried prices or a
+guarantee against changed upstream billing. Reconfirm them with the future budget
+authorization. Verified numeric `usage.cost` replaces its own reservation;
+missing/invalid costs remain reserved, including failed attempts. There is no
+automatic generation-detail lookup or assumption that failures are free.
+
+Results retain safe HTTP status/code/provenance (including HTTP-200 error-only
+envelopes), actual generation/request IDs when safe, native prompt/completion,
+reasoning/cache-write/cache-read counters and cost when present. Missing counters
+remain null. Correctness requires actual validation and case assertions by the
+deadline. Response-latency medians include only correct accepted decisions;
+errors have separate counts, and there are no small-sample percentiles. Native
+prompt-token deltas require a matched pair with both actual counters.
+
+Evidence writing is optional and **live-only**: a new
+`--output=odd/evidence/groq-contract-evaluation/<run-name>.json` file. Path escapes,
+nesting, symlinks and overwrites are rejected. This implementation/verification
+writes no real evidence artifacts; output remains console-only.
+
+## Offline verification
+
+```sh
+npm run test:unit -- tests/unit/agent/groq-contract-evaluation.test.js tests/unit/agent/provider-latency-regressions.test.js tests/unit/agent/structured-protocol-responses.test.js tests/unit/agent/core-learning-candidates.test.js tests/unit/agent/router-structured-boundary.test.js tests/unit/agent/runtime-model-contract.test.js tests/unit/agent/provider-description-compaction.test.js tests/unit/agent/dynamic-language-resolution.test.js
+npm run test:unit
+```
+
+The initial required foreground baseline passed 154 tests in five files. The new
+test-first suite failed before production edits because the shared request module
+did not exist (one failed suite, no collected tests). Subsequent checks exercise
+actual builders/validators, strict fixture shapes, import isolation, zero-key/
+zero-network dry-run, AB/BA pairing, budget reservation/caps, typed failures,
+chain parent stops, owned projections and safe decision retention using fake
+fetch only. This is not live schema acceptance, quality or latency evidence.
+
+After the user's language commit `106f28f`, the fresh eight-file foreground
+baseline passed **218 tests**. New resume regressions observed **4 failed / 44
+passed** before fixes: the baseline lost the English lock, policy hashing ignored
+the lock, source/setup failure classification was incorrect, and output-path tests
+could not isolate their workspace. Earlier receipts do not certify the resumed
+snapshot.
+
+The resumed focused gate passed **236 tests in eight files**. The required dry-run
+passed all fourteen fixture pairs (28 synthetic decisions), with zero attempted
+generations. A fifty-pair fixed-context dry-run passed all 100 fixture decisions,
+reported 61,600 total saved wire bytes, and forecast a conservative maximum
+reservation of **$1.159516217** under the explicit price assumptions above.
+That forecast is not actual billing or permission to execute. Its real native
+usage and latency remain unknown. The English-profile fixture measures
+26,188 → 24,648 request bytes with identical 6,786-byte messages in both arms.
+
+## T3: provider-description compaction evidence
 
 T3 reduces the actual foreground request by shortening field-local provider
 descriptions. The canonical schema, initial system prompt, validators and runtime
@@ -22,16 +201,24 @@ production payload-construction statements without HTTP. A separate
 the mocked production fetch boundary with the baseline schema in the same body.
 Neither route executes paid inference or accesses real credentials.
 
-## Measured UTF-8 bytes
+## Historical T3 measured UTF-8 bytes
 
 Fixed synthetic messages: initial prompt from `buildAgentCorePrompt` with
 `nowStr="2026-10-01 11:30"`, `nowHumanStr="Thursday, October 1, 2026"`,
 `timezone="America/Bogota"`, `language="en"`, empty memory, no overview, and user
 text `List my tasks.`. The same non-admin messages are used in every row to
-isolate schema differences. Messages serialize to **5,511 bytes** before and
+isolate schema differences. At T3's original snapshot, messages serialize to **5,511 bytes** before and
 after. The body uses the production outer `response_format.json_schema` wrapper,
 model `openai/gpt-oss-120b`, temperature 0, max_tokens 8192, stream false,
 medium/excluded reasoning and Groq-only routing.
+
+The user subsequently added an English prompt lock in `106f28f`; do not reinterpret
+the historical table as current absolute bytes. The same current English fixture
+now measures **5,776 message bytes** and **25,178 → 23,638 full request bytes**
+(normal non-admin), still saving **1,540 bytes** solely from schema descriptions.
+Current admin normal measures 25,194 → 23,654; either attachment-only variant
+measures 11,518 → 11,032. All original structural hashes and byte-reduction checks
+remain; the current harness prints its own complete fixture-wire measurements.
 
 | Schema variant | Full request before → after | Schema before → after | Request reduction |
 |---|---:|---:|---:|
@@ -150,6 +337,6 @@ authority, model selection, reasoning, output cap, fallback strategy, history or
 runtime capabilities change. No new unions, $ref, allOf or root guide is added.
 
 Live Groq schema acceptance and semantic adherence remain unverified. Haiku is
-deferred. T4's reproducible evaluation harness is separate work; any paid
-comparison requires fresh authorization and a new explicit budget. No publishing
-or paid calls are part of T3.
+deferred. T4 is available offline as described above; any paid comparison requires
+fresh authorization and a new explicit budget. No publishing or paid calls are
+part of T3/T4 implementation.

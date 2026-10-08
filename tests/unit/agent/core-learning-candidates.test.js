@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEARNING_CANDIDATES_SCHEMA, TURN_INTENT_SCHEMA, parseIntentArguments, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import { validateForegroundContent, sanitizeForegroundEvidenceRefs } from '../../../src/agent/contracts/foreground-turn-validation.js';
 
 vi.mock('../../../src/infrastructure/database/index.js', () => ({
   saveMemory: vi.fn(), searchMemories: vi.fn(), getActiveMemories: vi.fn(), forgetMemories: vi.fn(), findOrCreateEntityFuzzy: vi.fn(),
@@ -33,8 +34,8 @@ const parser = source.match(/function validateStructuredTurnContent\(content, \{
 if (!parser) throw new Error('Foreground validation boundary not found');
 const sanitizer = source.match(/function sanitizeHallucinatedEvidenceRefs\(intent, hasHistoricalEvidence\) \{[\s\S]*?\n\}/);
 if (!sanitizer) throw new Error('Foreground evidence sanitizer not found');
-const sanitizeHallucinatedEvidenceRefs = runInNewContext(`(${sanitizer[0]})`);
-const validatePrimary = runInNewContext(`(${parser[0]})`, { parseIntentArguments, projectStructuredTurnIntent, stripStructuredNulls, validateTurnIntent, sanitizeHallucinatedEvidenceRefs });
+const sanitizeHallucinatedEvidenceRefs = runInNewContext(`(${sanitizer[0]})`, { sanitizeForegroundEvidenceRefs });
+const validatePrimary = runInNewContext(`(${parser[0]})`, { validateForegroundContent, parseIntentArguments, projectStructuredTurnIntent, stripStructuredNulls, validateTurnIntent, sanitizeHallucinatedEvidenceRefs });
 
 const fact = { topicKey: 'profile/residence', category: 'fact', content: 'El usuario vive en Cali.', evidence: 'Vivo en Cali.' };
 const actions = [{ domain: 'conversation', action: 'reply', content: 'Entendido.' }];

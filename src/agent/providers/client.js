@@ -12,6 +12,7 @@
  */
 
 import { responseVoice } from '../contracts/response-policy.js';
+import { buildRequestPayload } from './request-payload.js';
 import { openSync, writeSync, closeSync, lstatSync, realpathSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, dirname, basename, join } from 'node:path';
@@ -549,25 +550,9 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
   };
 
   try {
-    const payload = { model, messages, temperature, max_tokens };
-    if (strictForeground) payload.stream = false;
-    if (responseFormat) payload.response_format = responseFormat;
-    if (tools?.length) {
-      payload.tools = tools;
-      payload.tool_choice = toolChoice;
-      if (typeof parallelToolCalls === 'boolean') payload.parallel_tool_calls = parallelToolCalls;
-    }
-    if (reasoning) payload.reasoning = reasoning;
-
-    if (requestedProviders.length) {
-      payload.provider = {
-        order: requestedProviders,
-        only: requestedProviders,
-        allow_fallbacks: allowProviderFallbacks,
-        require_parameters: true,
-      };
-    }
-
+    const payload = buildRequestPayload(messages, model, { temperature, max_tokens,
+      responseFormat, tools, toolChoice, parallelToolCalls, reasoning,
+      providers: requestedProviders, allowProviderFallbacks });
     const serializedBody = JSON.stringify(payload);
     measurements = measureSerializedRequest(serializedBody);
     capture?.('request', { serializedBody, bodyBytes: Buffer.byteLength(serializedBody), encoding: 'utf8',

@@ -6,6 +6,7 @@ import { TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation } f
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 import { TURN_LANGUAGE_POLICY } from '../../../src/agent/contracts/response-policy.js';
+import { buildRequestPayload } from '../../../src/agent/providers/request-payload.js';
 
 // Evaluate only the pure projection, never a historical module with imports or
 // executable evaluation drivers. The immutable commit is the comparison input.
@@ -42,10 +43,10 @@ function changedDescriptions(before, after, path = '') {
 // Source extraction fails closed if this seam changes; runtime-model-contract
 // also checks the body captured at the mocked production fetch boundary.
 const clientSource = readFileSync(new URL('../../../src/agent/providers/client.js', import.meta.url), 'utf8');
-const payloadStatements = clientSource.slice(clientSource.indexOf('    const payload = { model, messages, temperature, max_tokens };'),
+const payloadStatements = clientSource.slice(clientSource.indexOf('    const payload = buildRequestPayload('),
   clientSource.indexOf('    measurements = measureSerializedRequest(serializedBody);'));
 if (!payloadStatements.includes('const serializedBody = JSON.stringify(payload);')) throw new Error('Production payload seam missing');
-const serializeRequest = new Function('messages', 'responseFormat', `
+const serializeRequestSource = new Function('messages', 'responseFormat', 'buildRequestPayload', `
   const model = 'openai/gpt-oss-120b', temperature = 0, max_tokens = 8192;
   const strictForeground = true, tools = null, toolChoice = 'none', parallelToolCalls = undefined;
   const reasoning = { effort: 'medium', exclude: true };
@@ -53,6 +54,7 @@ const serializeRequest = new Function('messages', 'responseFormat', `
   ${payloadStatements}
   return serializedBody;
 `);
+const serializeRequest = (messages, responseFormat) => serializeRequestSource(messages, responseFormat, buildRequestPayload);
 const prompt = buildAgentCorePrompt({ nowStr: '2026-10-01 11:30', nowHumanStr: 'Thursday, October 1, 2026',
   timezone: 'America/Bogota', language: 'en', memoryHints: '', overview: null });
 const messages = [{ role: 'system', content: prompt }, { role: 'user', content: 'List my tasks.' }];

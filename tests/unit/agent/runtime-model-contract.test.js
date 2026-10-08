@@ -36,6 +36,7 @@ import { executeTool } from '../../../src/agent/tools/index.js';
 import { clearWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory.js';
 import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import { buildRequestPayload } from '../../../src/agent/providers/request-payload.js';
 import { getActiveAgentRun } from '../../../src/agent/core/agent-run.js';
 import { isAdminUser } from '../../../src/shared/auth.js';
 
@@ -256,6 +257,11 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(payload.response_format.json_schema.name).toBe('hermes_turn_intent');
     expect(payload.response_format.json_schema.strict).toBe(true);
     expect(payload.provider).toEqual({ order: ['groq'], only: ['groq'], allow_fallbacks: false, require_parameters: true });
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify(buildRequestPayload(payload.messages, payload.model, {
+      temperature: 0, max_tokens: 8192, providers: ['groq'], allowProviderFallbacks: false,
+      responseFormat: payload.response_format, tools: null, toolChoice: 'none',
+      reasoning: { effort: 'medium', exclude: true },
+    })));
     expect(payload).not.toHaveProperty('tools');
     expect(payload).not.toHaveProperty('tool_choice');
     expect(executeTool).not.toHaveBeenCalled();
