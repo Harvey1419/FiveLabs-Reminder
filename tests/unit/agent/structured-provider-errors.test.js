@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { performance } from 'node:perf_hooks';
 import { callChatCompletion, callMemoryExtraction } from '../../../src/agent/providers/client.js';
 
 const reply = { actions: [{ domain: 'conversation', action: 'reply', content: 'Hola.' }] };
@@ -43,7 +44,7 @@ function wrapper(raw) {
 function failureDetail() {
   const line = console.warn.mock.calls.map(([text]) => text).find((text) => text.includes('status=400'));
   expect(line).toBeDefined();
-  return line.split(' detail="')[1].slice(0, -1);
+  return JSON.parse(line.slice(line.indexOf(' metadata=') + ' metadata='.length));
 }
 
 async function foregroundFailure(body) {
@@ -107,15 +108,14 @@ describe('strict foreground provider error diagnostics', () => {
       type: 'invalid_request_error', code: 'invalid_json_schema', param: 'response_format',
     } };
     await foregroundFailure(wrapper(format === 'string' ? JSON.stringify(raw) : raw));
-    expect(JSON.parse(failureDetail())).toEqual({
-      provider: 'Groq', type: 'invalid_request_error', code: 'invalid_json_schema',
-      param: 'response_format', message: raw.error.message,
-    });
+    expect(failureDetail()).toMatchObject({ observedProvider: 'Groq', errorType: 'invalid_request_error',
+      errorCode: 'invalid_json_schema', errorParam: 'response_format' });
+    expect(JSON.stringify(failureDetail())).not.toContain(raw.error.message);
   });
 
   it('keeps a plain-text nested provider error without treating it as a TurnIntent', async () => {
     await foregroundFailure(wrapper('Provider parameter rejected.'));
-    expect(JSON.parse(failureDetail()).message).toBe('Provider parameter rejected.');
+    expect(JSON.stringify(failureDetail())).not.toContain('Provider parameter rejected.');
   });
 
   it('classifies provider schema compilation failures separately from availability', async () => {
@@ -189,12 +189,10 @@ describe('strict foreground provider error diagnostics', () => {
       message: 'Provider returned error', code: 400,
       metadata: { provider_name: 'Groq', error_type: 'invalid_request', provider_code: 'invalid_parameter' },
     } });
-    expect(JSON.parse(failureDetail())).toEqual({
-      provider: 'Groq', type: 'invalid_request', code: 'invalid_parameter', message: 'Provider returned error',
-    });
+    expect(failureDetail()).toMatchObject({ observedProvider: 'Groq', errorType: 'invalid_request', errorCode: 'invalid_parameter' });
   });
 
-  it('bounds diagnostic fields, redacts the configured key and never dumps unrelated payload fields', async () => {
+  it('keeps typed diagnostics and excludes freeform text, configured keys and unrelated payload fields', async () => {
     const body = wrapper(JSON.stringify({ error: {
       message: `Diagnostic ${process.env.OPENROUTER_API_KEY}\n${'x'.repeat(4000)}`,
       type: 'invalid_request_error',
@@ -204,29 +202,113 @@ describe('strict foreground provider error diagnostics', () => {
     body.error.metadata.headers = { Authorization: 'PRIVATE_METADATA_HEADER' };
     await foregroundFailure(body);
     const detail = failureDetail();
-    const parsed = JSON.parse(detail);
-    expect(parsed.message).toContain('[REDACTED]');
-    expect(parsed.message.length).toBeLessThanOrEqual(800);
-    expect(detail.length).toBeLessThanOrEqual(1600);
-    expect(detail).not.toContain('\n');
+    expect(detail.errorType).toBe('invalid_request_error');
+    expect(detail).not.toHaveProperty('message');
     for (const privateValue of [process.env.OPENROUTER_API_KEY, 'PRIVATE_GENERATION', 'PRIVATE_PROMPT', 'OTHER_PRIVATE_CREDENTIAL', 'PRIVATE_METADATA_HEADER']) {
-      expect(detail).not.toContain(privateValue);
+      expect(JSON.stringify(detail)).not.toContain(privateValue);
     }
   });
 
   it('handles non-JSON HTTP errors without changing the fallback result', async () => {
     await foregroundFailure('Bad request\nfrom upstream');
-    expect(failureDetail()).toBe('Bad request from upstream');
+    expect(failureDetail()).toMatchObject({ status: 400, errorCode: null });
+    expect(JSON.stringify(failureDetail())).not.toContain('Bad request');
   });
 
-  it('leaves background memory error logging and request format unchanged', async () => {
+  it.each([
+    [429, { code: 429, metadata: { provider_name: 'Groq' } }, 'upstream', 'rate_limit'],
+    [429, { code: 429, metadata: { provider_name: 'OpenRouter' } }, 'openrouter_platform', 'rate_limit'],
+    [429, { code: 429 }, 'uncertain', 'rate_limit'],
+    [200, { code: 429, metadata: { provider_name: 'Groq' } }, 'upstream', 'provider_error'],
+  ])('adds rate-limit diagnostics without changing control or attempt counts: %j %j', async (status, error, source, reason) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error }), { status, headers: {
+        'Retry-After': '42', 'X-RateLimit-Limit': '100', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1900000000',
+      } }))
+      .mockResolvedValueOnce(success());
+    const result = await callChatCompletion([], { responseFormat, purpose: 'initial', returnMessage: true });
+    expect(result.routeStage).toBe('secondary');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const line = console.warn.mock.calls.find(([line]) => line.includes(' metadata='))[0];
+    const event = JSON.parse(line.split(' metadata=')[1]);
+    expect(event).toMatchObject({ status, reason, failureClass: 'rate_limit', rateLimitSource: source,
+      retryAfterSeconds: 42, rateLimitLimit: 100, rateLimitRemaining: 0, rateLimitReset: 1900000000 });
+    expect(console.log.mock.calls.flat().join('\n')).toContain(`trigger=${reason}`);
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).provider.only)).toEqual([['groq'], ['cerebras/fp16']]);
+  });
+
+  it('never logs malicious freeform provider fields, exception text or correlation headers', async () => {
+    const privateText = 'PRIVATE_USER sk-or-diagnostic-test-secret private@example.test';
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(Object.assign(new Error(privateText), { name: 'PRIVATE_EXCEPTION' }))
+      .mockResolvedValueOnce(response({ error: { message: privateText, code: privateText, type: privateText,
+        param: privateText, metadata: { provider_name: 'PRIVATE_PROJECT', raw: JSON.stringify({ error: { message: privateText, type: privateText } }),
+          headers: { 'X-Request-ID': privateText } } } }, 429))
+      .mockResolvedValueOnce(success());
+    await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'initial', correlationId: 'PRIVATE_CORRELATION' });
+    const logs = [...console.warn.mock.calls, ...console.log.mock.calls].flat().join('\n');
+    for (const marker of ['PRIVATE_USER', 'sk-or-diagnostic-test-secret', 'private@example.test', 'PRIVATE_PROJECT', 'PRIVATE_EXCEPTION', 'PRIVATE_CORRELATION']) expect(logs).not.toContain(marker);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const events = console.warn.mock.calls.filter(([line]) => line.includes(' metadata=')).map(([line]) => JSON.parse(line.split(' metadata=')[1]));
+    expect(events[0]).toMatchObject({ reason: 'network_error', exceptionClass: null, parseValidationMs: null, status: null });
+    expect(events[1]).toMatchObject({ rateLimitSource: 'uncertain', errorCode: null, errorType: null, errorParam: null, observedProvider: null });
+  });
+
+  it('keeps all wire measurements unknown when local serialization fails', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('unexpected fetch'); });
+    const messages = [{ role: 'user', content: 'PRIVATE_PROMPT', toJSON() { throw new Error('PRIVATE_SERIALIZATION'); } }];
+    vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(15);
+    const result = await callChatCompletion(messages, { responseFormat, returnMessage: true, purpose: 'next_best_action' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ unavailable: true, unavailableReason: 'network_error', attemptDiagnostics: {
+      requestBytes: null, messagesBytes: null, schemaBytes: null, responseFormatBytes: null, messageCount: null,
+      preparationMs: 5, fetchMs: null, parseValidationMs: null, exceptionClass: 'Error',
+    } });
+    expect(console.warn.mock.calls.flat().join('\n')).not.toContain('PRIVATE_');
+  });
+
+  it('measures deterministic parse-validation failure phases without moving the timeout boundary', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(success());
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    const clock = vi.spyOn(performance, 'now');
+    [10, 12, 13, 20, 21, 28].forEach(value => clock.mockReturnValueOnce(value));
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'next_best_action',
+      validateStructuredContent: () => ({ valid: false, errorCode: 'INVALID_PARAMETERS', error: 'PRIVATE_VALIDATION' }) });
+    expect(result.attemptDiagnostics).toMatchObject({ preparationMs: 2, fetchMs: 7, parseValidationMs: 7,
+      validationCode: 'INVALID_PARAMETERS', status: 200, reason: 'invalid_structured_output' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(timeout).toHaveBeenCalledExactlyOnceWith(2000);
+    expect(console.warn.mock.calls.flat().join('\n')).not.toContain('PRIVATE_VALIDATION');
+  });
+
+  it('retains nullable parse timing and typed timeout on a rejected fetch', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(Object.assign(new Error('PRIVATE_TIMEOUT'), { name: 'TimeoutError' }));
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'next_best_action' });
+    expect(result.attemptDiagnostics).toMatchObject({ reason: 'timeout', exceptionClass: 'TimeoutError', parseValidationMs: null,
+      status: null, promptTokens: null, completionTokens: null, reasoningTokens: null, cachedTokens: null });
+    expect(result.attemptDiagnostics.fetchMs).toBeGreaterThanOrEqual(0);
+    expect(result.attemptDiagnostics.requestBytes).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('records JSON parsing failure with typed root cause but never the malformed body', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response('PRIVATE_INVALID_JSON'));
+    const result = await callChatCompletion([], { responseFormat, returnMessage: true, purpose: 'next_best_action' });
+    expect(result.attemptDiagnostics).toMatchObject({ reason: 'invalid_response_json', exceptionClass: 'SyntaxError', status: 200 });
+    expect(result.attemptDiagnostics.parseValidationMs).toBeGreaterThanOrEqual(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(console.warn.mock.calls.flat().join('\n')).not.toContain('PRIVATE_INVALID_JSON');
+  });
+
+  it('sanitizes background memory error logging while keeping request format unchanged', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(response(wrapper(JSON.stringify({ error: { message: 'Nested memory diagnostic' } })), 400))
       .mockResolvedValueOnce(success('{"memories":[]}'));
     const result = await callMemoryExtraction([{ role: 'user', content: 'context' }]);
     expect(result).toBe('{"memories":[]}');
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(failureDetail()).toBe('Provider returned error');
+    expect(failureDetail()).toMatchObject({ observedProvider: 'Groq', status: 400 });
+    expect(JSON.stringify(failureDetail())).not.toContain('Nested memory diagnostic');
     for (const [, options] of fetchMock.mock.calls) {
       const payload = JSON.parse(options.body);
       expect(payload).not.toHaveProperty('response_format');

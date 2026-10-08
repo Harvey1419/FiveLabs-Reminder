@@ -16,6 +16,9 @@ import { openSync, writeSync, closeSync, lstatSync, realpathSync, constants } fr
 import { tmpdir } from 'node:os';
 import { resolve, dirname, basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { performance } from 'node:perf_hooks';
+import { measureSerializedRequest, phaseDuration, rateLimitDiagnostics, knownProvider,
+  safeCounter, safeFailureCode, safeExceptionClass } from './attempt-diagnostics.js';
 
 // Evidence is deliberately unavailable to the server or runner parent. Only the
 // synthetic interactive child can open the runner-created private directory.
@@ -354,7 +357,7 @@ function successTelemetry(data, { apiKey, correlationId, purpose, stage, model, 
   const identifier = (value) => typeof value === 'string'
     && /^[a-zA-Z0-9][a-zA-Z0-9_./: -]{0,159}$/.test(value)
     && !(apiKey && value.includes(apiKey)) ? value : null;
-  const counter = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const counter = safeCounter;
   const usage = responseUsage(data?.usage);
   return {
     outcome: 'success',
@@ -366,7 +369,7 @@ function successTelemetry(data, { apiKey, correlationId, purpose, stage, model, 
     purpose: identifier(purpose),
     stage: identifier(stage),
     model: identifier(data?.model) || identifier(model),
-    provider: identifier(provider),
+    provider: knownProvider(provider),
     finishReason: identifier(finishReason),
     toolCalls: counter(toolCalls),
     promptTokens: counter(usage.promptTokens),
@@ -505,16 +508,44 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
   capture = null,
 } = {}) {
   const startMs = Date.now();
+  const preparationStart = performance.now();
+  let fetchStart = null;
+  let parseStart = null;
+  let preparationMs = null;
+  let fetchMs = null;
+  let measurements = measureSerializedRequest(null);
+  let responseStatus = null;
+  let responseHeaders = null;
   const requestedProviders = providers?.length ? providers : [];
   const strictForeground = responseFormat?.type === 'json_schema';
-  const failStructured = (reason, data, choice, { terminal = false, validationCode = null } = {}) => {
+  const diagnostics = data => {
+    const end = performance.now();
+    return { ...measurements, status: responseStatus,
+      preparationMs: preparationMs ?? phaseDuration(preparationStart, end),
+      fetchMs: fetchMs ?? phaseDuration(fetchStart, end),
+      parseValidationMs: phaseDuration(parseStart, end),
+      ...rateLimitDiagnostics({ status: responseStatus, data, headers: responseHeaders, nowMs: Date.now() }) };
+  };
+  const safePrefix = metadata => {
+    const category = logPrefix === '[ai-memory]' ? 'ai-memory'
+      : logPrefix === '[ai-response]' || logPrefix?.startsWith('[ai-response req=') ? 'ai-response' : 'ai-client';
+    return `[${category}${metadata.requestId ? ` req=${metadata.requestId}` : ''}]`;
+  };
+  const field = value => value === null ? 'unknown' : typeof value === 'number' ? value
+    : /^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,159}$/.test(value) ? value : 'unknown';
+  const failStructured = (reason, data, choice, { terminal = false, validationCode = null, exceptionClass = null } = {}) => {
+    const attemptDiagnostics = diagnostics(data);
+    const metadata = { ...successTelemetry(data, { apiKey, correlationId, purpose, stage, model,
+      provider: requestedProviders[0], finishReason: ['stop', 'length', 'error', 'tool_calls', 'content_filter'].includes(choice?.finish_reason) ? choice.finish_reason : null,
+      toolCalls: null, latencyMs: Date.now() - startMs }),
+    ...attemptDiagnostics, outcome: 'failed', reason,
+    failureClass: attemptDiagnostics.failureClass || reason, status: responseStatus,
+    validationCode: safeFailureCode(validationCode), exceptionClass: safeExceptionClass(exceptionClass) };
     if (logPrefix) {
-      const diagnostic = structuredResponseDiagnostic(data, choice, apiKey);
-      const error = data?.error || choice?.error;
-      const detail = error ? compactErrorBody(JSON.stringify({ error }), { includeProviderDetails: true, apiKey }) : '';
-      console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason}${validationCode ? ` validationCode=${validationCode}` : ''} latencyMs=${Date.now() - startMs} diagnostic=${diagnostic}${detail ? ` detail=${JSON.stringify(detail)}` : ''}`);
+      console.warn(`${safePrefix(metadata)} attempt purpose=${field(metadata.purpose)} stage=${field(metadata.stage)} model=${field(metadata.model)} provider=${field(metadata.provider)} outcome=failed reason=${reason}${metadata.validationCode ? ` validationCode=${metadata.validationCode}` : ''}${responseStatus !== null ? ` status=${responseStatus}` : ''} latencyMs=${metadata.latencyMs} metadata=${JSON.stringify(metadata)}`);
     }
-    return { ok: false, reason, terminal, finishReason: choice?.finish_reason || null };
+    return { ok: false, reason, terminal, finishReason: choice?.finish_reason || null,
+      ...(responseStatus !== null ? { status: responseStatus } : {}), attemptDiagnostics: metadata };
   };
 
   try {
@@ -538,8 +569,11 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     }
 
     const serializedBody = JSON.stringify(payload);
+    measurements = measureSerializedRequest(serializedBody);
     capture?.('request', { serializedBody, bodyBytes: Buffer.byteLength(serializedBody), encoding: 'utf8',
       transportBoundary: 'fetch_argument; network_delivery_not_asserted' });
+    preparationMs = phaseDuration(preparationStart, performance.now());
+    fetchStart = performance.now();
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -551,6 +585,10 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
       body: serializedBody,
       signal: AbortSignal.timeout(timeoutMs),
     });
+    fetchMs = phaseDuration(fetchStart, performance.now());
+    parseStart = performance.now();
+    responseStatus = res.status;
+    responseHeaders = res.headers;
 
     if (!res.ok) {
       const rawBody = await res.text().catch(() => '');
@@ -558,20 +596,13 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
         missing: 'http_error_decision_unavailable; error envelope not captured (may contain headers)' });
       const errorData = parseErrorEnvelope(rawBody);
       const reason = classifyHttpFailure(res.status, errorData);
-      if (logPrefix) {
-        const detail = compactErrorBody(rawBody, {
-          includeProviderDetails: strictForeground,
-          apiKey,
-        });
-        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} status=${res.status} latencyMs=${Date.now() - startMs} detail="${detail}"`);
-      }
-      return { ok: false, reason, status: res.status, terminal: strictForeground && isProviderRefusal(errorData) };
+      return failStructured(reason, errorData, null, { terminal: strictForeground && isProviderRefusal(errorData) });
     }
 
     let data;
     try { data = await res.json(); }
     catch (error) {
-      if (strictForeground) return failStructured('invalid_response_json', null, null);
+      if (strictForeground) return failStructured('invalid_response_json', null, null, { exceptionClass: error?.name });
       throw error;
     }
     const choice = data?.choices?.[0] || {};
@@ -614,11 +645,7 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     const usage = data.usage || {};
 
     if (finishReason === 'error') {
-      const detail = compactProviderFinishDetail(choice, data);
-      if (logPrefix) {
-        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=provider_finish_error latencyMs=${Date.now() - startMs}${detail ? ` detail="${detail}"` : ''}`);
-      }
-      return { ok: false, reason: 'provider_finish_error', finishReason };
+      return failStructured('provider_finish_error', data, choice);
     }
 
     // Memory extraction is a JSON protocol even though it intentionally stays
@@ -626,22 +653,16 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
     // Never hand a known-truncated JSON prefix to the parser as a success;
     // route to the next independent background provider instead.
     if (purpose === 'memory' && finishReason === 'length') {
-      if (logPrefix) {
-        console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=truncated_memory_output finishReason=${finishReason} latencyMs=${Date.now() - startMs}`);
-      }
-      return { ok: false, reason: 'truncated_memory_output', finishReason };
+      return failStructured('truncated_memory_output', data, choice);
     }
 
     if (tools?.length && toolChoice === 'required' && toolCalls.length === 0) {
-      if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=required_tool_missing finishReason=${finishReason || 'unknown'} latencyMs=${Date.now() - startMs}`);
-      return { ok: false, reason: 'required_tool_missing', finishReason };
+      return failStructured('required_tool_missing', data, choice);
     }
 
     if (!raw && toolCalls.length === 0) {
       const reason = finishReason === 'length' ? 'empty_length' : 'empty_content';
-      if (strictForeground) return failStructured(reason, data, choice);
-      if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${actualProvider} outcome=failed reason=${reason} finishReason=${finishReason || 'unknown'} latencyMs=${Date.now() - startMs}`);
-      return { ok: false, reason, finishReason };
+      return failStructured(reason, data, choice);
     }
 
     let validatedStructuredIntent = null;
@@ -654,27 +675,23 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
       validatedStructuredIntent = validation.intent || null;
     }
 
+    const attemptDiagnostics = diagnostics(data);
     if (logPrefix) {
       const metadata = successTelemetry(data, {
         apiKey, correlationId, purpose, stage, model, provider: actualProvider,
         finishReason, toolCalls: toolCalls.length, latencyMs: Date.now() - startMs,
       });
+      Object.assign(metadata, attemptDiagnostics);
       // Preserve legacy counters on one line without interpolating raw prefixes
       // or freeform metadata into the key=value fields.
-      const field = value => value === null ? 'unknown'
-        : typeof value === 'number' ? value
-          : /^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,159}$/.test(value) ? value : 'unknown';
-      const category = logPrefix === '[ai-memory]' ? 'ai-memory'
-        : logPrefix === '[ai-response]' || logPrefix.startsWith('[ai-response req=') ? 'ai-response' : 'ai-client';
-      const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.requestId || '')
-        ? metadata.requestId : null;
-      const prefix = `[${category}${requestId ? ` req=${requestId}` : ''}]`;
+      const prefix = safePrefix(metadata);
       console.log(`${prefix} attempt purpose=${field(metadata.purpose)} stage=${field(metadata.stage)} model=${field(metadata.model)} provider=${field(metadata.provider)} outcome=success finishReason=${field(metadata.finishReason)} toolCalls=${field(metadata.toolCalls)} promptTokens=${field(metadata.promptTokens)} completionTokens=${field(metadata.completionTokens)} latencyMs=${field(metadata.latencyMs)} metadata=${JSON.stringify(metadata)}`);
     }
 
     if (returnMessage) {
       return {
         ok: true,
+        attemptDiagnostics,
         value: {
           role: 'assistant',
           content: raw,
@@ -686,15 +703,14 @@ async function performOpenRouterAttempt(messages, model, apiKey, {
           ...(validatedStructuredIntent ? { structuredIntent: validatedStructuredIntent } : {}),
           generationId: typeof data.id === 'string' ? data.id : null,
           usage: responseUsage(usage),
+          attemptDiagnostics,
         },
       };
     }
-    return { ok: true, value: raw };
+    return { ok: true, value: raw, attemptDiagnostics };
   } catch (error) {
     const reason = classifyThrownFailure(error);
-    if (strictForeground) return failStructured(reason, { error: { message: String(error?.message || error) } }, null);
-    if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${stage} model=${model} provider=${requestedProviders.join(',') || 'default'} outcome=failed reason=${reason} latencyMs=${Date.now() - startMs} detail="${String(error?.message || error).slice(0, 180)}"`);
-    return { ok: false, reason };
+    return failStructured(reason, null, null, { exceptionClass: error?.name });
   }
 }
 
@@ -718,6 +734,7 @@ async function runOpenRouterChain(messages, profiles, {
   correlationId,
 }) {
   let previousFailure = 'initial_request';
+  let lastAttemptDiagnostics = null;
 
   for (const profile of profiles) {
     const unsupportedStrictRoute = purpose === 'initial'
@@ -763,6 +780,7 @@ async function runOpenRouterChain(messages, profiles, {
         correlationId,
         attemptNumber,
       });
+      lastAttemptDiagnostics = attempt.attemptDiagnostics;
 
       // Providers that only accept auto still have to return execute_turn. Prose
       // cannot terminate the chain when the caller requested a structured turn.
@@ -772,7 +790,7 @@ async function runOpenRouterChain(messages, profiles, {
         returnMessage,
       })) {
         if (logPrefix) console.warn(`${logPrefix} attempt purpose=${purpose} stage=${profile.stage} outcome=failed reason=required_tool_missing_after_auto_fallback`);
-        attempt = { ok: false, reason: 'required_tool_missing' };
+        attempt = { ok: false, reason: 'required_tool_missing', attemptDiagnostics: lastAttemptDiagnostics };
       }
 
       // Only malformed/empty structured responses get a same-provider retry.
@@ -788,7 +806,7 @@ async function runOpenRouterChain(messages, profiles, {
       if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} stopped reason=provider_refusal`);
       // Do not evade an explicit safety refusal through an independent model.
       return returnMessage
-        ? { role: 'assistant', content: '', tool_calls: [], unavailable: true, refused: true }
+        ? { role: 'assistant', content: '', tool_calls: [], unavailable: true, refused: true, attemptDiagnostics: lastAttemptDiagnostics }
         : JSON.stringify({ type: 'chat', reply: 'No puedo completar esa solicitud. No ejecuté ninguna acción.' });
     }
     if (attempt.ok) return attempt.value;
@@ -796,7 +814,7 @@ async function runOpenRouterChain(messages, profiles, {
   }
 
   if (logPrefix) console.warn(`${logPrefix} route purpose=${purpose} exhausted reason=${previousFailure}`);
-  return returnMessage ? { chainExhausted: true, unavailableReason: previousFailure } : null;
+  return returnMessage ? { chainExhausted: true, unavailableReason: previousFailure, attemptDiagnostics: lastAttemptDiagnostics } : null;
 }
 
 export async function callChatCompletion(messages, {
@@ -814,7 +832,8 @@ export async function callChatCompletion(messages, {
 } = {}) {
   const openrouterKey = getOpenRouterApiKey();
   const nativeToolMode = Array.isArray(tools);
-  const logPrefix = correlationId ? `[ai-client req=${correlationId}]` : '[ai-client]';
+  const safeCorrelationId = typeof correlationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(correlationId) ? correlationId : null;
+  const logPrefix = safeCorrelationId ? `[ai-client req=${safeCorrelationId}]` : '[ai-client]';
 
   if (!openrouterKey) {
     console.error(`${logPrefix} OPENROUTER_API_KEY is not configured.`);
@@ -854,7 +873,7 @@ export async function callChatCompletion(messages, {
   });
 
   if (result?.chainExhausted) {
-    return buildUnavailableResponse(returnMessage, result.unavailableReason, language);
+    return { ...buildUnavailableResponse(returnMessage, result.unavailableReason, language), attemptDiagnostics: result.attemptDiagnostics };
   }
   return result || buildUnavailableResponse(returnMessage, 'compatible_routes_exhausted', language);
 }
@@ -898,7 +917,8 @@ export async function callResponseSynthesis({
       }),
     },
   ];
-  const logPrefix = correlationId ? `[ai-response req=${correlationId}]` : '[ai-response]';
+  const safeCorrelationId = typeof correlationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(correlationId) ? correlationId : null;
+  const logPrefix = safeCorrelationId ? `[ai-response req=${safeCorrelationId}]` : '[ai-response]';
   const profiles = createForegroundProfiles({ strictStructuredOutput: false }).map((profile) => ({
     ...profile,
     reasoning: profile.reasoning ? { ...profile.reasoning, effort: 'low' } : null,
