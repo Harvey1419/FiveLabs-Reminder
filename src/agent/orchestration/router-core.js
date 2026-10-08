@@ -399,7 +399,24 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
     ? (isExplicitSpanish ? 'es' : 'en')
     : (isExplicitEnglish || (conversationLanguage === 'en' && detectedUserLanguage !== 'es') ? 'en' : 'es');
   const applyDecisionContext = async (decision) => {
-    language = decision.responseLanguage || language;
+    if (decision.responseLanguage) {
+      const hasSpanishDirectiveInRaw = /español|castellano|spanish/i.test(messageText || '');
+      const hasEnglishDirectiveInRaw = /ingl[eé]s|english/i.test(messageText || '');
+
+      const forbidSpanishOverwrite = (isProfileEnglish || detectedUserLanguage === 'en')
+        && detectedUserLanguage !== 'es'
+        && !hasSpanishDirectiveInRaw
+        && decision.responseLanguage === 'es';
+
+      const forbidEnglishOverwrite = (detectedUserLanguage === 'es' || (!isProfileEnglish && conversationLanguage === 'es'))
+        && detectedUserLanguage !== 'en'
+        && !hasEnglishDirectiveInRaw
+        && decision.responseLanguage === 'en';
+
+      if (!forbidSpanishOverwrite && !forbidEnglishOverwrite) {
+        language = decision.responseLanguage;
+      }
+    }
     let update = decision.profileUpdate;
     if (!update && Array.isArray(decision.learningCandidates)) {
       const candidate = decision.learningCandidates.find(c =>

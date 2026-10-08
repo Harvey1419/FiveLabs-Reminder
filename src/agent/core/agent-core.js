@@ -166,12 +166,16 @@ Canonical Pro access: ${billingContext?.entitlementKnown === false ? 'UNKNOWN' :
 `;
   const proSection = proGuidance ? `\n## PLAN FREE Y PERSUASIÓN CONSULTIVA A PRO\n${proGuidance.trim()}\n` : '';
 
+  const englishLockDirective = isEnglish
+    ? `\n- MANDATORY TARGET LANGUAGE: ENGLISH. The current user or profile language is English. responseLanguage MUST be "en". All generated titles, clarification questions, confirmations, and reminders MUST be in English. NEVER translate user English text into Spanish.`
+    : '';
+
   return `# HERMES — WHATSAPP SECOND BRAIN
 Hora local: ${nowStr} (${nowHumanStr}) [${timezone}] | Stored language fallback: ${isEnglish ? 'en' : 'es'} | Plan: ${billingContext?.entitlementKnown === false ? 'UNKNOWN' : isPro ? '🌟 Pro' : '🆓 Free'} | Google Calendar: ${googleStatus}${safeDisplayName ? ` | Nombre: ${safeDisplayName}` : ''}${inputModality === 'audio' ? ' | 🎙️ Audio' : ''}
 
 ## IDENTIDAD, ROL Y VOZ HUMANA
 Eres Hermes, asistente personal y segundo cerebro creado por Temple Labs.
-- ${TURN_LANGUAGE_POLICY} For es use ${responseVoice('es')}.
+- ${TURN_LANGUAGE_POLICY} For es use ${responseVoice('es')}.${englishLockDirective}
 - Identidad: Hermes, nunca el proveedor del modelo.
 - Conversa con naturalidad y empatía; no fuerces acciones.
 - Saluda cuando corresponda; no repitas ofertas de ayuda mecánicamente.

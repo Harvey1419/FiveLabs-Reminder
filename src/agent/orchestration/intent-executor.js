@@ -15,6 +15,7 @@ import {
 import { cancelSupersededInputRun, createApprovalRun, createInputRun } from '../core/agent-run.js';
 import { buildDomainCall, failedResult, intentTarget } from './domain-call.js';
 import { resolveObservedTarget } from './resolve-observed-target.js';
+import { detectLanguageFromText } from '../../shared/language-detection.js';
 
 const MAX_ACTIONS_PER_TURN = 12;
 
@@ -41,7 +42,12 @@ function pendingMissingFields(actions, clarification = null, fallbackErrorCode =
 
 function defaultPendingQuestion(actions, language = 'es') {
   const action = actions.find((candidate) => candidate?.question || candidate?.content || candidate?.title) || actions[0];
-  if (action?.question) return action.question;
+  if (action?.question) {
+    const questionLang = detectLanguageFromText(action.question);
+    if (!questionLang || questionLang === language) {
+      return action.question;
+    }
+  }
   if (action?.schedule?.clockMode === 'ambiguous_12h') {
     return language === 'en'
       ? 'Should I use that time in the morning or afternoon?'
@@ -112,12 +118,22 @@ export async function executeTurnIntent(intent, context) {
     const stagedDrafts = staged.map((action) => action.schedule?.clockMode === 'ambiguous_12h'
       ? { ...action, missingFields: [...new Set([...(action.missingFields || []), 'time'])] }
       : action);
-    const clarification = clarificationActions[0] || {
-      domain: 'clarification',
-      action: 'request',
-      question: defaultPendingQuestion(stagedDrafts, context.language),
-      missingFields: pendingMissingFields(stagedDrafts),
-    };
+    const candidateClarification = clarificationActions[0];
+    let candidateQuestion = candidateClarification?.question || '';
+    if (candidateQuestion) {
+      const qLang = detectLanguageFromText(candidateQuestion);
+      if (qLang && qLang !== context.language) {
+        candidateQuestion = '';
+      }
+    }
+    const clarification = candidateClarification && candidateQuestion
+      ? candidateClarification
+      : {
+          domain: 'clarification',
+          action: 'request',
+          question: candidateQuestion || defaultPendingQuestion(stagedDrafts, context.language),
+          missingFields: pendingMissingFields(stagedDrafts, candidateClarification),
+        };
 
     const cannotStageAlongsidePending = context.preserveExistingActiveRun === true;
     const stagedRun = cannotStageAlongsidePending ? null : await createInputRun({
@@ -165,8 +181,13 @@ export async function executeTurnIntent(intent, context) {
             ? 'No pude confirmar que la solicitud pendiente siguiera activa, así que no ejecuté ni guardé el reemplazo. Su estado pudo haber cambiado; revisa tus solicitudes pendientes antes de volver a intentarlo.'
             : 'Ya tienes una solicitud pendiente. No guardé esta nueva solicitud incompleta; primero termina o cancela la anterior y después envíame esta solicitud nuevamente.'),
       });
-    } else if (clarificationActions.length === 0) {
-      actions.push(clarification);
+    } else {
+      const existingClarificationIndex = actions.findIndex((action) => action.domain === 'clarification');
+      if (existingClarificationIndex !== -1) {
+        actions[existingClarificationIndex] = clarification;
+      } else {
+        actions.push(clarification);
+      }
     }
   }
 
