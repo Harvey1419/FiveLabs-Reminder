@@ -26,7 +26,7 @@ Observed structured-output failures trigger additional provider attempts. The pr
 - Delivery strategy: `exception-ok`, single future PR without a line limit, explicitly requested by the user in the organization question.
 - Forecast: 400-500 authored changed lines including tests; this is not a code-size constraint.
 - Work-unit boundaries: T1 contract; T2 observability. Do not publish automatically.
-- Running authored count after T1: 332 lines (325 insertions + 7 deletions), including the feature document. User-approved size exception remains in effect.
+- Running authored count for the three work-unit commits: 1,060 lines (939 insertions + 121 deletions), including feature-document updates and the compatibility repair. User-approved size exception remains in effect; no code was omitted to meet a line target.
 
 ## Tasks and acceptance
 
@@ -52,11 +52,11 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Allowlist safe provider/status/code/retry-delay metadata; never log raw requests, freeform errors, personal content, credentials, or header dumps.
   - Keep existing attempt counts, route-control decisions, timeouts and fallback order unchanged.
   - Verification: focused provider tests, diagnostics tests, full offline unit suite, syntax checks and `git diff --check`; independent verification if native assessment is high/unavailable.
-  - Commit and proof: pending.
-  - Progress: request diagnostics implemented; baseline 37 passed, observed RED regressions, focused closure 110 passed after the user authorized the transport expectation adapter. Full feature closure remains blocked by T1 phrase failures.
+  - Commit and proof: recorded in the closure below.
+  - Intermediate proof: baseline 37 passed, observed RED regressions, focused closure 110 passed after the user authorized the transport expectation adapter. The subsequent T1 phrase failures were resolved before final closure.
   - Closure: conflicting outer/nested/provider codes now keep rate-limit provenance uncertain. Observed RED 4 failed / 28 passed, then 121 provider-focused tests passed. Full offline suite: 1,761 tests passed in 153 files. Independent verifier first checked 190 tests and identified the conflict bug; follow-up checked 32 tests and 22 provenance cases with no remaining blocker. Parent repeated the 121-test command and whitespace check successfully.
   - Native risk assessment remained high/unassessable because pre-existing untracked paths were undeclared; completed the independent-verifier path without starting RDD. RDD outcome: disabled/unmanaged.
-  - Unit commit: pending final local close.
+  - Unit commit: `8a4d337` (`feat(agent): add privacy-safe provider attempt diagnostics`).
 
 ## Verification plan
 
@@ -80,7 +80,8 @@ Focused checks are estimated at 10-60 seconds; the full unit suite at 2-10 minut
 - Additional authorized Haiku experiment: ten attempts, observed Vertex nullable-enum and 42-versus-16 union-limit rejections. Generation-only adapters remained in memory; no model switch or repository changes. Known cost $0.00570645, conservative bound $0.07160057. No semantic-quality or latency conclusion for Haiku.
 - Verification limitations: provider behavior is mocked; no production latency, recovery from live 429 responses, integration database checks, or live-model efficacy is certified. Diagnostics do not prevent rate limits and no automatic 429 retry was added.
 - Authorized test-surface additions: `tests/unit/agent/structured-protocol-responses.test.js` and `tests/unit/agent/core-learning-candidates.test.js`, each explicitly approved by the user.
-- Next step: close the diagnostics commit and hand off the local branch. A future production comparison or provider/retry strategy requires separate authorization; no deployment or additional paid calls.
+- Work units closed locally: initial contract `53ec764`, compatibility repair `59caf85`, diagnostics `8a4d337`. No tracked source changes remain after those commits.
+- Next step: user-owned review/publication decision for one future PR. A production comparison or provider/retry strategy requires separate authorization. No push, PR or deployment was performed; source verification used no paid calls, separate from the authorized Haiku experiment recorded above.
 
 ## References
 
