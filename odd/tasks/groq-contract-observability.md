@@ -106,7 +106,18 @@ Observed structured-output failures trigger additional provider attempts. The pr
   - Verified reduction: 35 comparable initial-phase pairs saved exactly 317 native prompt tokens each, 199,352 -> 188,257 total (5.57%). Forty initial-schema pairs saved 1,540 bytes each; total request bytes 1,226,047 -> 1,164,447 (5.02%). Suspended schemas were unchanged. Comparable completion usage increased 36,063 -> 37,181; total-cost improvement is not established.
   - Frozen evaluation: both arms 43/50 canonically valid; baseline 24/50 versus current 21/50 deadline-correct. The 17 pairs correct in both arms had median within-pair current-minus-baseline latency +200.94 ms; mean +104.95 ms, descriptive bootstrap interval -248.94 to +602.48 ms. No faster or slower causal conclusion is supported.
   - Independent audit reproduced counts, bytes, native usage, ledger rounding and paired statistics. It found a representation-specific AM/PM date assertion; fixing that assertion alone would recover no fully correct decisions because ambiguity also failed independently. Current quoted-agenda pair 37 is unresolved due redacted scope, while two others genuinely omit the requested temporal scope. Do not describe all frozen semantic failures as proven business errors.
-  - Result: actual input reduction demonstrated; quality preservation and faster responses not demonstrated. Recommendation: hold production acceptance. Source/runtime, user language changes, production, and RDD preference remain unchanged. Evidence commit: pending local close.
+  - Result: actual input reduction demonstrated; quality preservation and faster responses not demonstrated. Recommendation: hold production acceptance. Source/runtime, user language changes, production, and RDD preference remain unchanged. Evidence commit: `637739b` (`test(agent): record controlled Groq compaction comparison`).
+
+## Production acceptance — quality first
+
+The user explicitly requires preserved quality as the primary outcome, with responses equally fast or faster. Input/cost savings alone do not satisfy this requirement.
+
+- Status: **not demonstrated; do not promote automatically**.
+- Quality evidence must distinguish canonical/protocol compliance, actual subject/date/time/owner/approval correctness, unresolved/redacted decisions, and full runtime behavior. Offline structural tests alone are insufficient.
+- Preserve critical safety/authority checks and original test thresholds. Do not relax graders or reinterpret primary results to make the candidate pass.
+- Fix confirmed evaluator representation defects before drawing quality conclusions; retain frozen primary data and separately label any offline sensitivity analysis.
+- Performance comparison must use matched cases, success/failure denominators, and complete correct-response median/tail latency, not fast errors or unpaired averages. Failure to detect a difference does not prove equivalence.
+- Existing T5 evidence demonstrates reduced input only. Quality noninferiority and latency noninferiority remain pending; no additional paid calls are authorized by this acceptance clarification.
 
 ## Verification plan
 
