@@ -4,6 +4,8 @@ import {
   parseCanonicalOperation,
 } from './intent-contracts.js';
 
+export const STRICT_TURN_WIRE_GUIDANCE = 'Emit every property declared in the strict wire schema, including nested objects; inapplicable nullable fields must be null. Do not omit them or invent values to fill them. Emit learningCandidates=[] when there are no candidates, never null. Required semantic prerequisites remain valid: operation, responseLanguage, responseCapability and applicable action fields must satisfy the canonical contract. Nullability is wire encoding, not permission to execute an incomplete action; retain known partial schedule components and declare genuine missingFields for clarification.';
+
 // Provider-only projection: the canonical schema and deterministic action
 // prerequisites remain authoritative. Avoid polymorphic object unions, whose
 // compilation/generation was rejected by the actual Groq endpoint.
@@ -29,6 +31,7 @@ export function strictProviderSchema(schema) {
 
 export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = false } = {}) {
   const schema = structuredClone(TURN_INTENT_SCHEMA);
+  schema.description = STRICT_TURN_WIRE_GUIDANCE;
   schema.required = [...schema.required, 'responseLanguage', 'responseCapability', 'learningCandidates'];
   // Whole-turn contrast: answering the task clause must not erase independent
   // durable metadata. These are field excerpts, not complete wire objects.

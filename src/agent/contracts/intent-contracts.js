@@ -185,9 +185,7 @@ Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(ta
 CALENDARIO: agenda.read todo; calendar.list/search eventos; calendar.create citas. no niegues acceso en conversation.reply.
 Temporal meaning must remain typed según schema. Same day=fecha Working Memory. clarification.request+missingFields: faltantes genuinos.
 todas las acciones en actions; resto:excluded. Confirma solo resultados observados, no planes; no repitas cards.
-task.list: status requerido; ambos="all"; fechas: completed+pending (all usa due_date).
-PAGOS: Pro/how-to: subscription.info(scope="plan")+conversation.reply fundamentado; Botón Stripe existente solo Free; sin URLs. Precios/descuentos/métodos/fallos/reembolsos/no-checkout: subscription.info sin scope/promoción. subscription.link only for explicit link/open-checkout requests; tras info: general+link; actions no vacío. Never invent PayPal, bank transfer, Apple Pay. PayPal/transferencia/Apple Pay/secciones: solo capacidad verificada. Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info. Unknown payment outcome never authorizes retry; no checkout descubre capacidades.
-RECAP: conversation.recap historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. RECAP: historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply. Solo refs: historia parcial.`;
+${READ_AND_PAYMENT_GUIDANCE}`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
   const parameters = structuredClone(TURN_INTENT_SCHEMA);

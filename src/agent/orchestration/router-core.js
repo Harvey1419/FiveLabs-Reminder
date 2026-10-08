@@ -243,10 +243,13 @@ function parseStructuredTurnDecision(modelResponse, { isAdmin = false, hasHistor
   return { unavailable: false, validation: validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true }) };
 }
 
-function validateStructuredTurnContent(content, { isAdmin = false } = {}) {
+function validateStructuredTurnContent(content, { isAdmin = false, hasHistoricalEvidence = true } = {}) {
   const parsed = parseIntentArguments(content);
   if (!parsed) return { valid: false, errorCode: 'INVALID_PARAMETERS', error: 'La decisión estructurada no era JSON válido.' };
-  const canonical = projectStructuredTurnIntent(stripStructuredNulls(parsed));
+  const canonical = sanitizeHallucinatedEvidenceRefs(
+    projectStructuredTurnIntent(stripStructuredNulls(parsed)),
+    hasHistoricalEvidence
+  );
   return validateTurnIntent(canonical, { isAdmin, requireResponseCapability: true });
 }
 
@@ -789,7 +792,7 @@ async function routeMessageInternal(messageText, userOrPhone, history = [], opti
       returnMessage: true,
       purpose: 'initial',
       language,
-      validateStructuredContent: (content) => enforceCurrentProfileSource(validateStructuredTurnContent(content, { isAdmin }), currentUserText),
+      validateStructuredContent: (content) => enforceCurrentProfileSource(validateStructuredTurnContent(content, { isAdmin, hasHistoricalEvidence }), currentUserText),
     });
   } catch (error) {
     console.warn(`[router req=${requestId}] model failed:`, error.message);

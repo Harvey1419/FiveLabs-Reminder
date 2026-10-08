@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   TURN_INTENT_SCHEMA,
+  EXECUTE_TURN_DESCRIPTION,
+  getConversationToolDefinition,
   getCanonicalOperations,
   validateTurnIntent,
 } from '../../../src/agent/contracts/intent-contracts.js';
@@ -10,11 +12,14 @@ import {
   stripStructuredNulls,
 } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { resolveTypedSchedule } from '../../../src/agent/orchestration/typed-schedule.js';
+import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 
 // Groq rejected polymorphic action/schedule unions at compile time and generated
 // invalid values from accepted nested unions. Nullable types need no object union.
 function inspectProjection(node) {
   expect(node).not.toHaveProperty('anyOf');
+  expect(node).not.toHaveProperty('oneOf');
+  expect(node).not.toHaveProperty('$ref');
   if (node.properties) {
     expect(node.additionalProperties).toBe(false);
     expect(node.required).toEqual(Object.keys(node.properties));
@@ -25,6 +30,51 @@ function inspectProjection(node) {
 }
 
 describe('Groq strict provider projection regressions', () => {
+  it('states strict wire obligations without treating nullable fields as semantic permission', () => {
+    const prompt = buildAgentCorePrompt({ timezone: 'America/Bogota' });
+    for (const options of [{}, { isAdmin: true }, { attachmentOnly: true }, { isAdmin: true, attachmentOnly: true }]) {
+      const description = getStructuredTurnSchema(options).description;
+      for (const text of [description, prompt]) {
+        expect(text).toContain('Emit every property');
+        expect(text).toContain('inapplicable nullable fields must be null');
+        expect(text).toContain('learningCandidates=[]');
+        expect(text).toContain('semantic prerequisites');
+      }
+    }
+  });
+
+  it('shares payment and recap guidance across both decision descriptions', () => {
+    const conversation = getConversationToolDefinition().function.description;
+    expect(EXECUTE_TURN_DESCRIPTION).toContain('LECTURAS:');
+    const shared = EXECUTE_TURN_DESCRIPTION.slice(EXECUTE_TURN_DESCRIPTION.indexOf('LECTURAS:'));
+    expect(conversation).toContain(shared);
+    for (const rule of ['scope="plan"', 'Free-only existing Stripe', 'No model-authored URL',
+      'unscoped subscription.info', 'conversation.reply alone is not billing authority',
+      'general + subscription.link', 'actions must never be empty', 'How-to alone stays side-effect-free',
+      'tool-backed provider capability', 'NO subscription.link or mutation',
+      'Unknown payment outcome never authorizes retry', 'no checkout to discover capabilities',
+      'historical renders recorded facts', 'Current: explicit reads, not history', 'Solo recap refs normalize to partial history']) {
+      expect(shared).toContain(rule);
+    }
+  });
+
+  it.each([
+    { responseLanguage: null }, { responseCapability: null }, { learningCandidates: null },
+  ])('does not turn required semantic fields into nullable permissions: %j', fields => {
+    const intent = projectStructuredTurnIntent(stripStructuredNulls({
+      responseLanguage: 'en', responseCapability: 'general', learningCandidates: [],
+      actions: [{ operation: 'conversation.reply', content: 'Hello' }], ...fields,
+    }));
+    // Language has a runtime fallback; capability and candidate-array authority
+    // must still be valid when required by the foreground boundary.
+    const validation = validateTurnIntent(intent, { requireResponseCapability: true });
+    if (Object.hasOwn(fields, 'responseLanguage')) {
+      expect(getStructuredTurnSchema().properties.responseLanguage.type).toBe('string');
+      expect(validation.valid).toBe(true);
+    } else {
+      expect(validation.valid).toBe(false);
+    }
+  });
   it.each([
     { isAdmin: false, attachmentOnly: false },
     { isAdmin: true, attachmentOnly: false },

@@ -6,6 +6,7 @@
 
 import { hasUsableGoogleCredentials } from '../../integrations/google/auth.js';
 import { EXECUTE_TURN_DESCRIPTION } from '../contracts/intent-contracts.js';
+import { STRICT_TURN_WIRE_GUIDANCE } from '../contracts/foreground-turn-schema.js';
 import { TURN_LANGUAGE_POLICY, responseVoice } from '../contracts/response-policy.js';
 import { entityMatchScore, normalizeEntityName } from '../../infrastructure/database/entities.js';
 
@@ -181,7 +182,7 @@ Eres Hermes, asistente personal y segundo cerebro creado por Temple Labs.
 - Con <proactive_context>, seguimiento cordial.
 
 ## DECISIÓN ESTRUCTURADA
-Devuelve únicamente el TurnIntent JSON; campos opcionales deben ser null cuando no apliquen.
+Devuelve únicamente el TurnIntent JSON. ${STRICT_TURN_WIRE_GUIDANCE}
 ${EXECUTE_TURN_DESCRIPTION}
 
 ## ESTADO Y MEMORIA
