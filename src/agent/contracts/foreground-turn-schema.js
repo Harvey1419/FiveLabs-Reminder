@@ -160,11 +160,14 @@ export function projectStructuredTurnIntent(value) {
       const { operation: _operation, ...fields } = item;
       if (parsed?.domain !== 'task' || parsed?.action !== 'list') {
         delete fields.returnFields;
+      } else if (!fields.status && (fields.filter === 'pending_today' || fields.filter === 'pending')) {
+        fields.status = 'pending';
       }
       if (parsed?.domain !== 'conversation' || parsed?.action !== 'recap') {
         delete fields.recapMode;
       }
       if (parsed?.domain === 'task' && (parsed?.action === 'update' || parsed?.action === 'rename')) {
+        if (!fields.target && fields.oldName) fields.target = fields.oldName;
         if (fields.title && !fields.newName) fields.newName = fields.title;
         if (fields.newName && !fields.title) fields.title = fields.newName;
       }
