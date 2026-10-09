@@ -121,7 +121,6 @@ export function projectStructuredTurnIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
   const guardedValue = {
     ...value,
-    responseCapability: value.responseCapability || 'general',
   };
   if (guardedValue.profileUpdate && typeof guardedValue.profileUpdate === 'object') {
     if (!guardedValue.profileUpdate.sourceQuote && !guardedValue.profileUpdate.language) {
