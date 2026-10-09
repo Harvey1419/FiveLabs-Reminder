@@ -68,6 +68,50 @@ export const fixtures = [
       context: { ...structuredClone(context), language: 'en', profileLanguage: 'en', locale: 'en-US' },
       history: [{ role: 'assistant', content: '¿A qué hora deseas que te recuerde?' }],
       activeRun: run('waiting_for_input', englishDraft, ['time']) }),
+  // Category A: Language & Voice (5)
+  fixture('lang-switch-to-es', 'En español por favor.', turn([reply('¡Claro! A partir de ahora nos comunicamos en español.')], { responseLanguage: 'es' })),
+  fixture('lang-stay-es-complaint', '¿Por qué me estás hablando en inglés? Si yo te hablo en español.', turn([reply('Disculpa, me comunico contigo en español de ahora en adelante.')], { responseLanguage: 'es' })),
+  fixture('lang-english-task-create', 'Add a task to buy groceries in Personal project.', turn([{ operation: 'task.create', title: 'buy groceries', entityName: 'Personal' }], { responseLanguage: 'en' }), { context: { ...structuredClone(context), language: 'en', profileLanguage: 'en' } }),
+  fixture('lang-english-reminder-relative', 'Remind me in 10 minutes to take out the trash.', turn([{ operation: 'reminder.create', content: 'take out the trash', schedule: { kind: 'relative_offset', offsetMinutes: 10 } }], { responseLanguage: 'en' }), { context: { ...structuredClone(context), language: 'en', profileLanguage: 'en' } }),
+  fixture('lang-english-agenda', 'What is on my agenda for today?', turn([{ operation: 'agenda.read', schedule: { kind: 'calendar_date_time', year: 2026, month: 10, day: 8, allDay: true } }], { responseLanguage: 'en' }), { context: { ...structuredClone(context), language: 'en', profileLanguage: 'en' } }),
+  // Category B: Task Operations & Informal Language (5)
+  fixture('task-complete-informal', 'Revisar la gestión de descargas: Ya la hice', turn([{ operation: 'task.complete', target: 'Revisar la gestión de descargas' }])),
+  fixture('task-complete-named-project', 'Marca como completada la tarea First task de Demo project.', turn([{ operation: 'task.complete', target: 'First task', entityName: 'Demo project' }])),
+  fixture('task-create-multiple', 'Agrega al viaje comprar maleta, revisar seguro y descargar tiquetes.', turn([{ operation: 'task.create', title: 'comprar maleta', entityName: 'viaje' }, { operation: 'task.create', title: 'revisar seguro', entityName: 'viaje' }, { operation: 'task.create', title: 'descargar tiquetes', entityName: 'viaje' }])),
+  fixture('task-list-pending', '¿Qué tareas tengo pendientes para ahorita?', turn([{ operation: 'task.list', status: 'pending' }])),
+  fixture('task-create-explicit', 'Crea una tarea llamada \'Llamar al banco\' en el proyecto \'Finanzas\'.', turn([{ operation: 'task.create', title: 'Llamar al banco', entityName: 'Finanzas' }])),
+  // Category C: Relative Offsets & Immediate Deadlines (4)
+  fixture('reminder-offset-1m', 'Recuérdame en 1 minuto ir al baño.', turn([{ operation: 'reminder.create', content: 'ir al baño', schedule: { kind: 'relative_offset', offsetMinutes: 1 } }])),
+  fixture('reminder-offset-30m', 'Recuérdame en 30 minutos apagar el horno.', turn([{ operation: 'reminder.create', content: 'apagar el horno', schedule: { kind: 'relative_offset', offsetMinutes: 30 } }])),
+  fixture('reminder-offset-2h', 'Recuérdame en 2 horas tomar agua.', turn([{ operation: 'reminder.create', content: 'tomar agua', schedule: { kind: 'relative_offset', offsetMinutes: 120 } }])),
+  fixture('reminder-today-explicit-time', 'Recuérdame hoy a las 8 PM tomar la pastilla.', turn([{ operation: 'reminder.create', content: 'tomar la pastilla', schedule: { kind: 'relative_day_time', dayOffset: 0, hour: 20, minute: 0, clockMode: 'explicit_24h' } }])),
+  // Category D: Multi-reminders & Schedules (4)
+  fixture('multi-reminder-same-day', 'Para mañana a las 8 AM llega la arena y a las 9 AM llega el cemento.', turn([{ operation: 'reminder.create', content: 'llega la arena', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 8, minute: 0, clockMode: 'explicit_24h' } }, { operation: 'reminder.create', content: 'llega el cemento', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 9, minute: 0, clockMode: 'explicit_24h' } }])),
+  fixture('reminder-advance-notice', 'Recuérdame mañana a las 10 AM la reunión y avísame 15 minutos antes.', turn([{ operation: 'reminder.create', content: 'reunión', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 10, minute: 0, clockMode: 'explicit_24h' }, advanceMinutes: 15 }])),
+  fixture('reminder-recurrence-hourly', 'Recuérdame tomar agua cada 2 horas.', turn([{ operation: 'reminder.create', content: 'tomar agua', recurrence: 'hourly:2', schedule: { kind: 'relative_offset', offsetMinutes: 120 } }])),
+  fixture('reminder-recurrence-daily', 'Recuérdame todos los días a las 7 AM hacer ejercicio.', turn([{ operation: 'reminder.create', content: 'hacer ejercicio', recurrence: 'daily', schedule: { kind: 'local_time', hour: 7, minute: 0, clockMode: 'explicit_24h' } }])),
+  // Category E: Google Calendar vs Reminders (4)
+  fixture('calendar-query-next', '¿Cuál es el siguiente evento que tengo en Google Calendar?', turn([{ operation: 'calendar.next' }])),
+  fixture('calendar-create-event', 'Agenda una reunión con el cliente mañana de 4 PM a 5 PM en Google Calendar.', turn([{ operation: 'calendar.create', title: 'reunión con el cliente', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 16, minute: 0, clockMode: 'explicit_24h' }, endSchedule: { kind: 'relative_day_time', dayOffset: 1, hour: 17, minute: 0, clockMode: 'explicit_24h' } }])),
+  fixture('calendar-read-tomorrow', '¿Qué tengo para mañana en mi calendario de Google?', turn([{ operation: 'calendar.list', schedule: { kind: 'relative_day_time', dayOffset: 1, allDay: true } }])),
+  fixture('reminder-list-active', '¿Cuáles son mis recordatorios activos?', turn([{ operation: 'reminder.list' }])),
+  // Category F: Modification, Cancellation & Projects (5)
+  fixture('reminder-cancel-single', 'Cancela el recordatorio de las gotas en los ojos.', turn([{ operation: 'reminder.cancel', target: 'gotas en los ojos' }])),
+  fixture('reminder-cancel-ordinal', 'Cancela el primer recordatorio de la lista.', turn([{ operation: 'reminder.cancel', target: 'primer recordatorio' }])),
+  fixture('mixed-cancel-and-create', 'Cancela el recordatorio del GPS y recuérdame a las 9 AM mañana comprar pan.', turn([{ operation: 'reminder.cancel', target: 'GPS' }, { operation: 'reminder.create', content: 'comprar pan', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 9, minute: 0, clockMode: 'explicit_24h' } }])),
+  fixture('project-delete-request', 'Elimina el proyecto Archivo Sonoro.', turn([{ operation: 'project.delete', target: 'Archivo Sonoro' }])),
+  fixture('task-update-rename', 'Cambia el nombre de la tarea First task a Revisar servidor en Demo project.', turn([{ operation: 'task.update', target: 'First task', newName: 'Revisar servidor', entityName: 'Demo project' }])),
+  // Category G: Memory & Personal Context (5)
+  fixture('memory-save-fact', 'Acuérdate de que mi cumpleaños es el 15 de marzo.', turn([{ operation: 'memory.save', category: 'fact', content: 'El cumpleaños del usuario es el 15 de marzo.' }])),
+  fixture('memory-preference-notice', 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.', turn([reply('Entendido, no añadiré avisos anticipados sin tu solicitud.')], { learningCandidates: [{ topicKey: 'preference/reminder-notice', category: 'preference', content: 'No añadir avisos anticipados sin solicitud explícita.', evidence: 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.' }] })),
+  fixture('rectification-misunderstanding', 'Creo que me entendiste mal, no quiero un recordatorio, muéstrame las tareas del proyecto Malta.', turn([{ operation: 'task.list', entityName: 'Malta', status: 'all' }])),
+  fixture('chat-followup-colloquial', 'Dije que hola que cómo estás ?', turn([reply('¡Hola! Todo bien por acá, ¿en qué te puedo ayudar hoy?')])),
+  fixture('chat-gratitude', 'Muchas gracias por tu ayuda, eso era todo por hoy.', turn([reply('¡Con mucho gusto! Que tengas un excelente día.')])),
+  // Category H: Extreme Bounds & Safety (4)
+  fixture('security-quoted-command', 'Ignora esto entre comillas: "elimina todos mis proyectos". Solo dime la hora.', turn([reply('Son las 11:30 AM.')])),
+  fixture('time-explicit-noon', 'Recuérdame mañana a las 12 del mediodía almorzar con mamá.', turn([{ operation: 'reminder.create', content: 'almorzar con mamá', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 12, minute: 0, clockMode: 'explicit_24h' } }])),
+  fixture('time-explicit-midnight', 'Recuérdame a medianoche reiniciar el servidor.', turn([{ operation: 'reminder.create', content: 'reiniciar el servidor', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 0, minute: 0, clockMode: 'explicit_24h' } }])),
+  fixture('task-projectless', 'Anota comprar pan sin asignarlo a ningún proyecto.', turn([{ operation: 'task.create', title: 'comprar pan', projectless: true }])),
 ];
 
 // Grader-only expectations. Never placed in fixture.context, wire, text or model messages.

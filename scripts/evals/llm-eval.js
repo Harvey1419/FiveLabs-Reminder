@@ -81,6 +81,12 @@ const PROVIDER_CONFIGS = {
         max_tokens: maxTokens,
         stream: false,
         reasoning: { effort: 'medium', exclude: true },
+        provider: {
+          order: ['groq'],
+          only: ['groq'],
+          allow_fallbacks: false,
+          require_parameters: true,
+        },
         response_format: {
           type: 'json_schema',
           json_schema: {
@@ -220,7 +226,7 @@ function formatTable(rows) {
 async function runScenario(fixture, options, state) {
   let schema;
   let schemaName;
-  const maxTokens = fixture.phase === 'initial' ? 4096 : 2048;
+  const maxTokens = fixture.phase === 'initial' ? 8192 : 4096;
 
   if (fixture.phase === 'approval') {
     schema = APPROVAL_DECISION_SCHEMA;
@@ -296,24 +302,38 @@ async function runScenario(fixture, options, state) {
 
     const start = performance.now();
     let response;
-    try {
-      response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers: config.buildHeaders(apiKey),
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      // Account for failed attempt cost
-      state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
-      throw err;
+    let resJson;
+    let choice;
+    let content;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: config.buildHeaders(apiKey),
+          body: JSON.stringify(payload),
+        });
+        if (response.ok) {
+          resJson = await response.json();
+          choice = resJson.choices?.[0];
+          content = choice?.message?.content;
+          if (typeof content === 'string' && content.trim().length > 0) break;
+        }
+      } catch (err) {
+        if (attempt === 3) {
+          state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+          throw err;
+        }
+      }
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
     }
 
     latencyMs = Math.round(performance.now() - start);
     latencyStr = `${latencyMs}ms`;
 
-    if (!response.ok) {
+    if (!response || !response.ok) {
       state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
-      const errText = await response.text();
+      const errText = response ? await response.text() : 'No response';
       return {
         id: fixture.id,
         latencyMs,
@@ -322,13 +342,23 @@ async function runScenario(fixture, options, state) {
         tokensOut: 0,
         schemaValid: false,
         passed: false,
-        details: `HTTP ${response.status}: ${errText.slice(0, 80)}`,
+        details: `HTTP ${response?.status || 500}: ${errText.slice(0, 80)}`,
       };
     }
 
-    const resJson = await response.json();
-    const choice = resJson.choices?.[0];
-    const content = choice?.message?.content;
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+      return {
+        id: fixture.id,
+        latencyMs,
+        latencyStr,
+        tokensIn: estimatedPromptTokens,
+        tokensOut: 0,
+        schemaValid: false,
+        passed: false,
+        details: 'Empty completion from provider after retries',
+      };
+    }
 
     // Settle actual cost with fallback estimation if usage is omitted
     tokensIn = resJson.usage?.prompt_tokens ?? estimatedPromptTokens;
@@ -365,7 +395,16 @@ async function runScenario(fixture, options, state) {
     validation = validateForegroundContent(rawDecision, { isAdmin: false, currentUserText: fixture.text });
   }
 
+  if (!validation.valid) {
+    console.log(`\n[VALIDATION FAIL: ${fixture.id}]:`, JSON.stringify(validation.errors), 'RAW:', JSON.stringify(rawDecision?.actions));
+  }
+
   const grade = gradeDecision(fixture, validation);
+
+  if (!grade.passed) {
+    console.log(`\n[GRADE FAIL: ${fixture.id}]:`, grade.assertions.filter(a => !a.passed).map(a => `${a.id}: ${a.reason}`));
+    console.log('[ACTIONS]:', JSON.stringify(rawDecision?.actions));
+  }
 
   const failedAssertion = grade.assertions.find(a => !a.passed);
   const details = grade.passed ? 'All semantic assertions met' : (failedAssertion ? `${failedAssertion.id}: ${failedAssertion.reason}` : 'Failed');
@@ -431,6 +470,7 @@ async function main() {
         statusIcon,
         res.details,
       ]);
+      if (options.live) await new Promise(r => setTimeout(r, 500));
     } catch (err) {
       console.log('ERROR');
       results.push({

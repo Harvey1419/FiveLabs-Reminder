@@ -34,7 +34,7 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   // precedence/voice already stated in full in the initial system message.
   // See docs/agent/groq-contract-evaluation.md for the rule-to-surface map.
   schema.properties.responseLanguage.description = 'Language for the entire response, including cards/questions; follow the system language precedence and Spanish voice.';
-  schema.properties.answerFromResults.description = 'True for interpretation/calculation/comparison needing live reads: emit those reads, then Hermes answers from results; keep returnFields absent. False/null for listings/simple returnFields/mutations. A single task.list returnFields projection takes precedence over redundant true.';
+  schema.properties.answerFromResults.description = 'True for interpretation/calculation/comparison needing live reads: emit those reads, then Hermes answers from results. For listings/simple returnFields/mutations leave false/null; a single task.list returnFields projection takes precedence over redundant true. For complex interpretation keep returnFields absent.';
   schema.properties.knowledgeRefs.description = 'Turn RESPONSE metadata, not tool actions: select supplied pk_ refs from memory hints for mixed tasks/personal recall. Add recorded personal quotations, never fresh operational state, to cards/fields/historical summaries. Inventories need no answerFromResults for recall. Only reads/conversation; no mutations or guessed refs. Personal chat may use content without refs.';
   // Whole-turn contrast: answering the task clause must not erase independent
   // durable metadata. These are field excerpts, not complete wire objects.
@@ -73,12 +73,12 @@ export function getStructuredTurnSchema({ isAdmin = false, attachmentOnly = fals
   const descriptions = {
     contextRef: 'Select an existing reminder/task/calendar event displayed in Working Memory by position, time, recurrence or title. contextRef is the sole operative identity; omit target; redundant labels ignored by Node.',
     target: 'Human reference to an EXISTING item, never internal IDs. Required for existing-object mutations without contextRef, except reminder.acknowledge with one authoritative active follow-up bound by Node. With contextRef omit target; redundant labels ignored. entity.delete: project/list name; deleting a project deletes all its tasks in cascade; never scope="all" for one project.',
-    entityName: 'entity.create/upsert: own name. task.list/create: implicit/explicit container name, even a system domain name (e.g. "reminder", "trabajo"). task.complete/update/delete: include the owning named container to prevent duplicate titles crossing containers.',
+    entityName: 'entity.create/upsert: own name. task.list/create: implicit/explicit container name (e.g. "Demo project", "reminder", "trabajo"), even a system domain name. task.complete/update/delete: include the owning named container to prevent duplicate titles crossing containers.',
     category: 'entity.create/upsert: person/company/project/place/asset/other only; omitted=other; pet is not a physical write category. project=task container. Memory fact/preference/decision/episode/observation belongs in memory.save, not entity fields.',
     projectless: 'task.create: true only with no named grouping or shared purpose. Grouped implicit/explicit purpose requires entityName, even without the words list/project; never projectless=true.',
-    evidenceRefs: 'conversation.reply/historical recap: supplied operational refs only. Content with refs is discarded, not verified prose; Node renders owned historical proof, not fresh state. Personal recall: TURN knowledgeRefs or natural content without operational refs. No additional actions.',
-    returnFields: 'task.list only: simple actual status/date/notes from returned rows; Node renders fields (null=absent, missing=unknown). Keep query/entityName/status/date filters. Single task read: takes precedence over answerFromResults. No ordinal identity or calculations; complex interpretation: returnFields absent, answerFromResults.',
-    query: 'Title/memory text filter. reminder.list: literal case-insensitive content, 1–200 trimmed characters, no * or NUL; never dates/times. Dated agenda/reminder/task/calendar reads: schedule with calendar_date_time and allDay=true; query dates do not restrict the window.',
+    evidenceRefs: 'conversation.reply or historical recap: select supplied operational refs when displaying past results. Content with refs is discarded, not verified prose; Node renders owned historical proof, not fresh state. Personal recall: TURN knowledgeRefs or natural content without operational refs. No additional actions.',
+    returnFields: 'task.list only: select for simple actual status/date/notes questions on returned rows; Node renders fields (null=absent, missing=unknown). Keep query/entityName/status/date filters. Single task read: projection takes precedence over answerFromResults. No ordinal identity or calculations; complex interpretation: returnFields absent, answerFromResults.',
+    query: 'Title/memory text filter. For task.list by title/ordinal (e.g. "Second task"), put target in query. reminder.list: literal case-insensitive content, 1–200 trimmed characters, no * or NUL; never dates/times. Dated agenda/reminder/task/calendar reads: schedule with calendar_date_time and allDay=true; query dates do not restrict the window.',
     recurrence: 'daily|weekdays|weekly|monthly|yearly|hourly. Sub-daily: hourly:N = every N hours (hourly:6 = every 6 hours); interval:Xm / interval:Xh = every X minutes/hours. Plain hourly means exactly every 1 hour only.',
     advanceMinutes: 'Advance offset in minutes. Calendar notification offset; reminders prefer deliveryPolicy: desired state, not a separate action.',
     deliveryPolicy: 'Reminder desired delivery state: only when explicitly requested/changed by the user or to preserve known state. Never invent advance notice.',
@@ -119,7 +119,16 @@ export function stripStructuredNulls(value) {
 /** Convert the provider-only qualified operation into canonical TurnIntent. */
 export function projectStructuredTurnIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
-  let actions = value.actions;
+  const guardedValue = {
+    ...value,
+    responseCapability: value.responseCapability || 'general',
+  };
+  if (guardedValue.profileUpdate && typeof guardedValue.profileUpdate === 'object') {
+    if (!guardedValue.profileUpdate.sourceQuote && !guardedValue.profileUpdate.language) {
+      delete guardedValue.profileUpdate;
+    }
+  }
+  let actions = guardedValue.actions;
   if (actions.length > 1) {
     const hasOperational = actions.some(item => {
       const op = String(item?.operation || '').toLowerCase();
@@ -135,10 +144,24 @@ export function projectStructuredTurnIntent(value) {
         }
         return true;
       });
+      const hasCalNext = actions.some(item => String(item?.operation || '').toLowerCase() === 'calendar.next');
+      if (hasCalNext) {
+        actions = actions.filter(item => String(item?.operation || '').toLowerCase() !== 'calendar.list');
+      }
+      const memSaves = new Set();
+      actions = actions.filter(item => {
+        const op = String(item?.operation || '').toLowerCase();
+        if (op === 'memory.save') {
+          const key = `${item.category || 'fact'}:${item.content || ''}`;
+          if (memSaves.has(key)) return false;
+          memSaves.add(key);
+        }
+        return true;
+      });
     }
   }
   return {
-    ...value,
+    ...guardedValue,
     actions: actions.map((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item) || item.operation === undefined) return item;
       const operation = String(item.operation || '').trim().toLowerCase();
@@ -150,6 +173,52 @@ export function projectStructuredTurnIntent(value) {
         || (parts.length === 2 && parts.every(Boolean) ? { domain: parts[0], action: parts[1] } : null);
       if (!parsed) return { ...item };
       const { operation: _operation, ...fields } = item;
+      if (parsed?.domain !== 'task' || parsed?.action !== 'list') {
+        delete fields.returnFields;
+      }
+      if (parsed?.domain !== 'conversation' || parsed?.action !== 'recap') {
+        delete fields.recapMode;
+      }
+      if (parsed?.domain === 'task' && (parsed?.action === 'update' || parsed?.action === 'rename')) {
+        if (fields.title && !fields.newName) fields.newName = fields.title;
+        if (fields.newName && !fields.title) fields.title = fields.newName;
+      }
+      if (parsed?.domain !== 'conversation' || (parsed?.action !== 'reply' && parsed?.action !== 'recap')) {
+        delete fields.evidenceRefs;
+      } else if (Array.isArray(fields.evidenceRefs) && fields.evidenceRefs.length === 0) {
+        delete fields.evidenceRefs;
+      }
+      if (parsed?.domain === 'conversation' && parsed?.action === 'reply'
+        && (!fields.evidenceRefs || !fields.evidenceRefs.length)
+        && (!fields.content || typeof fields.content !== 'string' || !fields.content.trim())) {
+        fields.content = guardedValue.responseLanguage === 'en' ? 'Hello! How can I help you?' : '¡Hola! ¿En qué te puedo ayudar?';
+      }
+      if (fields.schedule && typeof fields.schedule === 'object') {
+        const hasAnyScheduleVal = Object.entries(fields.schedule).some(([k, v]) => k !== 'kind' && v != null);
+        if (!hasAnyScheduleVal) {
+          delete fields.schedule;
+        }
+      }
+      if (fields.endSchedule && typeof fields.endSchedule === 'object') {
+        const hasAnyScheduleVal = Object.entries(fields.endSchedule).some(([k, v]) => k !== 'kind' && v != null);
+        if (!hasAnyScheduleVal) {
+          delete fields.endSchedule;
+        }
+      }
+      if (parsed?.domain === 'reminder' && parsed?.action === 'create' && fields.schedule && fields.schedule.allDay === true && fields.schedule.hour == null) {
+        delete fields.schedule.allDay;
+        const missing = new Set(Array.isArray(fields.missingFields) ? fields.missingFields : []);
+        missing.add('time');
+        fields.missingFields = [...missing];
+      }
+      if (parsed?.domain === 'reminder' && parsed?.action === 'create' && fields.schedule?.clockMode === 'ambiguous_12h') {
+        const missing = new Set(Array.isArray(fields.missingFields) ? fields.missingFields : []);
+        missing.add('time');
+        fields.missingFields = [...missing];
+      }
+      if (parsed?.domain === 'memory' && parsed?.action === 'save' && !fields.category) {
+        fields.category = 'fact';
+      }
       return { ...fields, ...parsed };
     }),
   };
