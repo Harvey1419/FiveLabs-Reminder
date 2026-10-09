@@ -193,10 +193,10 @@ RECAP: ${RECAP_READ_GUIDANCE} Social: reply. Solo recap refs normalize to partia
 export const EXECUTE_TURN_DESCRIPTION = `Hermes decide significado. Node es la autoridad final sobre identidad, propiedad, estado y timezone. TurnIntent mandatory for every turn; orden manda.
 AUTORIDAD DE ESTADO: Si la verdad puede cambiar al cambiar DB/Calendar, exige lectura (agenda.read, calendar.list, reminder.list, task.list), incluso monto/fecha/estado. NUNCA simules mutaciones (pagar, completar, borrar) solo con texto. Historial/memoria: referencias, no operandos vivos (Never reconstruct live state from chat history).
 CREATE VS UPDATE IS A HARD SEMANTIC BOUNDARY: crear sin target; mutar:contextRef/target; cambio≠ID. reminder.update/cancel: cambia/borra; reminder.acknowledge: seguimiento (Completion is not an update). reminder.create diferido; preguntas≠mutaciones.
-Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(target). project+task.create; project.delete, vacíos scope="no_tasks". Montos:title; notas:description; renombre:newName.
-CALENDARIO: agenda.read todo; calendar.list/search eventos; calendar.create citas. no niegues acceso en conversation.reply.
-Temporal meaning must remain typed según schema. Same day=fecha Working Memory. clarification.request+missingFields: faltantes genuinos.
-todas las acciones en actions; resto:excluded. Confirma solo resultados observados, no planes; no repitas cards.
+Estado/deuda/saldo: task.list(entityName). Completar o pagar es task.complete(target) (admite entityName o contextRef).
+CALENDARIO: agenda.read (hoy/today: scope="today" o schedule); calendar.list/search eventos; calendar.create citas. no niegues acceso en conversation.reply.
+Temporal meaning must remain typed según schema. Sin AM/PM (ej. "a las 3"): hora literal (hour: 3) con clockMode="ambiguous_12h". Eventos futuros (ej. 'para mañana a las 8 AM X'): reminder.create; faltantes genuinos; compuestas emiten acciones independientes; recurrencia (ej. cada 2h) crea reminder.create(content, recurrence) sin pedir hora.
+todas las acciones en actions; resto:excluded. conversation.reply requiere content con texto útil, nunca null ni vacío. Confirma solo resultados observados, no planes; no repitas cards.
 ${READ_AND_PAYMENT_GUIDANCE.compact}`;
 
 export function getIntentToolDefinitions({ isAdmin = false } = {}) {
@@ -428,6 +428,7 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
     if (domain === 'conversation' && action === 'reply' && raw.evidenceRefs === undefined && !(typeof raw.content === 'string' && raw.content.trim())) return { valid: false, errorCode: 'MISSING_CONTENT', error: 'conversation.reply requiere contenido de respuesta.' };
     const structurallyMissingScheduleFields = domain === 'reminder'
       && action === 'create'
+      && !raw.recurrence
       ? inferPartialReminderScheduleFields(raw.schedule)
       : [];
     const declaredMissingFields = Array.isArray(raw.missingFields) ? raw.missingFields : [];
@@ -542,7 +543,7 @@ export function validateTurnIntent(intent, { isAdmin = false, requireResponseCap
       if (normalizedRaw.schedule && !knownScheduleKind) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
-      if (!hasCompleteReminderSchedule(normalizedRaw.schedule) && !mayRemainPending) {
+      if (!hasCompleteReminderSchedule(normalizedRaw.schedule) && !normalizedRaw.recurrence && !mayRemainPending) {
         return { valid: false, errorCode: 'MISSING_SCHEDULE', error: 'La decisión de creación no incluyó una estructura temporal utilizable.' };
       }
     }

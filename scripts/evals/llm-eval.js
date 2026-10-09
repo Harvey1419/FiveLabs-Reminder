@@ -15,6 +15,10 @@
  */
 
 import { performance } from 'node:perf_hooks';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fixtures } from './groq-contract/fixtures.js';
 import { gradeDecision } from './groq-contract/grader.js';
 import { validateForegroundContent } from '../../src/agent/contracts/foreground-turn-validation.js';
@@ -158,6 +162,7 @@ function parseArgs(args) {
     provider: 'openrouter',
     model: null,
     scenario: null,
+    output: null,
     budget: 0.15,
     help: false,
   };
@@ -169,6 +174,7 @@ function parseArgs(args) {
     else if (arg.startsWith('--provider=')) options.provider = arg.split('=')[1].toLowerCase();
     else if (arg.startsWith('--model=')) options.model = arg.split('=')[1];
     else if (arg.startsWith('--scenario=')) options.scenario = arg.split('=')[1];
+    else if (arg.startsWith('--output=')) options.output = arg.split('=')[1];
     else if (arg.startsWith('--budget=')) {
       const parsed = parseFloat(arg.split('=')[1]);
       if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10) {
@@ -273,6 +279,7 @@ async function runScenario(fixture, options, state) {
   let latencyMs = 0;
   let tokensIn = 0;
   let tokensOut = 0;
+  let attemptsUsed = 1;
 
   if (options.live) {
     const config = PROVIDER_CONFIGS[options.provider];
@@ -306,7 +313,12 @@ async function runScenario(fixture, options, state) {
     let choice;
     let content;
 
+    let failedAttemptsCost = 0;
+    const singleAttemptCost = (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+    attemptsUsed = 1;
+
     for (let attempt = 0; attempt < 4; attempt++) {
+      attemptsUsed = attempt + 1;
       try {
         response = await fetch(config.endpoint, {
           method: 'POST',
@@ -319,9 +331,11 @@ async function runScenario(fixture, options, state) {
           content = choice?.message?.content;
           if (typeof content === 'string' && content.trim().length > 0) break;
         }
+        failedAttemptsCost += singleAttemptCost;
       } catch (err) {
+        failedAttemptsCost += singleAttemptCost;
         if (attempt === 3) {
-          state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+          state.totalCostUsd += failedAttemptsCost;
           throw err;
         }
       }
@@ -332,31 +346,45 @@ async function runScenario(fixture, options, state) {
     latencyStr = `${latencyMs}ms`;
 
     if (!response || !response.ok) {
-      state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+      state.totalCostUsd += failedAttemptsCost;
       const errText = response ? await response.text() : 'No response';
       return {
         id: fixture.id,
+        phase: fixture.phase || 'foreground',
+        attempts: attemptsUsed,
         latencyMs,
         latencyStr,
+        deadlineMet: false,
         tokensIn: estimatedPromptTokens,
         tokensOut: 0,
         schemaValid: false,
+        validationErrors: [`HTTP ${response?.status || 500}: ${errText.slice(0, 80)}`],
         passed: false,
         details: `HTTP ${response?.status || 500}: ${errText.slice(0, 80)}`,
+        rawDecision: null,
+        normalizedDecision: null,
+        assertions: [],
       };
     }
 
     if (!content || typeof content !== 'string' || !content.trim()) {
-      state.totalCostUsd += (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
+      state.totalCostUsd += failedAttemptsCost;
       return {
         id: fixture.id,
+        phase: fixture.phase || 'foreground',
+        attempts: attemptsUsed,
         latencyMs,
         latencyStr,
+        deadlineMet: false,
         tokensIn: estimatedPromptTokens,
         tokensOut: 0,
         schemaValid: false,
+        validationErrors: ['Empty completion from provider after retries'],
         passed: false,
         details: 'Empty completion from provider after retries',
+        rawDecision: null,
+        normalizedDecision: null,
+        assertions: [],
       };
     }
 
@@ -364,20 +392,27 @@ async function runScenario(fixture, options, state) {
     tokensIn = resJson.usage?.prompt_tokens ?? estimatedPromptTokens;
     tokensOut = resJson.usage?.completion_tokens ?? Math.max(1, Math.ceil(String(content || '').length / 3.5));
     const actualCost = ((tokensIn * pricing.inputPerMillion) + (tokensOut * pricing.outputPerMillion)) / 1e6;
-    state.totalCostUsd += actualCost;
+    state.totalCostUsd += actualCost + failedAttemptsCost;
 
     try {
       rawDecision = typeof content === 'string' ? JSON.parse(content) : content;
     } catch {
       return {
         id: fixture.id,
+        phase: fixture.phase || 'foreground',
+        attempts: attemptsUsed,
         latencyMs,
         latencyStr,
+        deadlineMet: false,
         tokensIn,
         tokensOut,
         schemaValid: false,
+        validationErrors: ['Invalid JSON output from model'],
         passed: false,
         details: 'Invalid JSON output from model',
+        rawDecision: null,
+        normalizedDecision: null,
+        assertions: [],
       };
     }
   } else {
@@ -408,16 +443,25 @@ async function runScenario(fixture, options, state) {
 
   const failedAssertion = grade.assertions.find(a => !a.passed);
   const details = grade.passed ? 'All semantic assertions met' : (failedAssertion ? `${failedAssertion.id}: ${failedAssertion.reason}` : 'Failed');
+  const SLA_DEADLINE_MS = 10000;
+  const deadlineMet = options.live ? latencyMs <= SLA_DEADLINE_MS : true;
 
   return {
     id: fixture.id,
+    phase: fixture.phase || 'foreground',
+    attempts: options.live ? (attemptsUsed || 1) : 1,
     latencyMs,
     latencyStr,
+    deadlineMet,
     tokensIn,
     tokensOut,
     schemaValid: validation.valid,
+    validationErrors: validation.valid ? null : (validation.errors || [validation.error || 'rejected_by_actual_validator']),
     passed: grade.passed,
     details,
+    rawDecision,
+    normalizedDecision: validation.valid ? (validation.intent || validation.decision || null) : null,
+    assertions: grade.assertions,
   };
 }
 
@@ -509,7 +553,60 @@ async function main() {
   if (options.live) {
     console.log(`  Total Cost:  $${state.totalCostUsd.toFixed(5)} USD`);
   }
-  console.log(`\n======================================================\n`);
+  if (options.output) {
+    mkdirSync(dirname(options.output), { recursive: true });
+    const headCommit = (() => {
+      try {
+        return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+      } catch {
+        return 'UNKNOWN';
+      }
+    })();
+    const sha256 = (filePath) => {
+      try {
+        return createHash('sha256').update(readFileSync(filePath, 'utf8')).digest('hex');
+      } catch {
+        return null;
+      }
+    };
+    const provenanceHashes = {
+      headCommit,
+      agentCorePromptSha256: sha256('src/agent/core/agent-core.js'),
+      foregroundTurnSchemaSha256: sha256('src/agent/contracts/foreground-turn-schema.js'),
+      intentContractsSha256: sha256('src/agent/contracts/intent-contracts.js'),
+      fixturesSha256: sha256('scripts/evals/groq-contract/fixtures.js'),
+      graderSha256: sha256('scripts/evals/groq-contract/grader.js'),
+      evaluatorSha256: sha256('scripts/evals/llm-eval.js'),
+    };
+
+    const latencies = options.live ? results.map(r => r.latencyMs).filter(n => Number.isFinite(n) && n > 0) : [];
+    const sortedLatencies = [...latencies].sort((a, b) => a - b);
+    const p95Latency = sortedLatencies.length ? sortedLatencies[Math.floor(sortedLatencies.length * 0.95)] : null;
+    const maxLatency = sortedLatencies.length ? sortedLatencies[sortedLatencies.length - 1] : null;
+    const minLatency = sortedLatencies.length ? sortedLatencies[0] : null;
+
+    writeFileSync(options.output, JSON.stringify({
+      timestamp: new Date().toISOString(),
+      mode: options.live ? 'live' : 'smoke',
+      provider: options.provider,
+      model: options.model,
+      provenanceHashes,
+      summary: {
+        total: results.length,
+        passed: totalPassed,
+        passRate: `${passRate}%`,
+        avgLatency,
+        minLatencyMs: minLatency,
+        maxLatencyMs: maxLatency,
+        p95LatencyMs: p95Latency,
+        deadlineSlaMetCount: results.filter(r => r.deadlineMet).length,
+        deadlineSlaThresholdMs: 10000,
+        totalCostUsd: options.live ? state.totalCostUsd : 0,
+      },
+      results,
+    }, null, 2), 'utf8');
+    console.log(`Saved evaluation report to ${options.output}\n`);
+  }
 
   process.exit(totalPassed === results.length ? 0 : 1);
 }

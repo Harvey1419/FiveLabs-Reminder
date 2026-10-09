@@ -16,8 +16,8 @@ describe('static prompt deduplication', () => {
   // Actual current serialization must meet the original savings minimum.
   // Reconstructed old fingerprints are compatibility controls, not savings.
   it.each([
-    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24146, afterBytes: 24192, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
-    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24247, afterBytes: 24294, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
+    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24180, afterBytes: 24229, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
+    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24281, afterBytes: 24331, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
   ])('reduces actual serialized prompt + additive schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes, afterChars, afterBytes, schemaHash }) => {
     const prompt = buildAgentCorePrompt({
       nowStr: '2026-10-01 11:30',

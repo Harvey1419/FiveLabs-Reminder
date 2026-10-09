@@ -143,20 +143,6 @@ export function projectStructuredTurnIntent(value) {
         }
         return true;
       });
-      const hasCalNext = actions.some(item => String(item?.operation || '').toLowerCase() === 'calendar.next');
-      if (hasCalNext) {
-        actions = actions.filter(item => String(item?.operation || '').toLowerCase() !== 'calendar.list');
-      }
-      const memSaves = new Set();
-      actions = actions.filter(item => {
-        const op = String(item?.operation || '').toLowerCase();
-        if (op === 'memory.save') {
-          const key = `${item.category || 'fact'}:${item.content || ''}`;
-          if (memSaves.has(key)) return false;
-          memSaves.add(key);
-        }
-        return true;
-      });
     }
   }
   return {

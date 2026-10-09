@@ -5,7 +5,7 @@ export const CLOCK = '2026-10-08T16:30:00.000Z';
 const context = {
   nowStr: '2026-10-08 11:30', nowHumanStr: 'Thursday, October 8, 2026',
   timezone: 'America/Bogota', language: 'es', profileLanguage: 'es', isPro: true, displayName: 'Synthetic Owner',
-  googleIntegration: { syntheticConnected: true, account_email: 'fake-owner@example.invalid' },
+  googleIntegration: { refresh_token: 'synthetic-google-refresh-token', account_email: 'fake-owner@example.invalid' },
   memoryHints: '- [fact] [pk_0123456789ab_1] [topicKey=pet/luna/name] El perro del usuario se llama Luna.',
   preferenceHints: '- [preference] [topicKey=preference/reminder-notice] No añadir avisos anticipados sin solicitud explícita.',
   overview: { openTasksByEntity: { 'Demo project': [
@@ -97,13 +97,18 @@ export const fixtures = [
   fixture('reminder-list-active', '¿Cuáles son mis recordatorios activos?', turn([{ operation: 'reminder.list' }])),
   // Category F: Modification, Cancellation & Projects (5)
   fixture('reminder-cancel-single', 'Cancela el recordatorio de las gotas en los ojos.', turn([{ operation: 'reminder.cancel', target: 'gotas en los ojos' }])),
-  fixture('reminder-cancel-ordinal', 'Cancela el primer recordatorio de la lista.', turn([{ operation: 'reminder.cancel', target: 'primer recordatorio' }])),
+  fixture('reminder-cancel-ordinal', 'Cancela el primer recordatorio de la lista.', turn([{ operation: 'reminder.cancel', target: 'primer recordatorio' }]), {
+    context: {
+      ...structuredClone(context),
+      workingMemoryText: '[Memoria de Trabajo — recordatorios]\n1. contextRef={source:working_memory,position:1} Tomar pastilla a las 4 PM\n2. contextRef={source:working_memory,position:2} Llamar al médico mañana',
+    },
+  }),
   fixture('mixed-cancel-and-create', 'Cancela el recordatorio del GPS y recuérdame a las 9 AM mañana comprar pan.', turn([{ operation: 'reminder.cancel', target: 'GPS' }, { operation: 'reminder.create', content: 'comprar pan', schedule: { kind: 'relative_day_time', dayOffset: 1, hour: 9, minute: 0, clockMode: 'explicit_24h' } }])),
   fixture('project-delete-request', 'Elimina el proyecto Archivo Sonoro.', turn([{ operation: 'project.delete', target: 'Archivo Sonoro' }])),
   fixture('task-update-rename', 'Cambia el nombre de la tarea First task a Revisar servidor en Demo project.', turn([{ operation: 'task.update', target: 'First task', newName: 'Revisar servidor', entityName: 'Demo project' }])),
   // Category G: Memory & Personal Context (5)
   fixture('memory-save-fact', 'Acuérdate de que mi cumpleaños es el 15 de marzo.', turn([{ operation: 'memory.save', category: 'fact', content: 'El cumpleaños del usuario es el 15 de marzo.' }])),
-  fixture('memory-preference-notice', 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.', turn([reply('Entendido, no añadiré avisos anticipados sin tu solicitud.')], { learningCandidates: [{ topicKey: 'preference/reminder-notice', category: 'preference', content: 'No añadir avisos anticipados sin solicitud explícita.', evidence: 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.' }] })),
+  fixture('memory-preference-notice', 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.', turn([reply('Entendido, no añadiré avisos anticipados sin tu solicitud.')], { learningCandidates: [{ topicKey: 'preference/reminder-notice', category: 'preference', content: 'No añadir avisos anticipados sin solicitud explícita.', evidence: 'Nunca me agregues avisos anticipados a menos que te lo pida expresamente.' }] }), { context: { ...structuredClone(context), preferenceHints: '' } }),
   fixture('rectification-misunderstanding', 'Creo que me entendiste mal, no quiero un recordatorio, muéstrame las tareas del proyecto Malta.', turn([{ operation: 'task.list', entityName: 'Malta', status: 'all' }])),
   fixture('chat-followup-colloquial', 'Dije que hola que cómo estás ?', turn([reply('¡Hola! Todo bien por acá, ¿en qué te puedo ayudar hoy?')])),
   fixture('chat-gratitude', 'Muchas gracias por tu ayuda, eso era todo por hoy.', turn([reply('¡Con mucho gusto! Que tengas un excelente día.')])),
