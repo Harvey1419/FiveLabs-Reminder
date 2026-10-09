@@ -187,11 +187,7 @@ export function projectStructuredTurnIntent(value) {
       } else if (Array.isArray(fields.evidenceRefs) && fields.evidenceRefs.length === 0) {
         delete fields.evidenceRefs;
       }
-      if (parsed?.domain === 'conversation' && parsed?.action === 'reply'
-        && (!fields.evidenceRefs || !fields.evidenceRefs.length)
-        && (!fields.content || typeof fields.content !== 'string' || !fields.content.trim())) {
-        fields.content = guardedValue.responseLanguage === 'en' ? 'Hello! How can I help you?' : '¡Hola! ¿En qué te puedo ayudar?';
-      }
+
       if (fields.schedule && typeof fields.schedule === 'object') {
         const hasAnyScheduleVal = Object.entries(fields.schedule).some(([k, v]) => k !== 'kind' && v != null);
         if (!hasAnyScheduleVal) {
