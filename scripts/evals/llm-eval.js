@@ -314,12 +314,11 @@ async function runScenario(fixture, options, state) {
     let content;
 
     let failedAttemptsCost = 0;
-    const singleAttemptCost = (estimatedPromptTokens * pricing.inputPerMillion) / 1e6;
     attemptsUsed = 1;
 
     for (let attempt = 0; attempt < 4; attempt++) {
       attemptsUsed = attempt + 1;
-      const reservationCost = attempt === 0 ? potentialMaxCost : singleAttemptCost;
+      const reservationCost = potentialMaxCost;
       if (state.totalCostUsd + failedAttemptsCost + reservationCost > options.budget) {
         state.totalCostUsd += failedAttemptsCost;
         throw new Error(`Budget cap would be exceeded on attempt ${attemptsUsed}: current $${(state.totalCostUsd + failedAttemptsCost).toFixed(4)} + pending $${reservationCost.toFixed(4)} > cap $${options.budget.toFixed(2)}.`);
@@ -336,9 +335,9 @@ async function runScenario(fixture, options, state) {
           content = choice?.message?.content;
           if (typeof content === 'string' && content.trim().length > 0) break;
         }
-        failedAttemptsCost += singleAttemptCost;
+        failedAttemptsCost += potentialMaxCost;
       } catch (err) {
-        failedAttemptsCost += singleAttemptCost;
+        failedAttemptsCost += potentialMaxCost;
         if (attempt === 3) {
           state.totalCostUsd += failedAttemptsCost;
           throw err;

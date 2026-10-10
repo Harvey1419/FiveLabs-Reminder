@@ -357,14 +357,12 @@ export function gradeDecision(fixture, validation) {
     case 'reminder-recurrence-hourly': {
       const remAction = actions.find(a => operation(a) === 'reminder.create');
       const clarAction = actions.find(a => operation(a) === 'clarification.request');
+      check('reminder_create', Boolean(remAction), 'reminder_create_operation');
+      check('recurrence_hourly_2', remAction?.recurrence === 'hourly:2', 'recurrence_hourly_2');
       if (clarAction) {
-        check('reminder_create', true, 'clarification_acceptable_alternative');
-        check('recurrence_hourly_2', remAction ? remAction.recurrence === 'hourly:2' : true, 'recurrence_hourly_2_in_draft_or_clarification');
         const replyText = actions.find(a => operation(a) === 'conversation.reply')?.content || '';
         check('subject', folded(clarAction.question || '').includes('agua') || folded(replyText).includes('agua') || folded(reminderSubject(remAction)).includes('agua'), 'subject_tomar_agua');
       } else {
-        check('reminder_create', Boolean(remAction), 'reminder_create_operation');
-        check('recurrence_hourly_2', remAction?.recurrence === 'hourly:2', 'recurrence_hourly_2');
         check('subject', folded(reminderSubject(remAction)).includes('tomar agua'), 'subject_tomar_agua');
       }
       break;
