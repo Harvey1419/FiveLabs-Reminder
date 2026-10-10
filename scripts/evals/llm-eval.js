@@ -319,6 +319,11 @@ async function runScenario(fixture, options, state) {
 
     for (let attempt = 0; attempt < 4; attempt++) {
       attemptsUsed = attempt + 1;
+      const reservationCost = attempt === 0 ? potentialMaxCost : singleAttemptCost;
+      if (state.totalCostUsd + failedAttemptsCost + reservationCost > options.budget) {
+        state.totalCostUsd += failedAttemptsCost;
+        throw new Error(`Budget cap would be exceeded on attempt ${attemptsUsed}: current $${(state.totalCostUsd + failedAttemptsCost).toFixed(4)} + pending $${reservationCost.toFixed(4)} > cap $${options.budget.toFixed(2)}.`);
+      }
       try {
         response = await fetch(config.endpoint, {
           method: 'POST',

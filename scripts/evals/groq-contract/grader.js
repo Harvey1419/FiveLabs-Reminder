@@ -359,7 +359,7 @@ export function gradeDecision(fixture, validation) {
       const clarAction = actions.find(a => operation(a) === 'clarification.request');
       if (clarAction) {
         check('reminder_create', true, 'clarification_acceptable_alternative');
-        check('recurrence_hourly_2', true, 'clarification_acceptable_alternative');
+        check('recurrence_hourly_2', remAction ? remAction.recurrence === 'hourly:2' : true, 'recurrence_hourly_2_in_draft_or_clarification');
         const replyText = actions.find(a => operation(a) === 'conversation.reply')?.content || '';
         check('subject', folded(clarAction.question || '').includes('agua') || folded(replyText).includes('agua') || folded(reminderSubject(remAction)).includes('agua'), 'subject_tomar_agua');
       } else {
