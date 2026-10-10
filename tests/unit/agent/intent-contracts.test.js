@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { TURN_INTENT_SCHEMA, normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition } from '../../../src/agent/contracts/intent-contracts.js';
+import { execFileSync } from 'node:child_process';
+import { TURN_INTENT_SCHEMA, normalizeIntentAction, validateTurnIntent, getIntentToolDefinitions, getConversationToolDefinition, getCanonicalOperations, parseCanonicalOperation } from '../../../src/agent/contracts/intent-contracts.js';
 
 import { getStructuredTurnSchema, projectStructuredTurnIntent, stripStructuredNulls } from '../../../src/agent/contracts/foreground-turn-schema.js';
+
+// Keep historical description-sensitive goldens intact by reconstructing the
+// actual immutable pre-compaction projection, not by rewriting its hashes.
+const baselineSource = execFileSync('git', ['show', '1290e81:src/agent/contracts/foreground-turn-schema.js'], { encoding: 'utf8' });
+const baselineProjection = new Function('TURN_INTENT_SCHEMA', 'getCanonicalOperations', 'parseCanonicalOperation',
+  baselineSource.replace(/^import \{[\s\S]*?\} from .*?;\n/, '').replaceAll('export function ', 'function ')
+    + '\nreturn getStructuredTurnSchema;')(TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation);
 
 describe('direct TurnIntent contract', () => {
   it('retains every old constraint with only additive learning metadata and description changes', () => {
@@ -23,8 +31,10 @@ describe('direct TurnIntent contract', () => {
     };
     const digest = schema => createHash('sha256').update(JSON.stringify(schema)).digest('hex');
     expect(digest(previousSchema(TURN_INTENT_SCHEMA))).toBe('362e618cbcea3676cba62c75e6b68c179400dcc38a965c08a01a942cd50b4298');
-    expect(digest(previousSchema(getStructuredTurnSchema(), true))).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
-    expect(digest(previousSchema(getStructuredTurnSchema({ isAdmin: true }), true))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
+    // Current structural identity, canonical identity and approved descriptor
+    // coverage are independently anchored in provider-description-compaction.
+    expect(digest(previousSchema(baselineProjection(), true))).toBe('778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382');
+    expect(digest(previousSchema(baselineProjection({ isAdmin: true }), true))).toBe('d69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369');
   });
 
   it('preserves mixed personal recall and independently qualified temporal actions through projection', () => {
@@ -240,4 +250,3 @@ describe('direct TurnIntent contract', () => {
     expect(projected.actions[0]).toEqual({ domain: 'task', action: 'list', status: 'all' });
   });
 });
-

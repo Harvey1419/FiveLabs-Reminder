@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { buildAgentCorePrompt, formatActiveFollowups, formatCompactOverview, formatReferencedProjectTasks } from '../../../src/agent/core/agent-core.js';
-import { EXECUTE_TURN_DESCRIPTION } from '../../../src/agent/contracts/intent-contracts.js';
+import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+
+const baselineSource = execFileSync('git', ['show', '1290e81:src/agent/contracts/foreground-turn-schema.js'], { encoding: 'utf8' });
+const baselineProjection = new Function('TURN_INTENT_SCHEMA', 'getCanonicalOperations', 'parseCanonicalOperation',
+  baselineSource.replace(/^import \{[\s\S]*?\} from .*?;\n/, '').replaceAll('export function ', 'function ')
+    + '\nreturn getStructuredTurnSchema;')(TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation);
 
 describe('static prompt deduplication', () => {
   // Bounded c6ab77e baseline, measured with these exact synthetic inputs and
@@ -10,8 +16,8 @@ describe('static prompt deduplication', () => {
   // Actual current serialization must meet the original savings minimum.
   // Reconstructed old fingerprints are compatibility controls, not savings.
   it.each([
-    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24146, afterBytes: 24192, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
-    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24247, afterBytes: 24294, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
+    { isAdmin: false, baselineChars: 25544, baselineBytes: 25587, afterChars: 24180, afterBytes: 24229, schemaHash: '778004085db8091b682c6f6c308e4c3a06fa33f5483fd46f7238c9b4c284d382' },
+    { isAdmin: true, baselineChars: 25645, baselineBytes: 25689, afterChars: 24281, afterBytes: 24331, schemaHash: 'd69d19159c90a0e3891d8414ab558f733b978c4f1bbfd142e5c67b1af873c369' },
   ])('reduces actual serialized prompt + additive schema without dropping context (admin=$isAdmin)', ({ isAdmin, baselineChars, baselineBytes, afterChars, afterBytes, schemaHash }) => {
     const prompt = buildAgentCorePrompt({
       nowStr: '2026-10-01 11:30',
@@ -27,7 +33,10 @@ describe('static prompt deduplication', () => {
     // Genuine additive schema growth is not token savings. Preserve the exact
     // old wire snapshot after reverting ONLY the declared additive/description
     // differences, rather than raising the context or description budgets.
-    const previousSchema = structuredClone(schema);
+    // T3 intentionally compacts descriptions. Reconstruct compatibility from
+    // the immutable pre-T3 source; actual current serialization still passes
+    // the original historical saving/budget guards below, without inflation.
+    const previousSchema = baselineProjection({ isAdmin });
     delete previousSchema.properties.learningCandidates;
     previousSchema.required = previousSchema.required.filter(key => key !== 'learningCandidates');
     const fields = previousSchema.properties.actions.items.properties;

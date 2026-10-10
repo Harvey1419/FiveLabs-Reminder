@@ -23,6 +23,47 @@ const envelope = (content = JSON.stringify(intent), finish = 'stop') => ({ id: '
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const warning = () => console.warn.mock.calls.map((args) => args.join(' ')).join('\n');
 
+const phaseFields = ['preparationMs', 'fetchMs', 'parseValidationMs'];
+
+function expectAttemptPhases(diagnostics, reached = phaseFields) {
+  for (const field of phaseFields) {
+    expect(diagnostics).toHaveProperty(field);
+    if (!reached.includes(field)) {
+      expect(diagnostics[field]).toBeNull();
+      continue;
+    }
+    expect(typeof diagnostics[field]).toBe('number');
+    expect(Number.isFinite(diagnostics[field])).toBe(true);
+    expect(diagnostics[field]).toBeGreaterThanOrEqual(0);
+    expect(diagnostics[field]).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
+  }
+}
+
+function semanticResult(result) {
+  expectAttemptPhases(result.attemptDiagnostics);
+  // Only local elapsed phases vary across otherwise identical provider attempts.
+  const { preparationMs, fetchMs, parseValidationMs, ...measurements } = result.attemptDiagnostics;
+  return { ...result, attemptDiagnostics: measurements };
+}
+
+function expectRequestMeasurements(diagnostics, serializedBody) {
+  const payload = JSON.parse(serializedBody);
+  expect(diagnostics).toMatchObject({
+    requestBytes: Buffer.byteLength(serializedBody, 'utf8'),
+    messagesBytes: Buffer.byteLength(JSON.stringify(payload.messages), 'utf8'),
+    schemaBytes: Buffer.byteLength(JSON.stringify(payload.response_format.json_schema.schema), 'utf8'),
+    responseFormatBytes: Buffer.byteLength(JSON.stringify(payload.response_format), 'utf8'),
+    messageCount: payload.messages.length,
+  });
+}
+
+function failedAttemptMetadata() {
+  const line = console.warn.mock.calls.map(([line]) => line)
+    .find(line => line.includes(' outcome=failed ') && line.includes(' metadata='));
+  expect(line).toBeDefined();
+  return JSON.parse(line.slice(line.indexOf(' metadata=') + ' metadata='.length));
+}
+
 beforeEach(() => {
   vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-protocol-secret');
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -56,12 +97,16 @@ describe('synthetic runner provider evidence (offline)', () => {
     const baseline = fetchMock.mock.calls.map(([, init]) => ({ body: init.body, headers: init.headers }));
     vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', directory);
     const enabled = await callChatCompletion(messages, opts);
-    expect(enabled).toEqual(disabled);
+    expect(semanticResult(enabled)).toEqual(semanticResult(disabled));
+    expectRequestMeasurements(disabled.attemptDiagnostics, baseline[1].body);
+    expectRequestMeasurements(enabled.attemptDiagnostics, fetchMock.mock.calls[3][1].body);
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(validate).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls.slice(2).map(([, init]) => ({ body: init.body, headers: init.headers }))).toEqual(baseline);
     const captured = events(directory);
     expect(captured.filter(e => e.type === 'request').map(e => e.serializedBody)).toEqual(baseline.map(e => e.body));
+    expect(captured.filter(e => e.type === 'request').map(e => e.bodyBytes))
+      .toEqual(baseline.map(e => Buffer.byteLength(e.body, 'utf8')));
     expect(captured.find(e => e.type === 'response').decision.content).toBe('{"rejected":true}');
     expect(captured.filter(e => e.type === 'validation').map(e => e.result.valid)).toEqual([false, true]);
     expect(captured.find(e => e.type === 'outcome').reason).toBe('invalid_structured_output');
@@ -86,9 +131,17 @@ describe('synthetic runner provider evidence (offline)', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => response(envelope(fetchMock.mock.calls.length % 2 ? '' : JSON.stringify(intent))));
     vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', '');
     const disabled = await callChatCompletion([], options);
+    const baseline = fetchMock.mock.calls.map(([, init]) => ({ body: init.body, headers: init.headers }));
     vi.stubEnv('HERMES_CHAT_PROVIDER_TRACE_DIR', directory);
-    expect(await callChatCompletion([], options)).toEqual(disabled);
+    const enabled = await callChatCompletion([], options);
+    expect(semanticResult(enabled)).toEqual(semanticResult(disabled));
+    expectRequestMeasurements(disabled.attemptDiagnostics, baseline[1].body);
+    expectRequestMeasurements(enabled.attemptDiagnostics, fetchMock.mock.calls[3][1].body);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.slice(2).map(([, init]) => ({ body: init.body, headers: init.headers }))).toEqual(baseline);
+    expect(events(directory).filter(e => e.type === 'request').map(e => e.serializedBody)).toEqual(baseline.map(e => e.body));
+    expect(events(directory).filter(e => e.type === 'request').map(e => e.bodyBytes))
+      .toEqual(baseline.map(e => Buffer.byteLength(e.body, 'utf8')));
     expect(events(directory).filter(e => e.type === 'request').map(e => e.attempt)).toEqual([1, 2]);
     expect(events(directory).filter(e => e.type === 'outcome').map(e => e.validation)).toEqual(['not_run', 'not_run']);
   });
@@ -269,7 +322,7 @@ describe('foreground provider protocol, not HTTP status alone', () => {
   it('logs metadata and usage without leaking content, reasoning, request payloads or credentials', async () => {
     const body = {
       ...envelope('PRIVATE_CONTENT'), model: 'openai/gpt-oss-120b',
-      error: { code: 400, metadata: { error_type: 'invalid_request', raw: JSON.stringify({ error: { message: 'Failed sk-or-protocol-secret', failed_generation: 'PRIVATE_GENERATION' } }) } },
+      error: { code: 400, metadata: { error_type: 'invalid_request', raw: JSON.stringify({ error: { message: 'PRIVATE_ERROR_MESSAGE Failed sk-or-protocol-secret', failed_generation: 'PRIVATE_GENERATION' } }) } },
       usage: { prompt_tokens: 100, completion_tokens: 1400, completion_tokens_details: { reasoning_tokens: 1390 } },
       request: { messages: ['PRIVATE_PROMPT'] }, reasoning: 'PRIVATE_REASONING',
     };
@@ -278,16 +331,32 @@ describe('foreground provider protocol, not HTTP status alone', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(warning()).toContain('gen-test');
     expect(warning()).toContain('"reasoningTokens":1390');
-    expect(warning()).toContain('[REDACTED]');
-    for (const secret of ['PRIVATE_CONTENT', 'PRIVATE_GENERATION', 'PRIVATE_PROMPT', 'PRIVATE_REASONING', 'sk-or-protocol-secret']) expect(warning()).not.toContain(secret);
+    const metadata = failedAttemptMetadata();
+    expect(metadata).toMatchObject({ outcome: 'failed', reason: 'provider_error', failureClass: 'provider_error',
+      status: 200, errorCode: 400, errorType: 'invalid_request', generationId: 'gen-test',
+      promptTokens: 100, completionTokens: 1400, reasoningTokens: 1390 });
+    expectAttemptPhases(metadata);
+    expectRequestMeasurements(metadata, fetchMock.mock.calls[0][1].body);
+    for (const field of ['message', 'detail', 'raw', 'failed_generation', 'request', 'reasoning', 'headers']) expect(metadata).not.toHaveProperty(field);
+    const logs = [...console.warn.mock.calls, ...console.log.mock.calls].flat().join('\n');
+    for (const secret of ['PRIVATE_CONTENT', 'PRIVATE_GENERATION', 'PRIVATE_PROMPT', 'PRIVATE_REASONING',
+      'PRIVATE_ERROR_MESSAGE', 'Failed', 'sk-or-protocol-secret']) expect(logs).not.toContain(secret);
   });
 
-  it('redacts the configured key from thrown foreground transport errors as well', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network sk-or-protocol-secret')).mockResolvedValueOnce(response(envelope()));
+  it('omits thrown foreground error text and credentials while retaining typed transport diagnostics', async () => {
+    const message = 'PRIVATE_TRANSPORT_MESSAGE network sk-or-protocol-secret';
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error(message)).mockResolvedValueOnce(response(envelope()));
     await callChatCompletion([], options);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(warning()).toContain('[REDACTED]');
     expect(warning()).not.toContain('sk-or-protocol-secret');
+    const metadata = failedAttemptMetadata();
+    expect(metadata).toMatchObject({ outcome: 'failed', reason: 'network_error', failureClass: 'network_error',
+      exceptionClass: 'Error', status: null, errorCode: null, errorType: null, parseValidationMs: null });
+    expectAttemptPhases(metadata, ['preparationMs', 'fetchMs']);
+    expectRequestMeasurements(metadata, fetchMock.mock.calls[0][1].body);
+    for (const field of ['message', 'detail', 'error', 'stack', 'headers']) expect(metadata).not.toHaveProperty(field);
+    const logs = [...console.warn.mock.calls, ...console.log.mock.calls].flat().join('\n');
+    for (const secret of [message, 'PRIVATE_TRANSPORT_MESSAGE', 'network sk-or-protocol-secret', 'sk-or-protocol-secret']) expect(logs).not.toContain(secret);
   });
 
   it('does not impose the foreground finish contract on background memory', async () => {

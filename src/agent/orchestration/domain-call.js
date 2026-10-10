@@ -6,6 +6,7 @@ import { normalizeAgendaScope } from '../../shared/agenda-scopes.js';
 import { resolveTypedSchedule } from './typed-schedule.js';
 import { formatAssistantClarification } from './clarification-presentation.js';
 import { normalizeTurnActionForRuntime } from './intent-normalizer.js';
+import { detectLanguageFromText } from '../../shared/language-detection.js';
 
 export function failedResult(errorCode, error, language = 'es', { requiresClarification = false } = {}) {
   const message = error || (language === 'en'
@@ -521,6 +522,12 @@ function buildDomainCallForNormalizedAction(action, context) {
 
     case 'clarification': {
       let question = action.question || '';
+      if (question) {
+        const questionLang = detectLanguageFromText(question);
+        if (questionLang && questionLang !== language) {
+          question = '';
+        }
+      }
       if (!question && Array.isArray(action.missingFields) && action.missingFields.length > 0) {
         question = formatAssistantClarification({ kind: 'reminder_schedule', subject: '', missingFields: action.missingFields }, language);
       }

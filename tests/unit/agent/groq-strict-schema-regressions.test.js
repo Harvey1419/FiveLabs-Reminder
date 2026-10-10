@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   TURN_INTENT_SCHEMA,
+  EXECUTE_TURN_DESCRIPTION,
+  getConversationToolDefinition,
   getCanonicalOperations,
   validateTurnIntent,
 } from '../../../src/agent/contracts/intent-contracts.js';
@@ -10,11 +12,15 @@ import {
   stripStructuredNulls,
 } from '../../../src/agent/contracts/foreground-turn-schema.js';
 import { resolveTypedSchedule } from '../../../src/agent/orchestration/typed-schedule.js';
+import { buildAgentCorePrompt } from '../../../src/agent/core/agent-core.js';
 
 // Groq rejected polymorphic action/schedule unions at compile time and generated
 // invalid values from accepted nested unions. Nullable types need no object union.
 function inspectProjection(node) {
   expect(node).not.toHaveProperty('anyOf');
+  expect(node).not.toHaveProperty('oneOf');
+  expect(node).not.toHaveProperty('allOf');
+  expect(node).not.toHaveProperty('$ref');
   if (node.properties) {
     expect(node.additionalProperties).toBe(false);
     expect(node.required).toEqual(Object.keys(node.properties));
@@ -25,6 +31,64 @@ function inspectProjection(node) {
 }
 
 describe('Groq strict provider projection regressions', () => {
+  it('preserves existing nullable prompt guidance and schema-enforced completeness', () => {
+    const prompt = buildAgentCorePrompt({ timezone: 'America/Bogota' });
+    const before = structuredClone(TURN_INTENT_SCHEMA);
+    for (const options of [{}, { isAdmin: true }, { attachmentOnly: true }, { isAdmin: true, attachmentOnly: true }]) {
+      const schema = getStructuredTurnSchema(options);
+      expect(schema.description).toBe(TURN_INTENT_SCHEMA.description);
+      inspectProjection(schema);
+      expect(schema.properties.learningCandidates.type).toBe('array');
+      expect(schema.properties.learningCandidates.description).toContain('[] NEVER null');
+      expect(schema.properties.responseLanguage.type).toBe('string');
+      expect(schema.properties.responseCapability.type).toBe('string');
+      expect(schema.properties.actions.items.properties.operation.type).toBe('string');
+      expect(schema.properties.actions.items.properties.content.type).toEqual(['string', 'null']);
+    }
+    expect(TURN_INTENT_SCHEMA).toEqual(before);
+    expect(prompt.split('campos opcionales deben ser null cuando no apliquen.')).toHaveLength(2);
+    expect(prompt.split(EXECUTE_TURN_DESCRIPTION)).toHaveLength(2);
+  });
+
+  it('shares payment and recap guidance across both decision descriptions', () => {
+    const conversation = getConversationToolDefinition().function.description;
+    for (const rule of ['scope="plan"', 'subscription.link only for explicit link/open-checkout requests',
+      'Explicit checkout prohibition means NO subscription.link or mutation; use subscription.info',
+      'Unknown payment outcome never authorizes retry']) {
+      expect(EXECUTE_TURN_DESCRIPTION).toContain(rule);
+      expect(conversation).toContain(rule);
+    }
+    for (const [compact, expanded] of [
+      ['Botón Stripe existente solo Free; sin URLs', 'Free-only existing Stripe subscribe button. No model-authored URL'],
+      ['subscription.info sin scope/promoción', 'unscoped subscription.info, never promotional plan scope'],
+      ['tras info: general+link; actions no vacío', 'general + subscription.link; actions must never be empty'],
+      ['solo capacidad verificada', 'tool-backed provider capability'],
+      ['no checkout descubre capacidades', 'no checkout to discover capabilities'],
+      ['historical=hechos registrados; evidenceRefs acota; current=lecturas, no historia; social=reply', 'historical renders recorded facts; evidenceRefs narrows history. Current: explicit reads, not history. Social: reply'],
+      ['Solo refs: historia parcial', 'Solo recap refs normalize to partial history'],
+    ]) {
+      expect(EXECUTE_TURN_DESCRIPTION).toContain(compact);
+      expect(conversation).toContain(expanded);
+    }
+  });
+
+  it.each([
+    { responseLanguage: null }, { responseCapability: null }, { learningCandidates: null },
+  ])('does not turn required semantic fields into nullable permissions: %j', fields => {
+    const intent = projectStructuredTurnIntent(stripStructuredNulls({
+      responseLanguage: 'en', responseCapability: 'general', learningCandidates: [],
+      actions: [{ operation: 'conversation.reply', content: 'Hello' }], ...fields,
+    }));
+    // Language has a runtime fallback; capability and candidate-array authority
+    // must still be valid when required by the foreground boundary.
+    const validation = validateTurnIntent(intent, { requireResponseCapability: true });
+    if (Object.hasOwn(fields, 'responseLanguage')) {
+      expect(getStructuredTurnSchema().properties.responseLanguage.type).toBe('string');
+      expect(validation.valid).toBe(true);
+    } else {
+      expect(validation.valid).toBe(false);
+    }
+  });
   it.each([
     { isAdmin: false, attachmentOnly: false },
     { isAdmin: true, attachmentOnly: false },
@@ -73,14 +137,13 @@ describe('Groq strict provider projection regressions', () => {
   it('preserves every optional scalar constraint and removes null without changing false or zero', () => {
     const action = getStructuredTurnSchema().properties.actions.items;
     expect(action.properties.priority).toEqual({ type: ['string', 'null'], enum: [...TURN_INTENT_SCHEMA.properties.actions.items.properties.priority.enum, null] });
-    expect(action.properties.advanceMinutes).toEqual({
+    expect(action.properties.advanceMinutes).toMatchObject({
       type: ['integer', 'null'],
       minimum: 1,
       maximum: 10080,
-      ...(TURN_INTENT_SCHEMA.properties.actions.items.properties.advanceMinutes.description
-        ? { description: TURN_INTENT_SCHEMA.properties.actions.items.properties.advanceMinutes.description }
-        : {}),
     });
+    expect(action.properties.advanceMinutes.description).toContain('Calendar notification offset');
+    expect(action.properties.advanceMinutes.description).toContain('desired state, not a separate action');
     expect(stripStructuredNulls({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0, offsetMinutes: null } }))
       .toEqual({ requiresConfirmation: false, schedule: { dayOffset: 0, minute: 0 } });
   });

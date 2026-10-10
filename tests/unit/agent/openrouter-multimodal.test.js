@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   callChatCompletion,

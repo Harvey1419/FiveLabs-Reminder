@@ -35,6 +35,13 @@ function assert(condition, message) {
   console.log(`  ${GREEN}✔ PASS:${RESET} ${message}`);
 }
 
+if (process.env.ALLOW_DESTRUCTIVE_BENCHMARK !== 'true') {
+  console.error(`\x1b[31m[SAFETY BLOCK] live-convergence-bench deletes user state across database tables.\x1b[0m`);
+  console.error('To run this benchmark intentionally, set ALLOW_DESTRUCTIVE_BENCHMARK=true');
+  console.error('and configure a designated isolated test user/database.');
+  process.exit(1);
+}
+
 const TEST_PHONE = '+573009998877';
 
 async function cleanUserState(user) {

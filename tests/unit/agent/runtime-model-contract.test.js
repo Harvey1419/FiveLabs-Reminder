@@ -1,4 +1,6 @@
-import { getCanonicalOperations } from '../../../src/agent/contracts/intent-contracts.js';
+import { getCanonicalOperations, parseCanonicalOperation } from '../../../src/agent/contracts/intent-contracts.js';
+import { TURN_LANGUAGE_POLICY } from '../../../src/agent/contracts/response-policy.js';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +36,7 @@ import { executeTool } from '../../../src/agent/tools/index.js';
 import { clearWorkingMemory, getWorkingMemory } from '../../../src/agent/core/working-memory.js';
 import { EXECUTE_TURN_DESCRIPTION, TURN_INTENT_SCHEMA, validateTurnIntent } from '../../../src/agent/contracts/intent-contracts.js';
 import { getStructuredTurnSchema } from '../../../src/agent/contracts/foreground-turn-schema.js';
+import { buildRequestPayload } from '../../../src/agent/providers/request-payload.js';
 import { getActiveAgentRun } from '../../../src/agent/core/agent-run.js';
 import { isAdminUser } from '../../../src/shared/auth.js';
 
@@ -111,7 +114,9 @@ function expectStrictSchema(node, canonical, nullable = false) {
   const types = Array.isArray(node.type) ? node.type : [node.type];
   expect(types).toEqual(nullable ? [canonical.type, 'null'] : [canonical.type]);
   expect(node).not.toHaveProperty('uniqueItems');
-  for (const key of ['description', 'minimum', 'maximum', 'minItems', 'maxItems']) {
+  // Descriptor coverage and the exact allowed differences from 1290e81 are
+  // checked independently in provider-description-compaction.test.js.
+  for (const key of ['minimum', 'maximum', 'minItems', 'maxItems', 'minLength', 'maxLength']) {
     expect(node[key]).toEqual(canonical[key]);
   }
   if (canonical.enum) expect(node.enum).toEqual(nullable ? [...canonical.enum, null] : canonical.enum);
@@ -252,6 +257,11 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(payload.response_format.json_schema.name).toBe('hermes_turn_intent');
     expect(payload.response_format.json_schema.strict).toBe(true);
     expect(payload.provider).toEqual({ order: ['groq'], only: ['groq'], allow_fallbacks: false, require_parameters: true });
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify(buildRequestPayload(payload.messages, payload.model, {
+      temperature: 0, max_tokens: 8192, providers: ['groq'], allowProviderFallbacks: false,
+      responseFormat: payload.response_format, tools: null, toolChoice: 'none',
+      reasoning: { effort: 'medium', exclude: true },
+    })));
     expect(payload).not.toHaveProperty('tools');
     expect(payload).not.toHaveProperty('tool_choice');
     expect(executeTool).not.toHaveBeenCalled();
@@ -260,8 +270,21 @@ describe('foreground strict Structured Outputs boundary', () => {
     expect(prompt).toContain(EXECUTE_TURN_DESCRIPTION);
     expect(prompt).toContain('TurnIntent JSON');
     expect(prompt).toContain('deben ser null cuando no apliquen');
+    expect(prompt).toContain(TURN_LANGUAGE_POLICY);
     expect(prompt).not.toContain('execute_turn');
     expect(prompt).not.toContain('This tool is mandatory');
+
+    // Compare real serialized production transport bodies, differing solely in
+    // the response schema from the immutable pre-compaction pure projection.
+    const baselineSource = execFileSync('git', ['show', '1290e81:src/agent/contracts/foreground-turn-schema.js'], { encoding: 'utf8' });
+    const baselineProjection = new Function('TURN_INTENT_SCHEMA', 'getCanonicalOperations', 'parseCanonicalOperation',
+      baselineSource.replace(/^import \{[\s\S]*?\} from .*?;\n/, '').replaceAll('export function ', 'function ')
+        + '\nreturn getStructuredTurnSchema;')(TURN_INTENT_SCHEMA, getCanonicalOperations, parseCanonicalOperation);
+    const baselinePayload = structuredClone(payload);
+    baselinePayload.response_format.json_schema.schema = baselineProjection();
+    const currentBody = fetchMock.mock.calls[0][1].body;
+    expect(Buffer.byteLength(JSON.stringify(baselinePayload)) - Buffer.byteLength(currentBody)).toBeGreaterThanOrEqual(1200);
+    expect(payload.messages).toEqual(baselinePayload.messages);
   });
 
   it('marks prior chat as reference-only so stale assistant claims cannot become live-state operands', async () => {

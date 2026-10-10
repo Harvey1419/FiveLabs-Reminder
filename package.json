@@ -10,10 +10,15 @@
     "dev": "node --watch src/app/server.js",
     "chat": "node scripts/dev/interactive-chat.js",
     "memory:reindex": "node scripts/maintenance/reindex-memory-embeddings.js",
-    "test": "npm run test:unit && npm run test:integration",
+    "test": "npm run test:unit",
     "test:unit": "vitest run --config tests/config/vitest.unit.js",
+    "test:pure": "vitest run --config tests/config/vitest.pure.js",
+    "test:component": "vitest run --config tests/config/vitest.component.js",
+    "test:regression": "vitest run --config tests/config/vitest.unit.js",
     "test:integration": "node scripts/checks/integration-environment.js && vitest run --config tests/config/vitest.integration.js",
-    "test:agent-live": "node scripts/evals/agent-production.js",
+    "eval:smoke": "node scripts/evals/llm-eval.js --smoke",
+    "eval:live": "node scripts/evals/llm-eval.js --live",
+    "test:agent-live": "node scripts/evals/llm-eval.js",
     "test:bench": "node scripts/dev/live-convergence-bench.js"
   },
   "dependencies": {

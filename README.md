@@ -29,6 +29,20 @@ Key properties:
 - Backend cards are the source of truth for action results and are returned intact. A tiny synthesis pass is allowed only when part of a mixed request was deliberately excluded.
 - Attachment extraction without a trusted user caption never receives backend tools.
 
+## Provider attempt diagnostics
+
+Attempt logs include privacy-safe `metadata` on successful and failed attempts; object responses expose optional `attemptDiagnostics`. String-returning APIs retain their existing shape. These diagnostics do not claim improved performance or guarantee recovery from a 429.
+
+| Fields | Meaning |
+|--------|---------|
+| `requestBytes`, `messagesBytes`, `schemaBytes`, `responseFormatBytes`, `messageCount` | UTF-8 measurements of the final serialized fetch body and its actual components. Components overlap and are **not additive or token estimates**. Router history/context character counts are not wire bytes or tokens. |
+| `preparationMs`, `fetchMs`, `parseValidationMs` | Monotonic local phases: preparation through serialization, fetch through response headers, then body parsing and validation. Failed attempts include reached phases; stages and measurements not reached are `null`, not zero. Timeout creation and budgets are unchanged. |
+| `promptTokens`, `completionTokens`, `reasoningTokens`, `cachedTokens` | Native provider usage only. Completion already includes reasoning; cache is a prompt subset, not additional input. Missing/invalid telemetry counters are `null`. A successful decision is not evidence that every provider attempt succeeded. |
+| `failureClass`, `rateLimitSource`, `observedProvider`, `errorCode`, `errorType`, `errorParam`, `validationCode`, `exceptionClass`, `status` | Allowlisted diagnostics, separate from existing route-control reasons. HTTP 429 and embedded HTTP-200 error-code 429 are observed rate limits. Provenance is `upstream`, `openrouter_platform`, or `uncertain`; a requested route or generic rate-limit headers alone never prove the source. |
+| `retryAfterSeconds`, `rateLimitLimit`, `rateLimitRemaining`, `rateLimitReset` | Validated observed headers only; malformed/missing values are `null`. Retry delay is bounded to seven days; reset is a Unix timestamp in seconds (numeric or canonical HTTP date, through 2100). No sleeping or new automatic rate-limit retry. |
+
+Ordinary attempt telemetry never includes request content/hashes, response content, reasoning text, freeform errors, credentials, or header dumps. Provider names use a closed recognized vocabulary; unrecognized names remain unknown. Source attribution requires an observed recognized provider and error-code 429; conflicting codes or a gateway identity wrapping a nested error remain uncertain. Correlation is retained only as a UUID. Existing models, provider order, payload semantics, and fallback policy are unchanged.
+
 ## Repository structure
 
 ```text

@@ -117,4 +117,86 @@ describe('Dynamic Turn Language Resolution', () => {
     const result = await routeMessage('4:45', user, []);
     expect(result.language).toBe('en');
   });
+
+  it('enforces English language and sanitizes Spanish clarification question when user requests English reminder but model hallucinates Spanish responseLanguage and question', async () => {
+    const user = { id: 'u5', phone_number: '16282419575', timezone: 'America/Los_Angeles', locale: 'en-US' };
+
+    callChatCompletion.mockImplementation(async (messages, options) => {
+      expect(options.language).toBe('en');
+      return {
+        content: JSON.stringify({
+          responseLanguage: 'es',
+          responseCapability: 'general',
+          actions: [{
+            operation: 'reminder.create',
+            content: 'buy the costume',
+            missingFields: ['time'],
+            question: '¿A qué hora deseas que te recuerde comprar el disfraz?',
+          }],
+        }),
+      };
+    });
+
+    const result = await routeMessage('Remind me to buy the costume', user, []);
+    expect(result.language).toBe('en');
+    expect(result.confirmation).toBe('What time should I remind you about “buy the costume”?');
+    expect(result.confirmation).not.toContain('¿');
+  });
+
+  it('enforces English language and sanitizes Spanish clarification action question when model emits clarification.request in Spanish', async () => {
+    const user = { id: 'u6', phone_number: '16282419576', timezone: 'America/Los_Angeles', locale: 'en-US' };
+
+    callChatCompletion.mockImplementation(async (messages, options) => {
+      expect(options.language).toBe('en');
+      return {
+        content: JSON.stringify({
+          responseLanguage: 'es',
+          responseCapability: 'general',
+          actions: [
+            {
+              operation: 'reminder.create',
+              content: 'buy the costume',
+              missingFields: ['time'],
+            },
+            {
+              operation: 'clarification.request',
+              question: '¿A qué hora deseas que te recuerde?',
+              missingFields: ['time'],
+            },
+          ],
+        }),
+      };
+    });
+
+    const result = await routeMessage('Remind me to buy the costume', user, []);
+    expect(result.language).toBe('en');
+    expect(result.confirmation).toBe('What time should I remind you about “buy the costume”?');
+    expect(result.confirmation).not.toContain('¿');
+  });
+
+  it('enforces Spanish language when user speaks Spanish even if model returns English responseLanguage and English question', async () => {
+    const user = { id: 'u7', phone_number: '16282419577', timezone: 'America/Bogota', locale: 'es-CO' };
+
+    callChatCompletion.mockImplementation(async (messages, options) => {
+      expect(options.language).toBe('es');
+      return {
+        content: JSON.stringify({
+          responseLanguage: 'en',
+          responseCapability: 'general',
+          actions: [{
+            operation: 'reminder.create',
+            content: 'comprar el disfraz',
+            missingFields: ['time'],
+            question: 'What time should I remind you?',
+          }],
+        }),
+      };
+    });
+
+    const result = await routeMessage('Recuérdame comprar el disfraz', user, []);
+    expect(result.language).toBe('es');
+    expect(result.confirmation).toBe('¿A qué hora quieres que te recuerde “comprar el disfraz”?');
+    expect(result.confirmation).not.toContain('What time');
+  });
 });
+

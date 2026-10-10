@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import { resolveCalendarTemporalScope } from '../../../src/shared/time.js';

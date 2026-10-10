@@ -202,7 +202,8 @@ describe('foreground provider latency policy', () => {
       model: 'openai/gpt-oss-120b', promptTokens: null, completionTokens: null, reasoningTokens: null, cachedTokens: null });
     const logs = JSON.stringify(console.log.mock.calls);
     for (const secret of ['sk-or-test', 'raw private', 'private@example.test', 'request marker']) expect(logs).not.toContain(secret);
-    expect(logs.length).toBeLessThan(1000);
+    // The same bounded event now includes byte counts, phases and nullable rate-limit fields.
+    expect(logs.length).toBeLessThan(1800);
   });
 
   it.each(['15550001234', 'Synthetic Person', 'Synthetic-Person', undefined])('omits freeform header correlation from the entire success line: %j', async correlationId => {
@@ -215,7 +216,7 @@ describe('foreground provider latency policy', () => {
     expect(lines[0]).toContain('[ai-client] attempt purpose=initial');
     expect(lines[0]).not.toContain(' req=');
     if (correlationId) expect(lines[0]).not.toContain(correlationId);
-    expect(lines[0].length).toBeLessThan(1000);
+    expect(lines[0].length).toBeLessThan(1800);
   });
 
   it('logs background memory usage with no invented foreground ownership and keeps string returns', async () => {
@@ -257,6 +258,30 @@ describe('foreground provider latency policy', () => {
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(payload.model).toBe('openai/gpt-oss-120b');
     expectStructuredPayload(payload, ['groq']);
+  });
+
+  it('measures the exact fetch body and exposes reached phases on success', async () => {
+    const messages = [{ role: 'system', content: 'context é😀' }, { role: 'user', content: 'history 日本語' }];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(structuredResponse());
+    const result = await callChatCompletion(messages, { responseFormat, returnMessage: true, purpose: 'initial' });
+    const body = fetchMock.mock.calls[0][1].body;
+    const wire = JSON.parse(body);
+    expect(result.attemptDiagnostics).toMatchObject({ requestBytes: Buffer.byteLength(body, 'utf8'),
+      messagesBytes: Buffer.byteLength(JSON.stringify(wire.messages), 'utf8'), messageCount: 2,
+      schemaBytes: Buffer.byteLength(JSON.stringify(wire.response_format.json_schema.schema), 'utf8'),
+      responseFormatBytes: Buffer.byteLength(JSON.stringify(wire.response_format), 'utf8') });
+    for (const key of ['preparationMs', 'fetchMs', 'parseValidationMs']) expect(result.attemptDiagnostics[key]).toBeGreaterThanOrEqual(0);
+    expect(successEvents()[0]).toMatchObject(result.attemptDiagnostics);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('measures component bytes from the wire without invoking message serialization twice', async () => {
+    const toJSON = vi.fn(() => ({ role: 'system', content: 'actual wire é😀' }));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(structuredResponse());
+    const result = await callChatCompletion([{ toJSON }], { responseFormat, returnMessage: true });
+    expect(toJSON).toHaveBeenCalledTimes(1);
+    const wire = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(result.attemptDiagnostics.messagesBytes).toBe(Buffer.byteLength(JSON.stringify(wire.messages), 'utf8'));
   });
 
   it('does not retry the same foreground provider after finish_reason=error and immediately tries the independent fallback', async () => {

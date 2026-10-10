@@ -1,19 +1,6 @@
-import 'dotenv/config';
-import { buildAgentCorePrompt } from '../../src/agent/core/agent-core.js';
-import {
-  callChatCompletion,
-  callManifestCoverageVerification,
-  callPendingTransitionVerification,
-} from '../../src/agent/providers/client.js';
-import { getAgentToolDefinitions, parseToolArguments, validateToolCall } from '../../src/agent/contracts/tool-contracts.js';
-import { compileTurnManifest } from '../../src/agent/orchestration/turn-plan.js';
-import {
-  MANIFEST_REPAIR_MODE,
-  buildManifestRecoveryFeedback,
-  getManifestRepairDirective,
-} from '../../src/agent/orchestration/manifest-recovery.js';
-import { formatAssistantClarification } from '../../src/agent/orchestration/clarification-presentation.js';
-import { nowISO, nowHuman } from '../../src/shared/time.js';
+console.warn('\x1b[33m[DEPRECATION NOTICE] scripts/evals/agent-production.js relied on legacy turn manifests (v1).\x1b[0m');
+console.warn('For live semantic evaluation, use `npm run eval:smoke` (scripts/evals/semantic-policy-boundaries.js) or `scripts/evals/groq-contract/runner.js`.');
+process.exit(0);
 
 const tools = getAgentToolDefinitions({ isAdmin: false });
 const results = [];
