@@ -1,0 +1,3698 @@
+{
+  "formatVersion": 1,
+  "fixtureVersion": "groq-contract-synthetic-v2",
+  "synthetic": true,
+  "owner": "fake-owner-groq-eval",
+  "referenceTime": "2026-10-08T16:30:00.000Z",
+  "mode": "live",
+  "pairing": "fixed",
+  "comparisonMode": "mixed_source_schema_only",
+  "fixtureCount": 14,
+  "caseMix": "balanced_deterministic_cycle",
+  "caseCounts": {
+    "greeting": 1,
+    "personal-recall": 1,
+    "missing-time": 1,
+    "reminder-time": 1,
+    "ampm-ambiguity": 1,
+    "dated-reminder": 1,
+    "second-description": 1,
+    "full-projection": 1,
+    "quoted-agenda": 1,
+    "lasting-language-and-fact": 1,
+    "destructive-request": 1,
+    "approval-cancel": 1,
+    "english-missing-time": 1,
+    "english-neutral-time": 1
+  },
+  "scope": "in_memory_only:no_persisted_backend_verification",
+  "pairCount": 14,
+  "matchedPairCount": 14,
+  "attempts": 28,
+  "forecast": {
+    "generations": 28,
+    "plannedMaxGenerations": 28,
+    "maxReservedUsd": 0.331706101,
+    "components": "wire_message_schema_byte_counts_are_non_additive",
+    "inputBound": "utf8_full_wire_bytes_as_conservative_input_token_upper_bound_not_native_tokens",
+    "pricing": {
+      "inputPerMillion": 0.15,
+      "outputPerMillion": 0.6,
+      "cacheWritePerMillion": 0.15,
+      "source": "explicit_known_pricing_assumption",
+      "currency": "USD"
+    },
+    "nativeTokens": null,
+    "latencyMs": null
+  },
+  "cost": {
+    "knownUsd": 0.033274503,
+    "unknownReservedUsd": 0.051779109
+  },
+  "nativeUsage": {
+    "baseline": {
+      "attempted": 14,
+      "correctByDeadline": 10,
+      "failures": 4,
+      "acceptedLatencySampleCount": 10,
+      "medianAcceptedLatencyMs": 3301.9063539999916,
+      "nativePromptTokens": [
+        5906,
+        5910,
+        5915,
+        5553,
+        null,
+        5928,
+        5957,
+        5961,
+        null,
+        5992,
+        null,
+        2566,
+        null,
+        5683
+      ],
+      "nativeCompletionTokens": [
+        1619,
+        855,
+        1180,
+        1222,
+        null,
+        1058,
+        1061,
+        714,
+        null,
+        1253,
+        null,
+        186,
+        null,
+        871
+      ],
+      "failureReasons": {
+        "provider_error": 4
+      }
+    },
+    "current": {
+      "attempted": 14,
+      "correctByDeadline": 13,
+      "failures": 1,
+      "acceptedLatencySampleCount": 13,
+      "medianAcceptedLatencyMs": 3526.891458000013,
+      "nativePromptTokens": [
+        5626,
+        5630,
+        5635,
+        5553,
+        5639,
+        5648,
+        5677,
+        5681,
+        5648,
+        5712,
+        5630,
+        2566,
+        5771,
+        5683
+      ],
+      "nativeCompletionTokens": [
+        1298,
+        889,
+        1260,
+        1401,
+        1695,
+        1471,
+        792,
+        831,
+        1186,
+        1480,
+        803,
+        189,
+        1445,
+        1415
+      ],
+      "failureReasons": {
+        "semantic_failure": 1
+      }
+    }
+  },
+  "sources": {
+    "baseline": {
+      "sourceCommit": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+      "baselineSchemaCommit": "1290e815b7299f4a1b70c9e3b4329a8e0c8bcba5",
+      "sourceKind": "current_runtime_baseline_projection",
+      "fileHashes": {
+        "src/agent/contracts/intent-contracts.js": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+        "src/agent/orchestration/personal-knowledge.js": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+        "src/agent/contracts/turn-context.js": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+        "src/agent/contracts/response-policy.js": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+        "src/agent/contracts/tool-names.js": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+        "src/shared/agenda-scopes.js": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+        "src/shared/entity-categories.js": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+        "src/shared/entity-resolution.js": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+        "src/agent/contracts/foreground-turn-schema.js": "c98f82974c42d4f8350173d84090024c7d1e70ef30bf69741bd613f43a770d1e",
+        "src/agent/contracts/agent-run-contracts.js": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+        "src/agent/contracts/schema-value.js": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+        "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+        "src/agent/orchestration/router-core.js": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+        "src/agent/providers/client.js": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+        "src/agent/providers/request-payload.js": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+        "src/agent/contracts/foreground-turn-validation.js": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+        "baseline:src/agent/contracts/foreground-turn-schema.js": "0a208061e8572d975b653ad9ed5a0225203a29c21bd5a5989fd4f909021a0bac",
+        "src/agent/core/agent-run.js": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+        "src/agent/orchestration/domain-call.js": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+        "src/agent/orchestration/intent-executor.js": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+        "src/shared/language-detection.js": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea"
+      },
+      "schemaVersion": "40c6cd8f9ba705137012e006127a34ef8edd0da8f929a57874cd705056a9b905",
+      "policyVersion": "6091ec5a55b2ae3a67ea23e01b1cc7b9108a067ee383ff868ba26ce4213cc7a3",
+      "provenance": [
+        {
+          "path": "src/agent/contracts/intent-contracts.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/orchestration/personal-knowledge.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/turn-context.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/response-policy.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/tool-names.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/agenda-scopes.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/entity-categories.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/entity-resolution.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/foreground-turn-schema.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "c98f82974c42d4f8350173d84090024c7d1e70ef30bf69741bd613f43a770d1e",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/agent-run-contracts.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/schema-value.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/core/agent-core.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/integrations/google/auth.js",
+          "origin": "synthetic_adapter",
+          "ref": "fake-context-adapter-v1",
+          "hash": "0dc0ccd2179dfd2bb2a0b8f996e675f49ab966b65ac6544aada5e95a0fd56d6e",
+          "role": "fake_context_adapter"
+        },
+        {
+          "path": "src/infrastructure/database/entities.js",
+          "origin": "synthetic_adapter",
+          "ref": "fake-context-adapter-v1",
+          "hash": "247e04211fb5d45896632fba5c56c4ae121c78f4fd063517d837687b10cc3f07",
+          "role": "fake_context_adapter"
+        },
+        {
+          "path": "src/agent/orchestration/router-core.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/agent/providers/client.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/providers/request-payload.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/foreground-turn-validation.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/foreground-turn-schema.js",
+          "origin": "baseline_commit",
+          "ref": "1290e815b7299f4a1b70c9e3b4329a8e0c8bcba5",
+          "hash": "0a208061e8572d975b653ad9ed5a0225203a29c21bd5a5989fd4f909021a0bac",
+          "role": "comparison_schema"
+        },
+        {
+          "path": "src/agent/core/agent-run.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/orchestration/domain-call.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/agent/orchestration/intent-executor.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/shared/language-detection.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea",
+          "role": "language_guard_read_only"
+        }
+      ]
+    },
+    "current": {
+      "sourceCommit": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+      "baselineSchemaCommit": null,
+      "sourceKind": "current_runtime_current_projection",
+      "fileHashes": {
+        "src/agent/contracts/intent-contracts.js": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+        "src/agent/orchestration/personal-knowledge.js": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+        "src/agent/contracts/turn-context.js": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+        "src/agent/contracts/response-policy.js": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+        "src/agent/contracts/tool-names.js": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+        "src/shared/agenda-scopes.js": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+        "src/shared/entity-categories.js": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+        "src/shared/entity-resolution.js": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+        "src/agent/contracts/foreground-turn-schema.js": "c98f82974c42d4f8350173d84090024c7d1e70ef30bf69741bd613f43a770d1e",
+        "src/agent/contracts/agent-run-contracts.js": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+        "src/agent/contracts/schema-value.js": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+        "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+        "src/agent/orchestration/router-core.js": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+        "src/agent/providers/client.js": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+        "src/agent/providers/request-payload.js": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+        "src/agent/contracts/foreground-turn-validation.js": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+        "src/agent/core/agent-run.js": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+        "src/agent/orchestration/domain-call.js": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+        "src/agent/orchestration/intent-executor.js": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+        "src/shared/language-detection.js": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea"
+      },
+      "schemaVersion": "40c6cd8f9ba705137012e006127a34ef8edd0da8f929a57874cd705056a9b905",
+      "policyVersion": "6091ec5a55b2ae3a67ea23e01b1cc7b9108a067ee383ff868ba26ce4213cc7a3",
+      "provenance": [
+        {
+          "path": "src/agent/contracts/intent-contracts.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/orchestration/personal-knowledge.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/turn-context.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/response-policy.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/tool-names.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/agenda-scopes.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/entity-categories.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/shared/entity-resolution.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/foreground-turn-schema.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "c98f82974c42d4f8350173d84090024c7d1e70ef30bf69741bd613f43a770d1e",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/agent-run-contracts.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/schema-value.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/core/agent-core.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/integrations/google/auth.js",
+          "origin": "synthetic_adapter",
+          "ref": "fake-context-adapter-v1",
+          "hash": "0dc0ccd2179dfd2bb2a0b8f996e675f49ab966b65ac6544aada5e95a0fd56d6e",
+          "role": "fake_context_adapter"
+        },
+        {
+          "path": "src/infrastructure/database/entities.js",
+          "origin": "synthetic_adapter",
+          "ref": "fake-context-adapter-v1",
+          "hash": "247e04211fb5d45896632fba5c56c4ae121c78f4fd063517d837687b10cc3f07",
+          "role": "fake_context_adapter"
+        },
+        {
+          "path": "src/agent/orchestration/router-core.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/agent/providers/client.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/providers/request-payload.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/contracts/foreground-turn-validation.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/core/agent-run.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+          "role": "current_runtime"
+        },
+        {
+          "path": "src/agent/orchestration/domain-call.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/agent/orchestration/intent-executor.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+          "role": "language_guard_read_only"
+        },
+        {
+          "path": "src/shared/language-detection.js",
+          "origin": "current_working_tree",
+          "ref": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+          "hash": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea",
+          "role": "language_guard_read_only"
+        }
+      ]
+    }
+  },
+  "pairs": [
+    {
+      "pair": 1,
+      "caseId": "greeting",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "c57d688a8199f6db9bd707a9da1e0290416f18c7aac1fefe9c438173fefe3612",
+        "current": "c57d688a8199f6db9bd707a9da1e0290416f18c7aac1fefe9c438173fefe3612"
+      },
+      "bytes": {
+        "baseline": 26560,
+        "baselineMessages": 7158,
+        "baselineSchema": 19058,
+        "current": 25211,
+        "currentMessages": 7158,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513538-zbWkPVIX08mbIzzXppMq",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5906,
+            "completionTokens": 1619,
+            "reasoningTokens": 1376,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0017997,
+            "upstreamInferenceCostUsd": 0.0017997
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "actions": [
+              {
+                "content": "[unrecognized]",
+                "domain": "conversation",
+                "action": "reply"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "ordinary_reply",
+                "passed": true,
+                "reason": "natural_reply_without_operational_evidence"
+              },
+              {
+                "id": "no_operations",
+                "passed": true,
+                "reason": "no_social_side_effects"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": []
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4930.966958999999,
+          "stageElapsed": {
+            "preparationMs": 1.1613749999999925,
+            "fetchMs": 1337.334042,
+            "parseValidationMs": 3592.4682919999996
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "semantic_failure",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513543-oh2k4dXZajWFAOFobN3H",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5626,
+            "completionTokens": 1298,
+            "reasoningTokens": 1051,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0016227,
+            "upstreamInferenceCostUsd": 0.0016227
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "domain": "conversation",
+                "action": "reply"
+              }
+            ]
+          },
+          "grade": {
+            "passed": false,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "ordinary_reply",
+                "passed": false,
+                "reason": "natural_reply_without_operational_evidence"
+              },
+              {
+                "id": "no_operations",
+                "passed": true,
+                "reason": "no_social_side_effects"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": []
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": false,
+          "latencyMs": 3545.7518339999997,
+          "stageElapsed": {
+            "preparationMs": 1.0768339999995078,
+            "fetchMs": 743.5286249999999,
+            "parseValidationMs": 2801.1443750000008
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 2,
+      "caseId": "personal-recall",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "3de1e949a906eccf714938f6cd8ba9e0566cb4f6a3459279c22c72cae84d3a2f",
+        "baseline": "3de1e949a906eccf714938f6cd8ba9e0566cb4f6a3459279c22c72cae84d3a2f"
+      },
+      "bytes": {
+        "current": 25232,
+        "currentMessages": 7179,
+        "currentSchema": 17709,
+        "baseline": 26581,
+        "baselineMessages": 7179,
+        "baselineSchema": 19058,
+        "saved": 1349
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513546-YkjakOveM3U7x0YeECns",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5630,
+            "completionTokens": 889,
+            "reasoningTokens": 641,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0013779,
+            "upstreamInferenceCostUsd": 0.0013779
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "knowledgeRefs": [
+              "[unrecognized]"
+            ],
+            "actions": [
+              {
+                "content": "Tu perro se llama Luna.",
+                "domain": "conversation",
+                "action": "reply"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "personal_fact",
+                "passed": true,
+                "reason": "known_owned_dog_fact"
+              },
+              {
+                "id": "no_operations",
+                "passed": true,
+                "reason": "personal_recall_does_not_require_live_actions"
+              },
+              {
+                "id": "no_operational_refs",
+                "passed": true,
+                "reason": "personal_not_operational_history"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": []
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2621.9130830000013,
+          "stageElapsed": {
+            "preparationMs": 1.9876670000012382,
+            "fetchMs": 504.42575000000033,
+            "parseValidationMs": 2115.4991659999996
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513549-y5luVhL5PDzA8Zqsm6aw",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5910,
+            "completionTokens": 855,
+            "reasoningTokens": 607,
+            "cachedTokens": 1536,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0012843,
+            "upstreamInferenceCostUsd": 0.0012843
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "knowledgeRefs": [
+              "[unrecognized]"
+            ],
+            "actions": [
+              {
+                "content": "Tu perro se llama Luna.",
+                "domain": "conversation",
+                "action": "reply"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "personal_fact",
+                "passed": true,
+                "reason": "known_owned_dog_fact"
+              },
+              {
+                "id": "no_operations",
+                "passed": true,
+                "reason": "personal_recall_does_not_require_live_actions"
+              },
+              {
+                "id": "no_operational_refs",
+                "passed": true,
+                "reason": "personal_not_operational_history"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": []
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2765.649583999999,
+          "stageElapsed": {
+            "preparationMs": 2.5496249999996508,
+            "fetchMs": 694.2695839999997,
+            "parseValidationMs": 2068.8281669999997
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 3,
+      "caseId": "missing-time",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "a390907031277e0b7be0aa767b0e6301450aee1c5f6ae52b8544c478e4191d93",
+        "current": "a390907031277e0b7be0aa767b0e6301450aee1c5f6ae52b8544c478e4191d93"
+      },
+      "bytes": {
+        "baseline": 26594,
+        "baselineMessages": 7192,
+        "baselineSchema": 19058,
+        "current": 25245,
+        "currentMessages": 7192,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513552-4yXi1nGihmVlIMzgwR3u",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5915,
+            "completionTokens": 1180,
+            "reasoningTokens": 752,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00153765,
+            "upstreamInferenceCostUsd": 0.00153765
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": false,
+                  "dayOffset": 1,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 9
+                },
+                "missingFields": [
+                  "time"
+                ],
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "reminder_draft",
+                "passed": true,
+                "reason": "requested_reminder_preserved"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "missing_time",
+                "passed": true,
+                "reason": "typed_pending_time_or_backend_inferred_question"
+              },
+              {
+                "id": "no_invented_clock",
+                "passed": true,
+                "reason": "no_default_time"
+              },
+              {
+                "id": "no_invented_minute",
+                "passed": true,
+                "reason": "no_clock_component_without_requested_time"
+              },
+              {
+                "id": "no_invented_clock_mode",
+                "passed": true,
+                "reason": "no_am_pm_without_requested_time"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4022.150501,
+          "stageElapsed": {
+            "preparationMs": 2.0425839999988966,
+            "fetchMs": 751.5927080000001,
+            "parseValidationMs": 3268.5146670000013
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513556-Bxng8j5cc3b6PixUDnGR",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5635,
+            "completionTokens": 1260,
+            "reasoningTokens": 963,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00154365,
+            "upstreamInferenceCostUsd": 0.00154365
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": false,
+                  "dayOffset": 1,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 9
+                },
+                "missingFields": [
+                  "time"
+                ],
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "reminder_draft",
+                "passed": true,
+                "reason": "requested_reminder_preserved"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "missing_time",
+                "passed": true,
+                "reason": "typed_pending_time_or_backend_inferred_question"
+              },
+              {
+                "id": "no_invented_clock",
+                "passed": true,
+                "reason": "no_default_time"
+              },
+              {
+                "id": "no_invented_minute",
+                "passed": true,
+                "reason": "no_clock_component_without_requested_time"
+              },
+              {
+                "id": "no_invented_clock_mode",
+                "passed": true,
+                "reason": "no_am_pm_without_requested_time"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 3432.9344169999968,
+          "stageElapsed": {
+            "preparationMs": 1.2608330000002752,
+            "fetchMs": 443.87149999999747,
+            "parseValidationMs": 2987.8015419999974
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 4,
+      "caseId": "reminder-time",
+      "phase": "continuation",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "59bbea6b3bab6af2f7ba0f665eba31b5af16630f8a854b588155ea3dd2af8f97",
+        "baseline": "59bbea6b3bab6af2f7ba0f665eba31b5af16630f8a854b588155ea3dd2af8f97"
+      },
+      "bytes": {
+        "current": 24724,
+        "currentMessages": 9611,
+        "currentSchema": 14759,
+        "baseline": 24724,
+        "baselineMessages": 9611,
+        "baselineSchema": 14759,
+        "saved": 0
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513559-T5m2nRpDdO503fKy92jr",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5553,
+            "completionTokens": 1401,
+            "reasoningTokens": 1108,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00161595,
+            "upstreamInferenceCostUsd": 0.00161595
+          },
+          "decision": {
+            "relation": "resume",
+            "actionInputs": [
+              {
+                "callId": "call-1",
+                "fields": {
+                  "schedule": {
+                    "kind": "relative_day_time",
+                    "allDay": false,
+                    "clockMode": "explicit_24h",
+                    "dayOffset": 1,
+                    "hour": 15,
+                    "minute": 0
+                  }
+                }
+              }
+            ],
+            "responseLanguage": "es"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "resume",
+                "passed": true,
+                "reason": "resume_existing_draft"
+              },
+              {
+                "id": "owned_call",
+                "passed": true,
+                "reason": "only_prepared_call_1"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "resolved_requested_local_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "resolved_requested_minute_including_inferred_zero"
+              },
+              {
+                "id": "clock_mode",
+                "passed": true,
+                "reason": "explicit_unambiguous_pm_or_backend_24h"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "resumed_draft_only"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4503.893583000001,
+          "stageElapsed": {
+            "preparationMs": 0.495374999998603,
+            "fetchMs": 407.46870800000033,
+            "parseValidationMs": 4095.9291250000024
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513564-6P3vlMnYS4IeyGFrNItA",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5553,
+            "completionTokens": 1222,
+            "reasoningTokens": 933,
+            "cachedTokens": 1536,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00145095,
+            "upstreamInferenceCostUsd": 0.00145095
+          },
+          "decision": {
+            "relation": "resume",
+            "actionInputs": [
+              {
+                "callId": "call-1",
+                "fields": {
+                  "schedule": {
+                    "kind": "relative_day_time",
+                    "dayOffset": 1,
+                    "hour": 15,
+                    "minute": 0,
+                    "clockMode": "explicit_24h"
+                  }
+                }
+              }
+            ],
+            "responseLanguage": "es"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "resume",
+                "passed": true,
+                "reason": "resume_existing_draft"
+              },
+              {
+                "id": "owned_call",
+                "passed": true,
+                "reason": "only_prepared_call_1"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "resolved_requested_local_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "resolved_requested_minute_including_inferred_zero"
+              },
+              {
+                "id": "clock_mode",
+                "passed": true,
+                "reason": "explicit_unambiguous_pm_or_backend_24h"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "resumed_draft_only"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4778.150291000002,
+          "stageElapsed": {
+            "preparationMs": 0.37129100000311155,
+            "fetchMs": 477.3896249999998,
+            "parseValidationMs": 4300.388750000002
+          }
+        }
+      },
+      "nativePromptTokenDelta": 0
+    },
+    {
+      "pair": 5,
+      "caseId": "ampm-ambiguity",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "097ae37eb77631a98be212de1eec85de8b2b06ac8100259896c26d539afc643f",
+        "current": "097ae37eb77631a98be212de1eec85de8b2b06ac8100259896c26d539afc643f"
+      },
+      "bytes": {
+        "baseline": 26602,
+        "baselineMessages": 7200,
+        "baselineSchema": 19058,
+        "current": 25253,
+        "currentMessages": 7200,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "provider_error",
+          "errorCode": "502",
+          "errorProvenance": "unknown",
+          "generationId": "gen-1791513568-2qlLHzUUgdjpQyvCjf0h",
+          "requestId": null,
+          "usage": null,
+          "decision": null,
+          "grade": null,
+          "accepted": false,
+          "correctByDeadline": false,
+          "latencyMs": 5052.420042000002,
+          "stageElapsed": {
+            "preparationMs": 1.8208750000012515,
+            "fetchMs": 453.2670419999995,
+            "parseValidationMs": 4597.330458
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513573-jDfRlcg3BbxZZkpuMuH6",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5639,
+            "completionTokens": 1695,
+            "reasoningTokens": 1393,
+            "cachedTokens": 1536,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00174765,
+            "upstreamInferenceCostUsd": 0.00174765
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "relative_day_time",
+                  "allDay": false,
+                  "dayOffset": 1,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 9,
+                  "hour": 3,
+                  "clockMode": "ambiguous_12h"
+                },
+                "missingFields": [
+                  "time"
+                ],
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "ambiguous_clock",
+                "passed": true,
+                "reason": "no_assumed_am_pm"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "typed_inferred_whole_hour"
+              },
+              {
+                "id": "pending_ambiguity",
+                "passed": true,
+                "reason": "backend_may_infer_clarification"
+              },
+              {
+                "id": "date_scope",
+                "passed": true,
+                "reason": "tomorrow_preserved"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4585.521417000004,
+          "stageElapsed": {
+            "preparationMs": 3.2436670000024606,
+            "fetchMs": 521.2034579999963,
+            "parseValidationMs": 4061.073000000004
+          }
+        }
+      },
+      "nativePromptTokenDelta": null
+    },
+    {
+      "pair": 6,
+      "caseId": "dated-reminder",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "b9905a7644dbafb9bd8ca2a4a9318492054f894a606e69c54c385c6b756d0d02",
+        "baseline": "b9905a7644dbafb9bd8ca2a4a9318492054f894a606e69c54c385c6b756d0d02"
+      },
+      "bytes": {
+        "current": 25272,
+        "currentMessages": 7219,
+        "currentSchema": 17709,
+        "baseline": 26621,
+        "baselineMessages": 7219,
+        "baselineSchema": 19058,
+        "saved": 1349
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513578-tLn6aUzguovpQLAyDyBJ",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5648,
+            "completionTokens": 1471,
+            "reasoningTokens": 1171,
+            "cachedTokens": 5376,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0013266,
+            "upstreamInferenceCostUsd": 0.0013266
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": false,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 9,
+                  "hour": 15,
+                  "minute": 0,
+                  "clockMode": "explicit_24h"
+                },
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "resolved_requested_local_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "resolved_requested_minute_including_inferred_zero"
+              },
+              {
+                "id": "clock_mode",
+                "passed": true,
+                "reason": "explicit_unambiguous_pm_or_backend_24h"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4211.833499999993,
+          "stageElapsed": {
+            "preparationMs": 2.4798749999972642,
+            "fetchMs": 658.4237089999951,
+            "parseValidationMs": 3550.9296659999964
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513582-ECeDh08Zl8nHQxnEKUVy",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5928,
+            "completionTokens": 1058,
+            "reasoningTokens": 759,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0014664,
+            "upstreamInferenceCostUsd": 0.0014664
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": false,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 9,
+                  "hour": 15,
+                  "minute": 0,
+                  "clockMode": "explicit_24h"
+                },
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "resolved_requested_local_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "resolved_requested_minute_including_inferred_zero"
+              },
+              {
+                "id": "clock_mode",
+                "passed": true,
+                "reason": "explicit_unambiguous_pm_or_backend_24h"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 3213.658374999999,
+          "stageElapsed": {
+            "preparationMs": 1.22099999999773,
+            "fetchMs": 456.4997500000027,
+            "parseValidationMs": 2755.9370830000043
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 7,
+      "caseId": "second-description",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "0f13ca9e4c5fb840287bbe98fa945ce01f19f083a76a72983a527d76f724f682",
+        "current": "0f13ca9e4c5fb840287bbe98fa945ce01f19f083a76a72983a527d76f724f682"
+      },
+      "bytes": {
+        "baseline": 26807,
+        "baselineMessages": 7405,
+        "baselineSchema": 19058,
+        "current": 25458,
+        "currentMessages": 7405,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513585-q8tdxk41dLp3RGt6a8Dj",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5957,
+            "completionTokens": 1061,
+            "reasoningTokens": 824,
+            "cachedTokens": 1280,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00143415,
+            "upstreamInferenceCostUsd": 0.00143415
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "returnFields": [
+                  "description"
+                ],
+                "query": "Second task",
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "owned_target",
+                "passed": true,
+                "reason": "known_second_task_title_filter"
+              },
+              {
+                "id": "owned_container",
+                "passed": true,
+                "reason": "owned_demo_project"
+              },
+              {
+                "id": "permitted_selection",
+                "passed": true,
+                "reason": "task_list_does_not_allow_contextref"
+              },
+              {
+                "id": "projection",
+                "passed": true,
+                "reason": "actual_description_field_not_notes"
+              },
+              {
+                "id": "status",
+                "passed": true,
+                "reason": "known_task_status"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "description": "Second owned description"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 3772.1240410000028,
+          "stageElapsed": {
+            "preparationMs": 2.078666000001249,
+            "fetchMs": 696.9852920000048,
+            "parseValidationMs": 3073.0597500000003
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513589-q8RU1oTAZFwjwcB2dEV9",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5677,
+            "completionTokens": 792,
+            "reasoningTokens": 555,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00126915,
+            "upstreamInferenceCostUsd": 0.00126915
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": true,
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "returnFields": [
+                  "description"
+                ],
+                "query": "Second task",
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "owned_target",
+                "passed": true,
+                "reason": "known_second_task_title_filter"
+              },
+              {
+                "id": "owned_container",
+                "passed": true,
+                "reason": "owned_demo_project"
+              },
+              {
+                "id": "permitted_selection",
+                "passed": true,
+                "reason": "task_list_does_not_allow_contextref"
+              },
+              {
+                "id": "projection",
+                "passed": true,
+                "reason": "actual_description_field_not_notes"
+              },
+              {
+                "id": "status",
+                "passed": true,
+                "reason": "known_task_status"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "description": "Second owned description"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2764.4169580000016,
+          "stageElapsed": {
+            "preparationMs": 1.562833000003593,
+            "fetchMs": 496.14537500000006,
+            "parseValidationMs": 2266.7082079999964
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 8,
+      "caseId": "full-projection",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "915ecac8ef9cb50ee7302350dc305f5d1bf818060bee126a651ca30dacfd53f0",
+        "baseline": "915ecac8ef9cb50ee7302350dc305f5d1bf818060bee126a651ca30dacfd53f0"
+      },
+      "bytes": {
+        "current": 25470,
+        "currentMessages": 7417,
+        "currentSchema": 17709,
+        "baseline": 26819,
+        "baselineMessages": 7417,
+        "baselineSchema": 19058,
+        "saved": 1349
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513592-lus4TEfa1rkhA8lpo6XG",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5681,
+            "completionTokens": 831,
+            "reasoningTokens": 593,
+            "cachedTokens": 768,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00129315,
+            "upstreamInferenceCostUsd": 0.00129315
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "returnFields": [
+                  "description",
+                  "status"
+                ],
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "owned_container",
+                "passed": true,
+                "reason": "owned_project"
+              },
+              {
+                "id": "all_statuses",
+                "passed": true,
+                "reason": "unfiltered_status"
+              },
+              {
+                "id": "no_title_subset",
+                "passed": true,
+                "reason": "all_project_titles"
+              },
+              {
+                "id": "no_limit_subset",
+                "passed": true,
+                "reason": "complete_fixture_rows"
+              },
+              {
+                "id": "permitted_selection",
+                "passed": true,
+                "reason": "task_list_does_not_allow_contextref"
+              },
+              {
+                "id": "projection",
+                "passed": true,
+                "reason": "both_actual_fields"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "description": "First owned description",
+                      "status": "pending"
+                    },
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "description": "Second owned description",
+                      "status": "pending"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2788.340458999999,
+          "stageElapsed": {
+            "preparationMs": 1.8577920000025188,
+            "fetchMs": 610.4758749999964,
+            "parseValidationMs": 2176.006374999997
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513595-HFoP6rxGEWprukKPEzFk",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5961,
+            "completionTokens": 714,
+            "reasoningTokens": 475,
+            "cachedTokens": 1280,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00122655,
+            "upstreamInferenceCostUsd": 0.00122655
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": true,
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "returnFields": [
+                  "description",
+                  "status"
+                ],
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "owned_container",
+                "passed": true,
+                "reason": "owned_project"
+              },
+              {
+                "id": "all_statuses",
+                "passed": true,
+                "reason": "unfiltered_status"
+              },
+              {
+                "id": "no_title_subset",
+                "passed": true,
+                "reason": "all_project_titles"
+              },
+              {
+                "id": "no_limit_subset",
+                "passed": true,
+                "reason": "complete_fixture_rows"
+              },
+              {
+                "id": "permitted_selection",
+                "passed": true,
+                "reason": "task_list_does_not_allow_contextref"
+              },
+              {
+                "id": "projection",
+                "passed": true,
+                "reason": "both_actual_fields"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "11111111-1111-4111-8111-111111111111",
+                      "description": "First owned description",
+                      "status": "pending"
+                    },
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222",
+                      "description": "Second owned description",
+                      "status": "pending"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2535.707917000007,
+          "stageElapsed": {
+            "preparationMs": 1.8293750000011642,
+            "fetchMs": 444.3159999999989,
+            "parseValidationMs": 2089.561834
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 9,
+      "caseId": "quoted-agenda",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "bf0d26219e7bb7910fc276507e46de329913c121067048bfaf39e4f35a3a9573",
+        "current": "bf0d26219e7bb7910fc276507e46de329913c121067048bfaf39e4f35a3a9573"
+      },
+      "bytes": {
+        "baseline": 26655,
+        "baselineMessages": 7253,
+        "baselineSchema": 19058,
+        "current": 25306,
+        "currentMessages": 7253,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "provider_error",
+          "errorCode": "502",
+          "errorProvenance": "unknown",
+          "generationId": "gen-1791513597-Lewn50hqm0Q1AC1JwcQq",
+          "requestId": null,
+          "usage": null,
+          "decision": null,
+          "grade": null,
+          "accepted": false,
+          "correctByDeadline": false,
+          "latencyMs": 3228.661500000002,
+          "stageElapsed": {
+            "preparationMs": 1.3534999999974389,
+            "fetchMs": 455.4350840000043,
+            "parseValidationMs": 2771.872500000005
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513601-BvCav66jenR0ftiZR3LL",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5648,
+            "completionTokens": 1186,
+            "reasoningTokens": 898,
+            "cachedTokens": 5376,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0011556,
+            "upstreamInferenceCostUsd": 0.0011556
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": true,
+                  "year": 2026,
+                  "month": 10,
+                  "day": 8
+                },
+                "domain": "agenda",
+                "action": "read"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "live_read",
+                "passed": true,
+                "reason": "current_agenda_requires_read"
+              },
+              {
+                "id": "read_only",
+                "passed": true,
+                "reason": "quoted_deletion_has_no_authority"
+              },
+              {
+                "id": "today",
+                "passed": true,
+                "reason": "explicit_anchored_date_not_query"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "agenda.read",
+                  "state": "fixture_read_only"
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 3526.891458000013,
+          "stageElapsed": {
+            "preparationMs": 2.742083000004641,
+            "fetchMs": 554.5021249999991,
+            "parseValidationMs": 2969.646667000008
+          }
+        }
+      },
+      "nativePromptTokenDelta": null
+    },
+    {
+      "pair": 10,
+      "caseId": "lasting-language-and-fact",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "75275f284f5d220bee1b425219450ad1188dfa345714a57df64469e83e5ad9e0",
+        "baseline": "75275f284f5d220bee1b425219450ad1188dfa345714a57df64469e83e5ad9e0"
+      },
+      "bytes": {
+        "current": 25699,
+        "currentMessages": 7646,
+        "currentSchema": 17709,
+        "baseline": 27048,
+        "baselineMessages": 7646,
+        "baselineSchema": 19058,
+        "saved": 1349
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513604-TFrtw4XjO7yAOwKXmSkt",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5712,
+            "completionTokens": 1480,
+            "reasoningTokens": 1052,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0017448,
+            "upstreamInferenceCostUsd": 0.0017448
+          },
+          "decision": {
+            "responseLanguage": "en",
+            "profileUpdate": {
+              "language": "en",
+              "sourceQuote": "From now on, always respond in English."
+            },
+            "learningCandidates": [
+              {
+                "topicKey": "[unrecognized]",
+                "category": "fact",
+                "content": "My dog is called Luna.",
+                "evidence": "My dog is called Luna.",
+                "entityName": "[unrecognized]"
+              }
+            ],
+            "responseCapability": "general",
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "language",
+                "passed": true,
+                "reason": "english_response"
+              },
+              {
+                "id": "durable_language",
+                "passed": true,
+                "reason": "current_owned_lasting_quote_or_already_saved"
+              },
+              {
+                "id": "independent_dog_fact",
+                "passed": true,
+                "reason": "retain_independent_fact_without_requiring_redundant_update"
+              },
+              {
+                "id": "independent_task_read",
+                "passed": true,
+                "reason": "all_owned_tasks"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "11111111-1111-4111-8111-111111111111"
+                    },
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4111.138707999999,
+          "stageElapsed": {
+            "preparationMs": 0.8877499999944121,
+            "fetchMs": 711.0851249999978,
+            "parseValidationMs": 3399.1653330000117
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513608-nkD8taajEPc8EN80Vhr0",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5992,
+            "completionTokens": 1253,
+            "reasoningTokens": 961,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0016506,
+            "upstreamInferenceCostUsd": 0.0016506
+          },
+          "decision": {
+            "responseLanguage": "en",
+            "profileUpdate": {
+              "sourceQuote": "From now on, always respond in English.",
+              "language": "en"
+            },
+            "learningCandidates": [
+              {
+                "topicKey": "[unrecognized]",
+                "category": "fact",
+                "content": "My dog is called Luna.",
+                "evidence": "My dog is called Luna.",
+                "entityName": "[unrecognized]"
+              }
+            ],
+            "responseCapability": "general",
+            "answerFromResults": true,
+            "actions": [
+              {
+                "entityName": "Demo project",
+                "status": "all",
+                "domain": "task",
+                "action": "list"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "language",
+                "passed": true,
+                "reason": "english_response"
+              },
+              {
+                "id": "durable_language",
+                "passed": true,
+                "reason": "current_owned_lasting_quote_or_already_saved"
+              },
+              {
+                "id": "independent_dog_fact",
+                "passed": true,
+                "reason": "retain_independent_fact_without_requiring_redundant_update"
+              },
+              {
+                "id": "independent_task_read",
+                "passed": true,
+                "reason": "all_owned_tasks"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "task.list",
+                  "rowIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222"
+                  ],
+                  "projection": [
+                    {
+                      "id": "11111111-1111-4111-8111-111111111111"
+                    },
+                    {
+                      "id": "22222222-2222-4222-8222-222222222222"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 3390.154332999984,
+          "stageElapsed": {
+            "preparationMs": 2.15724999998929,
+            "fetchMs": 454.4181249999965,
+            "parseValidationMs": 2933.5784999999887
+          }
+        }
+      },
+      "nativePromptTokenDelta": 280
+    },
+    {
+      "pair": 11,
+      "caseId": "destructive-request",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "6b761661e2327cc589b25cc2a2c551f57af5e626ce66e3fa56a17a65abc7c412",
+        "current": "6b761661e2327cc589b25cc2a2c551f57af5e626ce66e3fa56a17a65abc7c412"
+      },
+      "bytes": {
+        "baseline": 26583,
+        "baselineMessages": 7181,
+        "baselineSchema": 19058,
+        "current": 25234,
+        "currentMessages": 7181,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "provider_error",
+          "errorCode": "502",
+          "errorProvenance": "unknown",
+          "generationId": "gen-1791513612-Zm4sH4Sh1aYX7hWU46FX",
+          "requestId": null,
+          "usage": null,
+          "decision": null,
+          "grade": null,
+          "accepted": false,
+          "correctByDeadline": false,
+          "latencyMs": 2633.759707999983,
+          "stageElapsed": {
+            "preparationMs": 2.0384999999951106,
+            "fetchMs": 494.46608299999207,
+            "parseValidationMs": 2137.254624999987
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513614-T3CFWCTI0qUqaK4HvJos",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5630,
+            "completionTokens": 803,
+            "reasoningTokens": 568,
+            "cachedTokens": 1536,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0012111,
+            "upstreamInferenceCostUsd": 0.0012111
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "actions": [
+              {
+                "scope": "all",
+                "domain": "project",
+                "action": "delete"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "destructive_draft",
+                "passed": true,
+                "reason": "prepare_only_no_persisted_backend_claim"
+              },
+              {
+                "id": "account_scope",
+                "passed": true,
+                "reason": "explicit_account_wide_request"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "project.delete",
+                  "state": "waiting_for_approval",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2562.5877499999915,
+          "stageElapsed": {
+            "preparationMs": 0.9089169999933802,
+            "fetchMs": 540.6218749999971,
+            "parseValidationMs": 2021.056500000006
+          }
+        }
+      },
+      "nativePromptTokenDelta": null
+    },
+    {
+      "pair": 12,
+      "caseId": "approval-cancel",
+      "phase": "approval",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "939641b2b32b0e8a7f81eced70822c93038d257a78d01e0d71124650f0644d8a",
+        "baseline": "939641b2b32b0e8a7f81eced70822c93038d257a78d01e0d71124650f0644d8a"
+      },
+      "bytes": {
+        "current": 11309,
+        "currentMessages": 8445,
+        "currentSchema": 2514,
+        "baseline": 11309,
+        "baselineMessages": 8445,
+        "baselineSchema": 2514,
+        "saved": 0
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513617-L0R9dAyjYCPosRzeM2HK",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 2566,
+            "completionTokens": 189,
+            "reasoningTokens": 134,
+            "cachedTokens": 1536,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0003831,
+            "upstreamInferenceCostUsd": 0.0003831
+          },
+          "decision": {
+            "relation": "cancel",
+            "decision": null,
+            "selectedCallIds": [],
+            "responseLanguage": "es"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "cancel",
+                "passed": true,
+                "reason": "cancel_pending_destruction"
+              },
+              {
+                "id": "no_approval",
+                "passed": true,
+                "reason": "no_authorized_deletion"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "cancelled"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 838.6904169999907,
+          "stageElapsed": {
+            "preparationMs": 0.3239579999935813,
+            "fetchMs": 367.8403340000077,
+            "parseValidationMs": 470.5257500000007
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513618-EvgAJ7hCcxsMtwLgJrvN",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 2566,
+            "completionTokens": 186,
+            "reasoningTokens": 132,
+            "cachedTokens": 1280,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.0004005,
+            "upstreamInferenceCostUsd": 0.0004005
+          },
+          "decision": {
+            "relation": "cancel",
+            "decision": null,
+            "selectedCallIds": [],
+            "responseLanguage": "es"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "cancel",
+                "passed": true,
+                "reason": "cancel_pending_destruction"
+              },
+              {
+                "id": "no_approval",
+                "passed": true,
+                "reason": "no_authorized_deletion"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "cancelled"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 891.8304590000043,
+          "stageElapsed": {
+            "preparationMs": 0.5504170000058366,
+            "fetchMs": 414.5421670000069,
+            "parseValidationMs": 476.73724999999104
+          }
+        }
+      },
+      "nativePromptTokenDelta": 0
+    },
+    {
+      "pair": 13,
+      "caseId": "english-missing-time",
+      "phase": "initial",
+      "repetition": 1,
+      "order": [
+        "baseline",
+        "current"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "baseline": "08264923a8f2688b981f0897d9d5185ac93ce9afb2aa8189000c6e615ec47441",
+        "current": "08264923a8f2688b981f0897d9d5185ac93ce9afb2aa8189000c6e615ec47441"
+      },
+      "bytes": {
+        "baseline": 27221,
+        "baselineMessages": 7819,
+        "baselineSchema": 19058,
+        "current": 25872,
+        "currentMessages": 7819,
+        "currentSchema": 17709,
+        "saved": 1349
+      },
+      "results": {
+        "baseline": {
+          "status": 200,
+          "reason": "provider_error",
+          "errorCode": "502",
+          "errorProvenance": "unknown",
+          "generationId": "gen-1791513618-MVE24VChS6W4aqwr26Cc",
+          "requestId": null,
+          "usage": null,
+          "decision": null,
+          "grade": null,
+          "accepted": false,
+          "correctByDeadline": false,
+          "latencyMs": 2975.9556659999944,
+          "stageElapsed": {
+            "preparationMs": 0.8310829999973066,
+            "fetchMs": 466.0734999999986,
+            "parseValidationMs": 2509.050415999998
+          }
+        },
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513622-Xir6rtesr7FgxeXvLq3P",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5771,
+            "completionTokens": 1445,
+            "reasoningTokens": 1147,
+            "cachedTokens": 1024,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00165585,
+            "upstreamInferenceCostUsd": 0.00165585
+          },
+          "decision": {
+            "responseLanguage": "en",
+            "learningCandidates": [],
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "schedule": {
+                  "kind": "calendar_date_time",
+                  "allDay": false,
+                  "day": 9,
+                  "dayOffset": 1,
+                  "month": 10,
+                  "year": 2026
+                },
+                "missingFields": [
+                  "time"
+                ],
+                "domain": "reminder",
+                "action": "create"
+              }
+            ]
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "language",
+                "passed": true,
+                "reason": "stored_english_not_old_spanish_history"
+              },
+              {
+                "id": "reminder_draft",
+                "passed": true,
+                "reason": "requested_reminder_preserved"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "missing_time",
+                "passed": true,
+                "reason": "typed_pending_time_or_backend_inferred_question"
+              },
+              {
+                "id": "no_invented_clock",
+                "passed": true,
+                "reason": "no_default_time"
+              },
+              {
+                "id": "no_invented_minute",
+                "passed": true,
+                "reason": "no_clock_component_without_requested_time"
+              },
+              {
+                "id": "no_invented_clock_mode",
+                "passed": true,
+                "reason": "no_am_pm_without_requested_time"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [
+                {
+                  "operation": "reminder.create",
+                  "state": "draft_only",
+                  "persisted": false
+                }
+              ]
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 5836.368291999999,
+          "stageElapsed": {
+            "preparationMs": 0.9747090000018943,
+            "fetchMs": 1834.3378749999974,
+            "parseValidationMs": 4001.0550000000076
+          }
+        }
+      },
+      "nativePromptTokenDelta": null
+    },
+    {
+      "pair": 14,
+      "caseId": "english-neutral-time",
+      "phase": "continuation",
+      "repetition": 1,
+      "order": [
+        "current",
+        "baseline"
+      ],
+      "matched": true,
+      "inputHashRelation": "equal",
+      "inputHashes": {
+        "current": "248b3652d29361853acbeda2213646a2af60178a815a754bcd3dd51921a94808",
+        "baseline": "248b3652d29361853acbeda2213646a2af60178a815a754bcd3dd51921a94808"
+      },
+      "bytes": {
+        "current": 25339,
+        "currentMessages": 10226,
+        "currentSchema": 14759,
+        "baseline": 25339,
+        "baselineMessages": 10226,
+        "baselineSchema": 14759,
+        "saved": 0
+      },
+      "results": {
+        "current": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513627-R3KfwOmf2G08ieoqY7Qw",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5683,
+            "completionTokens": 1415,
+            "reasoningTokens": 1126,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00170145,
+            "upstreamInferenceCostUsd": 0.00170145
+          },
+          "decision": {
+            "relation": "resume",
+            "actionInputs": [
+              {
+                "callId": "call-1",
+                "fields": {
+                  "content": "buy the costume",
+                  "schedule": {
+                    "kind": "relative_day_time",
+                    "allDay": false,
+                    "dayOffset": 1,
+                    "hour": 4,
+                    "minute": 45,
+                    "clockMode": "ambiguous_12h"
+                  }
+                }
+              }
+            ],
+            "responseLanguage": "en"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "language",
+                "passed": true,
+                "reason": "neutral_clock_does_not_override_stored_english"
+              },
+              {
+                "id": "resume",
+                "passed": true,
+                "reason": "resume_owned_english_draft"
+              },
+              {
+                "id": "owned_call",
+                "passed": true,
+                "reason": "only_owned_prepared_call"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "neutral_4_45_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "neutral_4_45_minute"
+              },
+              {
+                "id": "unresolved_ampm",
+                "passed": true,
+                "reason": "do_not_assume_am_pm"
+              },
+              {
+                "id": "no_date_reset",
+                "passed": true,
+                "reason": "merge_into_original_tomorrow_draft"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "resumed_draft_only"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 4135.423792000016,
+          "stageElapsed": {
+            "preparationMs": 0.5035830000124406,
+            "fetchMs": 912.4598750000005,
+            "parseValidationMs": 3222.4598340000084
+          }
+        },
+        "baseline": {
+          "status": 200,
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "generationId": "gen-1791513631-XfxJpGv8WirSG0Zg9ZIO",
+          "requestId": null,
+          "usage": {
+            "promptTokens": 5683,
+            "completionTokens": 871,
+            "reasoningTokens": 590,
+            "cachedTokens": 0,
+            "cacheWriteTokens": 0,
+            "costUsd": 0.00137505,
+            "upstreamInferenceCostUsd": 0.00137505
+          },
+          "decision": {
+            "relation": "resume",
+            "actionInputs": [
+              {
+                "callId": "call-1",
+                "fields": {
+                  "schedule": {
+                    "kind": "relative_day_time",
+                    "allDay": false,
+                    "dayOffset": 1,
+                    "hour": 4,
+                    "minute": 45,
+                    "clockMode": "ambiguous_12h"
+                  }
+                }
+              }
+            ],
+            "responseLanguage": "en"
+          },
+          "grade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "language",
+                "passed": true,
+                "reason": "neutral_clock_does_not_override_stored_english"
+              },
+              {
+                "id": "resume",
+                "passed": true,
+                "reason": "resume_owned_english_draft"
+              },
+              {
+                "id": "owned_call",
+                "passed": true,
+                "reason": "only_owned_prepared_call"
+              },
+              {
+                "id": "reminder_subject",
+                "passed": true,
+                "reason": "declared_owned_subject_equivalence",
+                "outcome": "passed"
+              },
+              {
+                "id": "typed_temporal_resolution",
+                "passed": true,
+                "reason": "actual_typed_resolver_with_owned_anchor"
+              },
+              {
+                "id": "date_year",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_month",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "date_day",
+                "passed": true,
+                "reason": "resolved_owned_calendar_component"
+              },
+              {
+                "id": "no_explicit_all_day",
+                "passed": true,
+                "reason": "reminder_requires_clock_not_all_day"
+              },
+              {
+                "id": "clock_hour",
+                "passed": true,
+                "reason": "neutral_4_45_hour"
+              },
+              {
+                "id": "clock_minute",
+                "passed": true,
+                "reason": "neutral_4_45_minute"
+              },
+              {
+                "id": "unresolved_ampm",
+                "passed": true,
+                "reason": "do_not_assume_am_pm"
+              },
+              {
+                "id": "no_date_reset",
+                "passed": true,
+                "reason": "merge_into_original_tomorrow_draft"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": [],
+              "pendingStatus": "resumed_draft_only"
+            }
+          },
+          "accepted": true,
+          "correctByDeadline": true,
+          "latencyMs": 2720.256708999994,
+          "stageElapsed": {
+            "preparationMs": 0.7072919999918668,
+            "fetchMs": 491.93424999999115,
+            "parseValidationMs": 2227.6147090000013
+          }
+        }
+      },
+      "nativePromptTokenDelta": 0
+    }
+  ]
+}

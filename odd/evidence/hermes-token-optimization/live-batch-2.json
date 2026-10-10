@@ -1,0 +1,206 @@
+{
+  "status": "blocked",
+  "protocol": {
+    "base": "dca8c1da4ba0479ae94e6d1822a8f46556983b48",
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "selected": [
+      "Hola hola",
+      "accepts the admin schema without using the administrative domain for a greeting",
+      "core production: preserves a shared future date, separate times and English response",
+      "core production: current language outranks quoted Spanish without changing profile",
+      "core production: explicit residence outranks an unrelated travel destination",
+      "core production: discloses a failed write instead of confirming the planned operation",
+      "keeps the original single-reminder smoke request executable",
+      "creates several reminders without crossing domain/action boundaries",
+      "maps a today reminder inventory to reminder.list with the exact filter",
+      "keeps plural contextual reminder deletion in the reminder domain",
+      "represents and continues an operational collection as one project with task members",
+      "keeps a non-actionable collection of people in the entity domain"
+    ],
+    "fixture": "tests/acceptance/foreground-live.integration.test.js",
+    "config": "tests/acceptance/vitest.config.js",
+    "limits": {
+      "base": 110,
+      "candidate": 110,
+      "optionalPolicy": 20,
+      "batch": 240,
+      "aggregate": 1000
+    },
+    "priorPaid": 0,
+    "acceptance": "Unchanged existing fixture assertions: operation/domain, exact times, language/profile precedence, failed-write disclosure and successful-decision counts where asserted. Paired input comparison is descriptive; no statistical equivalence or full-Hermes quality certification."
+  },
+  "before": {
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "branch": "perf/hermes-token-optimization",
+    "digest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "trackedFiles": 282,
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "batch1Hash": "6dfb8617d3e90ab42d4028998055c5706cc06b270230cbd5402524fe29b4972c",
+  "offlinePreflight": [
+    {
+      "variant": "base",
+      "offline": true,
+      "requests": [],
+      "reservations": [],
+      "cases": [],
+      "preflight": [
+        {
+          "type": "source_ready",
+          "variant": "base",
+          "offline": true,
+          "loaded": {
+            "src/agent/core/agent-core.js": "1d794c6548f0ffa09db1718d3ee7218b6a3b325883f4960b3a490a57c2a2b3f6",
+            "src/agent/orchestration/router-core.js": "65abbf905a64e4523833bfbd9ca8b47f14427dead032708d097f31474904d273",
+            "src/agent/providers/client.js": "7d8864891da3aa9537a88771c82ed9270136bf5e16b8af36c044af928e487b87",
+            "src/features/reminders/dispatch-policy.js": "16d636860e619e55b78a43528ccc531e12a0e7138c77b2868abeea106a0ff019"
+          },
+          "bail": 1,
+          "testTimeout": 80000,
+          "hookTimeout": 10000,
+          "pool": "forks"
+        },
+        {
+          "type": "guard_ready",
+          "variant": "base",
+          "offline": true,
+          "hardcap": 110,
+          "proofs": 6,
+          "sourceHashes": {
+            "src/agent/core/agent-core.js": "1d794c6548f0ffa09db1718d3ee7218b6a3b325883f4960b3a490a57c2a2b3f6",
+            "src/agent/orchestration/router-core.js": "65abbf905a64e4523833bfbd9ca8b47f14427dead032708d097f31474904d273",
+            "src/agent/providers/client.js": "7d8864891da3aa9537a88771c82ed9270136bf5e16b8af36c044af928e487b87",
+            "src/features/reminders/dispatch-policy.js": "16d636860e619e55b78a43528ccc531e12a0e7138c77b2868abeea106a0ff019"
+          }
+        },
+        {
+          "type": "discovery",
+          "collectedCount": 28,
+          "desired": [
+            {
+              "name": "Hola hola",
+              "fullName": "live strict foreground acceptance: primary > Hola hola",
+              "matcherName": "live strict foreground acceptance: primary Hola hola",
+              "mode": "run"
+            },
+            {
+              "name": "accepts the admin schema without using the administrative domain for a greeting",
+              "fullName": "live strict foreground acceptance: primary > accepts the admin schema without using the administrative domain for a greeting",
+              "matcherName": "live strict foreground acceptance: primary accepts the admin schema without using the administrative domain for a greeting",
+              "mode": "run"
+            },
+            {
+              "name": "core production: preserves a shared future date, separate times and English response",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > core production: preserves a shared future date, separate times and English response",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) core production: preserves a shared future date, separate times and English response",
+              "mode": "run"
+            },
+            {
+              "name": "core production: current language outranks quoted Spanish without changing profile",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > core production: current language outranks quoted Spanish without changing profile",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) core production: current language outranks quoted Spanish without changing profile",
+              "mode": "run"
+            },
+            {
+              "name": "core production: explicit residence outranks an unrelated travel destination",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > core production: explicit residence outranks an unrelated travel destination",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) core production: explicit residence outranks an unrelated travel destination",
+              "mode": "run"
+            },
+            {
+              "name": "core production: discloses a failed write instead of confirming the planned operation",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > core production: discloses a failed write instead of confirming the planned operation",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) core production: discloses a failed write instead of confirming the planned operation",
+              "mode": "run"
+            },
+            {
+              "name": "keeps the original single-reminder smoke request executable",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > keeps the original single-reminder smoke request executable",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) keeps the original single-reminder smoke request executable",
+              "mode": "run"
+            },
+            {
+              "name": "creates several reminders without crossing domain/action boundaries",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > creates several reminders without crossing domain/action boundaries",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) creates several reminders without crossing domain/action boundaries",
+              "mode": "run"
+            },
+            {
+              "name": "maps a today reminder inventory to reminder.list with the exact filter",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > maps a today reminder inventory to reminder.list with the exact filter",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) maps a today reminder inventory to reminder.list with the exact filter",
+              "mode": "run"
+            },
+            {
+              "name": "keeps plural contextual reminder deletion in the reminder domain",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > keeps plural contextual reminder deletion in the reminder domain",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) keeps plural contextual reminder deletion in the reminder domain",
+              "mode": "run"
+            },
+            {
+              "name": "represents and continues an operational collection as one project with task members",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > represents and continues an operational collection as one project with task members",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) represents and continues an operational collection as one project with task members",
+              "mode": "run"
+            },
+            {
+              "name": "keeps a non-actionable collection of people in the entity domain",
+              "fullName": "live strict foreground acceptance: primary > live domain-action acceptance (opt-in) > keeps a non-actionable collection of people in the entity domain",
+              "matcherName": "live strict foreground acceptance: primary live domain-action acceptance (opt-in) keeps a non-actionable collection of people in the entity domain",
+              "mode": "run"
+            }
+          ]
+        }
+      ],
+      "blockers": [
+        {
+          "type": "blocker",
+          "code": "collection_not_exact_12"
+        }
+      ],
+      "exit": {
+        "code": 86,
+        "signal": null
+      }
+    }
+  ],
+  "arms": [],
+  "optionalPolicy": {
+    "status": "skipped",
+    "reason": "Unchanged from prior batch; no separate policy infrastructure or paid calls added."
+  },
+  "paidRequests": 0,
+  "blockers": [
+    "offline_exact_12_preflight_blocked"
+  ],
+  "sourceHashes": {
+    "src/agent/core/agent-core.js": {
+      "base": "1d794c6548f0ffa09db1718d3ee7218b6a3b325883f4960b3a490a57c2a2b3f6",
+      "candidate": "3efefb1e5b916950be6534bd99e7f7348f79dffee9b85de1d20168b265446901"
+    },
+    "src/agent/orchestration/router-core.js": {
+      "base": "65abbf905a64e4523833bfbd9ca8b47f14427dead032708d097f31474904d273",
+      "candidate": "db0804a698d37bf3177a8c0d4cb1f9eaccbf8ed6161e6259987ec6096713496f"
+    },
+    "src/agent/providers/client.js": {
+      "base": "7d8864891da3aa9537a88771c82ed9270136bf5e16b8af36c044af928e487b87",
+      "candidate": "e4a27e9c0df524896921db86d200ac7a34d28d8b32bd63cb89ee29b6beee9044"
+    },
+    "src/features/reminders/dispatch-policy.js": {
+      "base": "16d636860e619e55b78a43528ccc531e12a0e7138c77b2868abeea106a0ff019",
+      "candidate": "a20e49fd5c85c490d544f68e80a613c811e77add4dc8b643c76cfb01e1a9be10"
+    }
+  },
+  "fixtureHash": "c5011daf34137592dee7b9d882e640abfe97fc16ea8b693734b6774c1326657d",
+  "configHash": "354696ad4de15d92a42d9e10cc73f507dcb83b2fd71cedb78ee0abe00a6d21ff",
+  "after": {
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "digest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "trackedFiles": 282,
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "aggregatePaidRequests": 0,
+  "remainingAggregateCeiling": 1000,
+  "remainingBatchCeiling": 240,
+  "noFurtherAuthorization": true
+}

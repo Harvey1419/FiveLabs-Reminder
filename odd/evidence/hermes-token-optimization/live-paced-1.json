@@ -1,0 +1,143 @@
+{
+  "status": "blocked",
+  "protocol": {
+    "base": "dca8c1da4ba0479ae94e6d1822a8f46556983b48",
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "fixture": "tests/acceptance/foreground-live.integration.test.js",
+    "config": "tests/acceptance/vitest.config.js",
+    "selected": [
+      "Hola hola",
+      "keeps plural contextual reminder deletion in the reminder domain",
+      "represents and continues an operational collection as one project with task members",
+      "preserves a partial reminder across an independent task and completes it exactly once"
+    ],
+    "testNamePattern": "(?:^| )(?:Hola hola|keeps plural contextual reminder deletion in the reminder domain|represents and continues an operational collection as one project with task members|preserves a partial reminder across an independent task and completes it exactly once)$",
+    "priorPaid": 0,
+    "limits": {
+      "base": 40,
+      "candidate": 40,
+      "phase": 80,
+      "aggregate": 1000
+    },
+    "pauseMs": 3000,
+    "acceptance": "Unchanged four fixture assertions; canonical decisions, contextual reminder targets, project/task continuity and pending reminder survival/completion. Paired input statistics descriptive only."
+  },
+  "before": {
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "branch": "perf/hermes-token-optimization",
+    "trackedFiles": 282,
+    "digest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "priorHashes": {
+    "live-batch-1.json": "6dfb8617d3e90ab42d4028998055c5706cc06b270230cbd5402524fe29b4972c",
+    "live-batch-2.json": "c11067ee2065099cad9bfcf6d5ee7c1cdd3fd01b9be7b50210f8b5896df80d41"
+  },
+  "offlineProbes": [
+    {
+      "variant": "base",
+      "offline": true,
+      "reservations": [],
+      "requests": [],
+      "cases": [],
+      "turns": [],
+      "preflight": [
+        {
+          "type": "source_ready",
+          "variant": "base",
+          "offline": true,
+          "sourceHashes": {
+            "src/agent/core/agent-core.js": "1d794c6548f0ffa09db1718d3ee7218b6a3b325883f4960b3a490a57c2a2b3f6",
+            "src/agent/orchestration/router-core.js": "65abbf905a64e4523833bfbd9ca8b47f14427dead032708d097f31474904d273",
+            "src/agent/providers/client.js": "7d8864891da3aa9537a88771c82ed9270136bf5e16b8af36c044af928e487b87",
+            "src/features/reminders/dispatch-policy.js": "16d636860e619e55b78a43528ccc531e12a0e7138c77b2868abeea106a0ff019"
+          },
+          "transformHashes": {
+            "src/agent/core/agent-core.js": "c4eff2c96132f87aa15298953a96d39315704f98fe515ee5dae68a7a81677012",
+            "src/agent/orchestration/router-core.js": "2c3f28e4ca974ff24ce4dda45caf1c5e55996b766a0149e3f75dd1a6a3df5af1",
+            "src/agent/providers/client.js": "28c35bdffe89a185df79e1809869143177e6b262e9f6288e4c9ac3f0de43b8f0",
+            "src/features/reminders/dispatch-policy.js": "e241e3825afc43e16a936e2575610d5a2db06d761dbb24e9151be6124b193af4",
+            "src/agent/orchestration/router.js": "0b8a4f018960cd40ec2db0b5be852ecf32c310c8c122946f6a07a6a50ffb1353"
+          },
+          "wrapperHash": "5cc546f688e1ade23adc18ed16015eb54faae7e3d816503a12ec2a0bca8d9978",
+          "bail": 1,
+          "testTimeout": 80000,
+          "hookTimeout": 10000
+        },
+        {
+          "type": "collection_diagnostic",
+          "variant": "base",
+          "totalCollected": 0,
+          "configuredPattern": "(?:^| )(?:Hola hola|keeps plural contextual reminder deletion in the reminder domain|represents and continues an operational collection as one project with task members|preserves a partial reminder across an independent task and completes it exactly once)$",
+          "configuredPatternType": "[object RegExp]",
+          "globalPattern": "(?:^| )(?:Hola hola|keeps plural contextual reminder deletion in the reminder domain|represents and continues an operational collection as one project with task members|preserves a partial reminder across an independent task and completes it exactly once)$",
+          "matchedCount": 0,
+          "selectedCount": 0,
+          "selectedNames": [],
+          "rows": [],
+          "unmatchedRunModes": 0,
+          "unhandledErrors": 1,
+          "moduleErrors": 0
+        }
+      ],
+      "blockers": [
+        {
+          "type": "blocker",
+          "code": "supported_selector_not_exact_four",
+          "errorName": "Error"
+        }
+      ],
+      "exit": {
+        "code": 1,
+        "signal": null
+      }
+    }
+  ],
+  "arms": [],
+  "paidRequests": 0,
+  "blockers": [
+    "offline_probe_blocked"
+  ],
+  "optionalPolicy": {
+    "status": "skipped",
+    "reason": "Outside this four-conversation scope."
+  },
+  "sourceHashes": {
+    "src/agent/core/agent-core.js": {
+      "base": "1d794c6548f0ffa09db1718d3ee7218b6a3b325883f4960b3a490a57c2a2b3f6",
+      "candidate": "3efefb1e5b916950be6534bd99e7f7348f79dffee9b85de1d20168b265446901"
+    },
+    "src/agent/orchestration/router-core.js": {
+      "base": "65abbf905a64e4523833bfbd9ca8b47f14427dead032708d097f31474904d273",
+      "candidate": "db0804a698d37bf3177a8c0d4cb1f9eaccbf8ed6161e6259987ec6096713496f"
+    },
+    "src/agent/providers/client.js": {
+      "base": "7d8864891da3aa9537a88771c82ed9270136bf5e16b8af36c044af928e487b87",
+      "candidate": "e4a27e9c0df524896921db86d200ac7a34d28d8b32bd63cb89ee29b6beee9044"
+    },
+    "src/features/reminders/dispatch-policy.js": {
+      "base": "16d636860e619e55b78a43528ccc531e12a0e7138c77b2868abeea106a0ff019",
+      "candidate": "a20e49fd5c85c490d544f68e80a613c811e77add4dc8b643c76cfb01e1a9be10"
+    }
+  },
+  "fixtureHash": "c5011daf34137592dee7b9d882e640abfe97fc16ea8b693734b6774c1326657d",
+  "configHash": "354696ad4de15d92a42d9e10cc73f507dcb83b2fd71cedb78ee0abe00a6d21ff",
+  "pacingWrapper": {
+    "path": "src/agent/orchestration/router.js",
+    "originalHash": "e2eff3f1cb0bcf58ba4338df9f0e66e0b0940b56eb729e48d41083beec15b512",
+    "wrapperHash": "5cc546f688e1ade23adc18ed16015eb54faae7e3d816503a12ec2a0bca8d9978",
+    "pauseMs": 3000
+  },
+  "after": {
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "branch": "perf/hermes-token-optimization",
+    "trackedFiles": 282,
+    "digest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "priorArtifactsUnchanged": true,
+  "aggregatePaidRequests": 0,
+  "remainingAggregateCeiling": 1000,
+  "remainingPhaseCeiling": 80,
+  "noFurtherAuthorization": true
+}

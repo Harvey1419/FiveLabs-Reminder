@@ -1,0 +1,177 @@
+{
+  "status": "blocked",
+  "scenario": "closure-cases",
+  "requestedTurns": 10,
+  "completedTurns": 0,
+  "pauseMs": 3000,
+  "pausesObserved": 0,
+  "preflight": {
+    "schemaSelects": [
+      {
+        "table": "users",
+        "column": "phone_number",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "messages",
+        "column": "phone_number",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "tasks",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "memories",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "projects",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "reminders",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "entities",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "agent_runs",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "agent_execution_events",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "messages",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "user_integrations",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "subscriptions",
+        "column": "user_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "prepared_actions",
+        "column": "run_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      },
+      {
+        "table": "hermes_inbound_turns",
+        "column": "thread_id",
+        "httpStatus": 200,
+        "contentRange": "*/0",
+        "rows": 0,
+        "optionsStatus": 200,
+        "allow": "GET, HEAD, POST, OPTIONS"
+      }
+    ],
+    "blocker": "Cleanup DELETE capability not established from OPTIONS; not proof DELETE would fail. Stop before identity writes.",
+    "identityWritten": false,
+    "ownerEstablished": false
+  },
+  "processes": {
+    "priorVitestOrChatWorkersObserved": 0,
+    "spawnedChatProcesses": 0,
+    "signalsSent": 0
+  },
+  "requests": {
+    "openRouter": 0,
+    "priorAggregate": 0,
+    "phaseCap": 120,
+    "aggregateCap": 1000,
+    "remainingAggregate": 1000,
+    "chargedCost": null,
+    "tokens": null,
+    "cache": null
+  },
+  "cleanup": {
+    "required": false,
+    "reason": "No writes were attempted; no owned identity was created.",
+    "verifiedAfterConversation": false
+  },
+  "source": {
+    "head": "60df34c04b696220dbe9960cfcb11e937ab1d464",
+    "files": 282,
+    "beforeDigest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "afterDigest": "13c7604413a383146fdd6ddc2f4e24b48ce77dd88152f63aa65ba8dd5a158f45",
+    "unchanged": true,
+    "gitStatus": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "unverified": [
+    "Actual conversation semantics/intelligence",
+    "Owner/network guard runtime",
+    "Human pacing",
+    "Cleanup execution/readback for a created owner",
+    "Actual model/provider selection, usage, latency and savings"
+  ],
+  "noFurtherRunAuthorized": true
+}

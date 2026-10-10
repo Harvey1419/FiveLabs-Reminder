@@ -1,0 +1,403 @@
+{
+  "formatVersion": 1,
+  "status": "diagnostic_stopped",
+  "verdict": "HOLD_UNPAIRED_DIAGNOSTICS",
+  "summary": {
+    "diagnosticUnitCompleted": true,
+    "gatewayCapability": "Minimal pinned Haiku JSON-schema probe accepted; returned Spanish greeting. Not a Hermes canonical quality case.",
+    "evidencedCurrentCandidateBlocker": "Changed full initial schema rejected with invalid_request_error: The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.",
+    "constraintPrecision": "Provider supplied no canonical property path, keyword, numerical limit or observed count. This is a compiled-grammar resource rejection, not an evidenced maxItems, enum/null, optional or union defect. The original primary request's exact upstream cause remains unknown.",
+    "allPhaseCompatibility": "Not established: full initial request rejected; continuation and approval deliberately not posted.",
+    "refinementDecision": "Stopped without another full request because no specific removable keyword was evidenced. A speculative keyword change would be a blind retry.",
+    "nextOfflineCandidatePlan": "Investigate grammar-growth reduction using a flatter, fully typed reversible representation while retaining every original canonical field/enum/capability and the complete local gate. Prove schema definition and exact fixture/value round trips before proposing any additional paid capability probes to the parent.",
+    "qualitySpeedCostVerdict": "HOLD: no paired Hermes decisions. Minimal probe has a different 1024 output cap and is not comparable performance evidence.",
+    "noAdditionalCallsAfterParentReviewBoundary": true
+  },
+  "startedAt": "2026-10-09T03:27:22.856Z",
+  "endedAt": "2026-10-09T03:27:25.649Z",
+  "budget": {
+    "originalMaxAttempts": 50,
+    "originalMaxCostUsd": 1,
+    "maxNewAttemptsThisUnit": 6,
+    "priorAttempts": 2,
+    "newAttempts": 2,
+    "cumulativeAttempts": 4,
+    "remainingOriginalAttempts": 46,
+    "priorUsageReportedUsd": 0.0012921,
+    "priorUnknownReservedUsd": 0.016841,
+    "cumulativeUsageReportedUsd": 0.00132323,
+    "cumulativeUnknownReservedUsd": 0.033702131,
+    "cumulativeConservativeBoundUsd": 0.035025361,
+    "remainingConservativeBudgetUsd": 0.964974639,
+    "newUsageReportedUsd": 0.00003112999999999987,
+    "newUnknownReservedUsd": 0.016861131000000005,
+    "unknownReservationsRetained": true,
+    "billingConfirmed": false,
+    "noMetadataReads": true
+  },
+  "parameters": {
+    "model": "anthropic/claude-haiku-5.5",
+    "stream": false,
+    "reasoning": {
+      "effort": "medium",
+      "exclude": true
+    },
+    "provider": {
+      "order": [
+        "google-vertex/us"
+      ],
+      "only": [
+        "google-vertex/us"
+      ],
+      "allow_fallbacks": false,
+      "require_parameters": true
+    },
+    "temperature": "omitted",
+    "deadlineMs": 6000,
+    "maxTokens": {
+      "minimal": 1024,
+      "initial": 8192,
+      "continuation": 4096,
+      "approval": 4096
+    },
+    "pricingPerMillion": {
+      "input": 0.11,
+      "output": 0.55,
+      "cacheWriteContingency": 0.22
+    },
+    "inputReserve": "full serialized UTF8 bytes <100000, no discounts",
+    "concurrency": 1,
+    "retries": 0,
+    "additionalGroqCalls": 0
+  },
+  "offline": {
+    "exactPriorAudit": {
+      "initial": {
+        "schemaHash": "d57ae5cb56e5e860ce6aa90cf05b4be852d3a1be31fded44a182c12b30bd2d9f",
+        "nodes": 161,
+        "enums": 24,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      },
+      "continuation": {
+        "schemaHash": "0bf3b3ffeb6b732f9b42b3fdaad460a9fb87424639a399a657d41bc42c3350ea",
+        "nodes": 140,
+        "enums": 19,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      },
+      "approval": {
+        "schemaHash": "994285b3e71ab7be63b81693abf4029e221d9b9836513e591abc74272cbd80e6",
+        "nodes": 17,
+        "enums": 4,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      }
+    },
+    "candidateAudit": {
+      "initial": {
+        "schemaHash": "38f898602972335c31a03760603851a5a6e3125d72525015ebd694179e7fc23a",
+        "originalSchemaHash": "7dcc325dfc741e45695a6a7bb2261692358d2aa5d3ad2059647b3c80ed82a891",
+        "nullableFields": 67,
+        "nullableWrappers": 65,
+        "directNullableArrays": 2,
+        "nodes": 159,
+        "enums": 24,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      },
+      "continuation": {
+        "schemaHash": "080e1e7451942cf80b36228f834c0243757db88c0d586667952834dbedd5024f",
+        "originalSchemaHash": "89b84189ec14a12adb0c28e30019d944ed65032a63d20f0856cf0d8005d67117",
+        "nullableFields": 62,
+        "nullableWrappers": 60,
+        "directNullableArrays": 2,
+        "nodes": 138,
+        "enums": 19,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      },
+      "approval": {
+        "schemaHash": "994285b3e71ab7be63b81693abf4029e221d9b9836513e591abc74272cbd80e6",
+        "originalSchemaHash": "dc47fefa53c769628b245b0da84adf98f4ce9c61ec2a645edc1d400d60926a86",
+        "nullableFields": 6,
+        "nullableWrappers": 6,
+        "directNullableArrays": 0,
+        "nodes": 17,
+        "enums": 4,
+        "optional": 0,
+        "unions": 0,
+        "definitionValid": true,
+        "unsupportedKeywords": 0,
+        "enumTypeConflicts": 0
+      }
+    },
+    "fixtures": [
+      {
+        "caseId": "greeting",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "personal-recall",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "missing-time",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "reminder-time",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "ampm-ambiguity",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "dated-reminder",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "second-description",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "full-projection",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "quoted-agenda",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "lasting-language-and-fact",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "destructive-request",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "approval-cancel",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "english-missing-time",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      },
+      {
+        "caseId": "english-neutral-time",
+        "exactWireRoundtrip": true,
+        "normalizedCanonicalEquality": true
+      }
+    ],
+    "negativeControls": [
+      "new-wrapper-maxItems1 definition rejected",
+      "nonnull-enum-null definition rejected",
+      "wrapper cardinality >1 and duplicate JSON keys rejected",
+      "[null] and wrong-enum generation rejected; null/owned enum roundtrip preserved"
+    ],
+    "findings": "Exact prior generation schemas have no newly-added maxItems/minItems, numeric/string bounds, or null-enum/type conflicts. Those defects do not explain the original 400.",
+    "candidateDifference": "Two nullable arrays with original minItems >=1 (evidenceRefs/returnFields) use [] for null and nonempty arrays unchanged; all other nullable fields retain required zero/one typed wrappers. No canonical fields, enums, bounds or capabilities removed.",
+    "observedPreflightRed": "First diagnostic preflight failed before key lookup/POST: [null] alias could decode to canonical null. Added generation-shape gate before decode plus non-null scalar checking; representation bounds and original canonical rules remain unchanged.",
+    "roundtrips": 325,
+    "negativeChecks": 352,
+    "completeGate": "duplicate-safe parse -> generation shape -> local decoder cardinality/non-null types -> full untouched original strict schema -> actual canonical/current-user/evidence sanitizers -> owned-fixture references"
+  },
+  "stopReason": "full_initial_schema_rejected",
+  "fullAllPhaseCompatible": false,
+  "semanticReview": "Offline inspected the only returned output: minimal reply ¡Hola! satisfies the synthetic Spanish greeting but is not a Hermes canonical case. Full probe returned no decision and remains UNRESOLVED. No inference judge calls.",
+  "hypothesisConclusion": "Gateway/protocol probes do not qualify comparative quality, speed or cost; protocol failure is not an intelligence judgment.",
+  "nextAction": "Parent review before any additional comparisons; no automatic spending of remaining budget.",
+  "sources": {
+    "head": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+    "workingTreeStatusBefore": [
+      " M scripts/evals/groq-contract/fixtures.js",
+      " M scripts/evals/groq-contract/grader.js",
+      " M src/agent/contracts/foreground-turn-schema.js",
+      " M src/agent/core/agent-core.js",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-20261009T003827Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-p3-20261009T015840Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-p3-final-20261009T024000Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-reinforced-20261009T013350Z.json",
+      "?? odd/evidence/haiku-groq-evaluation/",
+      "?? odd/evidence/hermes-token-optimization/",
+      "?? odd/tasks/hermes-fast-product-demo.md",
+      "?? odd/tasks/hermes-landing-demo.md",
+      "?? odd/tasks/hermes-premium-device-demo.md"
+    ],
+    "sourceSetHashBefore": "a03cf2ea5a2a0e5b3eecea17e0fb1516eeb90cde7a208206859142d0a93d981c",
+    "sourceSetHashAfter": "a03cf2ea5a2a0e5b3eecea17e0fb1516eeb90cde7a208206859142d0a93d981c",
+    "sourceFileCount": 121,
+    "sourceHashes": {
+      "src/agent/contracts/intent-contracts.js": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+      "src/agent/orchestration/personal-knowledge.js": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+      "src/agent/contracts/turn-context.js": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+      "src/agent/contracts/response-policy.js": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+      "src/agent/contracts/tool-names.js": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+      "src/shared/agenda-scopes.js": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+      "src/shared/entity-categories.js": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+      "src/shared/entity-resolution.js": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+      "src/agent/contracts/foreground-turn-schema.js": "33a1a991f5e6710bb4fe5ce968be374ea5a7c84169bbf5c718c7ce45366e6f26",
+      "src/agent/contracts/agent-run-contracts.js": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+      "src/agent/contracts/schema-value.js": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+      "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+      "src/agent/orchestration/router-core.js": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+      "src/agent/providers/client.js": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+      "src/agent/providers/request-payload.js": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+      "src/agent/contracts/foreground-turn-validation.js": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+      "baseline:src/agent/contracts/foreground-turn-schema.js": "0a208061e8572d975b653ad9ed5a0225203a29c21bd5a5989fd4f909021a0bac",
+      "src/agent/core/agent-run.js": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+      "src/agent/orchestration/domain-call.js": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+      "src/agent/orchestration/intent-executor.js": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+      "src/shared/language-detection.js": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea"
+    },
+    "userDirtyHashes": {
+      "src/agent/contracts/foreground-turn-schema.js": "33a1a991f5e6710bb4fe5ce968be374ea5a7c84169bbf5c718c7ce45366e6f26",
+      "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d"
+    },
+    "preExistingEvaluationDirtyFiles": [
+      "scripts/evals/groq-contract/fixtures.js",
+      "scripts/evals/groq-contract/grader.js"
+    ],
+    "frozenFixtureAndGraderRef": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+    "frozenFixtureHash": "4fc4a75ea4453f94f3c4f81a7d0a608bfb6c1f6209b2f232195b91fd281f2c95",
+    "frozenGraderHash": "97dded289fd7c8cb84084f2c4626c7822132adbd0afdfe46c9de861b530fdf3e",
+    "primaryEvidencePath": "odd/evidence/haiku-groq-evaluation/haiku-55-vs-groq-20261009.json",
+    "primaryEvidenceHashBefore": "d6848a9e2909c0a3dd6a65c7a5b56f8ee86cef67655324922085fc9a7dcfe7c9",
+    "primaryEvidenceHashAfter": "d6848a9e2909c0a3dd6a65c7a5b56f8ee86cef67655324922085fc9a7dcfe7c9",
+    "noSourceDrift": true
+  },
+  "probes": [
+    {
+      "probeId": "gateway-minimal-schema",
+      "newAttempt": 1,
+      "cumulativeAttempt": 3,
+      "model": "anthropic/claude-haiku-5.5",
+      "providerPin": "google-vertex/us",
+      "returnedProvider": null,
+      "phase": "gateway_minimal",
+      "caseId": null,
+      "features": "Root closed object, one required string, no nullable fields/unions; fake Spanish greeting; gateway only.",
+      "bodyHash": "1814cd75f46f7913b6c0da445392882ba3f4c2cb69888f046f89b6c398ba7b84",
+      "schemaHash": "c2e0eb1e8f0012ea4521a2587221d12bcba755c50932ee018b4630d6f41e540d",
+      "requestBytes": 534,
+      "maxTokens": 1024,
+      "reasoning": "medium",
+      "temperature": "omitted",
+      "deadlineMs": 6000,
+      "reservationUsd": 0.000739421,
+      "httpStatus": 200,
+      "generationId": "gen-1791516443-pcz7wJTX8y2J5GaEycJ3",
+      "messageType": "string",
+      "usage": {
+        "promptTokens": 203,
+        "completionTokens": 16,
+        "reasoningTokens": 0,
+        "cachedTokens": 0,
+        "reportedCostUsd": 0.00003113
+      },
+      "schemaDiagnostics": [],
+      "reason": "minimal_gateway_capability_accepted",
+      "minimalCapabilityValid": true,
+      "generationShapeValid": true,
+      "originalWireValid": null,
+      "canonicalValid": null,
+      "ownedRefsValid": null,
+      "canonicalDecision": null,
+      "decodedWire": null,
+      "rawGrade": null,
+      "latencyMs": 2052.866125,
+      "manual": {
+        "outcome": "NOT_A_HERMES_QUALITY_CASE",
+        "reason": "Gateway only, maxTokens 1024 differs from Hermes."
+      },
+      "nullableCount": 0,
+      "optionalCount": 0,
+      "unionCount": 0,
+      "minimalReply": "¡Hola!",
+      "withinDeadline": true
+    },
+    {
+      "probeId": "full-initial-direct-min1-arrays-v2",
+      "newAttempt": 2,
+      "cumulativeAttempt": 4,
+      "model": "anthropic/claude-haiku-5.5",
+      "providerPin": "google-vertex/us",
+      "returnedProvider": null,
+      "phase": "initial",
+      "caseId": "greeting",
+      "features": "Two nullable arrays with original minItems >=1 (evidenceRefs/returnFields) use [] for null and nonempty arrays unchanged; all other nullable fields retain required zero/one typed wrappers. No canonical fields, enums, bounds or capabilities removed.",
+      "bodyHash": "2c78305be949b59443e2f9a4be4cf466b46cabaf3c74c0d687001064656b3f24",
+      "schemaHash": "38f898602972335c31a03760603851a5a6e3125d72525015ebd694179e7fc23a",
+      "requestBytes": 37441,
+      "maxTokens": 8192,
+      "reasoning": "medium",
+      "temperature": "omitted",
+      "deadlineMs": 6000,
+      "reservationUsd": 0.016861131,
+      "httpStatus": 400,
+      "generationId": null,
+      "messageType": "error",
+      "usage": null,
+      "schemaDiagnostics": [
+        {
+          "type": "invalid_request_error",
+          "code": null,
+          "param": null,
+          "canonicalPropertyPath": null,
+          "keywords": [],
+          "numericalLimit": null,
+          "observedCount": null,
+          "validationMessage": "The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools."
+        }
+      ],
+      "reason": "schema_validation_rejected",
+      "minimalCapabilityValid": null,
+      "generationShapeValid": null,
+      "originalWireValid": null,
+      "canonicalValid": null,
+      "ownedRefsValid": null,
+      "canonicalDecision": null,
+      "decodedWire": null,
+      "rawGrade": null,
+      "latencyMs": 707.8834590000001,
+      "manual": {
+        "outcome": "UNRESOLVED",
+        "reason": "Full schema rejected before any decision; retained schema-only compiler error is adjudicable as a protocol failure, not semantic model quality. No generated canonical content exists to review."
+      },
+      "nullableCount": 67,
+      "optionalCount": 0,
+      "unionCount": 0,
+      "withinDeadline": true
+    }
+  ]
+}

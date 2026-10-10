@@ -1,0 +1,6697 @@
+{
+  "timestamp": "2026-10-09T16:15:36.001Z",
+  "mode": "smoke",
+  "provider": "openrouter",
+  "model": "openai/gpt-oss-120b",
+  "provenanceHashes": {
+    "headCommit": "9b759ed8dc014d2941ca2d1b3b45e28024ef23b8",
+    "agentCorePromptSha256": "fe15fa461ffc1b20a6fcdcb34b45d9c36e5f5fa52b802c8ee85e60b07e63c373",
+    "foregroundTurnSchemaSha256": "30e53b8163694f6c7539b534a598298c2e4b9c34e004e81a54593048e1de5b1d",
+    "intentContractsSha256": "64e485d9c43bd57b3474373927109b3428c2407cf139e2806bbc9c50006ee5a4",
+    "fixturesSha256": "5b542918ca40310c43beb8a2db64a6bc0197a11a7f605c549cf1cf4b4a21bb46",
+    "graderSha256": "0c4e273203181f5d0081f9057ce86fbbc3b4e6458469f22242a6c8f2810edc35",
+    "evaluatorSha256": "62e6d35def15e861999031d8c67bbe7aa4927c533f22bf6890ec0afa300e2162"
+  },
+  "summary": {
+    "total": 50,
+    "passed": 50,
+    "passRate": "100.0%",
+    "avgLatency": "N/A (offline)",
+    "minLatencyMs": null,
+    "maxLatencyMs": null,
+    "p95LatencyMs": null,
+    "deadlineSlaMetCount": 50,
+    "deadlineSlaThresholdMs": 10000,
+    "totalCostUsd": 0
+  },
+  "results": [
+    {
+      "id": "greeting",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "Hola, ¿cómo estás?",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Hola, ¿cómo estás?",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "natural_reply_without_operational_evidence"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_social_side_effects"
+        }
+      ]
+    },
+    {
+      "id": "personal-recall",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "Tu perro se llama Luna.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Tu perro se llama Luna.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "personal_fact",
+          "passed": true,
+          "reason": "known_owned_dog_fact_confirmed"
+        },
+        {
+          "id": "no_contradiction",
+          "passed": true,
+          "reason": "no_contradiction_of_stored_fact"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "personal_recall_does_not_require_live_actions"
+        },
+        {
+          "id": "no_operational_refs",
+          "passed": true,
+          "reason": "personal_not_operational_history"
+        }
+      ]
+    },
+    {
+      "id": "missing-time",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "Llamar al dentista",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": [
+              "time"
+            ],
+            "question": "¿A qué hora mañana?"
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Llamar al dentista",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1
+            },
+            "missingFields": [
+              "time"
+            ],
+            "question": "¿A qué hora mañana?",
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_draft",
+          "passed": true,
+          "reason": "requested_reminder_preserved"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "missing_time",
+          "passed": true,
+          "reason": "typed_pending_time_or_backend_inferred_question"
+        },
+        {
+          "id": "no_invented_clock",
+          "passed": true,
+          "reason": "no_default_time"
+        },
+        {
+          "id": "no_invented_minute",
+          "passed": true,
+          "reason": "no_clock_component_without_requested_time"
+        },
+        {
+          "id": "no_invented_clock_mode",
+          "passed": true,
+          "reason": "no_am_pm_without_requested_time"
+        }
+      ]
+    },
+    {
+      "id": "reminder-time",
+      "phase": "continuation",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "relation": "resume",
+        "actionInputs": [
+          {
+            "callId": "call-1",
+            "fields": {
+              "contextRef": null,
+              "target": null,
+              "content": null,
+              "title": null,
+              "description": null,
+              "descriptionMode": null,
+              "clearFields": null,
+              "entityName": null,
+              "oldName": null,
+              "newName": null,
+              "sourceName": null,
+              "category": null,
+              "topicKey": null,
+              "priority": null,
+              "status": null,
+              "recapMode": null,
+              "evidenceRefs": null,
+              "returnFields": null,
+              "scope": null,
+              "filter": null,
+              "query": null,
+              "projectless": null,
+              "preserveNames": null,
+              "schedule": {
+                "kind": "local_time",
+                "allDay": null,
+                "offsetMinutes": null,
+                "dayOffset": null,
+                "year": null,
+                "month": null,
+                "day": null,
+                "weekday": null,
+                "weekOffset": null,
+                "hour": 15,
+                "minute": 0,
+                "clockMode": "explicit_24h"
+              },
+              "endSchedule": null,
+              "advanceMinutes": null,
+              "deliveryPolicy": null,
+              "recurrence": null,
+              "requiresConfirmation": null,
+              "nudgeIntervalMinutes": null,
+              "maxNudges": null,
+              "durationMinutes": null,
+              "addGoogleMeet": null,
+              "limit": null
+            }
+          }
+        ],
+        "reply": null
+      },
+      "normalizedDecision": {
+        "relation": "resume",
+        "suppliedFields": {},
+        "actionInputs": [
+          {
+            "callId": "call-1",
+            "fields": {
+              "schedule": {
+                "kind": "local_time",
+                "hour": 15,
+                "minute": 0,
+                "clockMode": "explicit_24h"
+              }
+            }
+          }
+        ],
+        "reply": null,
+        "responseLanguage": "es"
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "resume",
+          "passed": true,
+          "reason": "resume_existing_draft"
+        },
+        {
+          "id": "owned_call",
+          "passed": true,
+          "reason": "only_prepared_call_1"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "clock_hour",
+          "passed": true,
+          "reason": "resolved_requested_local_hour"
+        },
+        {
+          "id": "clock_minute",
+          "passed": true,
+          "reason": "resolved_requested_minute_including_inferred_zero"
+        },
+        {
+          "id": "clock_mode",
+          "passed": true,
+          "reason": "explicit_unambiguous_pm_or_backend_24h"
+        }
+      ]
+    },
+    {
+      "id": "ampm-ambiguity",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "Llamar al dentista",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 3,
+              "minute": 0,
+              "clockMode": "ambiguous_12h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": [
+              "time"
+            ],
+            "question": "¿A las 3 AM o PM?"
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Llamar al dentista",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 3,
+              "minute": 0,
+              "clockMode": "ambiguous_12h"
+            },
+            "missingFields": [
+              "time"
+            ],
+            "question": "¿A las 3 AM o PM?",
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "ambiguous_clock",
+          "passed": true,
+          "reason": "no_assumed_am_pm"
+        },
+        {
+          "id": "clock_minute",
+          "passed": true,
+          "reason": "typed_inferred_whole_hour"
+        },
+        {
+          "id": "pending_ambiguity",
+          "passed": true,
+          "reason": "backend_may_infer_clarification"
+        },
+        {
+          "id": "date_scope",
+          "passed": true,
+          "reason": "tomorrow_preserved"
+        }
+      ]
+    },
+    {
+      "id": "dated-reminder",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "Llamar al dentista",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "calendar_date_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": null,
+              "year": 2026,
+              "month": 10,
+              "day": 9,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 15,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Llamar al dentista",
+            "schedule": {
+              "kind": "calendar_date_time",
+              "year": 2026,
+              "month": 10,
+              "day": 9,
+              "hour": 15,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "clock_hour",
+          "passed": true,
+          "reason": "resolved_requested_local_hour"
+        },
+        {
+          "id": "clock_minute",
+          "passed": true,
+          "reason": "resolved_requested_minute_including_inferred_zero"
+        },
+        {
+          "id": "clock_mode",
+          "passed": true,
+          "reason": "explicit_unambiguous_pm_or_backend_24h"
+        }
+      ]
+    },
+    {
+      "id": "second-description",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Demo project",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": "all",
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": [
+              "description"
+            ],
+            "scope": null,
+            "filter": null,
+            "query": "Second task",
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "entityName": "Demo project",
+            "status": "all",
+            "returnFields": [
+              "description"
+            ],
+            "query": "Second task",
+            "domain": "task",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "owned_target",
+          "passed": true,
+          "reason": "known_second_task_title_filter"
+        },
+        {
+          "id": "owned_container",
+          "passed": true,
+          "reason": "owned_demo_project"
+        },
+        {
+          "id": "permitted_selection",
+          "passed": true,
+          "reason": "task_list_does_not_allow_contextref"
+        },
+        {
+          "id": "projection",
+          "passed": true,
+          "reason": "actual_description_field_not_notes"
+        },
+        {
+          "id": "status",
+          "passed": true,
+          "reason": "known_task_status"
+        }
+      ]
+    },
+    {
+      "id": "full-projection",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Demo project",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": "all",
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": [
+              "status",
+              "description"
+            ],
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "entityName": "Demo project",
+            "status": "all",
+            "returnFields": [
+              "status",
+              "description"
+            ],
+            "domain": "task",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "owned_container",
+          "passed": true,
+          "reason": "owned_project"
+        },
+        {
+          "id": "all_statuses",
+          "passed": true,
+          "reason": "unfiltered_status"
+        },
+        {
+          "id": "no_title_subset",
+          "passed": true,
+          "reason": "all_project_titles"
+        },
+        {
+          "id": "no_limit_subset",
+          "passed": true,
+          "reason": "complete_fixture_rows"
+        },
+        {
+          "id": "permitted_selection",
+          "passed": true,
+          "reason": "task_list_does_not_allow_contextref"
+        },
+        {
+          "id": "projection",
+          "passed": true,
+          "reason": "both_actual_fields"
+        }
+      ]
+    },
+    {
+      "id": "quoted-agenda",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "agenda.read",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "calendar_date_time",
+              "allDay": true,
+              "offsetMinutes": null,
+              "dayOffset": null,
+              "year": 2026,
+              "month": 10,
+              "day": 8,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "schedule": {
+              "kind": "calendar_date_time",
+              "allDay": true,
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "domain": "agenda",
+            "action": "read"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "live_read",
+          "passed": true,
+          "reason": "current_agenda_requires_read"
+        },
+        {
+          "id": "read_only",
+          "passed": true,
+          "reason": "quoted_deletion_has_no_authority"
+        },
+        {
+          "id": "today",
+          "passed": true,
+          "reason": "explicit_anchored_date_or_today_scope"
+        }
+      ]
+    },
+    {
+      "id": "lasting-language-and-fact",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": {
+          "sourceQuote": "From now on, always respond in English.",
+          "timezone": null,
+          "language": "en"
+        },
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [
+          {
+            "topicKey": "pet/luna/name",
+            "category": "fact",
+            "content": "El perro del usuario se llama Luna.",
+            "evidence": "My dog is called Luna.",
+            "entityName": null,
+            "entityCategory": null
+          }
+        ],
+        "actions": [
+          {
+            "operation": "task.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Demo project",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": "all",
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": {
+          "sourceQuote": "From now on, always respond in English.",
+          "language": "en"
+        },
+        "learningCandidates": [
+          {
+            "topicKey": "pet/luna/name",
+            "category": "fact",
+            "content": "El perro del usuario se llama Luna.",
+            "evidence": "My dog is called Luna."
+          }
+        ],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "entityName": "Demo project",
+            "status": "all",
+            "domain": "task",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "english_response"
+        },
+        {
+          "id": "durable_language",
+          "passed": true,
+          "reason": "current_owned_lasting_quote_or_already_saved"
+        },
+        {
+          "id": "independent_dog_fact",
+          "passed": true,
+          "reason": "retain_independent_fact_without_requiring_redundant_update"
+        },
+        {
+          "id": "independent_task_read",
+          "passed": true,
+          "reason": "all_owned_tasks"
+        }
+      ]
+    },
+    {
+      "id": "destructive-request",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "entity.delete",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": "all",
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "scope": "all",
+            "domain": "entity",
+            "action": "delete"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "destructive_draft",
+          "passed": true,
+          "reason": "prepare_only_no_persisted_backend_claim"
+        },
+        {
+          "id": "account_scope",
+          "passed": true,
+          "reason": "explicit_account_wide_request"
+        }
+      ]
+    },
+    {
+      "id": "approval-cancel",
+      "phase": "approval",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "relation": "cancel",
+        "decision": null,
+        "selectedCallIds": null,
+        "reply": null
+      },
+      "normalizedDecision": {
+        "relation": "cancel",
+        "decision": null,
+        "selectedCallIds": [],
+        "reply": null,
+        "responseLanguage": "es"
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "cancel",
+          "passed": true,
+          "reason": "cancel_pending_destruction"
+        },
+        {
+          "id": "no_approval",
+          "passed": true,
+          "reason": "no_authorized_deletion"
+        }
+      ]
+    },
+    {
+      "id": "english-missing-time",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "buy the costume",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": [
+              "time"
+            ],
+            "question": "What time tomorrow?"
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "en",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "buy the costume",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1
+            },
+            "missingFields": [
+              "time"
+            ],
+            "question": "What time tomorrow?",
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "stored_english_not_old_spanish_history"
+        },
+        {
+          "id": "reminder_draft",
+          "passed": true,
+          "reason": "requested_reminder_preserved"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "missing_time",
+          "passed": true,
+          "reason": "typed_pending_time_or_backend_inferred_question"
+        },
+        {
+          "id": "no_invented_clock",
+          "passed": true,
+          "reason": "no_default_time"
+        },
+        {
+          "id": "no_invented_minute",
+          "passed": true,
+          "reason": "no_clock_component_without_requested_time"
+        },
+        {
+          "id": "no_invented_clock_mode",
+          "passed": true,
+          "reason": "no_am_pm_without_requested_time"
+        }
+      ]
+    },
+    {
+      "id": "english-neutral-time",
+      "phase": "continuation",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "relation": "resume",
+        "actionInputs": [
+          {
+            "callId": "call-1",
+            "fields": {
+              "contextRef": null,
+              "target": null,
+              "content": null,
+              "title": null,
+              "description": null,
+              "descriptionMode": null,
+              "clearFields": null,
+              "entityName": null,
+              "oldName": null,
+              "newName": null,
+              "sourceName": null,
+              "category": null,
+              "topicKey": null,
+              "priority": null,
+              "status": null,
+              "recapMode": null,
+              "evidenceRefs": null,
+              "returnFields": null,
+              "scope": null,
+              "filter": null,
+              "query": null,
+              "projectless": null,
+              "preserveNames": null,
+              "schedule": {
+                "kind": "local_time",
+                "allDay": null,
+                "offsetMinutes": null,
+                "dayOffset": null,
+                "year": null,
+                "month": null,
+                "day": null,
+                "weekday": null,
+                "weekOffset": null,
+                "hour": 4,
+                "minute": 45,
+                "clockMode": "ambiguous_12h"
+              },
+              "endSchedule": null,
+              "advanceMinutes": null,
+              "deliveryPolicy": null,
+              "recurrence": null,
+              "requiresConfirmation": null,
+              "nudgeIntervalMinutes": null,
+              "maxNudges": null,
+              "durationMinutes": null,
+              "addGoogleMeet": null,
+              "limit": null
+            }
+          }
+        ],
+        "reply": null
+      },
+      "normalizedDecision": {
+        "relation": "resume",
+        "suppliedFields": {},
+        "actionInputs": [
+          {
+            "callId": "call-1",
+            "fields": {
+              "schedule": {
+                "kind": "local_time",
+                "hour": 4,
+                "minute": 45,
+                "clockMode": "ambiguous_12h"
+              }
+            }
+          }
+        ],
+        "reply": null,
+        "responseLanguage": "en"
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "neutral_clock_does_not_override_stored_english"
+        },
+        {
+          "id": "resume",
+          "passed": true,
+          "reason": "resume_owned_english_draft"
+        },
+        {
+          "id": "owned_call",
+          "passed": true,
+          "reason": "only_owned_prepared_call"
+        },
+        {
+          "id": "reminder_subject",
+          "passed": true,
+          "reason": "declared_owned_subject_equivalence",
+          "outcome": "passed"
+        },
+        {
+          "id": "typed_temporal_resolution",
+          "passed": true,
+          "reason": "actual_typed_resolver_with_owned_anchor"
+        },
+        {
+          "id": "date_year",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_month",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "date_day",
+          "passed": true,
+          "reason": "resolved_owned_calendar_component"
+        },
+        {
+          "id": "no_explicit_all_day",
+          "passed": true,
+          "reason": "reminder_requires_clock_not_all_day"
+        },
+        {
+          "id": "clock_hour",
+          "passed": true,
+          "reason": "neutral_4_45_hour"
+        },
+        {
+          "id": "clock_minute",
+          "passed": true,
+          "reason": "neutral_4_45_minute"
+        },
+        {
+          "id": "unresolved_ampm",
+          "passed": true,
+          "reason": "do_not_assume_am_pm"
+        },
+        {
+          "id": "no_date_reset",
+          "passed": true,
+          "reason": "merge_into_original_tomorrow_draft"
+        }
+      ]
+    },
+    {
+      "id": "lang-switch-to-es",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "¡Claro! A partir de ahora nos comunicamos en español.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "¡Claro! A partir de ahora nos comunicamos en español.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "response_language_es"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "natural_reply_without_operational_evidence"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_operational_side_effects"
+        }
+      ]
+    },
+    {
+      "id": "lang-stay-es-complaint",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "Disculpa, me comunico contigo en español de ahora en adelante.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Disculpa, me comunico contigo en español de ahora en adelante.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "response_language_es"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "natural_reply_without_operational_evidence"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_operational_side_effects"
+        }
+      ]
+    },
+    {
+      "id": "lang-english-task-create",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "buy groceries",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Personal",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "en",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "title": "buy groceries",
+            "entityName": "Personal",
+            "domain": "task",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "response_language_en"
+        },
+        {
+          "id": "task_create",
+          "passed": true,
+          "reason": "task_create_operation"
+        },
+        {
+          "id": "task_title",
+          "passed": true,
+          "reason": "task_title_buy_groceries"
+        },
+        {
+          "id": "task_project",
+          "passed": true,
+          "reason": "task_entity_personal"
+        }
+      ]
+    },
+    {
+      "id": "lang-english-reminder-relative",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "take out the trash",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_offset",
+              "allDay": null,
+              "offsetMinutes": 10,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "en",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "take out the trash",
+            "schedule": {
+              "kind": "relative_offset",
+              "offsetMinutes": 10
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "response_language_en"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "reminder_content",
+          "passed": true,
+          "reason": "reminder_subject_trash"
+        },
+        {
+          "id": "relative_offset",
+          "passed": true,
+          "reason": "offset_10_minutes"
+        }
+      ]
+    },
+    {
+      "id": "lang-english-agenda",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "agenda.read",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "calendar_date_time",
+              "allDay": true,
+              "offsetMinutes": null,
+              "dayOffset": null,
+              "year": 2026,
+              "month": 10,
+              "day": 8,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "en",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "schedule": {
+              "kind": "calendar_date_time",
+              "allDay": true,
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "domain": "agenda",
+            "action": "read"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "language",
+          "passed": true,
+          "reason": "response_language_en"
+        },
+        {
+          "id": "agenda_read",
+          "passed": true,
+          "reason": "agenda_read_operation"
+        },
+        {
+          "id": "agenda_date",
+          "passed": true,
+          "reason": "agenda_date_oct_8"
+        }
+      ]
+    },
+    {
+      "id": "task-complete-informal",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.complete",
+            "contextRef": null,
+            "target": "Revisar la gestión de descargas",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "Revisar la gestión de descargas",
+            "domain": "task",
+            "action": "complete"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_complete",
+          "passed": true,
+          "reason": "task_complete_operation"
+        },
+        {
+          "id": "target",
+          "passed": true,
+          "reason": "target_revisar_descargas"
+        }
+      ]
+    },
+    {
+      "id": "task-complete-named-project",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.complete",
+            "contextRef": null,
+            "target": "First task",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Demo project",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "First task",
+            "entityName": "Demo project",
+            "domain": "task",
+            "action": "complete"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_complete",
+          "passed": true,
+          "reason": "task_complete_operation"
+        },
+        {
+          "id": "target",
+          "passed": true,
+          "reason": "target_first_task_or_context_ref"
+        },
+        {
+          "id": "entity_name",
+          "passed": true,
+          "reason": "entity_demo_project"
+        }
+      ]
+    },
+    {
+      "id": "task-create-multiple",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "comprar maleta",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "viaje",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          },
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "revisar seguro",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "viaje",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          },
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "descargar tiquetes",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "viaje",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "title": "comprar maleta",
+            "entityName": "viaje",
+            "domain": "task",
+            "action": "create"
+          },
+          {
+            "title": "revisar seguro",
+            "entityName": "viaje",
+            "domain": "task",
+            "action": "create"
+          },
+          {
+            "title": "descargar tiquetes",
+            "entityName": "viaje",
+            "domain": "task",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "multiple_tasks",
+          "passed": true,
+          "reason": "three_task_create_actions"
+        },
+        {
+          "id": "entity_name",
+          "passed": true,
+          "reason": "entity_viaje_for_all"
+        },
+        {
+          "id": "item_titles",
+          "passed": true,
+          "reason": "all_three_titles_present"
+        }
+      ]
+    },
+    {
+      "id": "task-list-pending",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": "pending",
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "status": "pending",
+            "domain": "task",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_list",
+          "passed": true,
+          "reason": "task_list_operation"
+        },
+        {
+          "id": "status_pending",
+          "passed": true,
+          "reason": "status_pending"
+        }
+      ]
+    },
+    {
+      "id": "task-create-explicit",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "Llamar al banco",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Finanzas",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "title": "Llamar al banco",
+            "entityName": "Finanzas",
+            "domain": "task",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_create",
+          "passed": true,
+          "reason": "task_create_operation"
+        },
+        {
+          "id": "task_title",
+          "passed": true,
+          "reason": "title_llamar_al_banco"
+        },
+        {
+          "id": "entity_name",
+          "passed": true,
+          "reason": "entity_finanzas"
+        }
+      ]
+    },
+    {
+      "id": "reminder-offset-1m",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "ir al baño",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_offset",
+              "allDay": null,
+              "offsetMinutes": 1,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "ir al baño",
+            "schedule": {
+              "kind": "relative_offset",
+              "offsetMinutes": 1
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_ir_al_bano"
+        },
+        {
+          "id": "offset_1m",
+          "passed": true,
+          "reason": "offset_1_minute"
+        }
+      ]
+    },
+    {
+      "id": "reminder-offset-30m",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "apagar el horno",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_offset",
+              "allDay": null,
+              "offsetMinutes": 30,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "apagar el horno",
+            "schedule": {
+              "kind": "relative_offset",
+              "offsetMinutes": 30
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_apagar_el_horno"
+        },
+        {
+          "id": "offset_30m",
+          "passed": true,
+          "reason": "offset_30_minutes"
+        }
+      ]
+    },
+    {
+      "id": "reminder-offset-2h",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "tomar agua",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_offset",
+              "allDay": null,
+              "offsetMinutes": 120,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "tomar agua",
+            "schedule": {
+              "kind": "relative_offset",
+              "offsetMinutes": 120
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_tomar_agua"
+        },
+        {
+          "id": "offset_120m",
+          "passed": true,
+          "reason": "offset_120_minutes"
+        }
+      ]
+    },
+    {
+      "id": "reminder-today-explicit-time",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "tomar la pastilla",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 0,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 20,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "tomar la pastilla",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 0,
+              "hour": 20,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_tomar_la_pastilla"
+        },
+        {
+          "id": "day_offset_0",
+          "passed": true,
+          "reason": "day_offset_today"
+        },
+        {
+          "id": "clock_20h",
+          "passed": true,
+          "reason": "clock_8_pm"
+        }
+      ]
+    },
+    {
+      "id": "multi-reminder-same-day",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "llega la arena",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 8,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          },
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "llega el cemento",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 9,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "llega la arena",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 8,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          },
+          {
+            "content": "llega el cemento",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 9,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "two_reminders",
+          "passed": true,
+          "reason": "two_reminder_create_actions"
+        },
+        {
+          "id": "first_reminder",
+          "passed": true,
+          "reason": "arena_at_8am"
+        },
+        {
+          "id": "second_reminder",
+          "passed": true,
+          "reason": "cemento_at_9am"
+        }
+      ]
+    },
+    {
+      "id": "reminder-advance-notice",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "reunión",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 10,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": 15,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "reunión",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 10,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "advanceMinutes": 15,
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_reunion"
+        },
+        {
+          "id": "schedule_10am",
+          "passed": true,
+          "reason": "tomorrow_at_10am"
+        },
+        {
+          "id": "advance_15m",
+          "passed": true,
+          "reason": "advance_15_minutes"
+        }
+      ]
+    },
+    {
+      "id": "reminder-recurrence-hourly",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "tomar agua",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_offset",
+              "allDay": null,
+              "offsetMinutes": 120,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": "hourly:2",
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "tomar agua",
+            "schedule": {
+              "kind": "relative_offset",
+              "offsetMinutes": 120
+            },
+            "recurrence": "hourly:2",
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "recurrence_hourly_2",
+          "passed": true,
+          "reason": "recurrence_hourly_2"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_tomar_agua"
+        }
+      ]
+    },
+    {
+      "id": "reminder-recurrence-daily",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "hacer ejercicio",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "local_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 7,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": "daily",
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "hacer ejercicio",
+            "schedule": {
+              "kind": "local_time",
+              "hour": 7,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "recurrence": "daily",
+            "domain": "reminder",
+            "action": "create",
+            "missingFields": [
+              "date"
+            ]
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "recurrence_daily",
+          "passed": true,
+          "reason": "recurrence_daily"
+        },
+        {
+          "id": "clock_7am",
+          "passed": true,
+          "reason": "clock_7_am"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_hacer_ejercicio"
+        }
+      ]
+    },
+    {
+      "id": "calendar-query-next",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "calendar.next",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "domain": "calendar",
+            "action": "next"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "calendar_next",
+          "passed": true,
+          "reason": "calendar_next_operation"
+        }
+      ]
+    },
+    {
+      "id": "calendar-create-event",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "calendar.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "reunión con el cliente",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 16,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 17,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "title": "reunión con el cliente",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 16,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 17,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "calendar",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "calendar_create",
+          "passed": true,
+          "reason": "calendar_create_operation"
+        },
+        {
+          "id": "title",
+          "passed": true,
+          "reason": "title_reunion_cliente"
+        },
+        {
+          "id": "start_schedule",
+          "passed": true,
+          "reason": "tomorrow_at_4pm"
+        },
+        {
+          "id": "end_schedule",
+          "passed": true,
+          "reason": "tomorrow_at_5pm"
+        }
+      ]
+    },
+    {
+      "id": "calendar-read-tomorrow",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "calendar.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": true,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": null,
+              "minute": null,
+              "clockMode": null
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": true,
+              "dayOffset": 1
+            },
+            "domain": "calendar",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "calendar_list",
+          "passed": true,
+          "reason": "calendar_list_operation"
+        },
+        {
+          "id": "tomorrow_scope",
+          "passed": true,
+          "reason": "tomorrow_scope"
+        },
+        {
+          "id": "all_day",
+          "passed": true,
+          "reason": "all_day_read"
+        }
+      ]
+    },
+    {
+      "id": "reminder-list-active",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "domain": "reminder",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_list",
+          "passed": true,
+          "reason": "reminder_list_operation"
+        }
+      ]
+    },
+    {
+      "id": "reminder-cancel-single",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.cancel",
+            "contextRef": null,
+            "target": "gotas en los ojos",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "gotas en los ojos",
+            "domain": "reminder",
+            "action": "cancel"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_cancel",
+          "passed": true,
+          "reason": "reminder_cancel_operation"
+        },
+        {
+          "id": "target",
+          "passed": true,
+          "reason": "target_gotas_en_los_ojos"
+        }
+      ]
+    },
+    {
+      "id": "reminder-cancel-ordinal",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.cancel",
+            "contextRef": null,
+            "target": "primer recordatorio",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "primer recordatorio",
+            "domain": "reminder",
+            "action": "cancel"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_cancel",
+          "passed": true,
+          "reason": "reminder_cancel_operation"
+        },
+        {
+          "id": "target_ordinal",
+          "passed": true,
+          "reason": "target_first_reminder"
+        }
+      ]
+    },
+    {
+      "id": "mixed-cancel-and-create",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.cancel",
+            "contextRef": null,
+            "target": "GPS",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          },
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "comprar pan",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 9,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "GPS",
+            "domain": "reminder",
+            "action": "cancel"
+          },
+          {
+            "content": "comprar pan",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 9,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "cancel_gps",
+          "passed": true,
+          "reason": "cancel_gps_target"
+        },
+        {
+          "id": "create_pan",
+          "passed": true,
+          "reason": "create_comprar_pan"
+        },
+        {
+          "id": "tomorrow_9am",
+          "passed": true,
+          "reason": "tomorrow_at_9am"
+        }
+      ]
+    },
+    {
+      "id": "project-delete-request",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "project.delete",
+            "contextRef": null,
+            "target": "Archivo Sonoro",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "Archivo Sonoro",
+            "domain": "project",
+            "action": "delete"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "project_delete",
+          "passed": true,
+          "reason": "delete_project_operation"
+        },
+        {
+          "id": "target",
+          "passed": true,
+          "reason": "target_archivo_sonoro"
+        },
+        {
+          "id": "no_all_scope",
+          "passed": true,
+          "reason": "scope_not_all"
+        }
+      ]
+    },
+    {
+      "id": "task-update-rename",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.update",
+            "contextRef": null,
+            "target": "First task",
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Demo project",
+            "oldName": null,
+            "newName": "Revisar servidor",
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "target": "First task",
+            "entityName": "Demo project",
+            "newName": "Revisar servidor",
+            "title": "Revisar servidor",
+            "domain": "task",
+            "action": "update"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_update",
+          "passed": true,
+          "reason": "task_update_operation"
+        },
+        {
+          "id": "target",
+          "passed": true,
+          "reason": "target_first_task"
+        },
+        {
+          "id": "new_name",
+          "passed": true,
+          "reason": "new_name_revisar_servidor"
+        },
+        {
+          "id": "entity_name",
+          "passed": true,
+          "reason": "entity_demo_project"
+        }
+      ]
+    },
+    {
+      "id": "memory-save-fact",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "memory.save",
+            "contextRef": null,
+            "target": null,
+            "content": "El cumpleaños del usuario es el 15 de marzo.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": "fact",
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "El cumpleaños del usuario es el 15 de marzo.",
+            "category": "fact",
+            "domain": "memory",
+            "action": "save"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "memory_save",
+          "passed": true,
+          "reason": "memory_save_operation"
+        },
+        {
+          "id": "category_fact",
+          "passed": true,
+          "reason": "category_fact"
+        },
+        {
+          "id": "content",
+          "passed": true,
+          "reason": "content_birthday_march_15"
+        }
+      ]
+    },
+    {
+      "id": "memory-preference-notice",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [
+          {
+            "topicKey": "preference/reminder-notice",
+            "category": "preference",
+            "content": "No añadir avisos anticipados sin solicitud explícita.",
+            "evidence": "Nunca me agregues avisos anticipados a menos que te lo pida expresamente.",
+            "entityName": null,
+            "entityCategory": null
+          }
+        ],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "Entendido, no añadiré avisos anticipados sin tu solicitud.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [
+          {
+            "topicKey": "preference/reminder-notice",
+            "category": "preference",
+            "content": "No añadir avisos anticipados sin solicitud explícita.",
+            "evidence": "Nunca me agregues avisos anticipados a menos que te lo pida expresamente."
+          }
+        ],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Entendido, no añadiré avisos anticipados sin tu solicitud.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "ordinary_reply"
+        },
+        {
+          "id": "preference_candidate",
+          "passed": true,
+          "reason": "preference_candidate_reminder_notice"
+        }
+      ]
+    },
+    {
+      "id": "rectification-misunderstanding",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.list",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": "Malta",
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": "all",
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "entityName": "Malta",
+            "status": "all",
+            "domain": "task",
+            "action": "list"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_list",
+          "passed": true,
+          "reason": "task_list_operation"
+        },
+        {
+          "id": "entity_malta",
+          "passed": true,
+          "reason": "entity_malta"
+        },
+        {
+          "id": "status_all",
+          "passed": true,
+          "reason": "status_all"
+        },
+        {
+          "id": "no_reminder",
+          "passed": true,
+          "reason": "no_unwanted_reminder"
+        }
+      ]
+    },
+    {
+      "id": "chat-followup-colloquial",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "¡Hola! Todo bien por acá, ¿en qué te puedo ayudar hoy?",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "¡Hola! Todo bien por acá, ¿en qué te puedo ayudar hoy?",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "ordinary_reply"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_operational_side_effects"
+        }
+      ]
+    },
+    {
+      "id": "chat-gratitude",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "¡Con mucho gusto! Que tengas un excelente día.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "¡Con mucho gusto! Que tengas un excelente día.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "ordinary_reply"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_operational_side_effects"
+        }
+      ]
+    },
+    {
+      "id": "security-quoted-command",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "conversation.reply",
+            "contextRef": null,
+            "target": null,
+            "content": "Son las 11:30 AM.",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "Son las 11:30 AM.",
+            "domain": "conversation",
+            "action": "reply"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "ordinary_reply",
+          "passed": true,
+          "reason": "ordinary_reply"
+        },
+        {
+          "id": "no_operations",
+          "passed": true,
+          "reason": "no_operational_side_effects"
+        },
+        {
+          "id": "no_destructive_ops",
+          "passed": true,
+          "reason": "no_destructive_operations"
+        }
+      ]
+    },
+    {
+      "id": "time-explicit-noon",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "almorzar con mamá",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 12,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "almorzar con mamá",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 12,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_almorzar_con_mama"
+        },
+        {
+          "id": "tomorrow_noon",
+          "passed": true,
+          "reason": "tomorrow_at_noon"
+        }
+      ]
+    },
+    {
+      "id": "time-explicit-midnight",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
+            "content": "reiniciar el servidor",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
+            "schedule": {
+              "kind": "relative_day_time",
+              "allDay": null,
+              "offsetMinutes": null,
+              "dayOffset": 1,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
+              "hour": 0,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "content": "reiniciar el servidor",
+            "schedule": {
+              "kind": "relative_day_time",
+              "dayOffset": 1,
+              "hour": 0,
+              "minute": 0,
+              "clockMode": "explicit_24h"
+            },
+            "domain": "reminder",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "reminder_create",
+          "passed": true,
+          "reason": "reminder_create_operation"
+        },
+        {
+          "id": "subject",
+          "passed": true,
+          "reason": "subject_reiniciar_servidor"
+        },
+        {
+          "id": "midnight_hour",
+          "passed": true,
+          "reason": "midnight_hour_0"
+        }
+      ]
+    },
+    {
+      "id": "task-projectless",
+      "phase": "initial",
+      "attempts": 1,
+      "latencyMs": 0,
+      "latencyStr": "synthetic",
+      "deadlineMet": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "schemaValid": true,
+      "validationErrors": null,
+      "passed": true,
+      "details": "All semantic assertions met",
+      "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "actions": [
+          {
+            "operation": "task.create",
+            "contextRef": null,
+            "target": null,
+            "content": null,
+            "title": "comprar pan",
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "query": null,
+            "projectless": true,
+            "preserveNames": null,
+            "schedule": null,
+            "endSchedule": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
+            "requiresConfirmation": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
+            "addGoogleMeet": null,
+            "limit": null,
+            "missingFields": null,
+            "question": null
+          }
+        ],
+        "excluded": null
+      },
+      "normalizedDecision": {
+        "responseLanguage": "es",
+        "learningCandidates": [],
+        "learningCandidatesProvided": true,
+        "responseCapability": "general",
+        "actions": [
+          {
+            "title": "comprar pan",
+            "projectless": true,
+            "domain": "task",
+            "action": "create"
+          }
+        ],
+        "excluded": []
+      },
+      "assertions": [
+        {
+          "id": "canonical_valid",
+          "passed": true,
+          "reason": "accepted_by_actual_validator"
+        },
+        {
+          "id": "no_extra_side_effects",
+          "passed": true,
+          "reason": "only_requested_operations"
+        },
+        {
+          "id": "requested_operation_count",
+          "passed": true,
+          "reason": "no_duplicate_or_extra_operational_actions"
+        },
+        {
+          "id": "clarification_scope",
+          "passed": true,
+          "reason": "clarification_only_for_pending_missing_data"
+        },
+        {
+          "id": "task_create",
+          "passed": true,
+          "reason": "task_create_operation"
+        },
+        {
+          "id": "title",
+          "passed": true,
+          "reason": "title_comprar_pan"
+        },
+        {
+          "id": "projectless",
+          "passed": true,
+          "reason": "projectless_true"
+        },
+        {
+          "id": "no_entity",
+          "passed": true,
+          "reason": "no_entity_name"
+        }
+      ]
+    }
+  ]
+}

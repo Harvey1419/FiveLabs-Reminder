@@ -1,0 +1,504 @@
+{
+  "formatVersion": 1,
+  "status": "protocol_stopped",
+  "verdict": "HOLD",
+  "summary": {
+    "comparisonCompleted": false,
+    "protocol": "Stopped after Haiku's first HTTP 400 schema-related rejection; one matched Groq greeting diagnostic succeeded. No retries or remaining sample executed.",
+    "exactUpstreamConstraint": "Unknown: only HTTP 400 and a schema-related classifier were retained; raw provider errors were discarded. Do not infer a particular optional, union, nesting or array limit.",
+    "quality": {
+      "haiku": { "attempted": 1, "canonicalValid": 0, "manualCorrect": 0, "unresolved": 1, "manualCorrectWithinDeadline": 0, "protocolErrors": 1, "timeouts": 0 },
+      "groq": { "attempted": 1, "canonicalValid": 1, "manualCorrect": 1, "unresolved": 0, "manualCorrectWithinDeadline": 1, "protocolErrors": 0, "timeouts": 0 }
+    },
+    "matchedCorrectLatency": { "pairs": 0, "meanDifferenceMs": null, "medianDifferenceMs": null, "conclusion": "No paired accepted-response comparison exists; Haiku's fast error is excluded." },
+    "groqDiagnosticAcceptedLatency": { "n": 1, "meanMs": 3599.844501, "medianMs": 3599.844501, "notComparative": true },
+    "costConclusion": "One Groq usage-reported charge only; exact-ID billing lookup returned 404 once. Haiku cost is unknown and its full reserve remains. No cross-model cost comparison.",
+    "nextCandidatePlan": "Do not repeat this full schema blindly. Parent can consider a separately authorized minimal provider-codec diagnostic with allowlisted structural-limit extraction before selecting another reversible typed representation or restarting the matched sample. This task makes no further remote calls."
+  },
+  "hypothesis": "Haiku 5.5 vs Groq text-only model-plus-adapter integration; no universal intelligence or multimodal conclusion",
+  "startedAt": "2026-10-09T03:03:58.170Z",
+  "endedAt": "2026-10-09T03:04:04.210Z",
+  "authorization": {
+    "maxNewGenerationAttempts": 50,
+    "maxNewCostUsd": 1,
+    "parentPriorNewAttempts": 0,
+    "syntheticOnly": true,
+    "concurrency": 1,
+    "noRetries": true,
+    "noFallbacks": true,
+    "noProductionActions": true,
+    "rdd": "OFF"
+  },
+  "attempts": 2,
+  "cost": {
+    "usageReportedUsd": 0.0012921,
+    "unknownReservedUsd": 0.016841,
+    "totalConservativeBoundUsd": 0.0181331,
+    "billingChecks": [
+      {
+        "generationId": "gen-1791515040-oO26Bd7eyCU4kR0pp9f9",
+        "arm": "groq",
+        "httpStatus": 404,
+        "totalCostUsd": null,
+        "usageReportedCostUsd": 0.0012921,
+        "billingConfirmed": false
+      }
+    ],
+    "unknownCostsRetainFullReservation": true,
+    "discountsAssumed": false
+  },
+  "stopReason": "schema_protocol_unsupported",
+  "offline": {
+    "qualified": true,
+    "qualificationScope": "Local schema/codec proof only. Counts are optional/union syntax in generated JSON Schema, not certification of Vertex compiler accounting. Initial live schema rejected; continuation and approval not live-tested.",
+    "keywords": [
+      "type",
+      "additionalProperties",
+      "properties",
+      "required",
+      "enum",
+      "description",
+      "minItems",
+      "maxItems",
+      "items",
+      "maxLength",
+      "minLength",
+      "minimum",
+      "maximum"
+    ],
+    "validator": "exhaustive fail-unknown keyword validator including original maxLength; duplicate-key JSON parser",
+    "checkedNodes": 183,
+    "roundtrips": 323,
+    "negativeChecks": 331,
+    "fixtures": [
+      {
+        "caseId": "greeting",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "personal-recall",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "missing-time",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "reminder-time",
+        "phase": "continuation",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "ampm-ambiguity",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "dated-reminder",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "second-description",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "full-projection",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "quoted-agenda",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "lasting-language-and-fact",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "destructive-request",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "approval-cancel",
+        "phase": "approval",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "english-missing-time",
+        "phase": "initial",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      },
+      {
+        "caseId": "english-neutral-time",
+        "phase": "continuation",
+        "exactWireRoundtrip": true,
+        "normalizedDecisionEquality": true,
+        "originalCanonicalAccepted": true
+      }
+    ],
+    "phases": {
+      "initial": {
+        "nullableFields": 67,
+        "optionalParameters": 0,
+        "unionParameters": 0,
+        "canonicalSchemaHash": "7dcc325dfc741e45695a6a7bb2261692358d2aa5d3ad2059647b3c80ed82a891",
+        "generationSchemaHash": "d57ae5cb56e5e860ce6aa90cf05b4be852d3a1be31fded44a182c12b30bd2d9f"
+      },
+      "continuation": {
+        "nullableFields": 62,
+        "optionalParameters": 0,
+        "unionParameters": 0,
+        "canonicalSchemaHash": "89b84189ec14a12adb0c28e30019d944ed65032a63d20f0856cf0d8005d67117",
+        "generationSchemaHash": "0bf3b3ffeb6b732f9b42b3fdaad460a9fb87424639a399a657d41bc42c3350ea"
+      },
+      "approval": {
+        "nullableFields": 6,
+        "optionalParameters": 0,
+        "unionParameters": 0,
+        "canonicalSchemaHash": "dc47fefa53c769628b245b0da84adf98f4ce9c61ec2a645edc1d400d60926a86",
+        "generationSchemaHash": "994285b3e71ab7be63b81693abf4029e221d9b9836513e591abc74272cbd80e6"
+      }
+    },
+    "removedGenerationOnlyKeywords": [
+      "minimum",
+      "maximum",
+      "minLength",
+      "maxLength",
+      "minItems",
+      "maxItems"
+    ],
+    "ownershipGate": "owned synthetic knowledge refs/prepared call ids; no operational history/context refs supplied",
+    "sourceSanitizerProof": "current-user stale mutation profile rejected; no-history conversation evidence stripped by actual sanitizer; separate owned gate rejects unknown refs",
+    "simpleOptionalCandidateFits": false,
+    "representation": "generic schema-derived typed nullable wrappers; not JSON-in-string; no canonical capability removed",
+    "forecastWorstReservedUsd": 0.710115407
+  },
+  "models": {
+    "haiku": {
+      "id": "anthropic/claude-haiku-5.5",
+      "provider": "google-vertex/us",
+      "input": 0.11,
+      "output": 0.55,
+      "cacheWrite": 0.22,
+      "temperature": null
+    },
+    "groq": {
+      "id": "openai/gpt-oss-120b",
+      "provider": "groq",
+      "input": 0.15,
+      "output": 0.6,
+      "cacheWrite": 0.15,
+      "temperature": 0
+    }
+  },
+  "parameters": {
+    "maxTokens": {
+      "initial": 8192,
+      "continuation": 4096,
+      "approval": 4096
+    },
+    "deadlineMs": 6000,
+    "reasoning": {
+      "effort": "medium",
+      "exclude": true,
+      "computationallyEqual": false,
+      "haiku": "requested medium; adaptive provider mapping unverified because request returned HTTP 400; not GPT reasoning equivalence"
+    },
+    "haikuTemperature": "omitted, unsupported non-default sampling",
+    "groqTemperature": 0,
+    "tools": "absent, no tool_choice",
+    "cacheWriteReservation": "Haiku worst listed 1h .22/M; Groq unknown .15/M contingency",
+    "location": "local caller; upstream pin only, no Colombia/Railway latency inference"
+  },
+  "sources": {
+    "head": "70eca79b8d3505a8b166ab7f88286bfdf886b8fe",
+    "baselineSchemaRef": "1290e815b7299f4a1b70c9e3b4329a8e0c8bcba5",
+    "mode": "mixed_source_schema_only:current-working-runtime-validators-and-prompt+1290e81-full-provider-descriptions",
+    "workingTreeStatusBefore": [
+      " M src/agent/contracts/foreground-turn-schema.js",
+      " M src/agent/core/agent-core.js",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-20261009T003827Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-p3-20261009T015840Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-p3-final-20261009T024000Z.json",
+      "?? odd/evidence/groq-contract-evaluation/groq-50-reinforced-20261009T013350Z.json",
+      "?? odd/evidence/hermes-token-optimization/",
+      "?? odd/tasks/hermes-fast-product-demo.md",
+      "?? odd/tasks/hermes-landing-demo.md",
+      "?? odd/tasks/hermes-premium-device-demo.md"
+    ],
+    "sourceSetHashBefore": "c80f98b72cfb7a07b96faed459b28e99ebe6b89fb4932af34b86e5d175513b5e",
+    "sourceSetHashAfter": "c80f98b72cfb7a07b96faed459b28e99ebe6b89fb4932af34b86e5d175513b5e",
+    "sourceHashCount": 121,
+    "sourceHashes": {
+      "src/agent/contracts/intent-contracts.js": "ebc708bebc4b5e95141d6eecbc72afac91fc1881724fa51bbf8105f0e13c3b9d",
+      "src/agent/orchestration/personal-knowledge.js": "31d910f9d32ec462ddd8335932e533b26c8ce7195c60ae66c95a091a0816c668",
+      "src/agent/contracts/turn-context.js": "e72d7f6b285fb2d32561ecb9be75e2430ccb210d1ee20f929b1d7c4a2cd65485",
+      "src/agent/contracts/response-policy.js": "8a7406ec0a1db69f508cfb83466059af7b70452647f8ffe368cc6fe406301861",
+      "src/agent/contracts/tool-names.js": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+      "src/shared/agenda-scopes.js": "7451b06f19930e2b56eed902d847f026934c899d6d953f51121ff366dd04f267",
+      "src/shared/entity-categories.js": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+      "src/shared/entity-resolution.js": "14e6883b92daf66077187fe825d2fe13d336ed6184e93c892babcd7b2b0d3d01",
+      "src/agent/contracts/foreground-turn-schema.js": "33a1a991f5e6710bb4fe5ce968be374ea5a7c84169bbf5c718c7ce45366e6f26",
+      "src/agent/contracts/agent-run-contracts.js": "9565c418d334ca2030df49fad77878db65dd068dc37284e1df1ec7b5b88c77c8",
+      "src/agent/contracts/schema-value.js": "69401d0187c7142fad5cd430d681a120af3f3fe3237d6df6f5530d565cda0f82",
+      "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d",
+      "src/agent/orchestration/router-core.js": "80037bc7e7e04bca41b952304ad32dc1d1d0f2ffbc471dcc909c4ee88cb943c5",
+      "src/agent/providers/client.js": "1f221fcc15727bc42935f2939cd8731d59970141ee12c79bf8d535a14fd8ba48",
+      "src/agent/providers/request-payload.js": "0faec26a64c73831326dbec2f793ac0bed7b4804508c58dc9b02e0cabb0d8632",
+      "src/agent/contracts/foreground-turn-validation.js": "0fbb3b248ca75347ede799b85b8359187286f3445543fa0bc9fac96b56c161c2",
+      "baseline:src/agent/contracts/foreground-turn-schema.js": "0a208061e8572d975b653ad9ed5a0225203a29c21bd5a5989fd4f909021a0bac",
+      "src/agent/core/agent-run.js": "f0abf526fb23cd95bcb428907f9c8fb0687de9cf0086b4f507d8d9d101583f64",
+      "src/agent/orchestration/domain-call.js": "ba433727e11d3427e6f4195c4a87a6188cf6d45b748316695e675f8dfad7b613",
+      "src/agent/orchestration/intent-executor.js": "b4cea545db37fe53cd4b3160702739ab562505112722fc0ba9cfc4366fb3d384",
+      "src/shared/language-detection.js": "47e70987c6da55b9fbbf4374d05b638565241316575969ec0d012eea0dd223ea"
+    },
+    "userDirtyHashes": {
+      "src/agent/contracts/foreground-turn-schema.js": "33a1a991f5e6710bb4fe5ce968be374ea5a7c84169bbf5c718c7ce45366e6f26",
+      "src/agent/core/agent-core.js": "42d585f937b96f29ad44b321499392cc61683f9444e52423b0f310faab92448d"
+    },
+    "noSourceDrift": true,
+    "noOtherWorkingTreeChangesBeforeArtifact": true
+  },
+  "manualPolicy": "Separate offline agent factual/language/scope adjudication; preserve frozen rawGrade. All returned passing free content was reviewed: one Groq greeting only. No new LLM judge. Opaque absent Haiku decision remains UNRESOLVED.",
+  "limitations": [
+    "Representation differs; model plus experimental integration, not pure model isolation.",
+    "Full original strict wire schema enforced after lossless decode, then actual canonical validator and current-user/evidence sanitizers; separate owned-fixture reference gate.",
+    "Fixed independent active-run snapshots are synthetic ground truth, not fabricated successful parents.",
+    "No DB actions, receipts only mock; no persisted backend proof.",
+    "Native tokenizers differ; reasoning tokens are completion subsets, not additive.",
+    "Small sample; quality/noninferiority and zero universal error cannot be inferred.",
+    "Image/audio not tested."
+  ],
+  "pairs": [
+    {
+      "pair": 1,
+      "caseId": "greeting",
+      "phase": "initial",
+      "contextMode": "matched_fixed_owned_snapshot_not_generated_parent",
+      "order": [
+        "haiku",
+        "groq"
+      ],
+      "results": {
+        "haiku": {
+          "attempt": 1,
+          "arm": "haiku",
+          "model": "anthropic/claude-haiku-5.5",
+          "pin": "google-vertex/us",
+          "phase": "initial",
+          "caseId": "greeting",
+          "requestBytes": 37380,
+          "schemaBytes": 28772,
+          "baseMessagesHash": "c57d688a8199f6db9bd707a9da1e0290416f18c7aac1fefe9c438173fefe3612",
+          "wireMessagesHash": "20f6d77612efa29c505b27e7574a513f78de654aa0242ebc3bde205eca36ca34",
+          "reservationUsd": 0.016841,
+          "httpStatus": 400,
+          "generationId": null,
+          "provider": null,
+          "usage": null,
+          "reason": "schema_protocol_unsupported",
+          "errorCode": "400",
+          "errorProvenance": "unknown",
+          "valid": false,
+          "ownedRefs": false,
+          "rawGrade": null,
+          "decision": null,
+          "decodedWire": null,
+          "manual": {
+            "outcome": "UNRESOLVED",
+            "reason": "HTTP 400 with no returned decision; no semantic adjudication possible"
+          },
+          "latencyMs": 1763.389334,
+          "stageElapsed": {
+            "preparationMs": 0.17395899999999642,
+            "fetchMs": 1762.043959,
+            "parseValidationMs": 1.1700409999998556
+          },
+          "withinDeadline": true
+        },
+        "groq": {
+          "attempt": 2,
+          "arm": "groq",
+          "model": "openai/gpt-oss-120b",
+          "pin": "groq",
+          "phase": "initial",
+          "caseId": "greeting",
+          "requestBytes": 26560,
+          "schemaBytes": 19058,
+          "baseMessagesHash": "c57d688a8199f6db9bd707a9da1e0290416f18c7aac1fefe9c438173fefe3612",
+          "wireMessagesHash": "c57d688a8199f6db9bd707a9da1e0290416f18c7aac1fefe9c438173fefe3612",
+          "reservationUsd": 0.0128832,
+          "httpStatus": 200,
+          "generationId": "gen-1791515040-oO26Bd7eyCU4kR0pp9f9",
+          "provider": "Groq",
+          "usage": {
+            "promptTokens": 6930,
+            "completionTokens": 1157,
+            "reasoningTokens": 815,
+            "cachedTokens": 5888,
+            "cacheWriteTokens": 0,
+            "reportedCostUsd": 0.0012921,
+            "upstreamInferenceCostUsd": 0.0012921
+          },
+          "reason": "accepted",
+          "errorCode": null,
+          "errorProvenance": null,
+          "valid": true,
+          "ownedRefs": true,
+          "rawGrade": {
+            "passed": true,
+            "assertions": [
+              {
+                "id": "canonical_valid",
+                "passed": true,
+                "reason": "accepted_by_actual_validator"
+              },
+              {
+                "id": "no_extra_side_effects",
+                "passed": true,
+                "reason": "only_requested_operations"
+              },
+              {
+                "id": "requested_operation_count",
+                "passed": true,
+                "reason": "no_duplicate_or_extra_operational_actions"
+              },
+              {
+                "id": "clarification_scope",
+                "passed": true,
+                "reason": "clarification_only_for_pending_missing_data"
+              },
+              {
+                "id": "ordinary_reply",
+                "passed": true,
+                "reason": "natural_reply_without_operational_evidence"
+              },
+              {
+                "id": "no_operations",
+                "passed": true,
+                "reason": "no_social_side_effects"
+              }
+            ],
+            "semanticPolicyVersion": "owned-reminder-semantics-v1",
+            "simulatedReceipt": {
+              "source": "in_memory_fixture_only",
+              "effects": []
+            }
+          },
+          "decision": {
+            "responseLanguage": "es",
+            "learningCandidates": [],
+            "learningCandidatesProvided": true,
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "actions": [
+              {
+                "content": "¡Hola! ¿En qué puedo ayudarte?",
+                "domain": "conversation",
+                "action": "reply"
+              }
+            ],
+            "excluded": []
+          },
+          "decodedWire": {
+            "responseLanguage": "es",
+            "profileUpdate": null,
+            "responseCapability": "general",
+            "answerFromResults": false,
+            "knowledgeRefs": null,
+            "learningCandidates": [],
+            "actions": [
+              {
+                "operation": "conversation.reply",
+                "content": "¡Hola! ¿En qué puedo ayudarte?",
+                "contextRef": null,
+                "target": null,
+                "title": null,
+                "description": null,
+                "descriptionMode": null,
+                "clearFields": null,
+                "entityName": null,
+                "oldName": null,
+                "newName": null,
+                "sourceName": null,
+                "category": null,
+                "topicKey": null,
+                "priority": null,
+                "status": null,
+                "recapMode": null,
+                "evidenceRefs": null,
+                "returnFields": null,
+                "scope": null,
+                "filter": null,
+                "query": null,
+                "projectless": null,
+                "preserveNames": null,
+                "schedule": null,
+                "endSchedule": null,
+                "advanceMinutes": null,
+                "deliveryPolicy": null,
+                "recurrence": null,
+                "requiresConfirmation": null,
+                "nudgeIntervalMinutes": null,
+                "maxNudges": null,
+                "durationMinutes": null,
+                "addGoogleMeet": null,
+                "limit": null,
+                "missingFields": null,
+                "question": null
+              }
+            ],
+            "excluded": null
+          },
+          "manual": {
+            "outcome": "CORRECT",
+            "reason": "Offline review of the entire retained wire and normalized decision: natural Spanish greeting to current Hola; no invented personal facts, operational state, learning/profile update, references, side effects or execution claims. The question is an ordinary conversational invitation, not a fabricated pending operation.",
+            "source": "offline_agent_adjudication_no_additional_model_calls",
+            "rawGradePreserved": true
+          },
+          "latencyMs": 3599.844501,
+          "stageElapsed": {
+            "preparationMs": 0.39391699999987395,
+            "fetchMs": 1075.234167,
+            "parseValidationMs": 2524.2152090000004
+          },
+          "withinDeadline": true
+        }
+      }
+    }
+  ]
+}

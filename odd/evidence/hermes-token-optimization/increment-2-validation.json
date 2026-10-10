@@ -1,0 +1,2472 @@
+{
+  "status": "verified_execution",
+  "before": {
+    "head": "311e6416ed3c35809d0629392ba9bcd81ac1fa32",
+    "files": 295,
+    "digest": "5f24bb4a6c7a8b1f1b6d49f0717ee436c4bf36ad5801c48ceb3d3a74cc8709ef",
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "scenario": "closure-cases",
+  "requestedTurns": 10,
+  "canary": {
+    "phone": "hermes-chat.1e087fb5-9ae4-4e80-8910-d695863596f1",
+    "userId": "fac3681a-59e4-455d-9336-17a8ca3b9735",
+    "requests": [
+      {
+        "table": "users",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "messages",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "users",
+        "method": "POST",
+        "status": 201,
+        "rows": 1,
+        "errorCode": null
+      },
+      {
+        "table": "users",
+        "method": "GET",
+        "status": 200,
+        "rows": 1,
+        "errorCode": null
+      },
+      {
+        "table": "agent_runs",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "agent_execution_events",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "agent_runs",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "reminders",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "tasks",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "memories",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "entities",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "projects",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "messages",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "user_integrations",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "subscriptions",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "messages",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "hermes_inbound_turns",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "users",
+        "method": "DELETE",
+        "status": 200,
+        "rows": 1,
+        "errorCode": null
+      },
+      {
+        "table": "agent_runs",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "tasks",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "memories",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "projects",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "reminders",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "entities",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "agent_runs",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "agent_execution_events",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "messages",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "user_integrations",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "subscriptions",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "users",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "users",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "messages",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      },
+      {
+        "table": "hermes_inbound_turns",
+        "method": "GET",
+        "status": 200,
+        "rows": 0,
+        "errorCode": null
+      }
+    ],
+    "zeroReadback": {
+      "tasks": 0,
+      "memories": 0,
+      "projects": 0,
+      "reminders": 0,
+      "entities": 0,
+      "agent_runs": 0,
+      "agent_execution_events": 0,
+      "messages": 0,
+      "user_integrations": 0,
+      "subscriptions": 0,
+      "usersId": 0,
+      "usersPhone": 0,
+      "messagesPhone": 0,
+      "inbound": 0
+    },
+    "absenceProven": true,
+    "created": 1,
+    "deleted": 1,
+    "status": "pass"
+  },
+  "cli": {
+    "started": true,
+    "pacing": [
+      {
+        "turn": 1,
+        "pauseMs": 3010,
+        "promptAt": 1791337549086,
+        "writeAt": 1791337552529,
+        "afterPromptMs": 3443,
+        "writeIntervalMs": null,
+        "responsePromptAt": 1791337552959,
+        "responseWallMs": 430
+      },
+      {
+        "turn": 2,
+        "pauseMs": 3003,
+        "promptAt": 1791337563711,
+        "writeAt": 1791337568775,
+        "afterPromptMs": 5064,
+        "writeIntervalMs": 16246,
+        "responsePromptAt": 1791337569443,
+        "responseWallMs": 668
+      },
+      {
+        "turn": 3,
+        "pauseMs": 3010,
+        "promptAt": 1791337575616,
+        "writeAt": 1791337581040,
+        "afterPromptMs": 5424,
+        "writeIntervalMs": 12265,
+        "responsePromptAt": 1791337581688,
+        "responseWallMs": 648
+      },
+      {
+        "turn": 4,
+        "pauseMs": 3004,
+        "promptAt": 1791337590216,
+        "writeAt": 1791337594991,
+        "afterPromptMs": 4775,
+        "writeIntervalMs": 13951,
+        "responsePromptAt": 1791337606691,
+        "responseWallMs": 11700
+      },
+      {
+        "turn": 5,
+        "pauseMs": 3001,
+        "promptAt": 1791337607246,
+        "writeAt": 1791337611811,
+        "afterPromptMs": 4565,
+        "writeIntervalMs": 16820,
+        "responsePromptAt": 1791337619877,
+        "responseWallMs": 8066
+      },
+      {
+        "turn": 6,
+        "pauseMs": 3009,
+        "promptAt": 1791337619877,
+        "writeAt": 1791337625233,
+        "afterPromptMs": 5356,
+        "writeIntervalMs": 13422,
+        "responsePromptAt": 1791337625833,
+        "responseWallMs": 600
+      },
+      {
+        "turn": 7,
+        "pauseMs": 3010,
+        "promptAt": 1791337632559,
+        "writeAt": 1791337637738,
+        "afterPromptMs": 5179,
+        "writeIntervalMs": 12505,
+        "responsePromptAt": 1791337638364,
+        "responseWallMs": 626
+      },
+      {
+        "turn": 8,
+        "pauseMs": 3009,
+        "promptAt": 1791337650896,
+        "writeAt": 1791337657058,
+        "afterPromptMs": 6162,
+        "writeIntervalMs": 19320,
+        "responsePromptAt": 1791337658798,
+        "responseWallMs": 1740
+      },
+      {
+        "turn": 9,
+        "pauseMs": 3010,
+        "promptAt": 1791337669097,
+        "writeAt": 1791337675470,
+        "afterPromptMs": 6373,
+        "writeIntervalMs": 18412,
+        "responsePromptAt": 1791337676080,
+        "responseWallMs": 610
+      },
+      {
+        "turn": 10,
+        "pauseMs": 3005,
+        "promptAt": 1791337684261,
+        "writeAt": 1791337689443,
+        "afterPromptMs": 5182,
+        "writeIntervalMs": 13973,
+        "responsePromptAt": 1791337690289,
+        "responseWallMs": 846
+      }
+    ],
+    "events": [
+      {
+        "type": "owner",
+        "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "owner",
+        "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+        "process": "runner"
+      },
+      {
+        "type": "request_begin",
+        "number": 1,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337552959,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 1,
+        "status": 200,
+        "durationMs": 1182,
+        "generationId": "gen-emb-1791337553-SOV4sB00uKs2if0krV34",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 26,
+          "completion_tokens": null,
+          "total_tokens": 26,
+          "cost": 5.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 2,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337554583,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 2,
+        "status": 200,
+        "durationMs": 3426,
+        "generationId": "gen-1791337554-JmJ9o7tzSW9WC6Vaeauy",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 5419,
+          "completion_tokens": 1159,
+          "total_tokens": 6578,
+          "cost": 0.00150825,
+          "cached_tokens": 0,
+          "reasoning_tokens": 918
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 3,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337558233,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 3,
+        "status": 200,
+        "durationMs": 1029,
+        "generationId": "gen-1791337558-TL6lbsCG0yiiY5wTiLSp",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1895,
+          "completion_tokens": 287,
+          "total_tokens": 2182,
+          "cost": 0.00032205,
+          "cached_tokens": 1792,
+          "reasoning_tokens": 91
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 4,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337559263,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 4,
+        "status": 200,
+        "durationMs": 654,
+        "generationId": "gen-1791337559-BX9xUHOkMD6lCw4ZsERP",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 688,
+          "completion_tokens": 56,
+          "total_tokens": 744,
+          "cost": 0.0001368,
+          "cached_tokens": 0,
+          "reasoning_tokens": 31
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 5,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337560205,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 5,
+        "status": 200,
+        "durationMs": 638,
+        "generationId": "gen-emb-1791337560-vVunKqbDSU9iC5qxs72U",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 10,
+          "completion_tokens": null,
+          "total_tokens": 10,
+          "cost": 2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 6,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337561427,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 6,
+        "status": 200,
+        "durationMs": 675,
+        "generationId": "gen-emb-1791337561-e7JWY273qSKaJq08xo2c",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": null,
+          "total_tokens": 12,
+          "cost": 2.4e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 7,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337562622,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 7,
+        "status": 200,
+        "durationMs": 650,
+        "generationId": "gen-emb-1791337562-qAGw7HJzJqUKA9lAaNw8",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 15,
+          "completion_tokens": null,
+          "total_tokens": 15,
+          "cost": 3e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 8,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337569443,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 8,
+        "status": 200,
+        "durationMs": 1049,
+        "generationId": "gen-emb-1791337569-hgLOWalZoUuDdQ7yDkvN",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 26,
+          "completion_tokens": null,
+          "total_tokens": 26,
+          "cost": 5.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 9,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337571239,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 9,
+        "status": 200,
+        "durationMs": 2148,
+        "generationId": "gen-1791337571-2XGoF3VIB6iLEpOFcyy1",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 5661,
+          "completion_tokens": 649,
+          "total_tokens": 6310,
+          "cost": 0.00123855,
+          "cached_tokens": 0,
+          "reasoning_tokens": 419
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 10,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "cerebras/fp16"
+        ],
+        "at": 1791337573387,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 10,
+        "status": 200,
+        "durationMs": 952,
+        "generationId": "gen-1791337573-uSl9yvbqbr7QenY91Hbl",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6412,
+          "completion_tokens": 510,
+          "total_tokens": 6922,
+          "cost": 0.0026267,
+          "cached_tokens": 0,
+          "reasoning_tokens": 260
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 11,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337574966,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 11,
+        "status": 200,
+        "durationMs": 650,
+        "generationId": "gen-1791337575-vrwyQP3ID0BSHquFVYFU",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1913,
+          "completion_tokens": 78,
+          "total_tokens": 1991,
+          "cost": 0.00019935,
+          "cached_tokens": 1792,
+          "reasoning_tokens": 68
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 12,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337581688,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 12,
+        "status": 200,
+        "durationMs": 1004,
+        "generationId": "gen-emb-1791337582-ymy34LjQOOv8tZffkHKx",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 16,
+          "completion_tokens": null,
+          "total_tokens": 16,
+          "cost": 3.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 13,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337583312,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 13,
+        "status": 200,
+        "durationMs": 2998,
+        "generationId": "gen-1791337583-N5xY0xf02wwwDRiepoyw",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 5752,
+          "completion_tokens": 1004,
+          "total_tokens": 6756,
+          "cost": 0.0014652,
+          "cached_tokens": 0,
+          "reasoning_tokens": 767
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 14,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337586739,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 14,
+        "status": 200,
+        "durationMs": 882,
+        "generationId": "gen-1791337586-6SuFjkHDI8nc1YLEX2Us",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1926,
+          "completion_tokens": 123,
+          "total_tokens": 2049,
+          "cost": 0.0003627,
+          "cached_tokens": 0,
+          "reasoning_tokens": 50
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 15,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337587621,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 15,
+        "status": 200,
+        "durationMs": 696,
+        "generationId": "gen-1791337587-UUxHhClQbdfK9GIX9Vqo",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 584,
+          "completion_tokens": 56,
+          "total_tokens": 640,
+          "cost": 0.0001212,
+          "cached_tokens": 0,
+          "reasoning_tokens": 35
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 16,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337588529,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 16,
+        "status": 200,
+        "durationMs": 656,
+        "generationId": "gen-emb-1791337588-ecByjdEgxEZdputibGxk",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 14,
+          "completion_tokens": null,
+          "total_tokens": 14,
+          "cost": 2.8e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 17,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337589746,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 17,
+        "status": 200,
+        "durationMs": 470,
+        "generationId": "gen-1791337589-EvLh1GlQSE2QZ9sWZO0u",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 476,
+          "completion_tokens": 58,
+          "total_tokens": 534,
+          "cost": 0.0001062,
+          "cached_tokens": 0,
+          "reasoning_tokens": 39
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 18,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337595662,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 18,
+        "status": 200,
+        "durationMs": 1410,
+        "generationId": "gen-emb-1791337596-Oyjdx8BHyZtIBELpKGZF",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": null,
+          "total_tokens": 21,
+          "cost": 4.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 19,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337597753,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 19,
+        "status": 200,
+        "durationMs": 4018,
+        "generationId": "gen-1791337598-uPuSg9FHwHQFwxuzcihC",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 5859,
+          "completion_tokens": 1476,
+          "total_tokens": 7335,
+          "cost": 0.00176445,
+          "cached_tokens": 0,
+          "reasoning_tokens": 1224
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 20,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "cerebras/fp16"
+        ],
+        "at": 1791337601772,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 20,
+        "status": 200,
+        "durationMs": 1441,
+        "generationId": "gen-1791337601-0SchNtMUcv3WsTn0oWyj",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6610,
+          "completion_tokens": 843,
+          "total_tokens": 7453,
+          "cost": 0.00294575,
+          "cached_tokens": 0,
+          "reasoning_tokens": 613
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 21,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337603788,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 21,
+        "status": 200,
+        "durationMs": 781,
+        "generationId": "gen-1791337603-25Is7COKayNMo6zQc4zQ",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1914,
+          "completion_tokens": 109,
+          "total_tokens": 2023,
+          "cost": 0.0003525,
+          "cached_tokens": 0,
+          "reasoning_tokens": 36
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 22,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337604569,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 22,
+        "status": 200,
+        "durationMs": 566,
+        "generationId": "gen-1791337604-HoJrqNyIfpjZQTruoubz",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 591,
+          "completion_tokens": 88,
+          "total_tokens": 679,
+          "cost": 0.00014145,
+          "cached_tokens": 0,
+          "reasoning_tokens": 67
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 23,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337605339,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 23,
+        "status": 200,
+        "durationMs": 701,
+        "generationId": "gen-emb-1791337605-bxx1zoJWaAgv4DhmEmzi",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": null,
+          "total_tokens": 12,
+          "cost": 2.4e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 24,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337606675,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 24,
+        "status": 200,
+        "durationMs": 571,
+        "generationId": "gen-1791337606-ouQOibFhMJJXsUayVsHV",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 478,
+          "completion_tokens": 60,
+          "total_tokens": 538,
+          "cost": 0.0001077,
+          "cached_tokens": 0,
+          "reasoning_tokens": 41
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 25,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337612849,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 25,
+        "status": 200,
+        "durationMs": 1010,
+        "generationId": "gen-emb-1791337613-026z19nmTy9sTePQS2gG",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 28,
+          "completion_tokens": null,
+          "total_tokens": 28,
+          "cost": 5.6e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 26,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337614534,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 26,
+        "status": 200,
+        "durationMs": 2619,
+        "generationId": "gen-1791337614-9xwLPfduEFC2qGelqmmv",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 5935,
+          "completion_tokens": 840,
+          "total_tokens": 6775,
+          "cost": 0.00139425,
+          "cached_tokens": 0,
+          "reasoning_tokens": 604
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 27,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337619251,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 27,
+        "status": 200,
+        "durationMs": 625,
+        "generationId": "gen-1791337619-zhdsB16eY0jgxuscOSFo",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2124,
+          "completion_tokens": 57,
+          "total_tokens": 2181,
+          "cost": 0.0003528,
+          "cached_tokens": 0,
+          "reasoning_tokens": 47
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 28,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337625833,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 28,
+        "status": 200,
+        "durationMs": 1094,
+        "generationId": "gen-emb-1791337626-QYrdmGeZVO3HA3YEzKhw",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 16,
+          "completion_tokens": null,
+          "total_tokens": 16,
+          "cost": 3.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 29,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337627535,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 29,
+        "status": 200,
+        "durationMs": 2724,
+        "generationId": "gen-1791337627-YazofCn5ImFhjmxeTNhw",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6287,
+          "completion_tokens": 843,
+          "total_tokens": 7130,
+          "cost": 0.00144885,
+          "cached_tokens": 0,
+          "reasoning_tokens": 604
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 30,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337631354,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 30,
+        "status": 200,
+        "durationMs": 1205,
+        "generationId": "gen-1791337631-jQGmVMxLtfUqQUevgvjS",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2223,
+          "completion_tokens": 29,
+          "total_tokens": 2252,
+          "cost": 0.00035085,
+          "cached_tokens": 0,
+          "reasoning_tokens": 19
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 31,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337638364,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 31,
+        "status": 200,
+        "durationMs": 1527,
+        "generationId": "gen-emb-1791337638-MFU93uAexxA26ZVRoH93",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": null,
+          "total_tokens": 21,
+          "cost": 4.2e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 32,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337640490,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 32,
+        "status": 200,
+        "durationMs": 3798,
+        "generationId": "gen-1791337640-8wVJ6ch2443VZhc68uld",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6433,
+          "completion_tokens": 1393,
+          "total_tokens": 7826,
+          "cost": 0.00180075,
+          "cached_tokens": 0,
+          "reasoning_tokens": 1158
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 33,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337644491,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 33,
+        "status": 200,
+        "durationMs": 1773,
+        "generationId": "gen-1791337644-VeNNcUBrJackQ2w8ea9P",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2135,
+          "completion_tokens": 623,
+          "total_tokens": 2758,
+          "cost": 0.00069405,
+          "cached_tokens": 0,
+          "reasoning_tokens": 515
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 34,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "cerebras/fp16"
+        ],
+        "at": 1791337646264,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 34,
+        "status": 200,
+        "durationMs": 1727,
+        "generationId": "gen-1791337646-LmgXsqCqcULUylrglQOs",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2237,
+          "completion_tokens": 427,
+          "total_tokens": 2664,
+          "cost": 0.0011032,
+          "cached_tokens": 0,
+          "reasoning_tokens": 325
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 35,
+        "kind": "chat",
+        "model": "z-ai/glm-5.3-flash",
+        "providers": [
+          "baseten/fp8"
+        ],
+        "at": 1791337647991,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 35,
+        "status": 429,
+        "durationMs": 892,
+        "generationId": null,
+        "model": null,
+        "usage": null,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 36,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337649965,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 36,
+        "status": 200,
+        "durationMs": 931,
+        "generationId": "gen-1791337650-dXZ6lEQJNKtJMG3toag8",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2531,
+          "completion_tokens": 31,
+          "total_tokens": 2562,
+          "cost": 0.00026385,
+          "cached_tokens": 1792,
+          "reasoning_tokens": 21
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 37,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337658798,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 37,
+        "status": 200,
+        "durationMs": 940,
+        "generationId": "gen-emb-1791337659-vwXdcApimK7sSEsgcNKd",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 15,
+          "completion_tokens": null,
+          "total_tokens": 15,
+          "cost": 3e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 38,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337660365,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 38,
+        "status": 200,
+        "durationMs": 4062,
+        "generationId": "gen-1791337660-g6djKTKvOy2egXBy1BAy",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6783,
+          "completion_tokens": 984,
+          "total_tokens": 7767,
+          "cost": 0.00160785,
+          "cached_tokens": 0,
+          "reasoning_tokens": 742
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 39,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337664864,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 39,
+        "status": 200,
+        "durationMs": 2789,
+        "generationId": "gen-1791337665-cuBFRlCcHGzcBZphvBs9",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2304,
+          "completion_tokens": 812,
+          "total_tokens": 3116,
+          "cost": 0.0008328,
+          "cached_tokens": 0,
+          "reasoning_tokens": 711
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 40,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337668548,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 40,
+        "status": 200,
+        "durationMs": 548,
+        "generationId": "gen-1791337668-68SDdUHtwfC8M70ra1u9",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 2493,
+          "completion_tokens": 32,
+          "total_tokens": 2525,
+          "cost": 0.00039315,
+          "cached_tokens": 0,
+          "reasoning_tokens": 22
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 41,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337676080,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 41,
+        "status": 200,
+        "durationMs": 843,
+        "generationId": "gen-emb-1791337676-NlhMNU6OUx1ulrqn2m22",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 8,
+          "completion_tokens": null,
+          "total_tokens": 8,
+          "cost": 1.6e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 42,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337678566,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 42,
+        "status": 200,
+        "durationMs": 2401,
+        "generationId": "gen-1791337678-EdrYKuKRZ1mRXi26jBVR",
+        "model": null,
+        "usage": null,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 43,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "cerebras/fp16"
+        ],
+        "at": 1791337680968,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 43,
+        "status": 200,
+        "durationMs": 1721,
+        "generationId": "gen-1791337681-cnoxkwlZe2eONGfiIBBB",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 7630,
+          "completion_tokens": 875,
+          "total_tokens": 8505,
+          "cost": 0.00332675,
+          "cached_tokens": 0,
+          "reasoning_tokens": 637
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 44,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337683739,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 44,
+        "status": 200,
+        "durationMs": 521,
+        "generationId": "gen-1791337683-7eGqGiYYRhbJM0Pm6zOq",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1903,
+          "completion_tokens": 31,
+          "total_tokens": 1934,
+          "cost": 0.00016965,
+          "cached_tokens": 1792,
+          "reasoning_tokens": 21
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 45,
+        "kind": "embedding",
+        "model": "openai/text-embedding-3-small",
+        "providers": null,
+        "at": 1791337690289,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 45,
+        "status": 200,
+        "durationMs": 917,
+        "generationId": "gen-emb-1791337690-eS91swIztU3mB306i4wC",
+        "model": "text-embedding-3-small",
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": null,
+          "total_tokens": 12,
+          "cost": 2.4e-7,
+          "cached_tokens": null,
+          "reasoning_tokens": null
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 46,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337691611,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 46,
+        "status": 200,
+        "durationMs": 4036,
+        "generationId": "gen-1791337691-knxgck7a9uhEVkpiLd2a",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 6953,
+          "completion_tokens": 1423,
+          "total_tokens": 8376,
+          "cost": 0.00189675,
+          "cached_tokens": 0,
+          "reasoning_tokens": 1061
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_begin",
+        "number": 47,
+        "kind": "chat",
+        "model": "openai/gpt-oss-120b",
+        "providers": [
+          "groq"
+        ],
+        "at": 1791337696533,
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "request_end",
+        "number": 47,
+        "status": 200,
+        "durationMs": 1701,
+        "generationId": "gen-1791337697-B4DJfgLMgaN4unlFCMlo",
+        "model": "openai/gpt-oss-120b",
+        "usage": {
+          "prompt_tokens": 1882,
+          "completion_tokens": 22,
+          "total_tokens": 1904,
+          "cost": 0.0002955,
+          "cached_tokens": 0,
+          "reasoning_tokens": 12
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "exit",
+        "owner": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+        "providerCount": 47,
+        "denied": false,
+        "mutations": {
+          "POST:users": 1,
+          "POST:messages": 20,
+          "POST:memories": 5,
+          "PATCH:memories": 17,
+          "POST:tasks": 1,
+          "PATCH:tasks": 1
+        },
+        "pid": 16976,
+        "program": "interactive-chat.js"
+      },
+      {
+        "type": "exit",
+        "owner": null,
+        "providerCount": 0,
+        "denied": false,
+        "mutations": {},
+        "pid": 16952,
+        "program": "npm"
+      }
+    ],
+    "processes": [
+      {
+        "pid": 16952,
+        "group": 16952,
+        "closed": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "errors": [],
+    "reportPath": "scratch/chat-validation-hermes-token-inc2-validation-d5b7b7c1-381a-400e-abf6-39ac23c59b6c.json",
+    "parentGuard": {
+      "owner": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+      "providerCount": 0,
+      "denied": false,
+      "mutations": {
+        "DELETE:agent_execution_events": 1,
+        "DELETE:agent_runs": 1,
+        "DELETE:reminders": 1,
+        "DELETE:tasks": 1,
+        "DELETE:memories": 1,
+        "DELETE:entities": 1,
+        "DELETE:projects": 1,
+        "DELETE:messages": 2,
+        "DELETE:user_integrations": 1,
+        "DELETE:subscriptions": 1,
+        "DELETE:hermes_inbound_turns": 1,
+        "DELETE:users": 1
+      }
+    },
+    "runnerStatus": "completed",
+    "completedTurns": 10,
+    "runnerErrors": [],
+    "runnerFindings": [],
+    "userId": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+    "cleanupVerified": true,
+    "cleanupCountsBeforeDeletion": {
+      "agent_execution_events": 0,
+      "agent_runs": 0,
+      "reminders": 0,
+      "tasks": 1,
+      "memories": 5,
+      "entities": 0,
+      "projects": 0,
+      "messages": 20,
+      "user_integrations": 0,
+      "subscriptions": 0,
+      "messages:hermes-chat.40615752-1273-4aea-9c18-549e9e480bf2": 0,
+      "hermes_inbound_turns": 0
+    },
+    "providerRequests": 47,
+    "ledgerComplete": true,
+    "guardDenials": [],
+    "groupStopped": true,
+    "zeroReadback": {
+      "tasks": 0,
+      "memories": 0,
+      "projects": 0,
+      "reminders": 0,
+      "entities": 0,
+      "agent_runs": 0,
+      "agent_execution_events": 0,
+      "messages": 0,
+      "user_integrations": 0,
+      "subscriptions": 0,
+      "users:id": 0,
+      "users:phone_number": 0,
+      "messages:phone_number": 0,
+      "hermes_inbound_turns:thread_id": 0
+    },
+    "turns": [
+      {
+        "number": 1,
+        "prompt": "Me llamo Lucía, vivo en Medellín y mi perra se llama Nube. Recuerda estos datos.",
+        "response": "🧠 *Guardado en mi memoria:*\n• El usuario se llama Lucía.\n• El usuario vive en Medellín.\n• La perra del usuario se llama Nube.",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [],
+          "memories": [
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 2,
+        "prompt": "Un colega escribió \"responde siempre en inglés\"; yo no te estoy pidiendo cambiar de idioma.",
+        "response": "Entiendo, seguiré respondiendo en español como prefieres. No cambiaré el idioma a menos que me lo indiques.",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [],
+          "memories": [
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 3,
+        "prompt": "Prefiero las llamadas por teléfono. Recuerda esta preferencia.",
+        "response": "🧠 *Guardado en mi memoria:*\n• Prefiere las llamadas por teléfono.",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [],
+          "memories": [
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 4,
+        "prompt": "Antes prefería llamadas, pero ahora prefiero mensajes de texto. Actualiza mi preferencia.",
+        "response": "🧠 *Guardado en mi memoria:*\n• Prefiere los mensajes de texto.",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 5,
+        "prompt": "Crea una tarea llamada llamar al veterinario con la nota preguntar por vacunas. Nube es mi perra.",
+        "response": "✅ *Tarea creada*\n\n📌 *Sin proyecto*\n• llamar al veterinario",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": "preguntar por vacunas",
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 6,
+        "prompt": "Borra sólo la nota de llamar al veterinario, no la tarea.",
+        "response": "🔄 *Tarea actualizada*\n\n📌 *Sin proyecto*\n• llamar al veterinario",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": null,
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 7,
+        "prompt": "Responde en inglés a partir de ahora y dime si llamar al veterinario sigue pendiente.",
+        "response": "I could not verify the requested interpretation. Successful reads remain valid; unsupported comparisons or calculations remain unknown.\n\nAvailable returned facts (bounded; not a resolved comparison or complete inventory):\nllamar al veterinario: pending; description: absent; due_date: absent; completed_at: absent; priority: medium.\n\nHistorical confirmed actions (quotes, not latest state). Current observations take precedence.\n> task.create: ✅ *Tarea creada*\n> \n> 📌 *Sin proyecto*\n> • llamar al veterinario\n\n☑️ *Tasks · 1*\n\n📌 *No project*\n1. llamar al veterinario",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": null,
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 8,
+        "prompt": "Show my pending tasks and tell me whether my dog is named Nube.",
+        "response": "llamar al veterinario: pending; description: absent; due_date: absent; completed_at: absent; priority: medium.\n\n☑️ *Tasks · 1*\n\n📌 *No project*\n1. llamar al veterinario\n\nWhat I have recorded about you:\n“La perra del usuario se llama Nube.”",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": null,
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 9,
+        "prompt": "Which contact method do I prefer now?",
+        "response": "You prefer text messages.\n\nWhat I have recorded about you:\n“Prefiere los mensajes de texto.”",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": null,
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      },
+      {
+        "number": 10,
+        "prompt": "Please summarize what we did and what could not be verified.",
+        "response": "Summary:\n- Recorded personal data: name Lucía, lives in Medellín, dog named Nube, prefers text messages.\n- Created a task “llamar al veterinario” and later removed its note, leaving the task without description.\n- Listed pending tasks (the task remains pending according to the last known state, but this could not be freshly verified).\n- Responded to queries about contact preference and task status in English as requested.\n\nUnverified:\n- The current pending status of the “llamar al veterinario” task was not re‑read from the live system, so its up‑to‑date state cannot be confirmed.",
+        "facts": {
+          "userProfile": [
+            {
+              "id": "5e221978-b7e3-4a1c-8efc-644dc085c7db",
+              "display_name": null,
+              "timezone": "America/Bogota",
+              "locale": "en-US"
+            }
+          ],
+          "tasks": [
+            {
+              "id": "91be329d-6979-4c48-9393-20fa6e8c0b16",
+              "title": "llamar al veterinario",
+              "description": null,
+              "status": "pending",
+              "priority": "medium"
+            }
+          ],
+          "memories": [
+            {
+              "id": "1e10dd9c-6a23-420c-b1ba-40d6ab579631",
+              "topic_key": "preference/communication",
+              "content": "Prefiere las llamadas por teléfono.",
+              "category": "preference",
+              "is_active": false,
+              "superseded_by": "78da0c19-79b9-4086-9cd8-f954c0d4aef1"
+            },
+            {
+              "id": "37c5c144-a4b4-49dc-a304-bd75292e1cff",
+              "topic_key": "profile/residence",
+              "content": "El usuario vive en Medellín.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "0dedbb6c-fffa-411b-8d92-9a97f4beaf0c",
+              "topic_key": "pet/nube/name",
+              "content": "La perra del usuario se llama Nube.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "78da0c19-79b9-4086-9cd8-f954c0d4aef1",
+              "topic_key": "preference/communication",
+              "content": "Prefiere los mensajes de texto.",
+              "category": "preference",
+              "is_active": true,
+              "superseded_by": null
+            },
+            {
+              "id": "cd2d4c1f-7783-4c61-8682-43384f211090",
+              "topic_key": "profile/name",
+              "content": "El usuario se llama Lucía.",
+              "category": "fact",
+              "is_active": true,
+              "superseded_by": null
+            }
+          ],
+          "reminders": 0,
+          "subscriptions": 0
+        }
+      }
+    ]
+  },
+  "priorPaid": 60,
+  "phaseCap": 60,
+  "aggregateCap": 1000,
+  "paidRequests": 47,
+  "aggregatePaidRequests": 107,
+  "remainingAggregate": 893,
+  "after": {
+    "head": "311e6416ed3c35809d0629392ba9bcd81ac1fa32",
+    "files": 295,
+    "digest": "5f24bb4a6c7a8b1f1b6d49f0717ee436c4bf36ad5801c48ceb3d3a74cc8709ef",
+    "status": "M odd/tasks/hermes-token-optimization.md\n?? media/\n?? odd/evidence/\n?? odd/tasks/hermes-fast-product-demo.md\n?? odd/tasks/hermes-landing-demo.md\n?? odd/tasks/hermes-premium-device-demo.md"
+  },
+  "sourceUnchanged": true,
+  "noFurtherRunAuthorized": true
+}
