@@ -1,39 +1,39 @@
 {
-  "timestamp": "2026-10-09T18:27:19.690Z",
+  "timestamp": "2026-10-10T09:59:22.822Z",
   "mode": "live",
   "provider": "openrouter",
   "model": "openai/gpt-oss-120b",
   "provenanceHashes": {
-    "headCommit": "dea872ce06d787b7304a3fef3b58dbe607465b98",
+    "headCommit": "bf25284fa5c1fcf42ce6fba2ee75f3d7e249362d",
     "agentCorePromptSha256": "56bf5b965219986e9cb758a5ea1efd5941a4f5ac48e0187eca64b1baa5a112d0",
-    "foregroundTurnSchemaSha256": "7eb7df6862e2883c0c6057672f052fc4c233d192edc15357829226af330645de",
+    "foregroundTurnSchemaSha256": "ebfe1fc1194a2cfaefebf70e78e637bc15b4adb8749ca85736fdfeae03652fbf",
     "intentContractsSha256": "44c2cc7a90b42788c5825444fd4fd6907526a4efcdbe29249c19775f27462c86",
     "fixturesSha256": "9dbbcb3290542d752c3a8e06e3f2a97ff3028ba401909bb8cc913c15df18753e",
-    "graderSha256": "7f8d1c35c57f0975dd1739b662235fe8d44afaf25b8adc7017fd9fb5cf5a1e8d",
-    "evaluatorSha256": "c4b0876444ed6929c373a76e3189fcb027f65c48048d53082f66ac171f90a8b0"
+    "graderSha256": "93b14b8037a64c595b3c58b888f27d6d556bcc4270ec6435a0dcfa37e2f499d6",
+    "evaluatorSha256": "458058a54cbdc4a38e72fc045523256577fad55a3240300ad4945142ebe6d987"
   },
   "summary": {
     "total": 50,
     "passed": 50,
     "passRate": "100.0%",
-    "avgLatency": "3789ms",
-    "minLatencyMs": 1123,
-    "maxLatencyMs": 12586,
-    "p95LatencyMs": 8863,
-    "deadlineSlaMetCount": 49,
+    "avgLatency": "3315ms",
+    "minLatencyMs": 1065,
+    "maxLatencyMs": 8967,
+    "p95LatencyMs": 4821,
+    "deadlineSlaMetCount": 50,
     "deadlineSlaThresholdMs": 10000,
-    "totalCostUsd": 0.07381694999999999
+    "totalCostUsd": 0.07390515
   },
   "results": [
     {
       "id": "greeting",
       "phase": "initial",
-      "attempts": 2,
-      "latencyMs": 6386,
-      "latencyStr": "6386ms",
+      "attempts": 1,
+      "latencyMs": 3128,
+      "latencyStr": "3128ms",
       "deadlineMet": true,
-      "tokensIn": 5405,
-      "tokensOut": 825,
+      "tokensIn": 5439,
+      "tokensOut": 740,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -42,8 +42,8 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": null,
-        "knowledgeRefs": null,
+        "answerFromResults": false,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -86,13 +86,14 @@
             "question": null
           }
         ],
-        "excluded": null
+        "excluded": []
       },
       "normalizedDecision": {
         "responseLanguage": "es",
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
+        "answerFromResults": false,
         "actions": [
           {
             "content": "¡Hola! ¿En qué puedo ayudarte?",
@@ -139,11 +140,11 @@
       "id": "personal-recall",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2297,
-      "latencyStr": "2297ms",
+      "latencyMs": 2495,
+      "latencyStr": "2495ms",
       "deadlineMet": true,
-      "tokensIn": 5409,
-      "tokensOut": 858,
+      "tokensIn": 5443,
+      "tokensOut": 852,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -180,6 +181,7 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
+            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -193,7 +195,6 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -264,12 +265,12 @@
     {
       "id": "missing-time",
       "phase": "initial",
-      "attempts": 2,
-      "latencyMs": 9604,
-      "latencyStr": "9604ms",
+      "attempts": 1,
+      "latencyMs": 3506,
+      "latencyStr": "3506ms",
       "deadlineMet": true,
-      "tokensIn": 5414,
-      "tokensOut": 1066,
+      "tokensIn": 5448,
+      "tokensOut": 1168,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -278,7 +279,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
+        "answerFromResults": null,
         "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
@@ -287,7 +288,7 @@
             "contextRef": null,
             "target": null,
             "content": "Llamar al dentista",
-            "title": null,
+            "title": "Llamar al dentista",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -315,8 +316,8 @@
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0,
+              "weekday": null,
+              "weekOffset": null,
               "hour": null,
               "minute": null,
               "clockMode": null
@@ -342,18 +343,16 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "content": "Llamar al dentista",
+            "title": "Llamar al dentista",
             "schedule": {
               "kind": "relative_day_time",
               "dayOffset": 1,
               "year": 2026,
               "month": 10,
-              "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0
+              "day": 9
             },
             "missingFields": [
               "time"
@@ -447,11 +446,11 @@
       "id": "reminder-time",
       "phase": "continuation",
       "attempts": 1,
-      "latencyMs": 4506,
-      "latencyStr": "4506ms",
+      "latencyMs": 3413,
+      "latencyStr": "3413ms",
       "deadlineMet": true,
       "tokensIn": 5366,
-      "tokensOut": 1489,
+      "tokensOut": 1269,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -460,6 +459,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "relation": "resume",
+        "reply": "Listo, programé el recordatorio para mañana a las 3 PM.",
         "actionInputs": [
           {
             "callId": "call-1",
@@ -468,7 +468,7 @@
               "advanceMinutes": null,
               "category": null,
               "clearFields": null,
-              "content": "Llamar al dentista",
+              "content": null,
               "contextRef": null,
               "deliveryPolicy": null,
               "description": null,
@@ -513,8 +513,7 @@
               "topicKey": null
             }
           }
-        ],
-        "reply": "Listo, he programado el recordatorio para mañana a las 3 PM."
+        ]
       },
       "normalizedDecision": {
         "relation": "resume",
@@ -523,7 +522,6 @@
           {
             "callId": "call-1",
             "fields": {
-              "content": "Llamar al dentista",
               "schedule": {
                 "kind": "relative_day_time",
                 "allDay": false,
@@ -535,7 +533,7 @@
             }
           }
         ],
-        "reply": "Listo, he programado el recordatorio para mañana a las 3 PM.",
+        "reply": "Listo, programé el recordatorio para mañana a las 3 PM.",
         "responseLanguage": "es"
       },
       "assertions": [
@@ -621,11 +619,11 @@
       "id": "ampm-ambiguity",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 4379,
-      "latencyStr": "4379ms",
+      "latencyMs": 3730,
+      "latencyStr": "3730ms",
       "deadlineMet": true,
-      "tokensIn": 5418,
-      "tokensOut": 1425,
+      "tokensIn": 5452,
+      "tokensOut": 1512,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -635,7 +633,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "excluded": null,
         "actions": [
@@ -643,8 +641,8 @@
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
-            "content": "Llamar al dentista",
-            "title": null,
+            "content": "llamar al dentista",
+            "title": "Llamar al dentista",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -668,22 +666,19 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
               "weekday": "friday",
-              "weekOffset": null,
+              "weekOffset": 0,
               "hour": 3,
-              "minute": 0,
+              "minute": null,
               "clockMode": "ambiguous_12h"
             },
             "endSchedule": null,
             "advanceMinutes": null,
-            "deliveryPolicy": {
-              "advanceNotice": "none",
-              "advanceMinutes": null
-            },
+            "deliveryPolicy": null,
             "recurrence": null,
             "requiresConfirmation": null,
             "nudgeIntervalMinutes": null,
@@ -704,20 +699,19 @@
         "answerFromResults": false,
         "actions": [
           {
-            "content": "Llamar al dentista",
+            "content": "llamar al dentista",
+            "title": "Llamar al dentista",
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
               "weekday": "friday",
+              "weekOffset": 0,
               "hour": 3,
-              "minute": 0,
               "clockMode": "ambiguous_12h"
-            },
-            "deliveryPolicy": {
-              "advanceNotice": "none"
             },
             "missingFields": [
               "time"
@@ -806,11 +800,11 @@
       "id": "dated-reminder",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2625,
-      "latencyStr": "2625ms",
+      "latencyMs": 2631,
+      "latencyStr": "2631ms",
       "deadlineMet": true,
-      "tokensIn": 5427,
-      "tokensOut": 1036,
+      "tokensIn": 5461,
+      "tokensOut": 966,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -820,9 +814,8 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": [],
+        "knowledgeRefs": null,
         "learningCandidates": [],
-        "excluded": [],
         "actions": [
           {
             "operation": "reminder.create",
@@ -876,7 +869,8 @@
             "missingFields": null,
             "question": null
           }
-        ]
+        ],
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -977,11 +971,11 @@
       "id": "second-description",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3107,
-      "latencyStr": "3107ms",
+      "latencyMs": 4428,
+      "latencyStr": "4428ms",
       "deadlineMet": true,
-      "tokensIn": 5456,
-      "tokensOut": 1214,
+      "tokensIn": 5490,
+      "tokensOut": 1716,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1103,11 +1097,11 @@
       "id": "full-projection",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3101,
-      "latencyStr": "3101ms",
+      "latencyMs": 2603,
+      "latencyStr": "2603ms",
       "deadlineMet": true,
-      "tokensIn": 5460,
-      "tokensOut": 814,
+      "tokensIn": 5494,
+      "tokensOut": 840,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1117,7 +1111,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -1140,11 +1134,12 @@
             "recapMode": null,
             "evidenceRefs": null,
             "returnFields": [
-              "description",
-              "status"
+              "status",
+              "description"
             ],
             "scope": null,
             "filter": null,
+            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -1158,7 +1153,6 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -1176,8 +1170,8 @@
             "entityName": "Demo project",
             "status": "all",
             "returnFields": [
-              "description",
-              "status"
+              "status",
+              "description"
             ],
             "domain": "task",
             "action": "list"
@@ -1242,11 +1236,11 @@
       "id": "quoted-agenda",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3140,
-      "latencyStr": "3140ms",
+      "latencyMs": 2487,
+      "latencyStr": "2487ms",
       "deadlineMet": true,
-      "tokensIn": 5427,
-      "tokensOut": 895,
+      "tokensIn": 5461,
+      "tokensOut": 964,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1256,7 +1250,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": true,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -1358,11 +1352,11 @@
       "id": "lasting-language-and-fact",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 4601,
-      "latencyStr": "4601ms",
+      "latencyMs": 3731,
+      "latencyStr": "3731ms",
       "deadlineMet": true,
-      "tokensIn": 5502,
-      "tokensOut": 1136,
+      "tokensIn": 5536,
+      "tokensOut": 1416,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1370,16 +1364,16 @@
       "rawDecision": {
         "responseLanguage": "en",
         "profileUpdate": {
-          "language": "en",
           "sourceQuote": "From now on, always respond in English.",
-          "timezone": null
+          "timezone": null,
+          "language": "en"
         },
         "responseCapability": "general",
         "answerFromResults": false,
         "knowledgeRefs": null,
         "learningCandidates": [
           {
-            "topicKey": "pet/name",
+            "topicKey": "fact/dog_name",
             "category": "fact",
             "content": "My dog is called Luna.",
             "evidence": "My dog is called Luna.",
@@ -1433,12 +1427,12 @@
       "normalizedDecision": {
         "responseLanguage": "en",
         "profileUpdate": {
-          "language": "en",
-          "sourceQuote": "From now on, always respond in English."
+          "sourceQuote": "From now on, always respond in English.",
+          "language": "en"
         },
         "learningCandidates": [
           {
-            "topicKey": "pet/name",
+            "topicKey": "fact/dog_name",
             "category": "fact",
             "content": "My dog is called Luna.",
             "evidence": "My dog is called Luna.",
@@ -1506,11 +1500,11 @@
       "id": "destructive-request",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2506,
-      "latencyStr": "2506ms",
+      "latencyMs": 3138,
+      "latencyStr": "3138ms",
       "deadlineMet": true,
-      "tokensIn": 5665,
-      "tokensOut": 738,
+      "tokensIn": 5443,
+      "tokensOut": 1126,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1617,8 +1611,8 @@
       "id": "approval-cancel",
       "phase": "approval",
       "attempts": 1,
-      "latencyMs": 1123,
-      "latencyStr": "1123ms",
+      "latencyMs": 1065,
+      "latencyStr": "1065ms",
       "deadlineMet": true,
       "tokensIn": 2379,
       "tokensOut": 187,
@@ -1678,77 +1672,77 @@
       "id": "english-missing-time",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3726,
-      "latencyStr": "3726ms",
+      "latencyMs": 3677,
+      "latencyStr": "3677ms",
       "deadlineMet": true,
-      "tokensIn": 5498,
-      "tokensOut": 1250,
+      "tokensIn": 5532,
+      "tokensOut": 1146,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
+        "responseLanguage": "en",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": false,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
         "actions": [
           {
             "operation": "reminder.create",
-            "contextRef": null,
-            "target": null,
-            "content": "Buy the costume",
-            "title": null,
-            "description": null,
-            "descriptionMode": null,
-            "clearFields": null,
-            "entityName": null,
-            "oldName": null,
-            "newName": null,
-            "sourceName": null,
-            "category": null,
-            "topicKey": null,
-            "priority": null,
-            "status": null,
-            "recapMode": null,
-            "evidenceRefs": null,
-            "returnFields": null,
-            "scope": null,
-            "filter": null,
-            "query": null,
-            "projectless": null,
-            "preserveNames": null,
+            "title": "Buy the costume",
             "schedule": {
-              "kind": "calendar_date_time",
+              "kind": "relative_day_time",
               "allDay": true,
               "offsetMinutes": null,
               "dayOffset": 1,
-              "year": 2026,
-              "month": 10,
-              "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
               "hour": null,
               "minute": null,
               "clockMode": null
             },
-            "endSchedule": null,
+            "addGoogleMeet": null,
             "advanceMinutes": null,
+            "category": null,
+            "clearFields": null,
+            "content": null,
+            "contextRef": null,
             "deliveryPolicy": null,
+            "description": null,
+            "descriptionMode": null,
+            "durationMinutes": null,
+            "endSchedule": null,
+            "entityName": null,
+            "evidenceRefs": null,
+            "filter": null,
+            "limit": null,
+            "maxNudges": null,
+            "missingFields": null,
+            "newName": null,
+            "nudgeIntervalMinutes": null,
+            "oldName": null,
+            "preserveNames": null,
+            "priority": null,
+            "projectless": null,
+            "query": null,
+            "question": null,
+            "recapMode": null,
             "recurrence": null,
             "requiresConfirmation": null,
-            "nudgeIntervalMinutes": null,
-            "maxNudges": null,
-            "durationMinutes": null,
-            "addGoogleMeet": null,
-            "limit": null,
-            "missingFields": null,
-            "question": null
+            "returnFields": null,
+            "scope": null,
+            "sourceName": null,
+            "status": null,
+            "target": null,
+            "topicKey": null
           }
         ],
-        "answerFromResults": false,
-        "excluded": null,
-        "knowledgeRefs": null,
-        "learningCandidates": [],
-        "profileUpdate": null,
-        "responseCapability": "general",
-        "responseLanguage": "en"
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "en",
@@ -1758,15 +1752,10 @@
         "answerFromResults": false,
         "actions": [
           {
-            "content": "Buy the costume",
+            "title": "Buy the costume",
             "schedule": {
-              "kind": "calendar_date_time",
-              "dayOffset": 1,
-              "year": 2026,
-              "month": 10,
-              "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0
+              "kind": "relative_day_time",
+              "dayOffset": 1
             },
             "missingFields": [
               "time"
@@ -1864,12 +1853,12 @@
     {
       "id": "english-neutral-time",
       "phase": "continuation",
-      "attempts": 2,
-      "latencyMs": 8245,
-      "latencyStr": "8245ms",
+      "attempts": 1,
+      "latencyMs": 2995,
+      "latencyStr": "2995ms",
       "deadlineMet": true,
       "tokensIn": 5444,
-      "tokensOut": 1089,
+      "tokensOut": 979,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -1878,6 +1867,7 @@
         "responseLanguage": "en",
         "profileUpdate": null,
         "relation": "resume",
+        "reply": "Got it, I’ll remind you tomorrow at 4:45.",
         "actionInputs": [
           {
             "callId": "call-1",
@@ -1931,8 +1921,7 @@
               "topicKey": null
             }
           }
-        ],
-        "reply": "Got it, I’ll remind you tomorrow at 4:45."
+        ]
       },
       "normalizedDecision": {
         "relation": "resume",
@@ -2048,11 +2037,11 @@
       "id": "lang-switch-to-es",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2105,
-      "latencyStr": "2105ms",
+      "latencyMs": 2260,
+      "latencyStr": "2260ms",
       "deadlineMet": true,
-      "tokensIn": 5408,
-      "tokensOut": 716,
+      "tokensIn": 5442,
+      "tokensOut": 672,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2061,15 +2050,15 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": null,
-        "knowledgeRefs": null,
+        "answerFromResults": false,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
             "operation": "conversation.reply",
             "contextRef": null,
             "target": null,
-            "content": "¡Claro! ¿En qué puedo ayudarte?",
+            "content": "¡Hola! ¿En qué puedo ayudarte?",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -2112,9 +2101,10 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
+        "answerFromResults": false,
         "actions": [
           {
-            "content": "¡Claro! ¿En qué puedo ayudarte?",
+            "content": "¡Hola! ¿En qué puedo ayudarte?",
             "domain": "conversation",
             "action": "reply"
           }
@@ -2163,11 +2153,11 @@
       "id": "lang-stay-es-complaint",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2617,
-      "latencyStr": "2617ms",
+      "latencyMs": 3744,
+      "latencyStr": "3744ms",
       "deadlineMet": true,
-      "tokensIn": 5419,
-      "tokensOut": 953,
+      "tokensIn": 5453,
+      "tokensOut": 1367,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2176,15 +2166,15 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
+        "answerFromResults": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
             "operation": "conversation.reply",
+            "content": "Lo siento, fue un error. A partir de ahora responderé en español.",
             "contextRef": null,
             "target": null,
-            "content": "Lo siento, fue un error. A partir de ahora responderé en español, como prefieres.",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -2220,17 +2210,16 @@
             "question": null
           }
         ],
-        "excluded": null
+        "excluded": []
       },
       "normalizedDecision": {
         "responseLanguage": "es",
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
-            "content": "Lo siento, fue un error. A partir de ahora responderé en español, como prefieres.",
+            "content": "Lo siento, fue un error. A partir de ahora responderé en español.",
             "domain": "conversation",
             "action": "reply"
           }
@@ -2279,11 +2268,11 @@
       "id": "lang-english-task-create",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2605,
-      "latencyStr": "2605ms",
+      "latencyMs": 3134,
+      "latencyStr": "3134ms",
       "deadlineMet": true,
-      "tokensIn": 5483,
-      "tokensOut": 864,
+      "tokensIn": 5517,
+      "tokensOut": 926,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2319,7 +2308,7 @@
             "scope": null,
             "filter": null,
             "query": null,
-            "projectless": false,
+            "projectless": null,
             "preserveNames": null,
             "schedule": null,
             "endSchedule": null,
@@ -2348,7 +2337,6 @@
           {
             "title": "Buy groceries",
             "entityName": "Personal",
-            "projectless": false,
             "domain": "task",
             "action": "create"
           }
@@ -2402,11 +2390,11 @@
       "id": "lang-english-reminder-relative",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3199,
-      "latencyStr": "3199ms",
+      "latencyMs": 3290,
+      "latencyStr": "3290ms",
       "deadlineMet": true,
-      "tokensIn": 5486,
-      "tokensOut": 933,
+      "tokensIn": 5520,
+      "tokensOut": 1019,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2421,10 +2409,33 @@
         "actions": [
           {
             "operation": "reminder.create",
+            "contextRef": null,
+            "target": null,
             "content": "Take out the trash",
+            "title": null,
+            "description": null,
+            "descriptionMode": null,
+            "clearFields": null,
+            "entityName": null,
+            "oldName": null,
+            "newName": null,
+            "sourceName": null,
+            "category": null,
+            "topicKey": null,
+            "priority": null,
+            "status": null,
+            "recapMode": null,
+            "evidenceRefs": null,
+            "returnFields": null,
+            "scope": null,
+            "filter": null,
+            "limit": null,
+            "query": null,
+            "projectless": null,
+            "preserveNames": null,
             "schedule": {
               "kind": "relative_offset",
-              "allDay": false,
+              "allDay": null,
               "offsetMinutes": 10,
               "dayOffset": null,
               "year": null,
@@ -2436,43 +2447,17 @@
               "minute": null,
               "clockMode": null
             },
-            "deliveryPolicy": {
-              "advanceNotice": "none",
-              "advanceMinutes": null
-            },
-            "title": null,
-            "category": null,
-            "contextRef": null,
-            "target": null,
-            "recurrence": null,
-            "evidenceRefs": null,
-            "clearFields": null,
-            "description": null,
-            "descriptionMode": null,
-            "durationMinutes": null,
             "endSchedule": null,
-            "entityName": null,
-            "filter": null,
-            "limit": null,
-            "maxNudges": null,
-            "missingFields": null,
-            "newName": null,
-            "nudgeIntervalMinutes": null,
-            "oldName": null,
-            "preserveNames": null,
-            "priority": null,
-            "projectless": null,
-            "query": null,
-            "question": null,
-            "recapMode": null,
+            "advanceMinutes": null,
+            "deliveryPolicy": null,
+            "recurrence": null,
             "requiresConfirmation": null,
-            "returnFields": null,
-            "scope": null,
-            "sourceName": null,
-            "status": null,
-            "topicKey": null,
+            "nudgeIntervalMinutes": null,
+            "maxNudges": null,
+            "durationMinutes": null,
             "addGoogleMeet": null,
-            "advanceMinutes": null
+            "missingFields": null,
+            "question": null
           }
         ],
         "excluded": null
@@ -2488,11 +2473,7 @@
             "content": "Take out the trash",
             "schedule": {
               "kind": "relative_offset",
-              "allDay": false,
               "offsetMinutes": 10
-            },
-            "deliveryPolicy": {
-              "advanceNotice": "none"
             },
             "domain": "reminder",
             "action": "create"
@@ -2547,11 +2528,11 @@
       "id": "lang-english-agenda",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2633,
-      "latencyStr": "2633ms",
+      "latencyMs": 2772,
+      "latencyStr": "2772ms",
       "deadlineMet": true,
-      "tokensIn": 5481,
-      "tokensOut": 842,
+      "tokensIn": 5515,
+      "tokensOut": 923,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2560,8 +2541,8 @@
         "responseLanguage": "en",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
+        "answerFromResults": true,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -2586,7 +2567,6 @@
             "returnFields": null,
             "scope": "today",
             "filter": null,
-            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -2600,6 +2580,7 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
+            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -2611,7 +2592,7 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
+        "answerFromResults": true,
         "actions": [
           {
             "scope": "today",
@@ -2663,11 +2644,11 @@
       "id": "task-complete-informal",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2348,
-      "latencyStr": "2348ms",
+      "latencyMs": 2616,
+      "latencyStr": "2616ms",
       "deadlineMet": true,
-      "tokensIn": 5415,
-      "tokensOut": 828,
+      "tokensIn": 5449,
+      "tokensOut": 886,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2677,7 +2658,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -2702,7 +2683,6 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
-            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -2716,6 +2696,7 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
+            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -2774,11 +2755,11 @@
       "id": "task-complete-named-project",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3307,
-      "latencyStr": "3307ms",
+      "latencyMs": 2913,
+      "latencyStr": "2913ms",
       "deadlineMet": true,
-      "tokensIn": 5455,
-      "tokensOut": 744,
+      "tokensIn": 5489,
+      "tokensOut": 1078,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -2787,7 +2768,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
+        "answerFromResults": null,
         "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
@@ -2809,7 +2790,9 @@
             "priority": null,
             "status": null,
             "recapMode": null,
-            "evidenceRefs": null,
+            "evidenceRefs": [
+              "pk_1234567890abcdef1234567890abcdef1"
+            ],
             "returnFields": null,
             "scope": null,
             "filter": null,
@@ -2838,7 +2821,6 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "target": "First task",
@@ -2891,29 +2873,30 @@
       "id": "task-create-multiple",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 5208,
-      "latencyStr": "5208ms",
+      "latencyMs": 4019,
+      "latencyStr": "4019ms",
       "deadlineMet": true,
-      "tokensIn": 5418,
-      "tokensOut": 2137,
+      "tokensIn": 5452,
+      "tokensOut": 1517,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
         "responseLanguage": "es",
-        "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
+        "profileUpdate": null,
+        "excluded": null,
         "actions": [
           {
             "operation": "task.create",
             "contextRef": null,
             "target": null,
             "content": null,
-            "title": "Comprar maleta",
+            "title": "comprar maleta",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -2931,7 +2914,7 @@
             "scope": null,
             "filter": null,
             "query": null,
-            "projectless": false,
+            "projectless": null,
             "preserveNames": null,
             "schedule": null,
             "endSchedule": null,
@@ -2952,7 +2935,7 @@
             "contextRef": null,
             "target": null,
             "content": null,
-            "title": "Revisar seguro",
+            "title": "revisar seguro",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -2970,7 +2953,7 @@
             "scope": null,
             "filter": null,
             "query": null,
-            "projectless": false,
+            "projectless": null,
             "preserveNames": null,
             "schedule": null,
             "endSchedule": null,
@@ -2991,50 +2974,11 @@
             "contextRef": null,
             "target": null,
             "content": null,
-            "title": "Descargar tiquetes",
+            "title": "descargar tiquetes",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
             "entityName": "viaje",
-            "oldName": null,
-            "newName": null,
-            "sourceName": null,
-            "category": null,
-            "topicKey": null,
-            "priority": null,
-            "status": null,
-            "recapMode": null,
-            "evidenceRefs": null,
-            "returnFields": null,
-            "scope": null,
-            "filter": null,
-            "query": null,
-            "projectless": false,
-            "preserveNames": null,
-            "schedule": null,
-            "endSchedule": null,
-            "advanceMinutes": null,
-            "deliveryPolicy": null,
-            "recurrence": null,
-            "requiresConfirmation": null,
-            "nudgeIntervalMinutes": null,
-            "maxNudges": null,
-            "durationMinutes": null,
-            "addGoogleMeet": null,
-            "limit": null,
-            "missingFields": null,
-            "question": null
-          },
-          {
-            "operation": "conversation.reply",
-            "contextRef": null,
-            "target": null,
-            "content": "Listo, he agregado las tareas al proyecto \"viaje\".",
-            "title": null,
-            "description": null,
-            "descriptionMode": null,
-            "clearFields": null,
-            "entityName": null,
             "oldName": null,
             "newName": null,
             "sourceName": null,
@@ -3064,8 +3008,7 @@
             "missingFields": null,
             "question": null
           }
-        ],
-        "excluded": null
+        ]
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -3075,30 +3018,22 @@
         "answerFromResults": false,
         "actions": [
           {
-            "title": "Comprar maleta",
+            "title": "comprar maleta",
             "entityName": "viaje",
-            "projectless": false,
             "domain": "task",
             "action": "create"
           },
           {
-            "title": "Revisar seguro",
+            "title": "revisar seguro",
             "entityName": "viaje",
-            "projectless": false,
             "domain": "task",
             "action": "create"
           },
           {
-            "title": "Descargar tiquetes",
+            "title": "descargar tiquetes",
             "entityName": "viaje",
-            "projectless": false,
             "domain": "task",
             "action": "create"
-          },
-          {
-            "content": "Listo, he agregado las tareas al proyecto \"viaje\".",
-            "domain": "conversation",
-            "action": "reply"
           }
         ],
         "excluded": []
@@ -3145,11 +3080,11 @@
       "id": "task-list-pending",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2166,
-      "latencyStr": "2166ms",
+      "latencyMs": 2774,
+      "latencyStr": "2774ms",
       "deadlineMet": true,
-      "tokensIn": 5412,
-      "tokensOut": 623,
+      "tokensIn": 5446,
+      "tokensOut": 955,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3158,8 +3093,8 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
+        "answerFromResults": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -3209,7 +3144,6 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "status": "pending",
@@ -3257,11 +3191,11 @@
       "id": "task-create-explicit",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2869,
-      "latencyStr": "2869ms",
+      "latencyMs": 2672,
+      "latencyStr": "2672ms",
       "deadlineMet": true,
-      "tokensIn": 5422,
-      "tokensOut": 798,
+      "tokensIn": 5456,
+      "tokensOut": 865,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3375,11 +3309,11 @@
       "id": "reminder-offset-1m",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2979,
-      "latencyStr": "2979ms",
+      "latencyMs": 2901,
+      "latencyStr": "2901ms",
       "deadlineMet": true,
-      "tokensIn": 5416,
-      "tokensOut": 1091,
+      "tokensIn": 5450,
+      "tokensOut": 994,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3388,15 +3322,15 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
+        "answerFromResults": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
-            "content": "ir al baño",
+            "content": "Ir al baño",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -3419,7 +3353,7 @@
             "preserveNames": null,
             "schedule": {
               "kind": "relative_offset",
-              "allDay": null,
+              "allDay": false,
               "offsetMinutes": 1,
               "dayOffset": null,
               "year": null,
@@ -3452,12 +3386,12 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
-            "content": "ir al baño",
+            "content": "Ir al baño",
             "schedule": {
               "kind": "relative_offset",
+              "allDay": false,
               "offsetMinutes": 1
             },
             "domain": "reminder",
@@ -3508,11 +3442,11 @@
       "id": "reminder-offset-30m",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2670,
-      "latencyStr": "2670ms",
+      "latencyMs": 3306,
+      "latencyStr": "3306ms",
       "deadlineMet": true,
-      "tokensIn": 5416,
-      "tokensOut": 942,
+      "tokensIn": 5450,
+      "tokensOut": 1232,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3530,7 +3464,7 @@
             "contextRef": null,
             "target": null,
             "content": "Apagar el horno",
-            "title": null,
+            "title": "Apagar el horno",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -3552,14 +3486,14 @@
             "preserveNames": null,
             "schedule": {
               "kind": "relative_offset",
-              "allDay": false,
+              "allDay": null,
               "offsetMinutes": 30,
-              "dayOffset": 0,
-              "year": 2026,
-              "month": 10,
-              "day": 8,
+              "dayOffset": null,
+              "year": null,
+              "month": null,
+              "day": null,
               "weekday": null,
-              "weekOffset": 0,
+              "weekOffset": null,
               "hour": null,
               "minute": null,
               "clockMode": null
@@ -3589,15 +3523,10 @@
         "actions": [
           {
             "content": "Apagar el horno",
+            "title": "Apagar el horno",
             "schedule": {
               "kind": "relative_offset",
-              "allDay": false,
-              "offsetMinutes": 30,
-              "dayOffset": 0,
-              "year": 2026,
-              "month": 10,
-              "day": 8,
-              "weekOffset": 0
+              "offsetMinutes": 30
             },
             "domain": "reminder",
             "action": "create"
@@ -3647,11 +3576,11 @@
       "id": "reminder-offset-2h",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3387,
-      "latencyStr": "3387ms",
+      "latencyMs": 2932,
+      "latencyStr": "2932ms",
       "deadlineMet": true,
-      "tokensIn": 5415,
-      "tokensOut": 1146,
+      "tokensIn": 5449,
+      "tokensOut": 1098,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3669,7 +3598,7 @@
             "contextRef": null,
             "target": null,
             "content": "tomar agua",
-            "title": null,
+            "title": "Tomar agua",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -3692,16 +3621,16 @@
             "schedule": {
               "kind": "relative_offset",
               "allDay": null,
-              "offsetMinutes": 120,
-              "dayOffset": null,
-              "year": null,
-              "month": null,
+              "clockMode": null,
               "day": null,
-              "weekday": null,
-              "weekOffset": null,
+              "dayOffset": null,
               "hour": null,
               "minute": null,
-              "clockMode": null
+              "month": null,
+              "offsetMinutes": 120,
+              "weekOffset": null,
+              "weekday": null,
+              "year": null
             },
             "endSchedule": null,
             "advanceMinutes": null,
@@ -3728,6 +3657,7 @@
         "actions": [
           {
             "content": "tomar agua",
+            "title": "Tomar agua",
             "schedule": {
               "kind": "relative_offset",
               "offsetMinutes": 120
@@ -3780,11 +3710,11 @@
       "id": "reminder-today-explicit-time",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3239,
-      "latencyStr": "3239ms",
+      "latencyMs": 3592,
+      "latencyStr": "3592ms",
       "deadlineMet": true,
-      "tokensIn": 5419,
-      "tokensOut": 1106,
+      "tokensIn": 5453,
+      "tokensOut": 1050,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3793,8 +3723,8 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
+        "answerFromResults": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -3857,7 +3787,6 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "content": "tomar la pastilla",
@@ -3927,11 +3856,11 @@
       "id": "multi-reminder-same-day",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 4049,
-      "latencyStr": "4049ms",
+      "latencyMs": 4821,
+      "latencyStr": "4821ms",
       "deadlineMet": true,
-      "tokensIn": 5423,
-      "tokensOut": 1407,
+      "tokensIn": 5457,
+      "tokensOut": 1883,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -3949,7 +3878,7 @@
             "contextRef": null,
             "target": null,
             "content": "Llega la arena",
-            "title": null,
+            "title": "Llega la arena",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -3973,22 +3902,19 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": null,
-              "weekOffset": null,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 8,
               "minute": 0,
               "clockMode": "explicit_24h"
             },
             "endSchedule": null,
             "advanceMinutes": null,
-            "deliveryPolicy": {
-              "advanceNotice": "none",
-              "advanceMinutes": null
-            },
+            "deliveryPolicy": null,
             "recurrence": null,
             "requiresConfirmation": null,
             "nudgeIntervalMinutes": null,
@@ -4004,7 +3930,7 @@
             "contextRef": null,
             "target": null,
             "content": "Llega el cemento",
-            "title": null,
+            "title": "Llega el cemento",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -4028,22 +3954,19 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": null,
-              "weekOffset": null,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 9,
               "minute": 0,
               "clockMode": "explicit_24h"
             },
             "endSchedule": null,
             "advanceMinutes": null,
-            "deliveryPolicy": {
-              "advanceNotice": "none",
-              "advanceMinutes": null
-            },
+            "deliveryPolicy": null,
             "recurrence": null,
             "requiresConfirmation": null,
             "nudgeIntervalMinutes": null,
@@ -4066,36 +3989,38 @@
         "actions": [
           {
             "content": "Llega la arena",
+            "title": "Llega la arena",
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 8,
               "minute": 0,
               "clockMode": "explicit_24h"
-            },
-            "deliveryPolicy": {
-              "advanceNotice": "none"
             },
             "domain": "reminder",
             "action": "create"
           },
           {
             "content": "Llega el cemento",
+            "title": "Llega el cemento",
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 9,
               "minute": 0,
               "clockMode": "explicit_24h"
-            },
-            "deliveryPolicy": {
-              "advanceNotice": "none"
             },
             "domain": "reminder",
             "action": "create"
@@ -4145,11 +4070,11 @@
       "id": "reminder-advance-notice",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2771,
-      "latencyStr": "2771ms",
+      "latencyMs": 2671,
+      "latencyStr": "2671ms",
       "deadlineMet": true,
-      "tokensIn": 5425,
-      "tokensOut": 1028,
+      "tokensIn": 5459,
+      "tokensOut": 979,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -4158,7 +4083,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
+        "answerFromResults": null,
         "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
@@ -4166,7 +4091,7 @@
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
-            "content": "Reunión",
+            "content": "la reunión",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -4191,12 +4116,12 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": null,
-              "weekOffset": null,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 10,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4225,16 +4150,18 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
-            "content": "Reunión",
+            "content": "la reunión",
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 10,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4296,30 +4223,29 @@
       "id": "reminder-recurrence-hourly",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 5438,
-      "latencyStr": "5438ms",
+      "latencyMs": 3799,
+      "latencyStr": "3799ms",
       "deadlineMet": true,
-      "tokensIn": 5415,
-      "tokensOut": 1761,
+      "tokensIn": 5449,
+      "tokensOut": 1494,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
         "responseLanguage": "es",
-        "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
-        "learningCandidates": [],
         "profileUpdate": null,
-        "excluded": null,
+        "responseCapability": "general",
+        "answerFromResults": null,
+        "knowledgeRefs": [],
+        "learningCandidates": [],
         "actions": [
           {
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
             "content": "Tomar agua",
-            "title": null,
+            "title": "Tomar agua",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -4336,7 +4262,6 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
-            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -4350,6 +4275,7 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
+            "limit": null,
             "missingFields": [
               "schedule"
             ],
@@ -4377,7 +4303,6 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
-            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -4391,20 +4316,22 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
+            "limit": null,
             "missingFields": null,
-            "question": "¿A qué hora te gustaría que empiece el primer recordatorio?"
+            "question": "¿A qué hora quieres que empiece el primer recordatorio?"
           }
-        ]
+        ],
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "content": "Tomar agua",
+            "title": "Tomar agua",
             "recurrence": "hourly:2",
             "missingFields": [
               "schedule"
@@ -4413,7 +4340,7 @@
             "action": "create"
           },
           {
-            "question": "¿A qué hora te gustaría que empiece el primer recordatorio?",
+            "question": "¿A qué hora quieres que empiece el primer recordatorio?",
             "domain": "clarification",
             "action": "request"
           }
@@ -4449,7 +4376,7 @@
         {
           "id": "recurrence_hourly_2",
           "passed": true,
-          "reason": "clarification_acceptable_alternative"
+          "reason": "recurrence_hourly_2_in_draft_or_clarification"
         },
         {
           "id": "subject",
@@ -4462,11 +4389,11 @@
       "id": "reminder-recurrence-daily",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3654,
-      "latencyStr": "3654ms",
+      "latencyMs": 3489,
+      "latencyStr": "3489ms",
       "deadlineMet": true,
-      "tokensIn": 5419,
-      "tokensOut": 1367,
+      "tokensIn": 5453,
+      "tokensOut": 1379,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -4476,7 +4403,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": [],
+        "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
           {
@@ -4484,7 +4411,7 @@
             "contextRef": null,
             "target": null,
             "content": "hacer ejercicio",
-            "title": "Hacer ejercicio",
+            "title": "Ejercicio",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -4508,11 +4435,11 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": 1,
+              "dayOffset": 0,
               "year": 2026,
               "month": 10,
-              "day": 9,
-              "weekday": "saturday",
+              "day": 8,
+              "weekday": "thursday",
               "weekOffset": 0,
               "hour": 7,
               "minute": 0,
@@ -4520,7 +4447,10 @@
             },
             "endSchedule": null,
             "advanceMinutes": null,
-            "deliveryPolicy": null,
+            "deliveryPolicy": {
+              "advanceNotice": "none",
+              "advanceMinutes": null
+            },
             "recurrence": "daily",
             "requiresConfirmation": null,
             "nudgeIntervalMinutes": null,
@@ -4532,7 +4462,7 @@
             "question": null
           }
         ],
-        "excluded": []
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -4543,19 +4473,22 @@
         "actions": [
           {
             "content": "hacer ejercicio",
-            "title": "Hacer ejercicio",
+            "title": "Ejercicio",
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
-              "dayOffset": 1,
+              "dayOffset": 0,
               "year": 2026,
               "month": 10,
-              "day": 9,
-              "weekday": "saturday",
+              "day": 8,
+              "weekday": "thursday",
               "weekOffset": 0,
               "hour": 7,
               "minute": 0,
               "clockMode": "explicit_24h"
+            },
+            "deliveryPolicy": {
+              "advanceNotice": "none"
             },
             "recurrence": "daily",
             "domain": "reminder",
@@ -4610,12 +4543,12 @@
     {
       "id": "calendar-query-next",
       "phase": "initial",
-      "attempts": 2,
-      "latencyMs": 8863,
-      "latencyStr": "8863ms",
+      "attempts": 1,
+      "latencyMs": 3180,
+      "latencyStr": "3180ms",
       "deadlineMet": true,
-      "tokensIn": 5415,
-      "tokensOut": 1058,
+      "tokensIn": 5449,
+      "tokensOut": 923,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -4625,11 +4558,11 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": true,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
-            "operation": "calendar.list",
+            "operation": "agenda.read",
             "contextRef": null,
             "target": null,
             "content": null,
@@ -4663,7 +4596,7 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": 1,
+            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -4679,9 +4612,8 @@
         "actions": [
           {
             "scope": "upcoming",
-            "limit": 1,
-            "domain": "calendar",
-            "action": "list"
+            "domain": "agenda",
+            "action": "read"
           }
         ],
         "excluded": []
@@ -4718,11 +4650,11 @@
       "id": "calendar-create-event",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2557,
-      "latencyStr": "2557ms",
+      "latencyMs": 3193,
+      "latencyStr": "3193ms",
       "deadlineMet": true,
-      "tokensIn": 5422,
-      "tokensOut": 961,
+      "tokensIn": 5456,
+      "tokensOut": 1241,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -4764,12 +4696,12 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": null,
-              "weekOffset": null,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 16,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4778,12 +4710,12 @@
               "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
-              "dayOffset": null,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
-              "weekday": null,
-              "weekOffset": null,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 17,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4815,9 +4747,12 @@
             "schedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 16,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4825,9 +4760,12 @@
             "endSchedule": {
               "kind": "calendar_date_time",
               "allDay": false,
+              "dayOffset": 1,
               "year": 2026,
               "month": 10,
               "day": 9,
+              "weekday": "friday",
+              "weekOffset": 0,
               "hour": 17,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -4885,11 +4823,11 @@
       "id": "calendar-read-tomorrow",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3694,
-      "latencyStr": "3694ms",
+      "latencyMs": 3478,
+      "latencyStr": "3478ms",
       "deadlineMet": true,
-      "tokensIn": 5413,
-      "tokensOut": 955,
+      "tokensIn": 5447,
+      "tokensOut": 1137,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -4899,7 +4837,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": true,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -4942,7 +4880,7 @@
             "question": null
           }
         ],
-        "excluded": null
+        "excluded": []
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -5001,11 +4939,11 @@
       "id": "reminder-list-active",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3489,
-      "latencyStr": "3489ms",
+      "latencyMs": 3278,
+      "latencyStr": "3278ms",
       "deadlineMet": true,
-      "tokensIn": 5411,
-      "tokensOut": 1054,
+      "tokensIn": 5445,
+      "tokensOut": 1175,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5015,7 +4953,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": true,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -5040,6 +4978,7 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
+            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -5053,7 +4992,6 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": null,
             "missingFields": null,
             "question": null
           }
@@ -5106,11 +5044,11 @@
       "id": "reminder-cancel-single",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2569,
-      "latencyStr": "2569ms",
+      "latencyMs": 2680,
+      "latencyStr": "2680ms",
       "deadlineMet": true,
-      "tokensIn": 5671,
-      "tokensOut": 814,
+      "tokensIn": 5449,
+      "tokensOut": 973,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5122,12 +5060,11 @@
         "answerFromResults": false,
         "knowledgeRefs": null,
         "learningCandidates": [],
-        "excluded": null,
         "actions": [
           {
             "operation": "reminder.cancel",
             "contextRef": null,
-            "target": "las gotas en los ojos",
+            "target": "recordatorio de las gotas en los ojos",
             "content": null,
             "title": null,
             "description": null,
@@ -5146,6 +5083,7 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
+            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -5159,11 +5097,11 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": null,
             "missingFields": null,
             "question": null
           }
-        ]
+        ],
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -5173,7 +5111,7 @@
         "answerFromResults": false,
         "actions": [
           {
-            "target": "las gotas en los ojos",
+            "target": "recordatorio de las gotas en los ojos",
             "domain": "reminder",
             "action": "cancel"
           }
@@ -5217,16 +5155,22 @@
       "id": "reminder-cancel-ordinal",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3213,
-      "latencyStr": "3213ms",
+      "latencyMs": 2360,
+      "latencyStr": "2360ms",
       "deadlineMet": true,
-      "tokensIn": 5442,
-      "tokensOut": 1036,
+      "tokensIn": 5476,
+      "tokensOut": 835,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
+        "responseLanguage": "es",
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "answerFromResults": false,
+        "knowledgeRefs": [],
+        "learningCandidates": [],
         "actions": [
           {
             "operation": "reminder.cancel",
@@ -5271,13 +5215,7 @@
             "question": null
           }
         ],
-        "answerFromResults": false,
-        "excluded": null,
-        "knowledgeRefs": null,
-        "learningCandidates": [],
-        "profileUpdate": null,
-        "responseCapability": "general",
-        "responseLanguage": "es"
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -5334,11 +5272,11 @@
       "id": "mixed-cancel-and-create",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 4903,
-      "latencyStr": "4903ms",
+      "latencyMs": 4573,
+      "latencyStr": "4573ms",
       "deadlineMet": true,
-      "tokensIn": 5425,
-      "tokensOut": 1877,
+      "tokensIn": 5459,
+      "tokensOut": 1831,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5354,7 +5292,7 @@
           {
             "operation": "reminder.cancel",
             "contextRef": null,
-            "target": "GPS",
+            "target": "recordatorio del GPS",
             "content": null,
             "title": null,
             "description": null,
@@ -5394,8 +5332,8 @@
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
-            "content": "comprar pan",
-            "title": null,
+            "content": "Comprar pan",
+            "title": "Comprar pan",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -5453,12 +5391,13 @@
         "answerFromResults": false,
         "actions": [
           {
-            "target": "GPS",
+            "target": "recordatorio del GPS",
             "domain": "reminder",
             "action": "cancel"
           },
           {
-            "content": "comprar pan",
+            "content": "Comprar pan",
+            "title": "Comprar pan",
             "schedule": {
               "kind": "relative_day_time",
               "allDay": false,
@@ -5515,11 +5454,11 @@
       "id": "project-delete-request",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2558,
-      "latencyStr": "2558ms",
+      "latencyMs": 2602,
+      "latencyStr": "2602ms",
       "deadlineMet": true,
-      "tokensIn": 5923,
-      "tokensOut": 864,
+      "tokensIn": 5445,
+      "tokensOut": 934,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5631,11 +5570,11 @@
       "id": "task-update-rename",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 4209,
-      "latencyStr": "4209ms",
+      "latencyMs": 2759,
+      "latencyStr": "2759ms",
       "deadlineMet": true,
-      "tokensIn": 5460,
-      "tokensOut": 1295,
+      "tokensIn": 5494,
+      "tokensOut": 975,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5645,7 +5584,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -5656,13 +5595,13 @@
             },
             "target": null,
             "content": null,
-            "title": null,
+            "title": "Revisar servidor",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
             "entityName": "Demo project",
-            "oldName": "First task",
-            "newName": "Revisar servidor",
+            "oldName": null,
+            "newName": null,
             "sourceName": null,
             "category": null,
             "topicKey": null,
@@ -5673,6 +5612,7 @@
             "returnFields": null,
             "scope": null,
             "filter": null,
+            "limit": null,
             "query": null,
             "projectless": null,
             "preserveNames": null,
@@ -5686,12 +5626,11 @@
             "maxNudges": null,
             "durationMinutes": null,
             "addGoogleMeet": null,
-            "limit": null,
             "missingFields": null,
             "question": null
           }
         ],
-        "excluded": null
+        "excluded": []
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -5705,11 +5644,9 @@
               "source": "working_memory",
               "position": 1
             },
-            "entityName": "Demo project",
-            "oldName": "First task",
-            "newName": "Revisar servidor",
-            "target": "First task",
             "title": "Revisar servidor",
+            "entityName": "Demo project",
+            "newName": "Revisar servidor",
             "domain": "task",
             "action": "update"
           }
@@ -5763,11 +5700,11 @@
       "id": "memory-save-fact",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2997,
-      "latencyStr": "2997ms",
+      "latencyMs": 2683,
+      "latencyStr": "2683ms",
       "deadlineMet": true,
-      "tokensIn": 5418,
-      "tokensOut": 1043,
+      "tokensIn": 5452,
+      "tokensOut": 1090,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5777,7 +5714,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -5793,7 +5730,7 @@
             "oldName": null,
             "newName": null,
             "sourceName": null,
-            "category": "fact",
+            "category": null,
             "topicKey": "personal/birthday",
             "priority": null,
             "status": null,
@@ -5831,8 +5768,8 @@
         "actions": [
           {
             "content": "Mi cumpleaños es el 15 de marzo.",
-            "category": "fact",
             "topicKey": "personal/birthday",
+            "category": "fact",
             "domain": "memory",
             "action": "save"
           }
@@ -5880,12 +5817,12 @@
     {
       "id": "memory-preference-notice",
       "phase": "initial",
-      "attempts": 3,
-      "latencyMs": 12586,
-      "latencyStr": "12586ms",
-      "deadlineMet": false,
-      "tokensIn": 5378,
-      "tokensOut": 1296,
+      "attempts": 1,
+      "latencyMs": 3195,
+      "latencyStr": "3195ms",
+      "deadlineMet": true,
+      "tokensIn": 5412,
+      "tokensOut": 1160,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -5894,25 +5831,15 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
-        "learningCandidates": [
-          {
-            "topicKey": "preference/advance_notice",
-            "category": "preference",
-            "content": "No agregar avisos anticipados a menos que me lo pidas explícitamente.",
-            "evidence": "Nunca me agregues avisos anticipados a menos que te lo pida expresamente.",
-            "entityName": "Synthetic Owner",
-            "entityCategory": "person"
-          }
-        ],
-        "excluded": null,
+        "answerFromResults": null,
+        "knowledgeRefs": [],
+        "learningCandidates": [],
         "actions": [
           {
-            "operation": "conversation.reply",
+            "operation": "memory.save",
             "contextRef": null,
             "target": null,
-            "content": "Entendido, no agregaré avisos anticipados a menos que me lo pidas.",
+            "content": "Nunca agregar avisos anticipados a menos que se solicite expresamente",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -5921,8 +5848,8 @@
             "oldName": null,
             "newName": null,
             "sourceName": null,
-            "category": null,
-            "topicKey": null,
+            "category": "preference",
+            "topicKey": "preference/reminder/advance_notice",
             "priority": null,
             "status": null,
             "recapMode": null,
@@ -5947,28 +5874,21 @@
             "missingFields": null,
             "question": null
           }
-        ]
+        ],
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
-        "learningCandidates": [
-          {
-            "topicKey": "preference/advance_notice",
-            "category": "preference",
-            "content": "No agregar avisos anticipados a menos que me lo pidas explícitamente.",
-            "evidence": "Nunca me agregues avisos anticipados a menos que te lo pida expresamente.",
-            "entityName": "Synthetic Owner",
-            "entityCategory": "person"
-          }
-        ],
+        "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
-            "content": "Entendido, no agregaré avisos anticipados a menos que me lo pidas.",
-            "domain": "conversation",
-            "action": "reply"
+            "content": "Nunca agregar avisos anticipados a menos que se solicite expresamente",
+            "category": "preference",
+            "topicKey": "preference/reminder/advance_notice",
+            "domain": "memory",
+            "action": "save"
           }
         ],
         "excluded": []
@@ -6010,11 +5930,11 @@
       "id": "rectification-misunderstanding",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3080,
-      "latencyStr": "3080ms",
+      "latencyMs": 2590,
+      "latencyStr": "2590ms",
       "deadlineMet": true,
-      "tokensIn": 5426,
-      "tokensOut": 891,
+      "tokensIn": 5460,
+      "tokensOut": 986,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -6023,7 +5943,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": true,
+        "answerFromResults": false,
         "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
@@ -6050,7 +5970,7 @@
             "scope": null,
             "filter": null,
             "query": null,
-            "projectless": null,
+            "projectless": false,
             "preserveNames": null,
             "schedule": null,
             "endSchedule": null,
@@ -6074,11 +5994,12 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": true,
+        "answerFromResults": false,
         "actions": [
           {
             "entityName": "Malta",
             "status": "all",
+            "projectless": false,
             "domain": "task",
             "action": "list"
           }
@@ -6131,30 +6052,29 @@
     {
       "id": "chat-followup-colloquial",
       "phase": "initial",
-      "attempts": 1,
-      "latencyMs": 2325,
-      "latencyStr": "2325ms",
+      "attempts": 2,
+      "latencyMs": 8967,
+      "latencyStr": "8967ms",
       "deadlineMet": true,
-      "tokensIn": 5667,
-      "tokensOut": 684,
+      "tokensIn": 5445,
+      "tokensOut": 1218,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
         "responseLanguage": "es",
+        "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": null,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
-        "profileUpdate": null,
-        "excluded": null,
         "actions": [
           {
             "operation": "conversation.reply",
             "contextRef": null,
             "target": null,
-            "content": "¡Hola! Estoy bien, gracias. ¿Y tú?",
+            "content": "¡Hola! Estoy bien, ¿y tú?",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -6189,7 +6109,8 @@
             "missingFields": null,
             "question": null
           }
-        ]
+        ],
+        "excluded": null
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -6198,7 +6119,7 @@
         "responseCapability": "general",
         "actions": [
           {
-            "content": "¡Hola! Estoy bien, gracias. ¿Y tú?",
+            "content": "¡Hola! Estoy bien, ¿y tú?",
             "domain": "conversation",
             "action": "reply"
           }
@@ -6241,12 +6162,12 @@
     {
       "id": "chat-gratitude",
       "phase": "initial",
-      "attempts": 1,
-      "latencyMs": 3222,
-      "latencyStr": "3222ms",
+      "attempts": 2,
+      "latencyMs": 6204,
+      "latencyStr": "6204ms",
       "deadlineMet": true,
-      "tokensIn": 5415,
-      "tokensOut": 1105,
+      "tokensIn": 5449,
+      "tokensOut": 909,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -6263,7 +6184,7 @@
             "operation": "conversation.reply",
             "contextRef": null,
             "target": null,
-            "content": "¡De nada! Me alegra haber podido ayudar. Que tengas un excelente día.",
+            "content": "¡De nada! Que tengas un buen día.",
             "title": null,
             "description": null,
             "descriptionMode": null,
@@ -6309,7 +6230,7 @@
         "answerFromResults": false,
         "actions": [
           {
-            "content": "¡De nada! Me alegra haber podido ayudar. Que tengas un excelente día.",
+            "content": "¡De nada! Que tengas un buen día.",
             "domain": "conversation",
             "action": "reply"
           }
@@ -6353,22 +6274,16 @@
       "id": "security-quoted-command",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 2617,
-      "latencyStr": "2617ms",
+      "latencyMs": 3476,
+      "latencyStr": "3476ms",
       "deadlineMet": true,
-      "tokensIn": 5422,
-      "tokensOut": 817,
+      "tokensIn": 5456,
+      "tokensOut": 904,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
       "details": "All semantic assertions met",
       "rawDecision": {
-        "responseLanguage": "es",
-        "profileUpdate": null,
-        "responseCapability": "general",
-        "answerFromResults": false,
-        "knowledgeRefs": null,
-        "learningCandidates": [],
         "actions": [
           {
             "operation": "conversation.reply",
@@ -6410,7 +6325,13 @@
             "question": null
           }
         ],
-        "excluded": null
+        "answerFromResults": false,
+        "excluded": null,
+        "knowledgeRefs": null,
+        "learningCandidates": [],
+        "profileUpdate": null,
+        "responseCapability": "general",
+        "responseLanguage": "es"
       },
       "normalizedDecision": {
         "responseLanguage": "es",
@@ -6469,11 +6390,11 @@
       "id": "time-explicit-noon",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3542,
-      "latencyStr": "3542ms",
+      "latencyMs": 4078,
+      "latencyStr": "4078ms",
       "deadlineMet": true,
-      "tokensIn": 5423,
-      "tokensOut": 1365,
+      "tokensIn": 5457,
+      "tokensOut": 1200,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -6483,15 +6404,15 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
             "operation": "reminder.create",
             "contextRef": null,
             "target": null,
-            "content": "almorzar con mamá",
-            "title": null,
+            "content": null,
+            "title": "Almorzar con mamá",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -6512,15 +6433,15 @@
             "projectless": null,
             "preserveNames": null,
             "schedule": {
-              "kind": "calendar_date_time",
+              "kind": "relative_day_time",
               "allDay": false,
               "offsetMinutes": null,
               "dayOffset": 1,
-              "year": 2026,
-              "month": 10,
-              "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0,
+              "year": null,
+              "month": null,
+              "day": null,
+              "weekday": null,
+              "weekOffset": null,
               "hour": 12,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -6549,16 +6470,11 @@
         "answerFromResults": false,
         "actions": [
           {
-            "content": "almorzar con mamá",
+            "title": "Almorzar con mamá",
             "schedule": {
-              "kind": "calendar_date_time",
+              "kind": "relative_day_time",
               "allDay": false,
               "dayOffset": 1,
-              "year": 2026,
-              "month": 10,
-              "day": 9,
-              "weekday": "friday",
-              "weekOffset": 0,
               "hour": 12,
               "minute": 0,
               "clockMode": "explicit_24h"
@@ -6611,11 +6527,11 @@
       "id": "time-explicit-midnight",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3287,
-      "latencyStr": "3287ms",
+      "latencyMs": 3517,
+      "latencyStr": "3517ms",
       "deadlineMet": true,
-      "tokensIn": 5416,
-      "tokensOut": 1242,
+      "tokensIn": 5450,
+      "tokensOut": 1358,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -6624,7 +6540,7 @@
         "responseLanguage": "es",
         "profileUpdate": null,
         "responseCapability": "general",
-        "answerFromResults": false,
+        "answerFromResults": null,
         "knowledgeRefs": null,
         "learningCandidates": [],
         "actions": [
@@ -6633,7 +6549,7 @@
             "contextRef": null,
             "target": null,
             "content": "Reiniciar el servidor",
-            "title": null,
+            "title": "Reiniciar el servidor",
             "description": null,
             "descriptionMode": null,
             "clearFields": null,
@@ -6654,7 +6570,7 @@
             "projectless": null,
             "preserveNames": null,
             "schedule": {
-              "kind": "relative_day_time",
+              "kind": "calendar_date_time",
               "allDay": false,
               "offsetMinutes": null,
               "dayOffset": 1,
@@ -6691,12 +6607,12 @@
         "learningCandidates": [],
         "learningCandidatesProvided": true,
         "responseCapability": "general",
-        "answerFromResults": false,
         "actions": [
           {
             "content": "Reiniciar el servidor",
+            "title": "Reiniciar el servidor",
             "schedule": {
-              "kind": "relative_day_time",
+              "kind": "calendar_date_time",
               "allDay": false,
               "dayOffset": 1,
               "year": 2026,
@@ -6759,11 +6675,11 @@
       "id": "task-projectless",
       "phase": "initial",
       "attempts": 1,
-      "latencyMs": 3161,
-      "latencyStr": "3161ms",
+      "latencyMs": 2226,
+      "latencyStr": "2226ms",
       "deadlineMet": true,
-      "tokensIn": 5414,
-      "tokensOut": 1089,
+      "tokensIn": 5448,
+      "tokensOut": 754,
       "schemaValid": true,
       "validationErrors": null,
       "passed": true,
@@ -6773,7 +6689,7 @@
         "profileUpdate": null,
         "responseCapability": "general",
         "answerFromResults": false,
-        "knowledgeRefs": null,
+        "knowledgeRefs": [],
         "learningCandidates": [],
         "actions": [
           {
@@ -6814,45 +6730,6 @@
             "limit": null,
             "missingFields": null,
             "question": null
-          },
-          {
-            "operation": "conversation.reply",
-            "contextRef": null,
-            "target": null,
-            "content": "He anotado la tarea “comprar pan”.",
-            "title": null,
-            "description": null,
-            "descriptionMode": null,
-            "clearFields": null,
-            "entityName": null,
-            "oldName": null,
-            "newName": null,
-            "sourceName": null,
-            "category": null,
-            "topicKey": null,
-            "priority": null,
-            "status": null,
-            "recapMode": null,
-            "evidenceRefs": null,
-            "returnFields": null,
-            "scope": null,
-            "filter": null,
-            "query": null,
-            "projectless": null,
-            "preserveNames": null,
-            "schedule": null,
-            "endSchedule": null,
-            "advanceMinutes": null,
-            "deliveryPolicy": null,
-            "recurrence": null,
-            "requiresConfirmation": null,
-            "nudgeIntervalMinutes": null,
-            "maxNudges": null,
-            "durationMinutes": null,
-            "addGoogleMeet": null,
-            "limit": null,
-            "missingFields": null,
-            "question": null
           }
         ],
         "excluded": null
@@ -6869,11 +6746,6 @@
             "projectless": true,
             "domain": "task",
             "action": "create"
-          },
-          {
-            "content": "He anotado la tarea “comprar pan”.",
-            "domain": "conversation",
-            "action": "reply"
           }
         ],
         "excluded": []
