@@ -11,6 +11,7 @@ export interface AgentLoopOptions {
   readonly continuation?: 'single_decision' | 'observation_driven';
   /** Discover one authorized atomic schema at a time; never execute catalogue selections. */
   readonly discoverTools?: boolean;
+  readonly initialTools?: readonly string[];
   readonly readFollowups?: Readonly<Record<string, readonly string[]>>;
   readonly continuationReserveTokens?: number;
   readonly maxModelSteps?: number;
@@ -68,6 +69,7 @@ function compactSchemaHints(value: JsonValue): JsonValue {
 
 export class AgentLoop {
   private readonly discoverTools: boolean;
+  private readonly initialTools: readonly string[];
   private readonly readFollowups: Readonly<Record<string, readonly string[]>>;
   private readonly continuationReserveTokens: number;
   private readonly maxModelSteps: number;
@@ -89,6 +91,8 @@ export class AgentLoop {
     options: AgentLoopOptions = {}) {
     if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
     this.discoverTools = options.discoverTools === true;
+    this.initialTools = [...new Set(options.initialTools ?? [])];
+    if (this.initialTools.length > 2 || this.initialTools.some(name => !name || name === 'tools_select')) throw new Error('Invalid initial tool scope');
     this.readFollowups = structuredClone(options.readFollowups ?? {});
     this.continuationReserveTokens = options.continuationReserveTokens ?? 0;
     if (!Number.isSafeInteger(this.continuationReserveTokens) || this.continuationReserveTokens < 0) throw new Error('Invalid continuation reserve');
@@ -136,7 +140,7 @@ export class AgentLoop {
     if (catalogue.some(tool => tool.name === 'tools_select')) throw new Error('Reserved tool name');
     const discovery = { name: 'tools_select', description: 'Select the next operation to load its input schema. Selection performs no operation. Use the returned schema on the next step.',
       inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) } }, required: ['name'], additionalProperties: false } };
-    let selected: string | undefined;
+    let selected: readonly string[] = this.initialTools.filter(name => catalogue.some(tool => tool.name === name));
     let followups: readonly string[] = [];
     const completedWrites = new Set<string>();
     let totalTokens = 0;
@@ -144,7 +148,11 @@ export class AgentLoop {
     let totalCalls = 0;
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
-      const tools = this.discoverTools ? [...(catalogue.length ? [discovery] : []), ...catalogue.filter(tool => tool.name === selected || followups.includes(tool.name))] : catalogue;
+      const loaded = catalogue.filter(tool => this.initialTools.includes(tool.name) || selected.includes(tool.name) || followups.includes(tool.name));
+      const unloaded = catalogue.filter(tool => !loaded.some(current => current.name === tool.name));
+      const scopedDiscovery = { ...discovery, inputSchema: { ...discovery.inputSchema,
+        properties: { name: { type: 'string', enum: unloaded.map(tool => tool.name) } } } };
+      const tools = this.discoverTools ? [...(unloaded.length ? [scopedDiscovery] : []), ...loaded] : catalogue;
       const availableNames = new Set(tools.map(tool => tool.name));
       const inputCeiling = this.maxInputTokens - (tools.some(tool => this.registry.effect(tool.name) === 'read') ? this.continuationReserveTokens : 0);
       const estimateRequest = (messages: readonly AIMessage[]): number => {
@@ -159,7 +167,7 @@ export class AgentLoop {
           messages => estimateRequest(messages) <= inputCeiling
             && estimateRequest(messages) < this.maxTotalTokens - totalTokens, tools) };
       } catch (error) {
-        if (step > 0 && error instanceof ContextLimitError) {
+        if (error instanceof ContextLimitError) {
           notices.push('limit_reached'); return finish();
         }
         throw error;
@@ -222,7 +230,9 @@ export class AgentLoop {
           const name = call.arguments.name;
           const valid = availableNames.has(call.name) && Object.keys(call.arguments).length === 1
             && typeof name === 'string' && catalogue.some(tool => tool.name === name);
-          if (valid) selected = name;
+          if (valid) selected = [...new Set(normalizedCalls.filter(candidate => candidate.name === 'tools_select'
+            && Object.keys(candidate.arguments).length === 1 && typeof candidate.arguments.name === 'string'
+            && catalogue.some(tool => tool.name === candidate.arguments.name)).map(candidate => String(candidate.arguments.name)))];
           history.push({ role: 'tool', toolCallId: call.id, content: valid
             ? { status: 'success', selectedTool: name, observation: 'Schema loaded for the next step. No domain action executed.' }
             : { status: 'denied', code: 'TOOL_UNAVAILABLE' }, isError: !valid });
@@ -293,9 +303,9 @@ export class AgentLoop {
         await policy.afterOutcome(structuredClone(call), outcome);
         if (this.discoverTools && read && outcome.status === 'success') {
           followups = this.readFollowups[call.name] ?? [];
-          if (followups.length) selected = undefined;
+          if (followups.length) selected = selected.filter(name => name !== call.name);
         }
-        if (this.discoverTools && !read && (outcome.status === 'success' || outcome.status === 'partial')) { selected = call.name; followups = []; }
+        if (this.discoverTools && !read && (outcome.status === 'success' || outcome.status === 'partial')) { followups = []; }
         const content: JsonObject = { status: outcome.status, observation: outcome.observation };
         history.push({ role: 'tool', toolCallId: call.id, content, isError: outcome.status !== 'success' && outcome.status !== 'partial' });
       }

@@ -151,10 +151,12 @@ describe('single-decision reminder turn orchestration', () => {
     expect(aiTranscriptSchema.safeParse(result.conversation.history).success).toBe(true);
   });
 
-  it('requires compaction instead of silently dropping reference/history state', async () => {
+  it('returns a bounded no-effect result without silently dropping durable reference/history state', async () => {
     const { runner, provider } = setup(undefined, { maxHistoryMessages: 1 });
     const state: ReminderConversation = { userId: user.id, references: [], handledRequestIds: [], history: [{ role: 'user', content: 'Anterior' }] };
-    await expect(runner.run('Nuevo', context(), state)).rejects.toThrow('requires compaction');
+    const result = await runner.run('Nuevo', context(), state);
+    expect(result.uiPayload.notices).toEqual(['limit_reached']);
+    expect(result.conversation.history).toEqual([...state.history, { role: 'user', content: 'Nuevo' }]);
     expect(provider.requests).toHaveLength(0);
   });
 

@@ -77,7 +77,7 @@ export function summarizeProductivityOperations(history: readonly AIMessage[], o
 }
 
 export class ContextLimitError extends Error {
-  constructor() { super('Conversation requires compaction: recent turns exceed the context limit'); }
+  constructor() { super('Conversation requires compaction: recent turns exceed the context limit'); this.name = 'ContextLimitError'; }
 }
 
 export interface PreparedReminderContext {

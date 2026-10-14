@@ -34,7 +34,7 @@
     "smoke:container": "tsx scripts/checks/container-smoke.ts",
     "check:v2-boundary": "tsx scripts/checks/v2-domain-boundary.ts",
     "inventory:v1": "tsx scripts/checks/v1-caller-inventory.ts",
-    "eval:context-budgets": "pnpm run build:packages && tsx scripts/evals/v2-context-budget-comparison.ts"
+    "eval:context-budgets": "pnpm run build:packages && tsx scripts/evals/v2-context-budget-comparison.ts && tsx scripts/evals/v2-complex-budget.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

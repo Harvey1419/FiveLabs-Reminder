@@ -57,7 +57,7 @@ jobs:
       - name: Verify durable conversation and legacy continuity offline
         run: pnpm run test:conversation
 
-      - name: Compare V2 context capacity offline without changing production budget
+      - name: Compare V2 context capacity and multi-action completion offline
         run: pnpm run eval:context-budgets > context-budget-comparison.log
 
       - name: Verify compiled ESM package imports

@@ -2572,3 +2572,7 @@ Production turn `72fb643c-d2e2-42e1-aa51-cbe8abf63e6d` selected `reminder_create
 The runner now catches only `ContextLimitError` while optional extras remain, then retries without those extras. Essential current-turn user/assistant/tool pairs remain intact; other errors propagate. Under compact observation mode, new-resource tools omit historical ID reference arrays; existing-resource read/update/cancel/delete paths retain them. Durable records/history are unchanged, and the host still enforces the 1,800-token input estimate. Historical shorthand in a new request may still need clarification; this change does not interpret the competing durations in an audio transcript or certify live temporal reasoning.
 
 Regression tests cover an observed-owned reminder ledger followed by discovery/create/verified delivery without `limit_reached`, and an optional-context budget exception falling back to the current user turn. Evidence: `odd/evidence/agent-core-phase5/v2-create-continuation-budget.json`.
+
+### Current context policy and compound-request evaluation
+
+The production composition now selects 2,500 input tokens per request with active-turn verified-batch compaction and bounded compound-action limits. See [V2 context budget](v2-context-budget.md) for the Pi/OpenCode/OpenAI comparison, the seven existing plus eighteen new offline fixtures, isolated live checks and their limits. Prior sections/evidence describing 1,800 remain historical; the shared `productivity-budget.ts` policy is authoritative for the current composition.

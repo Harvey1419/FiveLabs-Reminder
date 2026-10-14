@@ -1,0 +1,740 @@
+{
+  "version": 1,
+  "scope": "2500-token compound productivity and verified active-turn compaction",
+  "baseCommit": "cc88d2d",
+  "productionPolicy": {
+    "maxInputTokens": 2500,
+    "maxTotalTokens": 20000,
+    "maxModelSteps": 10,
+    "maxToolCalls": 10,
+    "maxOutputTokens": 768,
+    "timeoutMs": 45000,
+    "continuationReserveTokens": 256
+  },
+  "changes": [
+    "Completed successful batches summarized without altering durable evidence",
+    "Current user message retained exactly; pending/uncertain batches retained",
+    "Multiple selected schemas remain available; discovery excludes already advertised names",
+    "Common creation schemas preloaded under scoped capabilities",
+    "Shorter persona with atomic action completion guidance",
+    "Relative delayMinutes converted to ISO by host clock",
+    "Initial context overflow returns no-effect bounded completion"
+  ],
+  "validation": {
+    "unitPassed": 3842,
+    "unitFiles": 302,
+    "integrationPassed": 37,
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "maintainedJavaScript": 0,
+    "typeScriptSources": 794,
+    "container": {
+      "tag": "five-labs-reminder-api:v2-2500-complex",
+      "imageId": "sha256:24fc67789a2436efebc0814a0e99ce815d0a6b93d7e2d83bc083d83d024912d1",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 46,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "offline": {
+    "method": "scripted model responses with production policy/atomic registry and OpenRouter wire estimate",
+    "existingCases": 7,
+    "newCases": 18,
+    "newResults": [
+      {
+        "case": "three_reminders",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 92,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 1708,
+        "totalInputEstimate": 4857
+      },
+      {
+        "case": "three_reminders",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 92,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 2145,
+        "totalInputEstimate": 5294
+      },
+      {
+        "case": "mixed_recurring_reminders",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 117,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 1752,
+        "totalInputEstimate": 4911
+      },
+      {
+        "case": "mixed_recurring_reminders",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 117,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 1993,
+        "totalInputEstimate": 5152
+      },
+      {
+        "case": "reminders_and_tasks",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 132,
+        "notices": [],
+        "writes": 4,
+        "expectedWrites": 4,
+        "steps": 5,
+        "maxInputEstimate": 1746,
+        "totalInputEstimate": 8378
+      },
+      {
+        "case": "reminders_and_tasks",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 132,
+        "notices": [],
+        "writes": 4,
+        "expectedWrites": 4,
+        "steps": 5,
+        "maxInputEstimate": 2367,
+        "totalInputEstimate": 9585
+      },
+      {
+        "case": "project_grouped_tasks",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 165,
+        "notices": [],
+        "writes": 4,
+        "expectedWrites": 4,
+        "steps": 5,
+        "maxInputEstimate": 1755,
+        "totalInputEstimate": 8382
+      },
+      {
+        "case": "project_grouped_tasks",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 165,
+        "notices": [],
+        "writes": 4,
+        "expectedWrites": 4,
+        "steps": 5,
+        "maxInputEstimate": 2386,
+        "totalInputEstimate": 9857
+      },
+      {
+        "case": "six_sequential_reminders",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 71,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 5,
+        "expectedWrites": 6,
+        "steps": 6,
+        "maxInputEstimate": 1792,
+        "totalInputEstimate": 10182
+      },
+      {
+        "case": "six_sequential_reminders",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 71,
+        "notices": [],
+        "writes": 6,
+        "expectedWrites": 6,
+        "steps": 8,
+        "maxInputEstimate": 2440,
+        "totalInputEstimate": 16216
+      },
+      {
+        "case": "eight_reminders_batch",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 39,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 8,
+        "expectedWrites": 8,
+        "steps": 2,
+        "maxInputEstimate": 1600,
+        "totalInputEstimate": 3101
+      },
+      {
+        "case": "eight_reminders_batch",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 39,
+        "notices": [],
+        "writes": 8,
+        "expectedWrites": 8,
+        "steps": 3,
+        "maxInputEstimate": 2206,
+        "totalInputEstimate": 5307
+      },
+      {
+        "case": "mixed_three_recurring_and_three_tasks",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 64,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 6,
+        "expectedWrites": 6,
+        "steps": 4,
+        "maxInputEstimate": 1730,
+        "totalInputEstimate": 6580
+      },
+      {
+        "case": "mixed_three_recurring_and_three_tasks",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 64,
+        "notices": [],
+        "writes": 6,
+        "expectedWrites": 6,
+        "steps": 5,
+        "maxInputEstimate": 2415,
+        "totalInputEstimate": 10060
+      },
+      {
+        "case": "three_tasks_long_history",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 56,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 1792,
+        "totalInputEstimate": 5030
+      },
+      {
+        "case": "three_tasks_long_history",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 56,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 2426,
+        "totalInputEstimate": 6989
+      },
+      {
+        "case": "rich_source_1000",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 1057,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 1773,
+        "totalInputEstimate": 5200
+      },
+      {
+        "case": "rich_source_1000",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 1057,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 2108,
+        "totalInputEstimate": 5649
+      },
+      {
+        "case": "rich_source_2000",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 2057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "rich_source_2000",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 2057,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 2325,
+        "totalInputEstimate": 6300
+      },
+      {
+        "case": "rich_source_3000",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 3057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "rich_source_3000",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 3057,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 2425,
+        "totalInputEstimate": 6827
+      },
+      {
+        "case": "rich_source_4000",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 4057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "rich_source_4000",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 4057,
+        "notices": [],
+        "writes": 2,
+        "expectedWrites": 2,
+        "steps": 3,
+        "maxInputEstimate": 2467,
+        "totalInputEstimate": 7258
+      },
+      {
+        "case": "rich_source_5000",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 5057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "rich_source_5000",
+        "budget": 2500,
+        "complete": false,
+        "sourceCharacters": 5057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 1,
+        "maxInputEstimate": 2469,
+        "totalInputEstimate": 2469
+      },
+      {
+        "case": "rich_source_6000",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 6057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "rich_source_6000",
+        "budget": 2500,
+        "complete": false,
+        "sourceCharacters": 6057,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 2,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "large_active_tool_arguments_100",
+        "budget": 1800,
+        "complete": true,
+        "sourceCharacters": 350,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 1764,
+        "totalInputEstimate": 4989
+      },
+      {
+        "case": "large_active_tool_arguments_100",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 350,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 2234,
+        "totalInputEstimate": 5459
+      },
+      {
+        "case": "large_active_tool_arguments_400",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 1230,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 2,
+        "maxInputEstimate": 1730,
+        "totalInputEstimate": 3447
+      },
+      {
+        "case": "large_active_tool_arguments_400",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 1230,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 2428,
+        "totalInputEstimate": 5989
+      },
+      {
+        "case": "large_active_tool_arguments_800",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 2418,
+        "notices": [
+          "limit_reached"
+        ],
+        "writes": 0,
+        "expectedWrites": 3,
+        "steps": 0,
+        "maxInputEstimate": 0,
+        "totalInputEstimate": 0
+      },
+      {
+        "case": "large_active_tool_arguments_800",
+        "budget": 2500,
+        "complete": true,
+        "sourceCharacters": 2418,
+        "notices": [],
+        "writes": 3,
+        "expectedWrites": 3,
+        "steps": 3,
+        "maxInputEstimate": 2272,
+        "totalInputEstimate": 6287
+      },
+      {
+        "case": "bounded_steps_negative_control",
+        "budget": 1800,
+        "complete": false,
+        "sourceCharacters": 24,
+        "notices": [],
+        "writes": 0,
+        "expectedWrites": 3,
+        "steps": 1,
+        "maxInputEstimate": 1500,
+        "totalInputEstimate": 1500
+      },
+      {
+        "case": "bounded_steps_negative_control",
+        "budget": 2500,
+        "complete": false,
+        "sourceCharacters": 24,
+        "notices": [],
+        "writes": 0,
+        "expectedWrites": 3,
+        "steps": 1,
+        "maxInputEstimate": 1500,
+        "totalInputEstimate": 1500
+      }
+    ],
+    "negativeCases": [
+      "rich_source_5000",
+      "rich_source_6000",
+      "bounded_steps_negative_control"
+    ]
+  },
+  "live": {
+    "method": "one configured-provider run per case/budget; local synthetic domain ports; real inference",
+    "results": [
+      {
+        "case": "three_reminders",
+        "budget": 1800,
+        "complete": true,
+        "notices": [],
+        "writes": 3,
+        "semanticChecks": {
+          "relativeTimes": true
+        },
+        "steps": 4,
+        "elapsedMs": 5670,
+        "maxInputEstimate": 1780,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 4,
+          "inputTokens": 4518,
+          "outputTokens": 572,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013273-EMgeyH3jWjptgjdHKg8Z",
+          "gen-1792013275-5eMvVX7qOy8D5LtZN5AZ",
+          "gen-1792013276-Zi0UCCiuIyuovForIT5O",
+          "gen-1792013278-MCYnC2wv6rFzDo7XzhQr"
+        ]
+      },
+      {
+        "case": "three_reminders",
+        "budget": 2500,
+        "complete": true,
+        "notices": [],
+        "writes": 3,
+        "semanticChecks": {
+          "relativeTimes": true
+        },
+        "steps": 4,
+        "elapsedMs": 3396,
+        "maxInputEstimate": 2014,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 4,
+          "inputTokens": 4748,
+          "outputTokens": 603,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013279-ZViBawIcutg886YADZrs",
+          "gen-1792013280-sguX3YH4Cmy4ryi1Lffi",
+          "gen-1792013280-x4ryc1gPycCX6t3Z1env",
+          "gen-1792013282-jQlwv7vjSzQR8p0dFrIu"
+        ]
+      },
+      {
+        "case": "mixed_recurring_reminders",
+        "budget": 1800,
+        "complete": false,
+        "notices": [
+          "provider_unavailable"
+        ],
+        "writes": 2,
+        "semanticChecks": {
+          "localTimes": true
+        },
+        "steps": 3,
+        "elapsedMs": 2765,
+        "maxInputEstimate": 1784,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 3,
+          "inputTokens": 2187,
+          "outputTokens": 611,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013282-rLAMQqDDwET7SR4YqF8Z",
+          "gen-1792013284-vdv3sVHXA0XYSb6zfjEQ"
+        ]
+      },
+      {
+        "case": "mixed_recurring_reminders",
+        "budget": 2500,
+        "complete": true,
+        "notices": [],
+        "writes": 2,
+        "semanticChecks": {
+          "localTimes": true
+        },
+        "steps": 3,
+        "elapsedMs": 4241,
+        "maxInputEstimate": 1898,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 3,
+          "inputTokens": 3471,
+          "outputTokens": 653,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013285-cERcic0SNEXFNjZPx2pt",
+          "gen-1792013287-66kDdYYTnfEodI9y05vV",
+          "gen-1792013288-rqEmhrh9ELcEs5iDhNqP"
+        ]
+      },
+      {
+        "case": "reminders_and_tasks",
+        "budget": 1800,
+        "complete": false,
+        "notices": [
+          "provider_unavailable"
+        ],
+        "writes": 3,
+        "semanticChecks": {},
+        "steps": 4,
+        "elapsedMs": 4190,
+        "maxInputEstimate": 1765,
+        "usage": {
+          "accountingComplete": false,
+          "modelSteps": 4,
+          "inputTokens": 3310,
+          "outputTokens": 490,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013289-BKSmTgWs3krBLJYkVdar",
+          "gen-1792013290-jJa13TlXx2KMnz3687Q1",
+          "gen-1792013291-kTRC5OiiOe9zOaWpnwVj",
+          "gen-1792013292-f0cHAUJsgLNzBPsZGO9o"
+        ]
+      },
+      {
+        "case": "reminders_and_tasks",
+        "budget": 2500,
+        "complete": true,
+        "notices": [],
+        "writes": 4,
+        "semanticChecks": {},
+        "steps": 5,
+        "elapsedMs": 6540,
+        "maxInputEstimate": 2157,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 5,
+          "inputTokens": 6211,
+          "outputTokens": 676,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013293-bsOJGBRtiA6DT9XcHwo0",
+          "gen-1792013295-ifUMKqL72KC5irc1BPyG",
+          "gen-1792013298-LCzyOtSLVlrSDtvJgtbC",
+          "gen-1792013298-ILpJSQweeo4BxSclpKVQ",
+          "gen-1792013299-zTKKcb1aBbM9escM0UkY"
+        ]
+      },
+      {
+        "case": "project_grouped_tasks",
+        "budget": 1800,
+        "complete": false,
+        "notices": [
+          "provider_unavailable"
+        ],
+        "writes": 3,
+        "semanticChecks": {
+          "projectBinding": true
+        },
+        "steps": 4,
+        "elapsedMs": 5361,
+        "maxInputEstimate": 1723,
+        "usage": {
+          "accountingComplete": false,
+          "modelSteps": 4,
+          "inputTokens": 3290,
+          "outputTokens": 602,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013300-78yg3vj1Wmm1ajUCyXqQ",
+          "gen-1792013302-cw4NFkH3OK7mJiXyayMC",
+          "gen-1792013303-GFG32pwDQO1Y4fEdGybN",
+          "gen-1792013304-TnywmfaE7VoPtGUKBnNN"
+        ]
+      },
+      {
+        "case": "project_grouped_tasks",
+        "budget": 2500,
+        "complete": true,
+        "notices": [],
+        "writes": 4,
+        "semanticChecks": {
+          "projectBinding": true
+        },
+        "steps": 5,
+        "elapsedMs": 6281,
+        "maxInputEstimate": 2143,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 5,
+          "inputTokens": 6126,
+          "outputTokens": 1145,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792013305-p7nBKuHMTuwe8aKz5FG6",
+          "gen-1792013307-YTwWix9xr1epfVnX7orF",
+          "gen-1792013308-pXOPukDWPB2sN7Sbh9KX",
+          "gen-1792013309-MwTmjQQsSmePDHZvBhv9",
+          "gen-1792013311-nejsE1Lxii4b73ZngJvG"
+        ]
+      }
+    ],
+    "final2500Passed": 4,
+    "caseCountPerBudget": 4,
+    "limits": "Counts/recurrence/time/project-binding checks, not statistical assurance or external persistence parity; intermediate failed passes led to fixes; production writes and WhatsApp sends are zero"
+  },
+  "sources": [
+    "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/compaction.md",
+    "https://dev.opencode.ai/v2/docs/compaction/",
+    "https://developers.openai.com/api/docs/guides/compaction"
+  ],
+  "rollout": "Authorized via GitHub main only; release verification recorded separately after exact-commit SUCCESS",
+  "rollback": "Revert this coupled policy/protocol/relative-tool/eval work unit. Prior personal-context and fallback fixes remain independent."
+}

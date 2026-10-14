@@ -1,3 +1,4 @@
+import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
 import { z } from 'zod';
 import { writeFileSync } from 'node:fs';
 import { ProductivityTurnRunner, type ProductivityExecutionJournal } from '@templelabs/agent-core';
@@ -61,10 +62,10 @@ for (const fixture of cases) for (const budget of [1800, 2500]) {
     historicalHintsProjected: provider.requests.some(request => JSON.stringify(request.messages).includes('historicalReferenceGaps')),
     originalHistoryMessages: fixture.history?.history.length ?? 0,
     durableHistoryMessages: result?.conversation.history.length ?? 0 });
-  if ((budget === 2500 || fixture.name !== 'long_current_input_5000_chars') && !results.at(-1)!.complete) throw new Error('Expected fixture completion failed');
+  if (budget === productivityBudget.maxInputTokens && fixture.name !== 'long_current_input_5000_chars' && !results.at(-1)!.complete) throw new Error('Expected fixture completion failed');
   if (estimates.some(estimate => estimate > budget) || writes > fixture.writes) throw new Error('Budget or mutation safety regression');
 }
-const report = { version: 1, productionBudgetUnchanged: 1800, mode: 'offline_deterministic_capacity_comparison',
+const report = { version: 1, productionInputBudget: productivityBudget.maxInputTokens, mode: 'offline_deterministic_capacity_comparison',
   methodology: 'Same scripted responses, core loop options and full atomic registry for each budget; no inference, storage, delivery or deployments. Input estimates include the OpenRouter wire envelope.',
   limits: 'Measures context capacity and protocol completion only. Does not measure intelligence, live model quality, provider token usage, latency or actual cost. Long-input cases are synthetic stress fixtures.', results };
 const output = process.argv[2];

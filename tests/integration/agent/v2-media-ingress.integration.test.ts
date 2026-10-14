@@ -76,7 +76,7 @@ describe('structured WhatsApp media through production V2 composition', () => {
     expect(f.baseline).not.toHaveBeenCalled(); expect(f.deps.sendWhatsAppText).toHaveBeenCalledOnce();
     expect(f.deps.sendWhatsAppText.mock.calls[0]![0].text).toContain('Pagar factura Acme');
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { uiPayload: { notices: [] } } } });
-    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
+    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
     expect(JSON.stringify(state.provider!.requests[0]!.tools)).not.toContain('task_create');
   });
   it('does not turn one caption into multiple unrelated mutations from OCR', async () => {
@@ -109,7 +109,7 @@ describe('structured WhatsApp media through production V2 composition', () => {
     expect(checkpoint.start.text.length).toBeLessThan(1100);
     expect(checkpoint.start.text).toContain('"truncated":true');
     expect(state.provider!.requests[0]!.messages[0]!.content).toContain('The extraction is partial');
-    expect(f.wire.estimateNativeInput(state.provider!.requests[0]!)).toBeLessThanOrEqual(1800);
+    expect(f.wire.estimateNativeInput(state.provider!.requests[0]!)).toBeLessThanOrEqual(2500);
     expect(state.execute).not.toHaveBeenCalled(); expect(f.deps.sendWhatsAppText).toHaveBeenCalledOnce();
   });
 });

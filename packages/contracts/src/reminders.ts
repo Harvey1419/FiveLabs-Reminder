@@ -13,6 +13,10 @@ export const reminderCreateInputSchema = z.strictObject({
   nudgeIntervalMinutes: z.number().int().positive().max(10080).optional(),
   maxNudges: z.number().int().positive().max(100).optional(),
 });
+/** Model-facing alternatives; domain persistence still receives one certified ISO instant. */
+export const reminderCreateToolInputSchema = reminderCreateInputSchema.omit({ targetTimeIso: true }).extend({
+  targetTimeIso: instant.optional(), delayMinutes: z.number().int().positive().max(525600).optional(),
+}).refine(value => (value.targetTimeIso !== undefined) !== (value.delayMinutes !== undefined), { message: 'Provide targetTimeIso OR delayMinutes, exactly one', path: ['targetTimeIso'] });
 export const reminderReadInputSchema = z.strictObject({
   filter: z.union([
     z.enum(['upcoming', 'all_pending', 'today', 'pending_today', 'remaining_today',

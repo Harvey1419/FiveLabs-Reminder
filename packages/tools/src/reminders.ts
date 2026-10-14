@@ -1,5 +1,5 @@
 import {
-  reminderCreateInputSchema, reminderReadInputSchema, reminderUpdateInputSchema,
+  reminderCreateInputSchema, reminderCreateToolInputSchema, reminderReadInputSchema, reminderUpdateInputSchema,
   reminderCancelInputSchema, reminderAcknowledgeInputSchema, reminderResultSchema,
   type ReminderRequest, type ReminderResult, type TurnContext,
 } from '@templelabs/contracts';
@@ -14,9 +14,13 @@ export function createReminderTools(port: ReminderDomainPort) {
   return [
     defineTool({
       name: 'reminder_create', effect: 'write', requiredCapability: 'reminders.create',
-      description: 'Create one reminder at an explicit ISO instant. Preserve the user timezone when resolving its time. Recurrence and notification policies follow backend entitlements. Report only returned results.',
-      inputSchema: reminderCreateInputSchema, outputSchema: reminderResultSchema,
-      handler: (input, context, operationId) => port.execute({ operation: 'create', input }, context, operationId),
+      description: 'For in N minutes use delayMinutes; the host computes the instant. Use targetTimeIso for explicit dates, never both. Omit advanceMinutes when no advance notice is requested; if present it must be positive, never zero. Create one reminder at an explicit ISO instant. Preserve the user timezone when resolving its time. Recurrence and notification policies follow backend entitlements. Report only returned results.',
+      inputSchema: reminderCreateToolInputSchema, outputSchema: reminderResultSchema,
+      handler: (input, context, operationId) => {
+        const { delayMinutes, ...fields } = input;
+        const targetTimeIso = fields.targetTimeIso ?? new Date(Date.parse(context.referenceTimeIso) + delayMinutes! * 60000).toISOString();
+        return port.execute({ operation: 'create', input: reminderCreateInputSchema.parse({ ...fields, targetTimeIso }) }, context, operationId);
+      },
     }),
     defineTool({
       name: 'reminder_read', effect: 'read', requiredCapability: 'reminders.read',

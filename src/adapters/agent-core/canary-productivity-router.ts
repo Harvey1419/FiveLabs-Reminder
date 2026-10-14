@@ -1,3 +1,4 @@
+import { productivityBudget } from './productivity-budget.js';
 import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
 import { createMemoryDomainPort } from './memories-domain.js';
@@ -79,17 +80,17 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
       telemetry('provider_attempt', { runId: context.runId, requestId: context.requestId, ...attempt });
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
-  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
-    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
-    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, ...(media ? { maxWriteOperations: 1 } : {}), maxOutputTokens: 768,
+  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven', initialTools: ['task_create', 'reminder_create'],
+    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget,
+    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
     authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete', 'memory_forget'].includes(call.name) && registry.effect(call.name) === 'destructive')
       && (!allowed || allowed.has(call.name)) && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,
-    inputTarget: 1800, accountingScope: 'reasoning_loop; memory_extraction_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
+    inputTarget: productivityBudget.maxInputTokens, accountingScope: 'reasoning_loop; memory_extraction_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
   const result: Result = { confirmation: handled.reply.text, intent: handled.uiPayload.items.length ? 'query' : 'chat', language,
-    entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: 1800, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
+    entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: productivityBudget.maxInputTokens, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
   recordV2Delivery(result, handled.messageIds);
   // handle returns only after all deliveries are accepted and the durable completion is published.
   // Explicit memory operations own their source and must never be relearned by the background task.

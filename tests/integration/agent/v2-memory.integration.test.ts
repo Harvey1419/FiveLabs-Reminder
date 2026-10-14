@@ -64,7 +64,7 @@ it('learns only after accepted delivery and injects stored standing preferences 
   const system = state.provider!.requests[0]!.messages[0]!.content;
   expect(system).toContain('<user_preferences>["' + preference + '"]');
   expect(system).toContain('Vivo en Bogotá'); expect(system).toContain('Proactively leverage <user_preferences>');
-  expect(f.wire.estimateNativeInput(state.provider!.requests[0]!)).toBeLessThanOrEqual(1800);
+  expect(f.wire.estimateNativeInput(state.provider!.requests[0]!)).toBeLessThanOrEqual(2500);
   vi.mocked(retrieveStandingPreferences).mockResolvedValue([]); vi.mocked(retrieveRelevantMemories).mockResolvedValue([]);
 });
 describe('explicit native memory through the actual V2 composition and durable queue journal', () => {
@@ -77,7 +77,7 @@ describe('explicit native memory through the actual V2 composition and durable q
     expect(JSON.stringify(state.provider!.requests[1]!.messages[0])).toContain('memorySourceText');
     expect(JSON.stringify(state.provider!.requests[1]!.messages[0])).not.toContain('Tokyo');
     expect(f.snapshot()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { conversation: { memories: [{ id: memoryId, content }] } } } });
-    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
+    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
   });
   it('reads then forgets an observed owned memory within the input budget and sends only the verified deletion', async () => {
     const f = fixture([
@@ -89,7 +89,7 @@ describe('explicit native memory through the actual V2 composition and durable q
     expect(f.rows).toHaveLength(0); expect(result.confirmation).toContain('Memoria eliminada');
     expect(result.confirmation).not.toContain('Tus recuerdos'); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(f.calls.filter(call => call.operation === 'delete')).toHaveLength(1);
-    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
+    for (const request of state.provider!.requests) expect(f.wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
     expect(f.snapshot()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { conversation: { memories: [{ status: 'forgotten' }] } } } });
   });
   it('does not show a deleted memory again in the read card and keeps remaining ordinal references aligned', async () => {
