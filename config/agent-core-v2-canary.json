@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "status": "connected_disabled",
+  "activationReady": false,
+  "runtimeConsumesThisManifest": true,
+  "environment": {
+    "AGENT_CORE_V2": "false"
+  },
+  "targeting": {
+    "percentage": 100,
+    "userAllowlist": [],
+    "unit": "authenticated_conversation",
+    "enginePinningRequired": true
+  },
+  "activationGates": [
+    "Pass isolated external persistence, integration and transport acceptance checks",
+    "Record live provider semantic quality, usage, latency and cost against the approved baseline"
+  ],
+  "stages": [
+    {
+      "name": "disabled",
+      "percentage": 0,
+      "userAllowlist": []
+    },
+    {
+      "name": "internal_canary",
+      "percentage": 0,
+      "requiresExplicitUserAllowlist": true
+    },
+    {
+      "name": "full_rollout",
+      "percentage": 100,
+      "requiresPriorStageAcceptance": true
+    }
+  ],
+  "rollback": {
+    "environment": {
+      "AGENT_CORE_V2": "false"
+    },
+    "percentage": 0,
+    "userAllowlist": [],
+    "requiresEnforcedSelector": true,
+    "preserveCheckpointsReceiptsAndEnginePins": true,
+    "unknownEffects": "Quarantine and reconcile; never replay or silently transfer an uncertain turn to another engine"
+  },
+  "monitoring": [
+    "Route engine, authenticated conversation cohort, provider and model",
+    "Tool failures, unknown effects, clarification rate and duplicate effects",
+    "Reminder timing, acknowledgement state and outbound delivery receipts",
+    "Actual token usage, turn latency and provider cost"
+  ],
+  "supportedAdmission": "Text-only, leased authenticated genesis or completed V2 continuity; existing baseline conversations remain on baseline until explicit handoff; webhook authorizes registered writes only under an active lease and matching authenticated owner",
+  "globalAdmission": "With AGENT_CORE_V2=true, percentage=100 or an allowlist containing * selects all authenticated eligible turns; baseline pinning and reconciliation gates still apply"
+}

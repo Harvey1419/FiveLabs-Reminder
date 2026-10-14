@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Five pure strict TypeScript contract foundations: memory learning proposals, action JSON Schema subset, turn language/profile context, response policy and tool names; main intent/foreground validators remain subsequent units",
+  "candidate": {
+    "filesPassed": 204,
+    "testsPassed": 2767,
+    "durationSeconds": 61.05
+  },
+  "focused": {
+    "filesPassed": 22,
+    "testsPassed": 369,
+    "durationSeconds": 6.78
+  },
+  "newCases": 14,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "unknownCandidateTypeGuardAndClosedOwnerFields": "passed",
+    "profileSourceLanguageTimezoneCompatibility": "passed",
+    "requiredSchemaFieldsMustBeOwnedProperties": "passed",
+    "typedSchemaAndDescriptionsParity": "passed",
+    "evaluatorHashesActualTypedContracts": "passed",
+    "typedContractsIncludedInPolicyVersion": "passed",
+    "explicitAllowlistAndFacadeImportDenial": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 72,
+    "schemasAndDescriptionsUnchanged": true,
+    "jsonValueCompatibility": true,
+    "inheritedRequiredFieldBypassRejected": true,
+    "liveHttpCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realIntentContextSchemaLearningToolAndServiceFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "legacyIntentUsesTypedLearningContract": true,
+    "readTurnAcceptedAndOwnedProposalFieldsRejected": true,
+    "profileContextAndRequiredOwnFields": true,
+    "schemasAndToolIdentitiesPreserved": true,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:842881295b7e76b99532a78d5ef18a016ea75b6b94f13a63ee5d66ba3d7d6a56"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 202
+  },
+  "transitionalDeclarations": 34,
+  "sourceHashes": {
+    "src/agent/contracts/schema-value-contract.ts": "7948610d8c89eb7f6af5b0844e4b31e1469fdfd260c7e60ee6fc2b05e14ed645",
+    "src/agent/contracts/schema-value.js": "b82e97a49b6178e276bd6f54a7f179d25842308e48eb4309bba4513248c45707",
+    "src/agent/contracts/schema-value.d.ts": "d3cc84bc608054ad46856d83600b9763b964cc115fdd7373686d12df8efb8c4a",
+    "src/agent/contracts/turn-context-contract.ts": "3d0b910ca08e89ccdd4bde157a4fcdd96a9a43dca961529b28c9f08c58c453b2",
+    "src/agent/contracts/turn-context.js": "ca425e014c29810be2a1adf7b6e9b3de40226847bf7ee8f768a0a8e50ebb6a32",
+    "src/agent/contracts/turn-context.d.ts": "896785e516e7653ae5fec874ec7cac0441e77d155e0cefaa9314b77d6d6c7211",
+    "src/agent/contracts/tool-names-contract.ts": "c8af8b53eb65dc6acbacd8a0292d7cd3b9acebfb5fff51419ee824b96f7047fc",
+    "src/agent/contracts/tool-names.js": "cbdb294813dc0680f6857bfdb96179ef9a881f848e5ee982e24ded7f482c8061",
+    "src/agent/contracts/tool-names.d.ts": "6a96945144fb3ad3ea9960ed5def04453c3939f8fb8d533ff27121792d217aa0",
+    "src/agent/contracts/response-policy-contract.ts": "67d77c689115883d40c1b202fda1e150cbea7582d4df79427c0388053a73a3a2",
+    "src/agent/contracts/response-policy.js": "3b535894605b32e7d43e4cfc2a62637b4c15592be27a9adcaf1da06c65164b0f",
+    "src/agent/contracts/response-policy.d.ts": "f679793b7df5ba85f61c32f9f748f494047fcd7ee5fa3141a68a0a4242323859",
+    "src/agent/contracts/learning-candidates-contract.ts": "4e3aba5dbfef4154b214ec21ac43306d812260e73a22a37a398ac9b6de475728",
+    "src/agent/contracts/learning-candidates.js": "b5f6bb9abdf064958745ac8a114a31d7aaaa52d94210869c4c95c3b0f3e53abb",
+    "src/agent/contracts/learning-candidates.d.ts": "891cb2d7ebdd431f95d85a2f7e75263777b0785bbff785a91fac5142dd8b25ce",
+    "src/agent/contracts/intent-contracts.js": "39e18394423e6f61054e1e931f6a3d68c906a51a7298b18bf3078c3892d7ff03",
+    "scripts/evals/groq-contract/baseline.js": "ac62c964279857ed6e420d9b9e2c2a0fc93c4d4f74c5c3614e201e1185cc8ed5",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "6a459d83f77be0f5eefbacfb7dbbd5cf6a56d8749aeb4d1656cba8a7447333da",
+    "tests/unit/agent/typed-contract-foundations.test.ts": "eba5ea3ccafd8b7c35392db832b07ca76f06a4046cbe3eb529f19a05d12d4bd6",
+    "tsconfig.runtime.json": "90c31a8ffee732f309168774ec8ff48d614e5b93efbe21653d9e5716a50ab87a"
+  },
+  "limits": [
+    "Pure validation/source extraction, no new persistence boundary; PostgreSQL rerun not required for this unit",
+    "No SQL/dependency/provider/model/scheduler/V2 activation/deployment or live HTTP/WhatsApp changes",
+    "JSON Schema subset deliberately retains its existing supported keywords, not general JSON Schema compliance",
+    "Profile source substring ownership is still enforced by the existing foreground validation/router",
+    "Production network-disabled import/runtime smoke, not full server boot or canary",
+    "Main intent/foreground/continuation contracts, central provider gateway/dispatcher/router and remaining maintained JS still need migration"
+  ]
+}

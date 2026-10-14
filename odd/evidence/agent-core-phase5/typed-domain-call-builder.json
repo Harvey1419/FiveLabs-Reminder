@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Complete strict TypeScript canonical action-to-domain request builder with injected legacy context/temporal/normalization services; intent execution loop and helper implementations remain subsequent units",
+  "candidate": {
+    "filesPassed": 207,
+    "testsPassed": 2799,
+    "durationSeconds": 92.28
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 201,
+    "durationSeconds": 6.73
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "allDomainCallParameterAndFailureCompatibility": "passed",
+    "staleReferenceAndMissingTargetRefusal": "passed",
+    "clearReplaceAppendAndPendingTemporalSemantics": "passed",
+    "existingDestructiveTargetsAndContainerScope": "passed",
+    "falseNoAdvanceAndCalendarSemantics": "passed",
+    "modelIndependentInjectedHelperPorts": "passed",
+    "lazyLegacyCallerWiring": "passed",
+    "offlineEvaluatorReadsActualTypedMapperProvenance": "passed",
+    "productionCompilerFreeBuildOnlyRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 179,
+    "allDomainParameterAndFailureParity": true,
+    "esEnAndTwoTimezones": true,
+    "realLegacyNormalizerAndTemporalHelpers": true,
+    "liveHttpCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realDomainBuilderExecutorRunAndDatabaseFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "destructiveTargetAndContainerPreserved": true,
+    "clearReplaceAndStaleReferenceRefused": true,
+    "temporalFalseAndNoAdvancePreserved": true,
+    "subscriptionInfoAndCalendarMapping": true,
+    "constructionStorageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:aee3b4a62b3e82c5c2c02de3776145221a343f5d84b35fda853b239c51074b95"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 215
+  },
+  "transitionalDeclarations": 36,
+  "sourceHashes": {
+    "src/agent/orchestration/domain-call-builder.ts": "2a4df0340b890f6398df188a2fe64adf6d4237a22db8f1e1c440b8e3a8dd9faa",
+    "src/agent/orchestration/domain-call.js": "b84e9184a6acf5a81b60d53f999b688a68fc90a4db91d9a6a79d7efa6c647bf5",
+    "src/agent/orchestration/domain-call.d.ts": "4a50c0201543ce17667d6841410af2bdefa958af721b9ca42f42a059fbcd6168",
+    "tests/unit/agent/typed-domain-call-builder.test.ts": "a2b600bf512cb9d1083127b67369cb581d9b32c51820a75b6ef625684b66b9b7",
+    "scripts/evals/groq-contract/baseline.js": "a222d74ffa174409064831e102b636aea7c837356a54f2dfd0fdd89cb5211761",
+    "tsconfig.runtime.json": "7ab9b4b5323819a2d70c720969bc08de42811e6d0497dfdbacf11050fbb0d686"
+  },
+  "limits": [
+    "Builder creates parameters rather than executing tools, storing effects, granting approval or resolving uncertain outcomes",
+    "Normalization/context/date/language helpers remain JS behind injected ports; their exact existing semantics are preserved",
+    "Normalized helper outputs are a trusted host boundary; legacy metadata/parameters remain unknown until domain validation",
+    "No new SQL/read/write implementation, so no additional PostgreSQL harness required",
+    "Network-disabled production import/build-only smoke, not full server boot, canary or a real domain mutation",
+    "No dependency/model/provider/scheduler/V2 activation/deployment or live HTTP/WhatsApp effects",
+    "Intent executor, provider gateway, router/dispatcher and remaining maintained JS still require migration"
+  ]
+}

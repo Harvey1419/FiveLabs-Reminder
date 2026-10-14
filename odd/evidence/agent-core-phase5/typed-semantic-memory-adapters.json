@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript injected reminder-policy compiler/reducer and provider-independent embedding service with typed existing OpenRouter adapter; semantic extraction service remains a subsequent unit",
+  "candidate": {
+    "filesPassed": 202,
+    "testsPassed": 2741,
+    "durationSeconds": 47.53
+  },
+  "focused": {
+    "filesPassed": 6,
+    "testsPassed": 80,
+    "durationSeconds": 0.702
+  },
+  "newCases": 15,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "compilerEvidenceSnapshotAcrossAwaitAndCache": "passed",
+    "strictSemanticRuleValidationAndIsolatedCaches": "passed",
+    "injectedCompletionAndEmbeddingProviderPorts": "passed",
+    "ownerBoundQueryReuseSaveBypassAndDefensiveCopies": "passed",
+    "failedQueryPromiseEviction": "passed",
+    "existingModelDimensionsHttpPayloadAndTimeout": "passed",
+    "finiteNumericVectorsExactUniqueBatchPositions": "passed",
+    "productionCompilerFreeRuntimeImports": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "passed": true,
+    "reads": 15,
+    "writes": 13,
+    "policyCalls": 1,
+    "compiledPolicyReadsActualPreferences": true,
+    "checks": [
+      "idempotent version skips embedding",
+      "history superseded by exact new identity",
+      "authoritative hydration excludes expired/foreign/stale rows",
+      "actual Spanish FTS",
+      "standing profile query",
+      "invalid selection refuses delete",
+      "supersede failure compensates new version",
+      "pending recurring and one-off policy healing",
+      "foreign/completed reminders retained",
+      "committed lost delete reply unknown without replay",
+      "exact-topic deletion receipt"
+    ],
+    "temporaryDatabaseRemoved": true
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realEmbeddingPolicyMemoryServiceFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "embeddingHttpPayloadPreserved": true,
+    "coalescedQueryAndDefensiveVectors": true,
+    "alternativeProviderPort": true,
+    "policySnapshotAndCache": true,
+    "stubEmbeddingRequests": 1,
+    "stubPolicyCalls": 1,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:adcb45a1484a3a50c57b49ec24c8f182bb9b380f46fc9120647565939e0519c1"
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 186
+  },
+  "transitionalDeclarations": 27,
+  "sourceHashes": {
+    "src/features/reminders/dispatch-policy-compiler.ts": "2cf539f9b6d8451d3bad968a5456ca0be17b3db3073959c4f80f4dee7e5d8bf3",
+    "src/features/reminders/dispatch-policy.js": "5423fb64ddf977f79aacb1182f79488ef76dfb375a5205cb4a674b52751d4dc7",
+    "src/features/reminders/dispatch-policy.d.ts": "357223295a97876ffb8afcfe49110b68f6013ddd040180a126c35001375fe5f6",
+    "src/integrations/ai/embedding-service.ts": "364a92feaab27c452e28fb18be61d09aff944e7c45e0dc86357eeb27c928c5f2",
+    "src/integrations/ai/openrouter-embedding-provider.ts": "65666baea88fade2b62c96d0019d6c869e67ced4bcea10b7288bec617878e38b",
+    "src/integrations/ai/embeddings.js": "793ac08e39bd22815b9a0856a7dfccdd7e5e64c0fa84cf2399a22a7963d797d1",
+    "src/integrations/ai/embeddings.d.ts": "3c029c84d9c6563b4a6f3d7a800f39859c346f08e75600d272d5a3b0a78ff0ec",
+    "tests/unit/memory/typed-semantic-adapters.test.ts": "7838f21bc54ff7ccb5e417cb3e9f91f84e962408e338d472ba795610acca0caf",
+    "tsconfig.runtime.json": "c26f7603aef99dbd29027abb02dccec291d12b0cfd7fed067b86ee4aa8497578"
+  },
+  "limits": [
+    "No SQL/dependency/model configuration/V2 activation/deployment changes or live HTTP/provider/WhatsApp effects",
+    "PostgreSQL consumed-column structural fixture with injected completion and vector rank, not deployed RLS/live PostgREST/pgvector provider quality testing",
+    "Network-disabled Node22 runtime import smoke with stub responses, not full server boot or canary",
+    "Embedding model changes need compatible stored vector space and coordinated reindexing; equal dimensions alone are insufficient",
+    "Semantic extraction/admission service, central provider gateway/dispatcher/router and remaining maintained JS still need migration"
+  ]
+}

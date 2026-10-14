@@ -1,0 +1,152 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 read-only owned inspection of interrupted recorded-input atomic task/cancellation completions",
+  "candidate": {
+    "filesPassed": 189,
+    "testsPassed": 2564,
+    "durationSeconds": 64.4
+  },
+  "focused": {
+    "filesPassed": 35,
+    "testsPassed": 695,
+    "durationSeconds": 8.22
+  },
+  "newCases": 30,
+  "checks": {
+    "strictProjectPackageRuntimeTypecheck": "passed",
+    "ownedReadAndOriginalSnapshotValidation": "passed",
+    "capturedInputAndPreviousHistoryPreserved": "passed",
+    "actualAcceptedLedgerAndAtomicReceiptsRequired": "passed",
+    "noExecutionDeliveryPublicationOrLeaseChange": "passed",
+    "unknownQueueRowCannotBecomeHistory": "passed",
+    "oldRecordedInputRecoveryGuardPreserved": "passed",
+    "nullableEvidenceNeverInferred": "passed",
+    "capabilityCurrentNonceRequestThreadAndLeaseFences": "passed",
+    "cancellationAndNoRetry": "passed",
+    "backendOnlyRpc": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "newAssertions": 17,
+    "staticAssertions": 244,
+    "executedAssertions": 260,
+    "countMethod": "244 static statements minus 20 static complete/delete loop statements plus 2 operations times 18 executed branch-selected statements",
+    "previousAggregateCountRecalculated": true,
+    "transactionRolledBack": true,
+    "migrationDeployed": false
+  },
+  "runtime": {
+    "scenarios": [
+      {
+        "scenario": "success",
+        "status": "verifiable",
+        "reason": "complete_evidence",
+        "grantsExecution": false,
+        "allowsHandoff": false,
+        "historyMessages": 4,
+        "rpcCalls": 1,
+        "domainCalls": 0,
+        "httpCalls": 0,
+        "priorResponseUnchanged": true,
+        "certificatePublished": false
+      },
+      {
+        "scenario": "cancel",
+        "status": "verifiable",
+        "reason": "complete_evidence",
+        "grantsExecution": false,
+        "allowsHandoff": false,
+        "historyMessages": 4,
+        "rpcCalls": 1,
+        "domainCalls": 0,
+        "httpCalls": 0,
+        "priorResponseUnchanged": true,
+        "certificatePublished": false
+      },
+      {
+        "scenario": "attempted",
+        "status": "incomplete",
+        "reason": "delivery_unconfirmed",
+        "grantsExecution": false,
+        "allowsHandoff": false,
+        "historyMessages": null,
+        "rpcCalls": 1,
+        "domainCalls": 0,
+        "httpCalls": 0,
+        "priorResponseUnchanged": true,
+        "certificatePublished": false
+      },
+      {
+        "scenario": "lost_domain",
+        "status": "incomplete",
+        "reason": "unfinished_execution",
+        "grantsExecution": false,
+        "allowsHandoff": false,
+        "historyMessages": null,
+        "rpcCalls": 1,
+        "domainCalls": 0,
+        "httpCalls": 0,
+        "priorResponseUnchanged": true,
+        "certificatePublished": false
+      }
+    ],
+    "temporaryDatabasesRemoved": true,
+    "inspectionDomainCalls": 0,
+    "inspectionHttpCalls": 0,
+    "fixtureSeedLocalTaskMutations": 3,
+    "fixtureSeedSimulatedHttpCalls": 3,
+    "liveHttpCalls": 0,
+    "mode": "actual SQL source/receipt/manifest RPC -> source strict TS inspection through tsx"
+  },
+  "node22": {
+    "node": "22.23.3",
+    "image": "hermes-interrupted-builder:local",
+    "network": "none",
+    "strictEmittedReader": true,
+    "legacyJsPresentationHelpersSupplied": true,
+    "actualSqlFixture": true,
+    "compilerOrTypeScriptLoaderAtExecution": false,
+    "productionRuntimeBuildChanged": false,
+    "rpcCalls": 1,
+    "grantsExecution": false,
+    "allowsHandoff": false
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 133,
+    "transitionalDeclarations": 11
+  },
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent-core tests/unit/messaging/inbound-turn-worker.test.ts",
+    "pnpm run test:unit",
+    "pnpm run migration:inventory",
+    "docker exec -i port-logistic-postgres-test-1 sh -c 'psql -X -v ON_ERROR_STOP=1 -U \"$POSTGRES_USER\" -d hermes_agent_core_resolution_20261011' < /private/tmp/hermes-interrupted-postgres.sql",
+    "python3 /private/tmp/hermes-interrupted-roundtrip.py",
+    "docker build --target builder -t hermes-interrupted-builder:local .",
+    "docker run --rm -i --network none hermes-interrupted-builder:local node --input-type=module < /private/tmp/hermes-interrupted-node22.mjs",
+    "git diff --check"
+  ],
+  "sourceSha256": {
+    "packages/contracts/src/interrupted-active-completion.ts": "9bf7f9f005ab33718ca68b2bed2144e729b39e63dfca27a85da5a53c43439e80",
+    "packages/contracts/src/index.ts": "69e5bff8d4445d88e0c511d880d2fdf17e3785c72fce49381edc1cc1b919cc17",
+    "src/adapters/agent-core/interrupted-active-completion.ts": "ce2d04fcd2b25f1148e7f91d9a1a8098357db490c94a289f92a562ac25554ea7",
+    "src/adapters/agent-core/active-run-recovery.ts": "7e23515d411f24b6ae318b603bc90d5f2fb947443d78565194155b5cc7581c92",
+    "supabase/migrations/20261012163750_agent_core_interrupted_completion_reader.sql": "e15cee27833c883d4696324e0e50777e2814d3305f9f940118c0a2a3b10296ac",
+    "tests/database/agent-core-interrupted-completion-reader.sql": "b648f3c3ebda2bf8dea21c7d127657e714d8a4f7c3dd5419613375c77805f795",
+    "tests/unit/agent-core/interrupted-active-completion.test.ts": "d9d6af82d22686eab59c2b86e12a3e7857bc224ed5e3183d36b679dc1dc161d8",
+    "tests/fixtures/agent-core/interrupted-completion-evidence.json": "bbade8b128806fdd22f65620c7545c89daf17f469cc05118ece3a9ced6a29624"
+  },
+  "limits": [
+    "Inspection only; transactional later-owner publication and recovery loader admission remain pending",
+    "Unknown/baseline-only/lost-domain/no-send or uncertain-delivery cases are never replayed or inferred complete",
+    "Scope is existing atomic task approvals/cancellation with text acceptance",
+    "Standalone emitted verification still uses maintained JS helpers and workspace packages; no full application emit",
+    "Full Node22 suite not executed",
+    "No live provider, WhatsApp, production Supabase, deployment, commit or V2 routing activation"
+  ],
+  "rollback": "Remove new reader/contract/RPC and revert source-validator refactor while retaining old recorded-input denial, durable receipts and completion certificates."
+}

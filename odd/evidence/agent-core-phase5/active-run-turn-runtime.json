@@ -1,0 +1,154 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 isolated owned approval baseline/execution/receipt presentation/manifest delivery composition",
+  "candidate": {
+    "filesPassed": 186,
+    "testsPassed": 2476,
+    "durationSeconds": 49.51
+  },
+  "focused": {
+    "filesPassed": 31,
+    "testsPassed": 602,
+    "durationSeconds": 7.92
+  },
+  "newCases": 20,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "isolatedHostStrictEmit": "passed",
+    "snapshotOwnerBindingAndSupportedStatePreflight": "passed",
+    "captureBeforeClaimAndMutation": "passed",
+    "actualBridgeHostAuthorizationBeforeFence": "passed",
+    "detachedValidatedAtomicReceiptObserver": "passed",
+    "receiptClaimSelectedCallTargetAndOperationBinding": "passed",
+    "deterministicReceiptCardsAndModelProseExclusion": "passed",
+    "finalResponseCASBeforeSend": "passed",
+    "singleAndConcurrentAttemptAdmission": "passed",
+    "refusalAndUnrelatedNoEffects": "passed",
+    "cancellationWithoutTaskDispatch": "passed",
+    "uncooperativeCancellationAndBoundedTurn": "passed",
+    "unknownTaskOutcomeStopsWithoutSuccessSend": "passed",
+    "durableAcceptedReceiptRecoveryWithoutReplay": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "runtime": {
+    "mode": "actual strict-checked TypeScript through tsx with actual legacy JS execution bridge; actual local PostgreSQL; simulated provider HTTP",
+    "hostEmit": "strict without skipLibCheck; complete emitted production runtime not certified",
+    "scenarios": [
+      {
+        "scenario": "success",
+        "applied": {
+          "status": "delivered",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 16,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "recoveryRpcCalls": 5,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "applied": {
+          "status": "delivered",
+          "domainCalls": 0,
+          "httpCalls": 1,
+          "rpcCalls": 10,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "recoveryRpcCalls": 4,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_acceptance",
+        "applied": {
+          "status": "DELIVERY_MANIFEST_OUTCOME_UNKNOWN",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 17,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "recoveryRpcCalls": 5,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "applied": {
+          "status": "ACTIVE_RUN_RECONCILIATION_REQUIRED",
+          "domainCalls": 1,
+          "httpCalls": 0,
+          "rpcCalls": 13,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": null
+      }
+    ],
+    "localTaskMutations": 3,
+    "simulatedProviderHttpRequests": 3,
+    "replayedTaskMutations": 0,
+    "replayedSends": 0,
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "productionDatabaseCalls": 0,
+    "genericEvidenceRegistryProofs": 0
+  },
+  "postgres": {
+    "newMigration": false,
+    "precedingCombinedStorageAssertions": 205,
+    "precedingAssertionsRerunInThisUnit": false,
+    "newOwnedRuntimeScenarios": 4,
+    "migrationDeployed": false
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 121,
+    "transitionalDeclarations": 12,
+    "legacyJavaScriptRetired": 0
+  },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Disconnected typed turn composition; current JS router and scheduler remain active",
+  "limitations": [
+    "Generic waiting-for-approval runs with prepared task actions only; selected writes support exact UUID complete/delete, or cancellation.",
+    "Model inference remains a separate portable wrapper; continuations, profile updates and other domains are blocked before persistence.",
+    "Text only up to transport limit. Unsupported or oversized presentation after mutation remains unresolved without fabricated delivery.",
+    "Lost task replies before a manifest exists cannot be closed by missing-ledger no-send inference; independent audit/interruption handling remains required.",
+    "Inbound queue finalization and current user/assistant history append are not performed by this unit.",
+    "Actual runtime scenario uses tsx and legacy JS implementation; full emitted build and broader SDK declaration compatibility remain open.",
+    "Legacy bridge working-memory updates remain in place. Concurrent first SQL mutation/provider dispatch itself is not separately tested.",
+    "Provider HTTP responses and initial completed checkpoint data are fixture-simulated; no live delivery certification.",
+    "Full maintained JS conversion, declaration retirement, legacy baseline migration, live provider evaluations and rollout gates remain open.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Disable isolated turn admission/observer composition; retain captured baselines, original checkpoints, task receipts and delivery manifests for reconciliation.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-turn-runtime-typecheck.log",
+    "focused": "/private/tmp/hermes-turn-runtime-focused.log",
+    "fullSuite": "/private/tmp/hermes-turn-runtime-unit.log",
+    "inventory": "/private/tmp/hermes-turn-runtime-inventory.json",
+    "hostEmit": "/private/tmp/hermes-turn-runtime-compile.log",
+    "hostEmitConfig": "/private/tmp/hermes-turn-runtime-tsconfig.json",
+    "roundTrip": "/private/tmp/hermes-turn-composition-roundtrip.json",
+    "roundTripLog": "/private/tmp/hermes-turn-composition-roundtrip.log",
+    "roundTripHarness": "/private/tmp/hermes-turn-composition-roundtrip.py",
+    "runtimeHarness": "/private/tmp/hermes-turn-composition-runtime.mjs"
+  }
+}

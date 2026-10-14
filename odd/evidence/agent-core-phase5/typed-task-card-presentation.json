@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript canonical task operations, project grouping, time/notes helpers and exact rendered-field reporting with injected human date formatter; original entry wires all ten helpers",
+  "candidate": {
+    "filesPassed": 213,
+    "testsPassed": 2850,
+    "durationSeconds": 50.78
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 199,
+    "durationSeconds": 3.67
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "projectMetadataPrecedenceStableGroupingAndRawIdentity": "passed",
+    "globalNumberingScopedProjectAndSingleHeader": "passed",
+    "exactDescriptionDateCoverageAndFieldLimits": "passed",
+    "actualRenderCallbackAndHumanizedDateExclusion": "passed",
+    "injectedTimezoneAndSingleDayTimeHandling": "passed",
+    "explicitBulkCountsBilingualNotesPriorityAndFallbacks": "passed",
+    "existingProductivityPresenterTypedIntegration": "passed",
+    "offlineEvaluatorReadOnlyActualTaskRendererProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1140,
+    "allTenPublicTaskHelpers": true,
+    "esEnBogotaLosAngelesFormatting": true,
+    "projectGroupingAndGlobalNumbering": true,
+    "exactCoverageCallbacksAndFieldLimits": true,
+    "objectArrayEnvelopeAndBulkCountSemantics": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realTaskCardsAgendaFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnCanonicalTaskOperationsAndProjectBatchGrouping": true,
+    "exactDescriptionAndHumanizedDateCoverage": true,
+    "callbackRawIdentityPreserved": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:0c9bc19bda77fe59d874bac01f99080d16daedbf62be597a08eb3f9ad39cb736"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 238
+  },
+  "transitionalDeclarations": 44,
+  "sourceHashes": {
+    "src/shared/task-card-presentation.ts": "66614f4dbb855be6b76b3359d9ca76e239ab92162afcad174fefeb433ffda659",
+    "src/shared/task-presentation.js": "2fe52066385c17e5758b915294d7fcdefe57392468b6290aa9b2df5f3baba59e",
+    "src/shared/task-presentation.d.ts": "a6e7b29651c7f567415282cd3122965bc97803d68f010166a46b2546270848e3",
+    "tests/unit/agent/typed-task-card-presentation.test.ts": "6ab18809105c9b42f737145d172a53f4710fb0ee2ac08ba62c01d940eb30b6bb",
+    "scripts/evals/groq-contract/baseline.js": "8a10b49bcf5c0fcdb464e9d26e2d496b0b62992d5af2c2b904c378c712dc264c",
+    "tsconfig.runtime.json": "404bc816dca3cf5f16d8541681db62e37e0176ddc9f5e8e2fbe15fdfcc1b2965"
+  },
+  "limits": [
+    "Row data is a trusted host view projection, not provider admission or live ownership/operation certification.",
+    "Only exact unchanged rendered description/due_date values are reported; humanized dates and normalized notes do not imply full field coverage.",
+    "Agenda/task-list outer formatting and human date formatting remain existing implementations; task collection helpers now execute typed source.",
+    "CanonicalTaskItem DTO remains compatible; public helper declarations derive from actual typed implementations and dynamic row payloads remain unknown.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual presentation paths offline; not a full server boot, live task mutation or WhatsApp delivery.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

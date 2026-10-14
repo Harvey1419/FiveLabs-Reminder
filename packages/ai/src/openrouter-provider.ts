@@ -1,0 +1,163 @@
+import { aiTranscriptSchema, mediaAttachmentSchema, type AIResponse, type JsonObject } from '@templelabs/contracts';
+import { AIProviderError } from './provider-error.js';
+import type { AIProvider, CompletionRequest, StructuredAIProvider, StructuredCompletionRequest, StructuredCompletionResult, TextAIProvider, TextCompletionRequest, TextCompletionResult, MediaAIProvider, MediaCompletionRequest } from './index.js';
+import { decodeOpenRouterResponse, openRouterPayload, reportedOpenRouterUsage, decodeStructuredOpenRouterResponse, structuredOpenRouterPayload, decodeTextOpenRouterResponse, textOpenRouterPayload, mediaOpenRouterPayload, type OpenRouterRoute } from './openrouter-protocol.js';
+
+export type GatewayFailureCode = 'UNSUPPORTED_CAPABILITY' | 'INVALID_REQUEST' | 'MISSING_CREDENTIALS' | 'GATEWAY_ABORTED' | 'GATEWAY_DEADLINE'
+  | 'GATEWAY_BUDGET' | 'UNVERIFIED_USAGE' | 'AUTHENTICATION_FAILED' | 'ROUTES_EXHAUSTED';
+export class GatewayError extends AIProviderError {
+  constructor(code: GatewayFailureCode, usage?: AIResponse['usage'], accountingComplete = true) { super(code, usage, accountingComplete); this.name = 'GatewayError'; }
+}
+export interface OpenRouterProviderOptions {
+  readonly apiKey: string; readonly routes: readonly OpenRouterRoute[];
+  readonly fetch?: typeof globalThis.fetch; readonly now?: () => number;
+}
+/** Also races adapters that ignore AbortSignal; no subsequent route starts after host cancellation. */
+async function abortable<T>(work: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const aborted = () => reject(new GatewayError('GATEWAY_ABORTED'));
+    signal.addEventListener('abort', aborted, { once: true });
+    if (signal.aborted) { aborted(); signal.removeEventListener('abort', aborted); return; }
+    Promise.resolve().then(() => { signal.throwIfAborted(); return work(); }).then(resolve, reject).finally(() => signal.removeEventListener('abort', aborted));
+  });
+}
+
+/** Shared bounded native/structured adapter. Domain schemas, UI and environment access belong to the host. */
+export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider, MediaAIProvider {
+  readonly capabilities: AIProvider['capabilities'];
+  readonly mediaCapabilities: MediaAIProvider['mediaCapabilities'];
+  private readonly failedRoutes = new Set<string>();
+  private readonly routes: readonly OpenRouterRoute[];
+  readonly #apiKey: string;
+  private readonly transport: typeof globalThis.fetch;
+  private readonly now: () => number;
+  constructor(options: OpenRouterProviderOptions) {
+    if (!options.apiKey.trim() || /[\r\n]/.test(options.apiKey)) throw new GatewayError('MISSING_CREDENTIALS');
+    if (!options.routes.length || options.routes.length > 3) throw new GatewayError('INVALID_REQUEST');
+    const seenProviders = new Set<string>();
+    for (const route of options.routes) {
+      if (!/^[\w.-]{1,80}$/.test(route.id) || !/^[\w./:-]{1,160}$/.test(route.model)
+        || !Number.isSafeInteger(route.timeoutMs) || route.timeoutMs < 1 || !route.providers.length
+        || (route.minOutputTokens !== undefined && (!Number.isSafeInteger(route.minOutputTokens) || route.minOutputTokens < 1))
+        || (route.maxOutputTokens !== undefined && (!Number.isSafeInteger(route.maxOutputTokens) || route.maxOutputTokens < 1
+          || (route.minOutputTokens !== undefined && route.minOutputTokens > route.maxOutputTokens)))
+        || (route.structuredOutput !== undefined && typeof route.structuredOutput !== 'boolean')
+        || (route.media !== undefined && (!Array.isArray(route.media) || route.media.some(kind => !['image', 'pdf'].includes(kind)) || new Set(route.media).size !== route.media.length))
+        || (route.temperature !== undefined && (!Number.isFinite(route.temperature) || route.temperature < 0 || route.temperature > 2))
+        || (route.reasoning && (!/^[\w-]{1,40}$/.test(route.reasoning.effort) || typeof route.reasoning.exclude !== 'boolean'))) throw new GatewayError('INVALID_REQUEST');
+      for (const provider of route.providers) {
+        if (!/^[\w./:-]{1,160}$/.test(provider) || seenProviders.has(provider)) throw new GatewayError('INVALID_REQUEST');
+        seenProviders.add(provider);
+      }
+    }
+    if (new Set(options.routes.map(route => route.id)).size !== options.routes.length) throw new GatewayError('INVALID_REQUEST');
+    this.capabilities = Object.freeze({ toolCalling: true, structuredOutput: options.routes.some(route => route.structuredOutput === true) });
+    this.mediaCapabilities = Object.freeze({ image: options.routes.some(route => route.media?.includes('image')),
+      pdf: options.routes.some(route => route.media?.includes('pdf')) });
+    this.routes = structuredClone(options.routes); this.#apiKey = options.apiKey.trim();
+    this.transport = options.fetch ?? globalThis.fetch; this.now = options.now ?? Date.now;
+  }
+  forTurn(): OpenRouterProvider {
+    return new OpenRouterProvider({ apiKey: this.#apiKey, routes: this.routes, fetch: this.transport, now: this.now });
+  }
+  complete(request: CompletionRequest): Promise<AIResponse> {
+    return this.generate(request, openRouterPayload, decodeOpenRouterResponse);
+  }
+  completeText(request: TextCompletionRequest): Promise<TextCompletionResult> {
+    const captured = { ...request, validate: request.validate };
+    return this.generate({ ...request, tools: [] },
+      (req, route, tokens) => textOpenRouterPayload({ ...captured, messages: req.messages }, route, tokens),
+      raw => decodeTextOpenRouterResponse(raw, captured.validate));
+  }
+  completeMedia(request: MediaCompletionRequest): Promise<TextCompletionResult> {
+    const captured = { ...request, attachment: mediaAttachmentSchema.parse(request.attachment), validate: request.validate };
+    if (!this.mediaCapabilities[captured.attachment.kind]) return Promise.reject(new GatewayError('UNSUPPORTED_CAPABILITY'));
+    return this.generate({ ...request, messages: [{ role: 'user', content: captured.prompt }], tools: [] },
+      (_req, route, tokens) => mediaOpenRouterPayload(captured, route, tokens),
+      raw => decodeTextOpenRouterResponse(raw, captured.validate),
+      route => route.media?.includes(captured.attachment.kind) === true);
+  }
+  completeStructured(request: StructuredCompletionRequest): Promise<StructuredCompletionResult> {
+    if (!this.capabilities.structuredOutput) return Promise.reject(new GatewayError('UNSUPPORTED_CAPABILITY'));
+    // Detach the schema and capture the validator before any asynchronous transport work.
+    const structured = { ...request, output: structuredClone(request.output), validate: request.validate };
+    return this.generate({ ...request, tools: [] },
+      (_request, route, tokens) => structuredOpenRouterPayload({ ...structured, messages: _request.messages }, route, tokens),
+      raw => decodeStructuredOpenRouterResponse(raw, structured.validate),
+      route => route.structuredOutput === true);
+  }
+  private async generate<T extends { readonly usage: AIResponse['usage'] }>(request: CompletionRequest,
+    payloadFor: (request: CompletionRequest, route: OpenRouterRoute, tokens: number) => JsonObject,
+    decode: (raw: unknown) => T, accepts: (route: OpenRouterRoute) => boolean = () => true): Promise<T> {
+    if (!Number.isSafeInteger(request.maxOutputTokens) || request.maxOutputTokens < 1 || !Number.isFinite(request.deadlineMs)
+      || (request.maxInputTokens !== undefined && (!Number.isSafeInteger(request.maxInputTokens) || request.maxInputTokens < 1))
+      || (request.maxTotalTokens !== undefined && (!Number.isSafeInteger(request.maxTotalTokens) || request.maxTotalTokens < 1))) throw new GatewayError('INVALID_REQUEST');
+    if (request.spendLimit && [request.spendLimit.maxUsd, request.spendLimit.inputUsdPerMillion, request.spendLimit.outputUsdPerMillion].some(value => !Number.isFinite(value) || value < 0)) throw new GatewayError('INVALID_REQUEST');
+    request = { ...request, messages: aiTranscriptSchema.parse(request.messages), tools: structuredClone(request.tools),
+      ...(request.spendLimit ? { spendLimit: structuredClone(request.spendLimit) } : {}) };
+    const usage = { inputTokens: 0, outputTokens: 0 };
+    const fail: (code: GatewayFailureCode, complete?: boolean) => never = (code, complete = true) => { throw new GatewayError(code, usage, complete); };
+    for (const route of this.routes) {
+      if (this.failedRoutes.has(route.id) || !accepts(route)) continue;
+      if (request.signal.aborted) fail('GATEWAY_ABORTED');
+      const remainingMs = Math.floor(request.deadlineMs - this.now());
+      if (remainingMs < 1) fail('GATEWAY_DEADLINE');
+      const output = Math.min(request.maxOutputTokens - usage.outputTokens, route.maxOutputTokens ?? Infinity);
+      if (output < 1 || (request.maxInputTokens !== undefined && usage.inputTokens >= request.maxInputTokens)
+        || (request.maxTotalTokens !== undefined && usage.inputTokens + usage.outputTokens >= request.maxTotalTokens)) fail('GATEWAY_BUDGET');
+      if (route.minOutputTokens !== undefined && output < route.minOutputTokens) continue;
+      const body = JSON.stringify(payloadFor(request, route, output));
+      // Conservative reservation, not provider tokenization. Includes schemas and wire overhead.
+      const inputEstimate = new TextEncoder().encode(body).length + 256;
+      const totalRemaining = request.maxTotalTokens === undefined ? Infinity : request.maxTotalTokens - usage.inputTokens - usage.outputTokens;
+      if ((request.maxInputTokens !== undefined && usage.inputTokens + inputEstimate > request.maxInputTokens) || inputEstimate >= totalRemaining) fail('GATEWAY_BUDGET');
+      const payload = JSON.parse(body) as Record<string, unknown>;
+      payload.max_tokens = Math.min(output, totalRemaining - inputEstimate);
+      if (route.minOutputTokens !== undefined && Number(payload.max_tokens) < route.minOutputTokens) continue;
+      const estimatedSpend = request.spendLimit ? ((usage.inputTokens + inputEstimate) * request.spendLimit.inputUsdPerMillion
+        + (usage.outputTokens + Number(payload.max_tokens)) * request.spendLimit.outputUsdPerMillion) / 1e6 : 0;
+      if (request.spendLimit && estimatedSpend > request.spendLimit.maxUsd) fail('GATEWAY_BUDGET');
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(route.timeoutMs, remainingMs, 2147483647));
+      const signal = AbortSignal.any([request.signal, controller.signal]);
+      let response: Response;
+      let raw: unknown;
+      try {
+        response = await abortable(() => this.transport('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.#apiKey}`,
+            'HTTP-Referer': 'https://fivelabs.co', 'X-Title': 'Hermes Assistant' },
+          body: JSON.stringify(payload), signal,
+        }), signal);
+        raw = await abortable(() => response.json() as Promise<unknown>, signal);
+      } catch {
+        if (request.signal.aborted) fail('GATEWAY_ABORTED', false);
+        if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', false);
+        // Unknown inference spend must not be silently represented by zero or retried.
+        fail('UNVERIFIED_USAGE', false);
+      } finally { clearTimeout(timer); }
+      const attemptUsage = reportedOpenRouterUsage(raw);
+      if (attemptUsage) {
+        usage.inputTokens += attemptUsage.inputTokens; usage.outputTokens += attemptUsage.outputTokens;
+      }
+      if (request.signal.aborted) fail('GATEWAY_ABORTED', attemptUsage !== null);
+      if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', attemptUsage !== null);
+      if (response.status === 401 || response.status === 403) fail('AUTHENTICATION_FAILED', attemptUsage !== null);
+      if (!attemptUsage) fail('UNVERIFIED_USAGE', false);
+      if (usage.outputTokens > request.maxOutputTokens || (request.maxInputTokens !== undefined && usage.inputTokens > request.maxInputTokens)
+        || (request.maxTotalTokens !== undefined && usage.inputTokens + usage.outputTokens > request.maxTotalTokens)) fail('GATEWAY_BUDGET');
+      const reportedSpend = request.spendLimit ? (usage.inputTokens * request.spendLimit.inputUsdPerMillion
+        + usage.outputTokens * request.spendLimit.outputUsdPerMillion) / 1e6 : 0;
+      if (request.spendLimit && reportedSpend > request.spendLimit.maxUsd) fail('GATEWAY_BUDGET');
+      if (!response.ok) { this.failedRoutes.add(route.id); continue; }
+      let decoded: T;
+      try { decoded = decode(raw); }
+      catch { this.failedRoutes.add(route.id); continue; }
+      // Local validation may consume time or observe cancellation too.
+      if (request.signal.aborted) fail('GATEWAY_ABORTED');
+      if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE');
+      return { ...decoded, usage };
+    }
+    return fail('ROUTES_EXHAUSTED');
+  }
+}

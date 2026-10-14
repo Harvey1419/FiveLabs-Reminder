@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript agenda/task/reminder read scope normalization, explicit local-date builders/parsers, canonical membership and aliases; inherited object properties rejected at alias lookup",
+  "candidate": {
+    "filesPassed": 217,
+    "testsPassed": 2882,
+    "durationSeconds": 48.92
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 169,
+    "durationSeconds": 4.12
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "bilingualSeparatorsAndNoConversationalIntentInference": "passed",
+    "inheritedAliasPropertyRejection": "passed",
+    "domainVocabularyDefaultsAndNullableFallbacks": "passed",
+    "encodedDateRuntimeScopeAndSyntaxOnlyBuilders": "passed",
+    "membershipVersusAliasNormalization": "passed",
+    "offlineActualTypedSourceAndFacadeReadOnlyProvenance": "passed",
+    "unusedEffectDependenciesNotEvaluated": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 3166,
+    "intentionalGuards": 6,
+    "inheritedAliasPropertiesNowRejected": true,
+    "allFifteenExportsAndNullableFallbacks": true,
+    "bilingualAndDomainSpecificScopes": true,
+    "encodedDateAndSyntaxOnlyBuilderSemantics": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realScopeNormalizerMapperAgendaAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "bilingualDomainSpecificScopesAndEncodedDates": true,
+    "inheritedAliasPropertiesRejected": true,
+    "nullableFallbackAndMembershipSemantics": true,
+    "sharedScopeConstants": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:fc2cb5c6f42a83400aae458e85d7869318e1b85fe6b2bae1a0b235b7ba7980f1"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 248
+  },
+  "transitionalDeclarations": 46,
+  "sourceHashes": {
+    "src/shared/read-scope-normalization.ts": "14dd10c0032d16f5d8c7dd44d5565da68c6d6a4659a893c5efbe2cf62fb18664",
+    "src/shared/agenda-scopes.js": "33ddb9150a77f6a6bfbb91d80f399d08d4cc9b12fd480c61b5d3341cae800e7f",
+    "src/shared/agenda-scopes.d.ts": "1f622b6b5339eff0d75444cc6b9b3add6d619ffc0ba93930c00fd9a2e9ea4282",
+    "tests/unit/agent/typed-read-scope-normalization.test.ts": "d873632a41f555b53ea6a1a4cdc956ea6ed8387718e2d7ed8c9ecbc2431380c5",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "56b9f5fb21c00b173a72897fad2de39360906e37cb5cd066a804ff9c6d9a6218",
+    "scripts/evals/groq-contract/baseline.js": "a3dbd78dde18eb30413fb01637fdf3e6fa6a982dec1a90871a05498bee7e21bb",
+    "tsconfig.runtime.json": "999d9fa9ab4939414404ff7a732f9d4d229e5ffccc2fb7a62fda8b42735800a6"
+  },
+  "limits": [
+    "Scope helpers normalize trusted/structured filter values, not conversational domain intent or database query authority.",
+    "Explicit local-date builders validate only YYYY-MM-DD syntax; calendar validity remains in temporal/domain resolution.",
+    "Canonical membership predicates remain narrower than accepted aliases/raw-date conversion.",
+    "Inherited constructor/__proto__ agenda alias results intentionally change from object/function values to the requested fallback.",
+    "Offline evaluator currently hashes helper policy read-only; it does not execute these runtime filter helpers or unused effect-owning dependencies.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises normalization/request construction and presentation offline; not a full server boot or live mutation.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

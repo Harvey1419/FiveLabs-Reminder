@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript request payload and pure response/error/refusal/usage/telemetry projections; bounded evaluator executes exact allowlisted pure constructor only",
+  "candidate": {
+    "filesPassed": 227,
+    "testsPassed": 2966,
+    "durationSeconds": 48.47
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 296,
+    "durationSeconds": 4.61
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "wirePropertyPresenceStrictAndConditionalFields": "passed",
+    "nestedProtocolHttpThrownErrorPriorityAndRefusal": "passed",
+    "missingVsZeroUsageReasoningSubset": "passed",
+    "boundedTelemetryCredentialCounterGuards": "passed",
+    "actualTypedConstructorHashAndDeniedEffectImport": "passed",
+    "unsafeWireMutationFailsSetupBeforeFetch": "passed",
+    "productionCompilerFreeSyntheticFallback": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 977,
+    "wirePayloadPropertyPresenceAndSerializedParity": true,
+    "textProtocolHttpThrownErrorsRefusalsAndUsageParity": true,
+    "safeTelemetryCredentialAndCounterParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedWireResponseRoutingClientAndExecutorImports": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:428bf51dfb171210ed1f7ac4ea952fd4a4775e223d54bba3403f1a6283e5c56a"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 279
+  },
+  "transitionalDeclarations": 52,
+  "sourceHashes": {
+    "src/agent/providers/gateway-request-payload.ts": "6b805ebe8c4b3037285b0e4b01d01d777545e67713664fe8b68d984af20098bc",
+    "src/agent/providers/request-payload.js": "1e96d8a2ff7a358478014ae15a14da9d0509693a6084e3819127668c06ea50c5",
+    "src/agent/providers/request-payload.d.ts": "a648f72c432f24a90935d3664bd33984955d7610aa605f2357e95b1bd63ccd78",
+    "src/agent/providers/gateway-response-contracts.ts": "f78eaf8566a09274583f64f82cc530c52ad64f120c70a30f4a04546cac7ca956",
+    "src/agent/providers/client.js": "3300a45be981664df50256e2aa1054494b54148141bf2ad6b09185794b6466ea",
+    "tests/unit/agent/typed-gateway-wire-contracts.test.ts": "ce66d66a83d445f2a01a7ec96ab4c0004d2953a1ed73b14e24527d5ee0264cf0",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "29370147aaa7ef52ea8cbe1718a223bffe4500d0d1cd7dfd68472bc22cee305b",
+    "scripts/evals/groq-contract/baseline.js": "8a0e9548cf42b6614f4850b25ab795add2d1dcfa19e19166079b996ab3076714",
+    "tsconfig.runtime.json": "132e1fb116df090f0a34e575bb18542719d8a7fd81cedbe7e6422d3641a0ee8d"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "Wire builder/response projections do not independently validate complete responses or authorize effects; strict-envelope validation remains in the attempt executor.",
+    "Usage preserves raw missing/zero values; telemetry validates counters and never adds reasoning to completion totals.",
+    "Evaluator adds only exact pure request facade/source; response helpers and client remain read-only provenance.",
+    "Transport, trace IO, unused legacy compact diagnostics and chain execution remain later migration units.",
+    "Node 22 smoke uses three synthetic fetch responses with network disabled, not live provider calls or full server boot.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 authoritative pre-claim owned conversation baseline and isolated typed recovery runtime composition",
+  "candidate": {
+    "filesPassed": 185,
+    "testsPassed": 2456,
+    "durationSeconds": 43.09
+  },
+  "focused": {
+    "filesPassed": 30,
+    "testsPassed": 582,
+    "durationSeconds": 6.82
+  },
+  "newCases": 23,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "actualOwnedClosedCheckpointBaseline": "passed",
+    "explicitGenesisOnlyAndUnresolvedHistoryBlocking": "passed",
+    "fullCandidateAndRecoverySnapshotCAS": "passed",
+    "atomicImmutableReceiptAndMarker": "passed",
+    "closedHistoryOwnerUniqueReferencesAndHandledLedger": "passed",
+    "alteredStoredConversationRejected": "passed",
+    "capabilityAndPrivateLeaseBinding": "passed",
+    "uncooperativeRpcCancellation": "passed",
+    "otherEngineNamespaceProtection": "passed",
+    "actualTypedRecoveryCompositionWithoutRegistryProofs": "passed",
+    "immutableBackendPermissionsAndPrivateInvokerRPC": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "compiledRuntime": {
+    "declarationChecking": "strict, no skipLibCheck",
+    "mode": "actual stored completed checkpoint -> actual pre-claim baseline capture -> actual task/companion receipt -> actual delivery ledger with simulated HTTP -> typed composition reads all sources -> actual SQL closure -> emitted handoff",
+    "baselineCaptureRpcCalls": 2,
+    "actualRecoveryRpcCalls": 5,
+    "baselineProducerSimulated": false,
+    "genericVerifiedEvidenceRows": 0,
+    "inputCheckpoint": "fixture-seeded completed mixed checkpoint, no production-history certification",
+    "localTaskMutations": 1,
+    "replayedTaskMutations": 0,
+    "simulatedProviderRequests": 2,
+    "replayedSends": 0,
+    "acceptedReceiptSurvivedLostReply": true,
+    "historyAndOriginalEvidencePreserved": true,
+    "staleDuplicateClosureRejected": true,
+    "temporaryDatabaseRemoved": true,
+    "liveProviderCalls": 0,
+    "whatsappCalls": 0,
+    "externalDomainApiCalls": 0
+  },
+  "postgres": {
+    "previousCombinedAssertions": 183,
+    "ownedBaselineAssertions": 22,
+    "totalAssertions": 205,
+    "transactionRolledBack": true,
+    "priorReminderResolverUpdatedBeforeRegressionFixtures": true,
+    "migrationDeployed": false,
+    "productionDatabaseCalls": 0,
+    "sqlFile": "supabase/migrations/20261012044947_agent_core_owned_baseline.sql"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 119,
+    "transitionalDeclarations": 12,
+    "legacyJavaScriptRetired": 0
+  },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Only isolated recovery composition is connected internally; production JS foreground/router/scheduler remain active",
+  "limitations": [
+    "Runtime composition covers recovery, not full foreground inference/approval/presentation/delivery orchestration.",
+    "Baseline producer accepts completed mixed checkpoints or verified active-run handoffs; legacy/reminder-only continuity needs separate migration.",
+    "A baseline-only interrupted turn requires separate recovery; lost capture replies are not automatically retried.",
+    "Only exact-UUID task complete/delete effects and manifest-based text delivery are covered by the composed proof producers.",
+    "Checkpoint input is fixture-seeded and provider HTTP acceptance responses are simulated. No production history or handset delivery is certified.",
+    "Concurrent first capture/foreground execution is not separately tested.",
+    "Backend direct SQL is trusted; semantic validation is performed by the host, not exclusively by SQL.",
+    "No Supabase SDK service-role round trip, production activation/migration or provider/WhatsApp call occurred.",
+    "Full maintained JS conversion, declaration retirement, broader legacy SDK WebAuthn/TS7 compatibility, supported builds and live provider/rollout gates remain open.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Disable isolated baseline capture/recovery composition; retain immutable baselines, original checkpoints, task/delivery receipts and engine namespace fences.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-baseline-typecheck.log",
+    "focused": "/private/tmp/hermes-baseline-focused.log",
+    "fullSuite": "/private/tmp/hermes-baseline-unit.log",
+    "inventory": "/private/tmp/hermes-baseline-inventory.json",
+    "postgres": "/private/tmp/hermes-baseline-postgres.log",
+    "postgresHarness": "/private/tmp/hermes-baseline-postgres.sql",
+    "runtimeCompile": "/private/tmp/hermes-baseline-runtime-compile.log",
+    "runtime": "/private/tmp/hermes-baseline-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-baseline-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-baseline-runtime.mjs",
+    "roundTrip": "/private/tmp/hermes-baseline-roundtrip.json",
+    "roundTripHarness": "/private/tmp/hermes-baseline-roundtrip.py",
+    "capture": "/private/tmp/hermes-baseline-capture-result.json"
+  }
+}

@@ -1,0 +1,252 @@
+import { aiResponseSchema, aiTranscriptSchema, type AIMessage, type JsonObject,
+  type ToolCall, type TurnContext } from '@templelabs/contracts';
+import { AIProviderError } from '@templelabs/ai';
+import type { AIProvider } from '@templelabs/ai';
+import type { ToolRegistry, ToolOutcome } from '@templelabs/tools';
+import { estimateContextTokens, canonicalArguments } from './context-manager.js';
+import { ContextLimitError } from './operational-context.js';
+
+export interface AgentLoopOptions {
+  /** Explicit opt-in until real provider/canary gates pass. */
+  readonly continuation?: 'single_decision' | 'observation_driven';
+  readonly maxModelSteps?: number;
+  readonly maxTotalTokens?: number;
+  readonly maxInputTokens?: number;
+  readonly estimateInputTokens?: (request: unknown) => number;
+  readonly maxCostUsd?: number;
+  readonly pricing?: { readonly inputUsdPerMillion: number; readonly outputUsdPerMillion: number };
+  readonly maxToolCalls?: number;
+  readonly maxHistoryMessages?: number;
+  readonly maxOutputTokens?: number;
+  readonly timeoutMs?: number;
+  readonly now?: () => number;
+  readonly executionMode?: 'execute' | 'shadow';
+  /** Host policy checks user intent/approval; role capabilities alone are insufficient. */
+  readonly authorizeWrite?: (call: ToolCall, context: TurnContext) => Promise<boolean>;
+}
+export type LoopNotice = 'provider_unavailable' | 'invalid_response' | 'unavailable_tool' | 'limit_reached';
+export interface AgentLoopUsage {
+  readonly modelSteps: number; readonly inputTokens: number; readonly outputTokens: number;
+  readonly estimatedCostUsd: number | null;
+  readonly accountingComplete: boolean;
+}
+/** Domain state stays in a host-owned policy. Journal exceptions must escape dispatch. */
+export interface AgentLoopPolicy {
+  acceptsTool(name: string): boolean;
+  referenceMissing(call: ToolCall): boolean;
+  readonly writeJournalAvailable: boolean;
+  prepareContext(history: readonly AIMessage[], maxMessages: number,
+    fitsBudget: (messages: readonly AIMessage[]) => boolean): AIMessage[];
+  requiresReconciliation(call: ToolCall, outcome: ToolOutcome<unknown>): boolean;
+  normalizeOutcome(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<unknown>;
+  beforeDispatch(call: ToolCall, context: TurnContext): Promise<void>;
+  afterOutcome(call: ToolCall, outcome: ToolOutcome<unknown>): Promise<void>;
+}
+export interface AgentLoopResult {
+  readonly requiresReconciliation: boolean;
+  readonly history: AIMessage[]; readonly notices: LoopNotice[]; readonly usage: AgentLoopUsage;
+}
+
+export class AgentLoop {
+  private readonly maxModelSteps: number;
+  private readonly maxTotalTokens: number;
+  private readonly maxInputTokens: number;
+  private readonly estimateInputTokens: (request: unknown) => number;
+  private readonly maxCostUsd: number | undefined;
+  private readonly pricing: AgentLoopOptions['pricing'];
+  private readonly now: () => number;
+  private readonly maxToolCalls: number;
+  private readonly maxHistoryMessages: number;
+  private readonly maxOutputTokens: number;
+  private readonly timeoutMs: number;
+  private readonly executionMode: 'execute' | 'shadow';
+  private readonly authorizeWrite: (call: ToolCall, context: TurnContext) => Promise<boolean>;
+
+  constructor(private readonly provider: AIProvider, private readonly registry: ToolRegistry,
+    options: AgentLoopOptions = {}) {
+    if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
+    this.maxModelSteps = options.continuation === 'observation_driven' ? options.maxModelSteps ?? 4 : 1;
+    this.maxTotalTokens = options.maxTotalTokens ?? 32000;
+    this.maxInputTokens = options.maxInputTokens ?? this.maxTotalTokens;
+    this.estimateInputTokens = options.estimateInputTokens ?? estimateContextTokens;
+    this.maxCostUsd = options.maxCostUsd;
+    this.pricing = options.pricing;
+    if (this.maxCostUsd !== undefined && (!Number.isFinite(this.maxCostUsd) || this.maxCostUsd <= 0 || !this.pricing)) {
+      throw new Error('Cost budget requires positive budget and explicit provider pricing');
+    }
+    if (this.pricing && Object.values(this.pricing).some(rate => !Number.isFinite(rate) || rate < 0)) throw new Error('Invalid provider pricing');
+    this.now = options.now ?? Date.now;
+    this.maxToolCalls = options.maxToolCalls ?? 4;
+    this.maxHistoryMessages = options.maxHistoryMessages ?? 64;
+    this.maxOutputTokens = options.maxOutputTokens ?? 1024;
+    this.timeoutMs = options.timeoutMs ?? 15000;
+    this.executionMode = options.executionMode ?? 'execute';
+    if (!['execute', 'shadow'].includes(this.executionMode)) throw new Error('Invalid execution mode');
+    this.authorizeWrite = options.authorizeWrite ?? (async () => false);
+    for (const [name, value] of Object.entries({ maxModelSteps: this.maxModelSteps, maxInputTokens: this.maxInputTokens, maxTotalTokens: this.maxTotalTokens, maxToolCalls: this.maxToolCalls, maxHistoryMessages: this.maxHistoryMessages,
+      maxOutputTokens: this.maxOutputTokens, timeoutMs: this.timeoutMs })) {
+      if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Invalid ${name}`);
+    }
+    if (this.maxToolCalls > 10) throw new Error('maxToolCalls exceeds UI contract');
+  }
+
+  async run(text: string, context: TurnContext, previous: readonly AIMessage[],
+    policy: AgentLoopPolicy): Promise<AgentLoopResult> {
+    if (!text.trim() || text.length > 8000) throw new Error('Invalid normalized input');
+    context.signal.throwIfAborted();
+    if (previous.length) aiTranscriptSchema.parse(previous);
+    if (previous.some(message => message.role === 'system')) throw new Error('Conversation history cannot include system messages');
+    const history: AIMessage[] = [...structuredClone(previous), { role: 'user', content: text }];
+    const notices: LoopNotice[] = [];
+    const deadlineMs = this.now() + this.timeoutMs;
+    const usage = { accountingComplete: true, modelSteps: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: this.pricing ? 0 : null };
+    let reconciliationRequired = false;
+    const finish = (): AgentLoopResult => ({ history, notices: [...new Set(notices)], usage: { ...usage }, requiresReconciliation: reconciliationRequired });
+    const tools = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name));
+    const availableNames = new Set(tools.map(tool => tool.name));
+    const completedWrites = new Set<string>();
+    let totalTokens = 0;
+    let costUsd = 0;
+    let totalCalls = 0;
+    const provider = this.provider.forTurn?.() ?? this.provider;
+    for (let step = 0; step < this.maxModelSteps; step++) {
+      const estimateRequest = (messages: readonly AIMessage[]): number => {
+        const tokens = this.estimateInputTokens({ messages, tools });
+        if (!Number.isSafeInteger(tokens) || tokens < 0) throw new Error('Invalid input token estimate');
+        return tokens;
+      };
+      let prepared;
+      try {
+        // Leave room for the next assistant response without dropping any of its tool pairs.
+        prepared = { messages: policy.prepareContext(history, Math.max(1, this.maxHistoryMessages - 1),
+          messages => estimateRequest(messages) <= this.maxInputTokens
+            && estimateRequest(messages) < this.maxTotalTokens - totalTokens) };
+      } catch (error) {
+        if (step > 0 && error instanceof ContextLimitError) {
+          notices.push('limit_reached'); return finish();
+        }
+        throw error;
+      }
+      const messages = aiTranscriptSchema.parse(prepared.messages);
+      const estimate = estimateRequest(messages);
+      const availableOutput = Math.min(this.maxOutputTokens, this.maxTotalTokens - totalTokens - estimate);
+      const reservedCost = this.pricing ? (estimate * this.pricing.inputUsdPerMillion
+        + Math.max(0, availableOutput) * this.pricing.outputUsdPerMillion) / 1e6 : 0;
+      if (estimate > this.maxInputTokens || availableOutput < 1 || (this.maxCostUsd !== undefined && costUsd + reservedCost > this.maxCostUsd)
+        || this.now() >= deadlineMs || context.signal.aborted) {
+        notices.push('limit_reached'); return finish();
+      }
+      let response;
+      try {
+        usage.modelSteps++;
+        response = aiResponseSchema.parse(await provider.complete({
+          messages, tools,
+          maxOutputTokens: availableOutput, maxInputTokens: this.maxInputTokens,
+          maxTotalTokens: this.maxTotalTokens - totalTokens, deadlineMs, signal: context.signal,
+          ...(this.maxCostUsd !== undefined && this.pricing ? {
+            spendLimit: { maxUsd: Math.max(0, this.maxCostUsd - costUsd), ...this.pricing },
+          } : {}),
+        }));
+      } catch (error) {
+        if (error instanceof AIProviderError) {
+          usage.inputTokens += error.usage.inputTokens; usage.outputTokens += error.usage.outputTokens;
+          usage.accountingComplete = usage.accountingComplete && error.accountingComplete;
+          if (this.pricing) costUsd += (error.usage.inputTokens * this.pricing.inputUsdPerMillion
+            + error.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
+          usage.estimatedCostUsd = this.pricing && usage.accountingComplete ? costUsd : null;
+        } else { usage.accountingComplete = false; usage.estimatedCostUsd = null; }
+        notices.push('provider_unavailable');
+        return finish();
+      }
+      usage.inputTokens += response.usage.inputTokens;
+      usage.outputTokens += response.usage.outputTokens;
+      totalTokens += response.usage.inputTokens + response.usage.outputTokens;
+      if (this.pricing) costUsd += (response.usage.inputTokens * this.pricing.inputUsdPerMillion
+        + response.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
+      usage.estimatedCostUsd = this.pricing ? costUsd : null;
+      const calls = response.message.toolCalls;
+      if (totalCalls + calls.length > this.maxToolCalls || messages.length + calls.length > this.maxHistoryMessages
+        || response.usage.inputTokens > this.maxInputTokens || totalTokens > this.maxTotalTokens
+        || (this.maxCostUsd !== undefined && costUsd > this.maxCostUsd) || this.now() >= deadlineMs || context.signal.aborted) {
+        notices.push('limit_reached'); return finish();
+      }
+      if (new Set(calls.map(call => call.id)).size !== calls.length
+        || response.usage.outputTokens > availableOutput) {
+        notices.push('invalid_response'); return finish();
+      }
+      // Namespacing avoids collisions between provider-local IDs on separate turns.
+      const normalizedCalls = calls.map(call => ({ ...call,
+        id: `${encodeURIComponent(context.requestId)}:${step === 0 ? '' : `step:${step}:`}${encodeURIComponent(call.id)}` }));
+      history.push({ role: 'assistant', content: '', toolCalls: normalizedCalls });
+      totalCalls += calls.length;
+      for (const call of normalizedCalls) {
+        const effect = this.registry.effect(call.name);
+        if (!availableNames.has(call.name) || !policy.acceptsTool(call.name) || !effect) {
+          notices.push('unavailable_tool');
+          history.push({ role: 'tool', toolCallId: call.id, content: { status: 'denied', code: 'TOOL_UNAVAILABLE' }, isError: true });
+          continue;
+        }
+        const referenceMissing = policy.referenceMissing(call);
+        const read = effect === 'read';
+        const journalMissing = !read && !policy.writeJournalAvailable;
+        const writeKey = `${call.name}:${canonicalArguments(call.arguments)}`;
+        const repeatedWrite = !read && completedWrites.has(writeKey);
+        let stopped = this.now() >= deadlineMs || context.signal.aborted;
+        let permitted = read;
+        const blockedByUnknown = reconciliationRequired && !read;
+        if (!permitted && !referenceMissing && !stopped && !blockedByUnknown && !repeatedWrite && !journalMissing && this.executionMode === 'execute') {
+          try { permitted = await this.authorizeWrite(structuredClone(call), context); }
+          catch { permitted = false; }
+        }
+        stopped = stopped || this.now() >= deadlineMs || context.signal.aborted;
+        let outcome: ToolOutcome<unknown> = stopped
+          ? { status: 'failed' as const, code: 'TURN_STOPPED', observation: 'No action dispatched after the turn was stopped.' }
+          : repeatedWrite
+            ? { status: 'denied' as const, code: 'DUPLICATE_WRITE', observation: 'This exact write already completed in this turn; use its earlier receipt.' }
+          : journalMissing
+            ? { status: 'failed' as const, code: 'DURABLE_JOURNAL_REQUIRED', observation: 'No write was dispatched; an execution journal is required.' }
+          : referenceMissing
+            ? { status: 'clarification_required' as const, code: 'REFERENCE_REQUIRED', observation: 'Read or identify an observed resource before changing it.' }
+            : blockedByUnknown
+              ? { status: 'approval_required', code: 'EFFECT_RECONCILIATION_REQUIRED',
+                observation: 'Reconcile the earlier unknown write before dispatching more writes.' }
+              : !permitted
+                ? { status: 'approval_required', code: this.executionMode === 'shadow' ? 'SHADOW_WRITE_DISABLED' : 'USER_AUTHORIZATION_REQUIRED',
+                  observation: 'No write was dispatched; authorization or execution mode did not permit it.' }
+                : { status: 'failed', code: 'NOT_DISPATCHED', observation: 'Not dispatched.' };
+        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !journalMissing && permitted) {
+          await policy.beforeDispatch(structuredClone(call), context);
+          // Persistence can consume the remaining deadline or lose ownership.
+          stopped = this.now() >= deadlineMs || context.signal.aborted;
+          if (stopped) outcome = { status: 'failed', code: 'TURN_STOPPED', observation: 'No action dispatched after the turn was stopped.' };
+        }
+        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !journalMissing && permitted) {
+          try { outcome = await this.registry.execute(call.name, call.arguments, context, call.id); }
+          catch { outcome = read
+            ? { status: 'failed', code: 'READ_UNAVAILABLE', observation: 'The read was not verified.' }
+            : { status: 'indeterminate', operationId: call.id, observation: 'Reconcile this write before retrying.' }; }
+        }
+        try {
+          outcome = policy.normalizeOutcome(call, outcome);
+          if ('receipt' in outcome && (outcome.receipt.userId !== context.userId
+            || outcome.receipt.operationId !== call.id || outcome.receipt.toolName !== call.name)) {
+            throw new Error('Receipt identity mismatch');
+          }
+          if (outcome.status === 'indeterminate' && outcome.operationId !== call.id) throw new Error('Operation identity mismatch');
+        }
+        catch { outcome = read
+          ? { status: 'failed', code: 'READ_UNAVAILABLE', observation: 'The read was not verified.' }
+          : { status: 'indeterminate', operationId: call.id, observation: 'Reconcile this write before retrying.' }; }
+        if (!read && (outcome.status === 'success' || outcome.status === 'partial')) completedWrites.add(writeKey);
+        if (outcome.status === 'indeterminate' || policy.requiresReconciliation(call, outcome)) reconciliationRequired = true;
+        await policy.afterOutcome(structuredClone(call), outcome);
+        const content: JsonObject = { status: outcome.status, observation: outcome.observation };
+        history.push({ role: 'tool', toolCallId: call.id, content, isError: outcome.status !== 'success' && outcome.status !== 'partial' });
+      }
+      aiTranscriptSchema.parse(history);
+      if (!calls.length || reconciliationRequired || this.maxModelSteps === 1) return finish();
+      if (step + 1 === this.maxModelSteps) notices.push('limit_reached');
+    }
+    return finish();
+  }
+}

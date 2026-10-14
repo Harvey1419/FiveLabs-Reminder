@@ -295,7 +295,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 7. Subscriptions table (Billing, Plans, Active status, MercadoPago Integration)
+-- 7. Subscriptions table (Billing, plans, active status, legacy provider identity)
 CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,

@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript provider attempt measurements and closed diagnostic projections, plus pure response-synthesis message building and normalization; transport/routes unchanged",
+  "candidate": {
+    "filesPassed": 225,
+    "testsPassed": 2948,
+    "durationSeconds": 53.01
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 246,
+    "durationSeconds": 5.73
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "unicodeWireByteMeasurementAndMalformedJsonParity": "passed",
+    "finitePhaseCountersClosedProviderFailureExceptionVocabulary": "passed",
+    "contradictoryRateLimitEvidenceRemainsUncertain": "passed",
+    "canonicalHttpDateAndRetryResetBounds": "passed",
+    "synthesisRequiresVerifiedFactsAndExcludedClauses": "passed",
+    "supportedAreaAndExcludedClauseProjectionOnly": "passed",
+    "esEnBeforeOnlyWhitespaceAnd160CharacterFragments": "passed",
+    "readOnlyTypedProviderSourceProvenance": "passed",
+    "productionCompilerFreeActualSyntheticGateway": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1382,
+    "closedVocabularyByteMeasurementsAndPhaseCounters": true,
+    "rateLimitProvenanceContradictionsAndCanonicalHeaderBounds": true,
+    "esEnSynthesisProjectionWhitespaceAndFragmentLimits": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualClientDiagnosticsSynthesisExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "utf8MeasurementsClosedDiagnosticVocabulary": true,
+    "contradictoryRateLimitProvenanceAndBoundedRetryHeaders": true,
+    "synthesisAreaProjectionEsEnAndBeforeOnlyLimits": true,
+    "actualGatewayWithSyntheticResponseDiagnostics": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 1,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:fe4f0034c90b6e3fe5fea1d6e4260188276b2b290222178061dc480d6e2b5bde"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 273
+  },
+  "transitionalDeclarations": 51,
+  "sourceHashes": {
+    "src/agent/providers/provider-attempt-diagnostics.ts": "ddbacb75b482ba2d1e5b73fdbaebe3ac2f9373f7eef3e714ae096d775c2bda92",
+    "src/agent/providers/attempt-diagnostics.js": "f4c51338d00d77741031f9d12863b4edafb8085a8897618993d02d89e8cf1de6",
+    "src/agent/providers/attempt-diagnostics.d.ts": "c692f68cfde1fe764e2b92d9396a71ddcd4122c1494666f10840ca9100683399",
+    "src/agent/providers/response-synthesis-presentation.ts": "25842af34bc8b5edae285b64af5788fd2f4e15e666330180fe4e5fce9d87a14a",
+    "src/agent/providers/client.js": "f78884a0646eb736108ddbc6697f89776cc6ccec578a692d103d7a5482b5a843",
+    "src/agent/providers/client.d.ts": "6fe7211c54360eabf098e9040356f2edc68fb942f4d8be879d86d63df7be603f",
+    "tests/unit/agent/typed-provider-diagnostics-synthesis.test.ts": "59072bb5bad31b65561b9367bed8efed4b9e5f251b4045e0f6ca04ebe3f1136d",
+    "scripts/evals/groq-contract/baseline.js": "7ebb364c677df0e5198f13aa5cbd56c65b25641748d5d7c177eb24a577954dce",
+    "tsconfig.runtime.json": "b89c665be1caffb075a406e02d7698ee3a84a9566403a7958f8391f0130bb2a4"
+  },
+  "limits": [
+    "No intentional runtime behavior changes in this extraction.",
+    "Provider diagnostic projections preserve existing allowlists and upstream/OpenRouter/uncertain provenance rules; requested routes or generic headers do not establish upstream attribution.",
+    "UTF-8 request/message/schema component bytes overlap and are not token estimates, real latency comparisons or cost claims.",
+    "Measurements retain JSON.parse failure behavior and are not a general strict request-schema validator.",
+    "Synthesis builder consumes host-verified facts but does not certify effects or receipts itself; it projects areas/excluded clauses rather than action results.",
+    "Normalization retains before-or-after input fallback, before-only output, whitespace collapse and legacy 160 UTF-16-unit slicing; it does not redesign multilingual persona or truncation.",
+    "client.js transport, credentials, trace IO/entrypoint, route profiles, retries and request-payload.js remain unchanged runtime boundaries requiring later migration.",
+    "Read-only provenance does not evaluate provider SDKs or broaden executable baseline imports.",
+    "Node 22 smoke uses one synthetic fetch response in a network-disabled container; no live provider latency/quality/cost measurement or full server boot.",
+    "No scheduler, SQL/storage/provider configuration/model choice/deployment/V2 activation or live WhatsApp effect changed; no new PostgreSQL fixture required."
+  ]
+}

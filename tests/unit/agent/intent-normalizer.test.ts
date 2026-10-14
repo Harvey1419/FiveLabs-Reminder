@@ -1,0 +1,232 @@
+import { describe, expect, it } from 'vitest';
+import { normalizeTurnIntentForRuntime } from '../../../src/agent/orchestration/intent-normalizer.js';
+import { clearWorkingMemory, saveWorkingMemory } from '../../../src/agent/core/working-memory.js';
+
+const user = { id: 'user-normalizer', phone_number: '573009999999' };
+const context = {
+  user,
+  referenceTime: new Date('2026-12-31T23:30:00Z'),
+  timezone: 'America/Bogota',
+};
+
+describe('semantic intent runtime normalization', () => {
+
+
+  it('fills a missing calendar year from the user-local reference date', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'agenda', action: 'read',
+        schedule: { kind: 'calendar_date_time', month: 12, day: 31, hour: 10, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalized.actions[0]!.schedule!.year).toBe(2026);
+  });
+
+  it('maps a semantic newName to the concrete mutable field for each domain', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [
+        { domain: 'reminder', action: 'update', target: 'Test Update', newName: 'cita en cerámica Italia' },
+        { domain: 'task', action: 'update', target: 'la segunda', newName: 'Revisar memoria' },
+        { domain: 'calendar', action: 'update', target: 'la primera', newName: 'Cita odontológica' },
+      ],
+    }, context);
+
+    expect(normalized.actions[0]!.content).toBe('cita en cerámica Italia');
+    expect(normalized.actions[1]!.title).toBe('Revisar memoria');
+    expect(normalized.actions[2]!.title).toBe('Cita odontológica');
+  });
+
+  it('anchors an elapsed daily reminder clock at the next future occurrence', () => {
+    const eveningContext = {
+      user,
+      referenceTime: new Date('2026-09-07T23:30:00.000Z'), // 6:30 PM Bogota
+      timezone: 'America/Bogota',
+    };
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'Hacer Duolingo',
+        recurrence: 'daily',
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
+      }],
+    }, eveningContext);
+
+    expect(normalized.actions[0]!.recurrence).toBe('daily');
+    expect(normalized.actions[0]!.schedule).toMatchObject({
+      kind: 'relative_day_time',
+      dayOffset: 1,
+      hour: 9,
+      minute: 0,
+    });
+  });
+
+  it('keeps a future daily reminder clock on the current local day', () => {
+    const morningContext = {
+      user,
+      referenceTime: new Date('2026-09-07T12:00:00.000Z'), // 7:00 AM Bogota
+      timezone: 'America/Bogota',
+    };
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'Hacer Duolingo',
+        recurrence: 'daily',
+        schedule: { kind: 'local_time', hour: 9, minute: 0, clockMode: 'explicit_am' },
+      }],
+    }, morningContext);
+
+    expect(normalized.actions[0]!.recurrence).toBe('daily');
+    expect(normalized.actions[0]!.schedule!.kind).toBe('local_time');
+  });
+
+  it('keeps partial calendar updates as pure semantic deltas without inheriting stale title/time', () => {
+    saveWorkingMemory(user, {
+      source: 'calendar',
+      scope: 'today',
+      entityType: 'calendar_event',
+      items: [{
+        position: 1,
+        type: 'calendar_event',
+        internalId: 'google-event-1',
+        summary: 'Reunión de equipo',
+        time: '2026-09-08T15:00:00.000Z',
+        raw: { summary: 'Reunión de equipo', startDateTime: '2026-09-08T15:00:00.000Z' },
+      }],
+    });
+
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{ domain: 'calendar', action: 'update', target: 'la primera', description: 'Llevar avances' }],
+    }, context);
+
+    expect(normalized.actions[0]).toMatchObject({
+      domain: 'calendar',
+      action: 'update',
+      target: 'la primera',
+      description: 'Llevar avances',
+    });
+    expect(normalized.actions[0]).not.toHaveProperty('title');
+    expect(normalized.actions[0]).not.toHaveProperty('schedule');
+    clearWorkingMemory(user);
+  });
+
+  it('normalizes entity.delete structurally when scope="all" or preserveNames is provided', () => {
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'entity',
+        action: 'delete',
+        scope: 'all',
+        category: 'project',
+        preserveNames: ['Reminder Pro'],
+      }],
+    }, context);
+
+    expect(normalized.actions[0]).toEqual({
+      domain: 'entity',
+      action: 'delete',
+      scope: 'all',
+      category: 'project',
+      preserveNames: ['Reminder Pro'],
+    });
+  });
+
+  it('never infers bulk entity delete from natural language target strings (regex elimination invariant)', () => {
+    // When Hermes incorrectly sends "todos los proyectos" in target without scope="all",
+    // Node must NOT use regex to infer scope="all" or category="project".
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'entity',
+        action: 'delete',
+        target: 'todos los proyectos',
+      }],
+    }, context);
+
+    expect(normalized.actions[0]!.scope).toBeUndefined();
+    expect(normalized.actions[0]!.target).toBe('todos los proyectos');
+  });
+
+  it('resolves ordinal task entityName references against active projects in working memory', () => {
+    saveWorkingMemory(user, {
+      entityType: 'project',
+      items: [
+        { position: 1, name: 'Reforma baño', type: 'project', internalId: 'p1' },
+        { position: 2, name: 'reminder', type: 'project', internalId: 'p2' },
+      ],
+    });
+
+    const normalized = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'la 1',
+        scope: 'all_pending',
+      }],
+    }, context);
+
+    expect(normalized.actions[0]!.entityName).toBe('Reforma baño');
+    clearWorkingMemory(user);
+  });
+
+  it('resolves ordinal target into reminder content from task working memory', () => {
+    saveWorkingMemory(user, {
+      entityType: 'task',
+      items: [
+        { position: 1, title: 'Comprar insumos médicos', type: 'task', internalId: 't1' },
+        { position: 2, title: 'Llamar al contador', type: 'task', internalId: 't2' },
+      ],
+    });
+
+    const normalizedTarget = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        target: '1',
+        schedule: { kind: 'local_time', hour: 17, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalizedTarget.actions[0]!.content).toBe('Comprar insumos médicos');
+    expect(normalizedTarget.actions[0]!.target).toBeUndefined();
+
+    const normalizedContent = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'reminder',
+        action: 'create',
+        content: 'la 2',
+        schedule: { kind: 'local_time', hour: 15, minute: 0, clockMode: 'explicit_24h' },
+      }],
+    }, context);
+
+    expect(normalizedContent.actions[0]!.content).toBe('Llamar al contador');
+
+    clearWorkingMemory(user);
+  });
+
+  it('normalizes task.list query structurally without inspecting user message natural language', () => {
+    const normalExplicit = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'Apartamento',
+        query: 'devolver',
+      }],
+    }, context);
+
+    expect(normalExplicit.actions[0]!.query).toBe('devolver');
+
+    const normalTarget = normalizeTurnIntentForRuntime({
+      actions: [{
+        domain: 'task',
+        action: 'list',
+        entityName: 'Apartamento',
+        target: 'escritorio',
+      }],
+    }, context);
+
+    expect(normalTarget.actions[0]!.query).toBe('escritorio');
+    expect(normalTarget.actions[0]!.entityName).toBe('Apartamento');
+  });
+});
+

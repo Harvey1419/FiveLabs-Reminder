@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Complete pure strict TypeScript run status and approval/continuation schemas and validators; existing runtime/execution ownership gates remain separate",
+  "candidate": {
+    "filesPassed": 206,
+    "testsPassed": 2789,
+    "durationSeconds": 78.97
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 205,
+    "durationSeconds": 7.08
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "exactProviderSchemasDescriptionsAndStates": "passed",
+    "approvalSupersedeAndCancelSemantics": "passed",
+    "uniqueCallIdsAndClosedCanonicalDeltas": "passed",
+    "sharedPerActionConflictAndZeroMinuteRetention": "passed",
+    "languageAndProfileContextCompatibility": "passed",
+    "discriminatedUnknownInputValidation": "passed",
+    "existingAiAdapterJsonSchemaBoundary": "passed",
+    "offlineEvaluatorExplicitPureTypedContract": "passed",
+    "productionCompilerFreePureValidation": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 296,
+    "providerSchemasDescriptionsAndStatusValuesExact": true,
+    "approvalContinuationMetadataAndErrorsParity": true,
+    "perActionSharedAndZeroOffsetCompatibility": true,
+    "liveHttpCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realRunContractRuntimeDatabaseAndToolFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "emittedDecisionValidatorIdentity": true,
+    "supersedeDropsPriorApproval": true,
+    "duplicateCallAndDomainDeltaRefused": true,
+    "zeroOffsetAndLanguagePreserved": true,
+    "pureValidationStorageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:32addf666ca6a98666639b0b7e7b0d069b99467755511e3ae1bd8b9918788e5f"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 212
+  },
+  "transitionalDeclarations": 35,
+  "sourceHashes": {
+    "src/agent/contracts/run-decision-contracts.ts": "ed5bdc361a7130587aaf55e9991605e1ddc4c363b986fa3dc9d0e6a608546680",
+    "src/agent/contracts/agent-run-contracts.js": "1b005af84052183cfda39a5c794fffab1c6ab42d3873c17959c839aa1eceed12",
+    "src/agent/contracts/agent-run-contracts.d.ts": "c9e4440e6d7f9b56ed3e90e43d453cfa72fc1416a6fdafb421b0d677a35d03af",
+    "src/adapters/agent-core/active-run-ai-decision.ts": "ea29e6d02d38560ab4d4f55cdc2f145810ee78600045e8ffe1043f345221d7a5",
+    "scripts/evals/groq-contract/baseline.js": "7c3ad284ed673150765d5af4ef96d8d5e1d2a028c4954e398109a546fe83d17e",
+    "tests/unit/agent/typed-run-decision-contracts.test.ts": "04590cd55047573b7dd436f16c0ab5ae19915b5302a5bda1f2def1686b2ffc84",
+    "tsconfig.runtime.json": "2a5613bdd95b0d7a479bfea209e979766c629a4b137c4746cb8ca2b70d105bdb"
+  },
+  "limits": [
+    "Pure schema validation grants no execution authority and does not prove call IDs belong to a user/run or are still prepared",
+    "Existing legacy approval ID coercion and shared continuation compatibility remain unchanged; isolated host adapter applies stricter owned pending-call rules",
+    "No new persistence boundary or SQL changes, so no additional PostgreSQL harness required",
+    "Unknown reply/legacy metadata stays unknown until the existing host JSON/domain schemas validate it",
+    "Production network-disabled import/runtime smoke, not full server boot or canary",
+    "No SDK/dependency/scheduler/configured-model/V2 activation/deployment or live HTTP/WhatsApp effects",
+    "Central provider/dispatcher/orchestration callers and remaining maintained JS still need migration"
+  ]
+}

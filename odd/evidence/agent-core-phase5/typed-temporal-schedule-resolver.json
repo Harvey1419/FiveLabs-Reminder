@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript structured temporal schedule resolution and pending schedule merge with injected existing timezone primitives; own-entry weekday lookup",
+  "candidate": {
+    "filesPassed": 218,
+    "testsPassed": 2890,
+    "durationSeconds": 50.52
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 176,
+    "durationSeconds": 4.17
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "ambiguousNearestFutureExplicitMidnightNoonAndSameDateFallback": "passed",
+    "dstGapCalendarLeapAndAllDayDateValidation": "passed",
+    "missingInheritedNoOpAndFutureOccurrenceBase": "passed",
+    "relativeDayWeekAndMinuteOffsetBounds": "passed",
+    "ownWeekdayEntryLookup": "passed",
+    "clonedPartialDateClockMerge": "passed",
+    "normalizerMapperInvalidDateAndDailyRoutineIntegration": "passed",
+    "offlineReadOnlyTypedTemporalSourceProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1612,
+    "intentionalGuards": 4,
+    "inheritedWeekdayPropertiesNowTypedFailures": true,
+    "realDateTimezoneArithmeticAcrossBogotaLosAngelesUtc": true,
+    "ambiguousExplicitDstAllDayInheritanceAndBoundSemantics": true,
+    "pendingMergeAndCloneParity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realTemporalNormalizerMapperAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "ambiguousClockDstGapLeapDayAndInheritance": true,
+    "invalidWeekdayPropertyGuards": true,
+    "pendingMergeClonedAndDailyFutureOccurrence": true,
+    "realRequestConstructionAndInvalidDateRefusal": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:3fb1cc5a2454d662d62cc6ad63394c128d24c291ce3973c7ed94d7840da124a3"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 251
+  },
+  "transitionalDeclarations": 47,
+  "sourceHashes": {
+    "src/agent/orchestration/temporal-schedule-resolver.ts": "fd606dbe626c1a4a16f0ffd21b32c98efcf2318cfd01a3ab84d1b1cb8ba3ffbd",
+    "src/agent/orchestration/typed-schedule.js": "b2b685a18bee7cf87990c513d911095998a1413977b0cdb31a1b4a0b48e724b5",
+    "src/agent/orchestration/typed-schedule.d.ts": "66313a79c699eca0c2c5b4f3a5142feffa1a3862841f6264aa1f8d55c73add7f",
+    "tests/unit/agent/typed-temporal-schedule-resolver.test.ts": "50cc656d9cd5c63fc3a8de4a4e2ecd3d437fc95bab233aef91e4941a67420ecb",
+    "scripts/evals/groq-contract/baseline.js": "17883ed9ca90acb39a16ff5752641c76e65250f61447c4ceed4d8daaaa2ff6ca",
+    "tsconfig.runtime.json": "ebbd7747fda91660f66e824c0c92ee77f5068f27af26df6d57bbc4b5174a7750"
+  },
+  "limits": [
+    "Resolver consumes structured temporal meaning; it does not interpret natural-language phrases or decide mutation authority.",
+    "Timezone conversion/local-date primitives remain existing injected implementations, and existing invalid-context exception behavior is not redefined.",
+    "Ambiguous 12-hour selection stays on the chosen local date; if both clocks elapsed the later one is retained, with recurring advancement still owned by normalization.",
+    "Inherited weekday properties now yield INVALID_WEEKDAY rather than the prior INVALID_CALENDAR_DATE; valid weekday/timezone/calendar semantics remain compatible.",
+    "Missing inherited date yields an explicit no-op; render/date payloads are not current ownership or durable effect evidence.",
+    "No SQL/read/write/scheduler boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke constructs actual requests offline; not a full server boot or live schedule/calendar mutation.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

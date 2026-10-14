@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 5 strict TypeScript agent-run and inbound queue persistence; existing JS modules supply the shared client lazily and preserve public exports",
+  "candidate": {
+    "filesPassed": 192,
+    "testsPassed": 2634,
+    "durationSeconds": 102.25
+  },
+  "focused": {
+    "filesPassed": 6,
+    "testsPassed": 84,
+    "durationSeconds": 3.67
+  },
+  "newCases": 24,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "existingConfiguredStorageNeverFallsBackOnError": "passed",
+    "stagedActivationAndOwnerStatusCasRegression": "passed",
+    "queueMessageDeduplication": "passed",
+    "malformedClaimsAndAcknowledgementsRejected": "passed",
+    "guardedEffectBlockedAfterUncertainRenewal": "passed",
+    "liveIndexReexportCycleAndLazyClient": "passed",
+    "normalCompletionNotPromotedToCertificate": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "node": "v24.15.0",
+    "compiledAdapterAndWorker": true,
+    "sqlBackedStructuralClient": true,
+    "reads": 5,
+    "writes": 12,
+    "rpcs": 12,
+    "ownerCompareAndSet": true,
+    "duplicateInputPreserved": true,
+    "staleNonceDenied": true,
+    "expiredRunRetired": true,
+    "workerProcessedOnce": true,
+    "ordinaryCompletionNotCertified": true,
+    "liveHttpCalls": 0,
+    "temporaryDatabaseRemoved": true
+  },
+  "node22": {
+    "node": "v22.23.3",
+    "productionRunnerImage": true,
+    "compilerOrTsLoaderAtExecution": false,
+    "devWorkspaceDependenciesAbsent": true,
+    "realLegacyIndexCycleAndFacades": true,
+    "emittedPersistenceUsed": true,
+    "offlineConditionalClaim": true,
+    "offlineStoreIsolation": true,
+    "liveHttpCalls": 0
+  },
+  "productionImage": "sha256:416064241eba2c168eb5bd0eb073914305853a9ef815279638398de5a454b724",
+  "inventory": {
+    "javascript": 312,
+    "typescript": 143,
+    "transitionalDeclarations": 13
+  },
+  "documentationChecked": [
+    "https://supabase.com/changelog.md",
+    "https://supabase.com/docs/reference/javascript/using-modifiers-abortsignal",
+    "installed @supabase/postgrest-js source for abortSignal"
+  ],
+  "limits": [
+    "No schema or migration deployment; existing SQL and legacy activation behavior preserved",
+    "SQL-backed structural query test uses Docker psql, not a live Supabase/PostgREST transport",
+    "Production runner smoke imports real index/facades and exercises offline storage and injected queue results; no full server boot or live provider/WhatsApp/canary",
+    "SDK/database shared client, ambient transport and SDK retry configuration unchanged; adapters add no application-level retry",
+    "Existing agent-run query scope/projections and cache/reference behavior preserved; no live latency/performance claim",
+    "Compatibility JS wiring and derived declarations remain transitional; remaining database/orchestration/application/test/script JS still needs migration"
+  ],
+  "noDeployment": true,
+  "noCommit": true,
+  "sourceSha256": {
+    "src/infrastructure/database/agent-run-persistence.ts": "00972b1f2df6ded51103ad8d3897febc1247112b77c685d7231d4f52e1c2cc9f",
+    "src/infrastructure/database/inbound-turn-persistence.ts": "35bc5b23ddd87045110f798fc2a5caa5d5961dbc2cf58af2585ee28662ee4aa8",
+    "src/infrastructure/database/agent-runs.js": "d38db722c50e6ee6c12ecd096c588d7f406299698c3eea75d41af3a5387ed5bc",
+    "src/infrastructure/database/inbound-turns.js": "ff04a96661e60b709515c5cc319ede7c9181735e9460537c60c4b5f664c2095e",
+    "src/infrastructure/database/agent-runs.d.ts": "17d3593c7607adbe018876e1dddf6d6cfd0fea1a69be7360a14eaf33ea23953f",
+    "src/infrastructure/database/inbound-turns.d.ts": "f226290c8ca3b648920f87386a684c95efe01d354e5a2e6eae1e9ad2f00be1ab",
+    "tsconfig.runtime.json": "c34924f43bc8fe5f861ec3b2d489a024fb8bfcbb16714379b52923e3bba46a77",
+    "tests/unit/infrastructure/inbound-turn-persistence.test.ts": "51f74bd41bdca03952e5a94d615c5d6870d76357d90e3c16c8a2b9a7f1d9d438"
+  }
+}

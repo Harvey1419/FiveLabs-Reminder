@@ -1,0 +1,110 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript foreground decision admission, provider fallback classification and working-memory fault preservation through host ports",
+  "candidate": {
+    "filesPassed": 236,
+    "testsPassed": 3062,
+    "durationSeconds": 51.63
+  },
+  "focused": {
+    "filesPassed": 10,
+    "testsPassed": 300,
+    "durationSeconds": 5.88
+  },
+  "newCases": 17,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "oneStrictCanonicalForegroundDecisionNoProseOrToolsBypass": "passed",
+    "sameProviderAndRouterProfileSourceValidation": "passed",
+    "attachmentOnlyOperationalIntentBlocked": "passed",
+    "ownedHistoryAvailabilityFromHostAndInvalidRefsSanitized": "passed",
+    "classifiedRefusalSchemaAndUnavailableFallbacks": "passed",
+    "faultRetainsReferenceViewAndRestoredTimestamp": "passed",
+    "successfulAdmissionClearsOnlyFaultMarker": "passed",
+    "actualCacheExpiryNotExtended": "passed",
+    "opaqueDiagnosticReasonPreservedWithoutAuthority": "passed",
+    "nullableUnavailableProjectionIdentity": "passed",
+    "readOnlyEvaluatorProvenanceAndActualRuntimeContractSource": "passed",
+    "productionCompilerFreeForegroundAndRouterGraph": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "checks": 1520,
+    "intentionalDifferences": 0,
+    "compares": [
+      "exact admitted intent or fallback/exception",
+      "ordered host calls and model options including undefined fields",
+      "actual shared provider validation",
+      "history evidence prompt mutation",
+      "fault marker/view/timestamp updates"
+    ],
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedForegroundControllerAndRouterImports": true,
+    "strictCanonicalDecisionAndNoProseBypass": true,
+    "actualReferenceCacheFaultClearAndTimestampPreserved": true,
+    "attachmentOnlyOperationalDecisionBlocked": true,
+    "actualTypedPendingRunControllerAndRouterImports": true,
+    "strictSubsetApprovalAfterProfileAndHostExecutor": true,
+    "invalidPendingDecisionBlockedAndRetirementDeferred": true,
+    "actualTypedPromptPreparationContextGatewayAndRouterImports": true,
+    "unknownBillingAccessNoFreePromotionAndEnglishPolicy": true,
+    "liveProjectTaskLimitsHistoryDedupAndContextAssembly": true,
+    "partialMemoryAndUnknownEntitlementDropsStalePro": true,
+    "actualOwnedKnowledgeReferencesAndSharedContextArrays": true,
+    "syntheticProfileLeaseBeforeWriteAndActualFactIntegration": true,
+    "matchedProfileUserUpdateAndSameTurnDedup": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:239c4e9877da2eb61eb782de7e5c7468c86ea2eb24652e6df25acaea4186d29b"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 303
+  },
+  "transitionalDeclarations": 54,
+  "sourceHashes": {
+    "src/agent/orchestration/router-foreground-decision.ts": "0241b9cea4102ea22980a0dde23e984c9ed7dec728b41b528944d08c4418ae27",
+    "src/agent/orchestration/router-core.js": "a34c874666543587836864123cae643f65d9e553186f84069bb27dbd1fd57edd",
+    "src/agent/orchestration/router-turn-decisions.ts": "aeb3768bc8f293c4b0bf9dd3cde846f64d4c7926e0a45b5f680e3f5179bef6ed",
+    "src/agent/contracts/foreground-turn-validator.ts": "fd4ed4a6c39893c38ebb8de4446331565f5c6df6e4295478172ca759c23d1914",
+    "src/agent/core/working-memory-cache.ts": "e43e72f19aa214fb6bf327ac64599d9eecf68a22cee1a4460fe04003c3637db7",
+    "tsconfig.runtime.json": "0cfe67a1e5b3ef3b708db1bac676658967c12567aa8a03bec9f7392d70d3b2b7",
+    "tests/unit/agent/typed-router-foreground-decision.test.ts": "61d6fe37de0e097d2a6d79275cd8764d5742e664c2246ac5b67b21f3f0681b79",
+    "tests/unit/agent/runtime-model-contract.test.js": "c57b7ff5cc24037ec012488e302608faa68720a9a9b610925f1c9e4833fad4cb",
+    "scripts/evals/groq-contract/baseline.js": "7fd15c8ec3949735c9b530ca43f77cc14bda387d27a014e7c81541133c93adfb",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "73ddd5ba20560d04d3ef4ee9491f3fe59128161c2405c286b615fd5cc112d229"
+  },
+  "limits": [
+    "No intentional runtime behavior changes; existing error strings and diagnostic precedence retained.",
+    "Historical availability and owner-bound response metadata remain original router host hooks; history/prose are not live state or independent effect authority.",
+    "One semantic initial decision retains strict schema, no tools, 8192 output token allowance; no new total prompt token ceiling or live performance measurement.",
+    "Type-only profile guard overloads reflect the existing null-intent unavailable no-op.",
+    "Cache faultReason type is unknown to represent existing opaque provider reasons without coercion; it conveys no domain/execution authority.",
+    "Working-memory failure/restoration preserves original age and referents; real cache expiry tested offline.",
+    "Current-turn profile application, followup binding and runtime action normalization remain in the JS host after admission.",
+    "Gateway is injected; no configured provider/model/dependency changes.",
+    "Evaluator hashes effect-owning orchestration read-only and never executes it.",
+    "Parity and Node 22 smoke use synthetic ports; no live provider, storage/RPC, WhatsApp calls or full server boot.",
+    "No SQL/schema boundary change or additional PostgreSQL fixture required.",
+    "Full repository TypeScript migration remains incomplete; no scheduler/deployment/production or V2 activation changes."
+  ]
+}

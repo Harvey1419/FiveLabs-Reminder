@@ -40,5 +40,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build and typecheck TypeScript packages and tests
+        run: pnpm run typecheck
+
       - name: Run unit tests
         run: pnpm run test:unit
+
+      - name: Verify compiled ESM package imports
+        run: node --input-type=module -e 'await import("./packages/agent-core/dist/index.js"); await import("./packages/ai/dist/index.js"); await import("./dist/runtime/jobs/inbound-turn-worker.js"); await import("./dist/runtime/agent/core/active-run-executor.js"); await import("./dist/runtime/agent/core/active-run-lifecycle.js")'

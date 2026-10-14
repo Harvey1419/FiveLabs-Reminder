@@ -1,0 +1,99 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`deterministic WhatsApp reminder cards > aggregates multiple creations and deduplicates the same observed resource 1`] = `
+{
+  "ctas": [],
+  "text": "✅ *2 recordatorios programados*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM
+
+⏰ *Enviar propuesta*
+🗓️ Hoy a las 5:00 PM",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > does not replace an unknown outcome with a successful card from attached data 1`] = `
+{
+  "ctas": [],
+  "text": "⚠️ *Resultado sin confirmar*
+No pude confirmar esta acción. Hay que verificarla antes de volver a intentarla.",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > keeps recurrence, partial effects and clarification visible together 1`] = `
+{
+  "ctas": [],
+  "text": "✅ *Recordatorio programado*
+
+🔁 *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM
+🔁 Todas las semanas
+
+⚠️ *Completado parcialmente*
+Los cambios confirmados están arriba. Algunos detalles solicitados siguen sin confirmar.
+
+¿A qué hora quieres el segundo recordatorio?",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > pairs same-title advance notices with their parent identities 1`] = `
+{
+  "ctas": [],
+  "text": "✅ *2 recordatorios programados*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM
+🔔 Aviso previo · Hoy a las 3:45 PM
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 6:00 PM
+🔔 Aviso previo · Hoy a las 5:45 PM",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > preserves canonical single creation style in en 1`] = `
+{
+  "ctas": [],
+  "text": "✅ *Scheduled reminder*
+
+⏰ *Llamar a Ana*
+🗓️ Today at 4:00 PM",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > preserves canonical single creation style in es 1`] = `
+{
+  "ctas": [],
+  "text": "✅ *Recordatorio programado*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM",
+}
+`;
+
+exports[`deterministic WhatsApp reminder cards > preserves read, update and confirmation cards 1`] = `
+[
+  {
+    "ctas": [],
+    "text": "🔔 *Recordatorios de hoy*
+
+1. *Llamar a Ana*
+   🗓️ Hoy a las 4:00 PM",
+  },
+  {
+    "ctas": [],
+    "text": "🔄 *Recordatorio actualizado*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM",
+  },
+  {
+    "ctas": [],
+    "text": "✅ *Recordatorio confirmado*
+
+🔔 *Llamar a Ana*
+Queda registrado como completado y se detienen los avisos pendientes.",
+  },
+]
+`;

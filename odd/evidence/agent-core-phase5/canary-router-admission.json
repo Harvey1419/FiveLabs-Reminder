@@ -1,0 +1,267 @@
+{
+  "increment": "canary-router-admission",
+  "verifiedAtUtc": "2026-10-14T02:01:29.599305+00:00",
+  "status": "connected_disabled",
+  "scope": {
+    "productionRouterConnected": true,
+    "perAdmissionEnvironmentRead": true,
+    "selection": "exact authenticated user allowlist only",
+    "percentageTargetingImplemented": false,
+    "textOnly": true,
+    "newConversationOrCompletedV2ContinuityOnly": true,
+    "existingBaselineConversationsStayPinned": true,
+    "trustedWritePolicyRequired": true,
+    "webhookWritePolicySupplied": false,
+    "defaultSwitch": "false",
+    "allowlist": [],
+    "remoteActivation": false
+  },
+  "changes": [
+    "Manifest and JSON environment allowlist override with strict true switch, invalid configuration fails closed",
+    "Lease-fenced prior read guards all unknown turns, V2 recovery validates completed checkpoints before continuation or rollback",
+    "No fallback after V2 admission failures, no same-lease replay into baseline when switch changes",
+    "Actual durable ProductivityTurnRunner with registered domain ports and configured provider; model text is not sent",
+    "Recipient-bound webhook delivery and unforgeable in-process proof avoid duplicate sends and persist accepted IDs",
+    "Write authorization retains host-policy gate independently of membership; destructive delete capability absent",
+    "Workspace packages promoted to production dependencies at unchanged versions; compiled packages and manifest included in runner",
+    "Runtime build gate traverses literal dynamic imports"
+  ],
+  "files": [
+    {
+      "path": "src/agent/orchestration/router.ts",
+      "sha256": "883d785a9b02a906a601ff1e2ede0a08c08be341290258a6ee39a5fb5ae2c737"
+    },
+    {
+      "path": "src/agent/orchestration/canary-selector.ts",
+      "sha256": "facdd12b16d6707e752896d094365799087666c2e216295febdd281c12fa8c5a"
+    },
+    {
+      "path": "src/agent/orchestration/canary-router.ts",
+      "sha256": "e2e47f0bdacf32943eb422d553653dd83e820e59daa31e9235262f658a371c6a"
+    },
+    {
+      "path": "src/adapters/agent-core/canary-productivity-router.ts",
+      "sha256": "c91dc690157f5a4d99d0fade967ae3b2a0f69985026653333f65a5b93d4636eb"
+    },
+    {
+      "path": "src/adapters/agent-core/canary-delivery-receipt.ts",
+      "sha256": "eade514092aa7308f8bd6a32310097f22aa9f8ad4501d853ad35ed791da755d5"
+    },
+    {
+      "path": "src/http/webhooks/whatsapp-handler.ts",
+      "sha256": "fe61b9aa0196eca10bff8f586f50cdb14c291dd4f3cc4c8c2589608589cf5351"
+    },
+    {
+      "path": "src/http/webhooks/whatsapp-ports.ts",
+      "sha256": "cae91614fa7acaa50e2d8ec2ea684b5538f4e33ad702c8c14e5925dab72dffb1"
+    },
+    {
+      "path": "scripts/checks/compiled-runtime-graph.ts",
+      "sha256": "79e635119a598ca2dbe06a872aac37a1fd3434aa0a344250d706fc133ea8908e"
+    },
+    {
+      "path": "tests/unit/agent/canary-router.test.ts",
+      "sha256": "09f844033bc493adbe0a9ca1384c65b05ccbf3daa9b976bafc2fe78be965324d"
+    },
+    {
+      "path": "tests/unit/agent-core/canary-productivity-router.test.ts",
+      "sha256": "23cd2b5928671fba7be218d14d5dd7e8113e222a1a402df0c4e76202441fa9f9"
+    },
+    {
+      "path": "tests/unit/messaging/typed-whatsapp-webhook.test.ts",
+      "sha256": "154e2829977bb1e7da04e68541a37934b5fd73cd165e28ffc9d02ecaf74b7911"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "0307e422836c38230ae4d23ca953ece3e5ee071b07cc849fadb0bbe90026bc06"
+    },
+    {
+      "path": "package.json",
+      "sha256": "175d64896f52e8c689020afb4d417197e00ddee05d12afbff3fcb793f4f6e5db"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "8b4de02f585ba498672658701e2ef17d6eecee5db1484857d5522a86b10f3246"
+    },
+    {
+      "path": "config/agent-core-v2-canary.json",
+      "sha256": "29121ea6f5cfb69946a1085b809b36422a2704fd1e6276b23a0534dec5401fda"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "b382c6fd61a86c36fbed3555f0d6b44b6d1a419c08d4d0875764f3dad02855b6"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "errors": 0
+    },
+    "focused": {
+      "files": 3,
+      "tests": 53,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 288,
+      "tests": 3627,
+      "newCases": 34,
+      "durationSeconds": 64.93,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 713
+      }
+    },
+    "runtimeGraph": {
+      "entrypoint": "dist/runtime/app/server.js",
+      "compiledModules": 279,
+      "externalImports": [
+        "@templelabs/agent-core",
+        "@templelabs/ai",
+        "@templelabs/contracts",
+        "@templelabs/tools",
+        "crypto",
+        "dotenv/config",
+        "express",
+        "googleapis",
+        "node:async_hooks",
+        "node:crypto",
+        "node:fs",
+        "node:module",
+        "node:os",
+        "node:path",
+        "node:perf_hooks",
+        "node:url",
+        "node:util",
+        "zod"
+      ],
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0
+    },
+    "lockfile": {
+      "command": "pnpm install --lockfile-only --frozen-lockfile --ignore-scripts --offline",
+      "passed": true,
+      "dependencyVersionsChanged": false
+    },
+    "candidateContainer": {
+      "image": {
+        "tag": "five-labs-reminder-api:canary-selector",
+        "id": "sha256:251b7d7588726895b7dfa7553a5bcb3f95316bdf685a27bfc63913fe7616722b",
+        "created": "2026-10-13T20:58:36.173682768-05:00",
+        "repoDigests": [
+          "five-labs-reminder-api@sha256:251b7d7588726895b7dfa7553a5bcb3f95316bdf685a27bfc63913fe7616722b"
+        ],
+        "platform": "linux/arm64",
+        "user": "node",
+        "command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ]
+      },
+      "container": {
+        "id": "0c4ecc73fe7dfe40673c9fb1400ddbbee8d32f57573ea3feab20a39ad9715380",
+        "node": "22.23.3",
+        "nodeEnv": "production",
+        "originalImageCommand": true,
+        "pid1Command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ],
+        "health": {
+          "status": 200,
+          "body": "{\"status\":\"ok\"}"
+        },
+        "shutdown": {
+          "signal": "SIGTERM",
+          "exitCode": 0,
+          "elapsedSeconds": 0.049,
+          "oomKilled": false
+        },
+        "network": "none",
+        "syntheticExternalDependencies": true,
+        "runtimeBindMounted": false,
+        "imageRuntimeMatchesWorkspace": true,
+        "verifiedRuntimeArtifacts": 604,
+        "sourcePresent": false,
+        "compilerPresent": false,
+        "tsxPresent": false
+      }
+    },
+    "compiledProductionRouterSmoke": {
+      "node": "22.23.3",
+      "compiledProductionRouter": true,
+      "registeredV2Composition": true,
+      "storageReads": 4,
+      "providerCalls": 1,
+      "sends": 1,
+      "completedCheckpoint": true,
+      "dynamicRollback": true,
+      "sameLeaseReplayBlocked": true,
+      "realNetwork": false
+    }
+  },
+  "candidateImageOnly": true,
+  "originalProductionTagRetained": true,
+  "logs": {
+    "container": [
+      "{\"smokeNode\":\"22.23.3\",\"pid\":1,\"nodeEnv\":\"production\"}",
+      "{\"syntheticRequest\":1,\"method\":\"GET\",\"path\":\"/rest/v1/hermes_inbound_turns\"}",
+      "{\"syntheticRequest\":2,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/hermes_inbound_queue_version\"}",
+      "[scheduler] started worker=worker-1-vhq4p (check interval: 15s with atomic locking, stable recurring IDs & persistent nudges)",
+      "[morningBriefing] worker started (monitoring 6:00 AM local briefings)",
+      "[calendarWatchRenewal] Starting periodic renewal worker (interval: 6h)",
+      "{\"syntheticRequest\":3,\"method\":\"GET\",\"path\":\"/rest/v1/user_integrations\"}",
+      "{\"syntheticRequest\":4,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/claim_hermes_inbound_turn\"}",
+      "[calendarWatchRenewal] Checking 0 active Google integrations...",
+      "[calendarWatchRenewal] Run complete: checked=0, baselined=0, renewed/established=0, errors=0",
+      "{\"syntheticRequest\":5,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/claim_next_pending_reminder\"}",
+      "{\"syntheticRequest\":6,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+      "{\"syntheticRequest\":7,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+      "{\"syntheticRequest\":8,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+      "{\"syntheticRequest\":9,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+      "Server running on port 3005",
+      "{\"smokeExitCode\":0,\"syntheticRequests\":9}"
+    ],
+    "unitSummary": [
+      "",
+      " Test Files  288 passed (288)",
+      "      Tests  3627 passed (3627)",
+      "   Start at  20:58:21",
+      "   Duration  64.93s (transform 2.78s, setup 3.02s, import 29.20s, tests 15.37s, environment 12ms)",
+      ""
+    ],
+    "typecheckSha256": "6823ead34e2e4b6920aa48246107b66a3f5e99d36ca57f48c57fd80626c7ce00",
+    "unitSha256": "5a017be40817fee9fca4681744aba65d36c8310053c1114b7767ef7b50564ca8"
+  },
+  "reproduction": {
+    "compiledSelectorSmokeSource": "import assert from 'node:assert/strict';\nObject.assign(process.env, { NODE_ENV: 'test', SUPABASE_URL: 'https://selector-smoke.supabase.co', SUPABASE_SECRET: 'synthetic',\n  OPENROUTER_API_KEY: 'synthetic', KAPSO_API_KEY: 'synthetic', AGENT_CORE_V2: 'true',\n  AGENT_CORE_V2_ALLOWLIST: '[\"11111111-1111-4111-8111-111111111111\"]' });\nconst user = { id: '11111111-1111-4111-8111-111111111111', timezone: 'America/Bogota', locale: 'es-CO' };\nconst anchor = { id: '22222222-2222-4222-8222-222222222222', message_id: 'message', thread_id: 'thread', sequence_id: 1, status: 'running' };\nlet providerCalls = 0, storageReads = 0, sends = 0, state = {};\nglobalThis.fetch = async (input, options) => {\n  const url = new URL(input instanceof Request ? input.url : input);\n  let body;\n  if (url.origin === 'https://selector-smoke.supabase.co') {\n    assert.equal(options?.method || 'GET', 'GET'); storageReads++;\n    if (url.pathname === '/rest/v1/hermes_inbound_turns') body = url.searchParams.has('id') ? [anchor] : [];\n    else { assert.equal(url.pathname, '/rest/v1/subscriptions'); body = []; }\n  } else {\n    assert.equal(url.href, 'https://openrouter.ai/api/v1/chat/completions');\n    providerCalls++;\n    const request = JSON.parse(options.body);\n    assert.ok(request.tools.length > 0);\n    body = { id: 'synthetic', model: request.model, choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: 'internal instructions' } }], usage: { prompt_tokens: 30, completion_tokens: 10 } };\n  }\n  return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });\n};\nconst { routeMessage } = await import('/app/dist/runtime/agent/orchestration/router.js');\nconst { withTurnLease } = await import('/app/dist/runtime/agent/core/turn-lease.js');\nconst { readCanaryPolicy, selectCanaryEngine } = await import('/app/dist/runtime/agent/orchestration/canary-selector.js');\nconst { v2DeliveryReceipt } = await import('/app/dist/runtime/adapters/agent-core/canary-delivery-receipt.js');\nconst lease = { inboundTurn: { id: anchor.id, messageId: anchor.message_id, threadId: anchor.thread_id, response: {} }, signal: new AbortController().signal,\n  assertActive: async () => {}, checkpoint: async patch => { state = { ...state, ...patch }; } };\nconst opts = { inputModality: 'text', agentCoreDelivery: { send: async () => { sends++; return { messageId: 'accepted' }; } } };\nassert.equal(selectCanaryEngine(readCanaryPolicy(), user), 'v2');\nconst reply = await withTurnLease(lease, () => routeMessage('Hola', user, [], opts));\nassert.equal(sends, 1); assert.equal(providerCalls, 1); assert.equal(storageReads, 4);\nassert.equal(state.agentCoreProductivity.phase, 'completed');\nassert.deepEqual(v2DeliveryReceipt(reply), ['accepted']);\nassert.ok(!reply.confirmation.includes('internal instructions'));\nprocess.env.AGENT_CORE_V2 = 'false';\nassert.equal(selectCanaryEngine(readCanaryPolicy(), user), 'baseline');\nawait assert.rejects(withTurnLease(lease, () => routeMessage('Replay', user, [], opts)), { code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });\nassert.equal(sends, 1); assert.equal(providerCalls, 1);\nconsole.log(JSON.stringify({ node: process.versions.node, compiledProductionRouter: true, registeredV2Composition: true,\n  storageReads, providerCalls, sends, completedCheckpoint: true, dynamicRollback: true, sameLeaseReplayBlocked: true, realNetwork: false }));\n",
+    "containerBootstrapSource": "import assert from 'node:assert/strict';\nconst accepted = new Set(['hermes_inbound_queue_version', 'claim_hermes_inbound_turn', 'claim_next_pending_reminder']);\nlet intercepted = 0;\nconsole.log(JSON.stringify({ smokeNode: process.versions.node, pid: process.pid, nodeEnv: process.env.NODE_ENV }));\nglobalThis.fetch = async (input, options) => {\n  const url = new URL(input instanceof Request ? input.url : input);\n  const method = options?.method || (input instanceof Request ? input.method : 'GET');\n  assert.equal(url.origin, 'https://container-smoke.supabase.co');\n  let body;\n  if (url.pathname.startsWith('/rest/v1/rpc/')) {\n    const rpc = url.pathname.split('/').at(-1);\n    assert.ok(accepted.has(rpc), `Unexpected RPC: ${rpc}`);\n    body = rpc === 'hermes_inbound_queue_version' ? 1 : [];\n  } else {\n    assert.equal(method, 'GET', 'Smoke must not mutate database rows');\n    assert.ok(['/rest/v1/hermes_inbound_turns', '/rest/v1/reminders', '/rest/v1/users', '/rest/v1/user_integrations'].includes(url.pathname), `Unexpected table: ${url.pathname}`);\n    body = [];\n  }\n  intercepted++;\n  console.log(JSON.stringify({ syntheticRequest: intercepted, method, path: url.pathname }));\n  return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });\n};\nprocess.on('exit', code => console.log(JSON.stringify({ smokeExitCode: code, syntheticRequests: intercepted })));\n",
+    "containerOrchestratorPython": "import subprocess,json,time,hashlib\nfrom pathlib import Path\nroot=Path('/private/tmp/hermes-canary-release')\nimage='five-labs-reminder-api:canary-selector'\ndef run(*args):\n result=subprocess.run(['docker',*args],capture_output=True,text=True)\n if result.returncode: raise RuntimeError(result.stderr)\n return result.stdout.strip()\nmeta=json.loads(run('image','inspect',image))[0]\n# Pin the tested artifact by immutable local image ID, even if the tag changes.\nimage_id=meta['Id']\nname='hermes-canary-release-smoke'\ncid=run('create','--name',name,'--network','none',\n '-e','NODE_ENV=production','-e','NODE_OPTIONS=--max-old-space-size=96 --import=/tmp/container-smoke-bootstrap.mjs',\n '-e','SUPABASE_URL=https://container-smoke.supabase.co','-e','SUPABASE_SECRET=synthetic-secret',\n '-e','KAPSO_API_KEY=synthetic','-e','OPENROUTER_API_KEY=synthetic',image_id)\ntry:\n run('cp',str(root/'bootstrap.mjs'),cid+':/tmp/container-smoke-bootstrap.mjs')\n run('start',cid)\n health=None\n for _ in range(40):\n  probe=subprocess.run(['docker','exec','-e','NODE_OPTIONS=--max-old-space-size=96',cid,'node','--input-type=module','-e',\n   \"import {get} from 'node:http'; get('http://127.0.0.1:3005/health',r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{console.log(JSON.stringify({status:r.statusCode,body:b}));process.exit(r.statusCode===200?0:1);});}).on('error',()=>process.exit(1));\"],capture_output=True,text=True)\n  if probe.returncode==0:\n   health=json.loads(probe.stdout.splitlines()[-1]);break\n  time.sleep(.25)\n assert health and health['status']==200 and json.loads(health['body'])=={'status':'ok'},health\n audit=json.loads(run('exec','-e','NODE_OPTIONS=--max-old-space-size=96',cid,'node','--input-type=module','-e',\n  \"import {readdirSync,readFileSync,existsSync} from 'node:fs';import {createHash} from 'node:crypto';function scan(d){return readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?scan(d+'/'+e.name):[d+'/'+e.name]);}let files=scan('dist/runtime');console.log(JSON.stringify({node:process.versions.node,pid1:readFileSync('/proc/1/cmdline','utf8').split('\\\\0').filter(Boolean),sourcePresent:existsSync('src'),compilerPresent:existsSync('node_modules/typescript'),tsxPresent:existsSync('node_modules/tsx'),runtime:Object.fromEntries(files.map(f=>[f,createHash('sha256').update(readFileSync(f)).digest('hex')]))}));\"))\n assert audit['node'].startswith('22.')\n assert not audit['sourcePresent'] and not audit['compilerPresent'] and not audit['tsxPresent']\n local={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('dist/runtime').rglob('*') if p.is_file()}\n assert audit['runtime']==local,'Image runtime differs from verified workspace build'\n before=json.loads(run('inspect',cid))[0]\n assert before['Config']['Cmd']==['node','dist/runtime/app/server.js']\n assert audit['pid1']==['node','dist/runtime/app/server.js'],audit['pid1']\n started=time.monotonic()\n run('kill','--signal','SIGTERM',cid)\n exit_code=int(run('wait',cid)); elapsed=time.monotonic()-started\n state=json.loads(run('inspect',cid))[0]['State']\n logs=run('logs',cid);(root/'container.log').write_text(logs+'\\n')\n assert exit_code==0 and not state['OOMKilled'] and elapsed<25,state\n assert '\"smokeExitCode\":0' in logs\n result={'image':{'tag':image,'id':image_id,'created':meta['Created'],'repoDigests':meta.get('RepoDigests',[]),'platform':meta['Os']+'/'+meta['Architecture'],'user':meta['Config']['User'],'command':meta['Config']['Cmd']},'container':{'id':cid,'node':audit['node'],'nodeEnv':'production','originalImageCommand':True,'pid1Command':audit['pid1'],'health':health,'shutdown':{'signal':'SIGTERM','exitCode':exit_code,'elapsedSeconds':round(elapsed,3),'oomKilled':state['OOMKilled']},'network':'none','syntheticExternalDependencies':True,'runtimeBindMounted':False,'imageRuntimeMatchesWorkspace':True,'verifiedRuntimeArtifacts':len(local),'sourcePresent':False,'compilerPresent':False,'tsxPresent':False}}\n (root/'result.json').write_text(json.dumps(result,indent=2)+'\\n');print(json.dumps(result))\nfinally:\n (root/'container.log').write_text(run('logs',cid)+'\\n')\n subprocess.run(['docker','rm','-f',cid],capture_output=True,check=True)\n"
+  },
+  "externalExecution": {
+    "realDatabase": false,
+    "realProvider": false,
+    "google": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false,
+    "remoteVariables": false,
+    "publishedImage": false
+  },
+  "limits": [
+    "Initial webhook V2 canary is read-only because no host write-authorization policy is wired; membership never authorizes writes",
+    "Existing baseline conversations cannot automatically migrate; the existing stable engine remains pinned until explicit authenticated handoff",
+    "Rollback applies at the next new completed turn boundary, not by cancelling or transferring a running/unknown turn",
+    "Percentage stages remain plans; manifest targeting.percentage must stay zero; allowlist admission is implemented",
+    "Compiled container/router tests used synthetic SDK/provider/delivery responses with external network disabled",
+    "Live provider quality/usage/cost/latency and isolated external persistence/transport gates remain open; no activation/deployment performed"
+  ],
+  "rollback": "Set AGENT_CORE_V2=false; clear the allowlist. Do not reset or replay V2 checkpoints, receipts or unknown turns. Restore only this increment router/webhook/graph/dependency-packaging/configuration changes and remove its new files/tests/docs/evidence for code rollback, preserving all prior migration work; guard persisted V2 turns before any engine handoff."
+}

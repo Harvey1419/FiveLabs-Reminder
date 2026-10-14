@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript working-memory execution/fact application and reminder acknowledgement prompt with injected cache operations",
+  "candidate": {
+    "filesPassed": 224,
+    "testsPassed": 2940,
+    "durationSeconds": 53.88
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 213,
+    "durationSeconds": 5.81
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "mixedAgendaPositionsAndCancelledTombstones": "passed",
+    "nestedMutationDtoExplicitNullAliasesAndDeadlines": "passed",
+    "acknowledgementRetainsSiblingsAndClearsExhaustedContext": "passed",
+    "sameContainerCreateDedupAndLastTenItems": "passed",
+    "confirmedFactBatchUnknownFilterAndCreationOnlyGate": "passed",
+    "confirmedMixedFactsAppliedInOrder": "passed",
+    "authoritativeFollowupIdentityAndLegacyDispatchedFallback": "passed",
+    "emptyOrUnrelatedContextOmitsAcknowledgementInstruction": "passed",
+    "readOnlyTypedPromptOutcomesProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 2172,
+    "mixedPositionsMutationsNullAliasesNestedResultsAndAcknowledgements": true,
+    "confirmedCreationBatchingUnknownFilteringAndOrderedFacts": true,
+    "authoritativeFollowupPromptAndLegacyDispatchedFallback": true,
+    "hostCleanupCallParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedStorePromptOutcomesContextAndExecutorImports": true,
+    "mixedPositionsNullAliasesAndCancelledTombstones": true,
+    "confirmedCreationFactsExcludeUnknown": true,
+    "authoritativePromptMatchAndLegacyDispatchedFallback": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "aliasesReferencePositionsNotificationProtection": true,
+    "snapshotsTombstonesOriginalTtlAndAcknowledgement": true,
+    "isolatedTypedCacheAndHostCleanupBoundary": true,
+    "sanitizerPrivateIdGuard": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:89db6ee8250415f98d8e316b773cd074f30310889c19ef45e0c086e7f707c696"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 269
+  },
+  "transitionalDeclarations": 50,
+  "sourceHashes": {
+    "src/agent/core/working-memory-outcomes.ts": "7583d3afa8546e969228aec94ebcfcef1049aa06c8ce9255493871a9d2c8d549",
+    "src/agent/core/working-memory-acknowledgement.ts": "f9e7312b87c8ea1199c27f79773084e7e6dd8d70470d59435f43678b41477f5d",
+    "src/agent/core/working-memory-execution.js": "310ed89f26700f705e5d9612f191c3be8b5c3b5a993c8439a1369c039bbcc2c6",
+    "src/agent/core/working-memory-execution.d.ts": "786641254bc710fbf8faf3bcb9c3557c819cf157d35dfd5928f1f10738144b3d",
+    "src/agent/core/working-memory.js": "4f783ebe9e618890349d001dafc66744ac6d537f8b8a0664a35e330b0e936a00",
+    "src/agent/core/working-memory.d.ts": "bf3dbc88cadd3a83df2872bbcc43536495743b1408db1243b15e7e3c5b6ce91a",
+    "tests/unit/agent/typed-working-memory-outcomes.test.ts": "db5de28bc63e476e14634636c8b5bac08705999755c1f57df8d3b7413f671bad",
+    "scripts/evals/groq-contract/baseline.js": "b6428a913a43106af739049bb9c583367fc9301e3b011f2f7cc054be5aebdd9c",
+    "tsconfig.runtime.json": "a3205baa3d09c246692f595ad33721c478a25e62a0cfdf5b3434403aeabc616e"
+  },
+  "limits": [
+    "No intentional runtime behavior changes in this extraction.",
+    "Execution-result updater is the legacy observed-result application boundary; it does not independently certify a tool result, receipt, current ownership or effect.",
+    "Fact updater retains success/unknown filtering and host responsibilities; no new SQL/transaction evidence is manufactured.",
+    "Acknowledgement prompt preserves existing nudge identity matching and reminder_dispatched fallback for unavailable or at-most-one followup; this prompt does not authorize acknowledgement without live tool validation.",
+    "Explicit null DTO aliases, stable tombstone positions, same-container creation merging and ten-item retention are unchanged.",
+    "Legacy extraction/permissive data behavior and existing partial-result/notification policies are preserved rather than redesigned.",
+    "No scheduler, SQL/storage/provider/model or transport effect boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual store/prompt/outcome/context/executor graph offline, not a full server boot or live provider request.",
+    "Remaining provider/router and other legacy paths still require migration toward repository-wide full TS.",
+    "No deployment, V2 activation, live WhatsApp effect or real provider latency/quality/cost measurement."
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript runtime action/intent normalization with injected memory, contextual, temporal, scope and calendar-query ports; legacy entry only wires dependencies",
+  "candidate": {
+    "filesPassed": 210,
+    "testsPassed": 2825,
+    "durationSeconds": 50.2
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 204,
+    "durationSeconds": 4.79
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "contextIdentityWithoutStalePatchAndRejectedContextRefs": "passed",
+    "localCalendarYearAndScopedReads": "passed",
+    "explicitBulkScopeOnly": "passed",
+    "clearedOrInheritedRecurrenceAndAmbiguousTarget": "passed",
+    "offlineEvaluatorReadOnlyTypedNormalizerProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 421,
+    "realHostTemporalCalendarScopeAndMemoryHelpers": true,
+    "allDomainsAndBilingualScopeAliases": true,
+    "bogotaLosAngelesTimezones": true,
+    "identityDeltaAndRecurrenceParity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realNormalizerMapperAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "realDailyRecurrenceLocalYearAndDstDateResolution": true,
+    "contextIdentityWithoutStalePatch": true,
+    "deletedContextRefRejectedByDomainBuilder": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:2c6ab577cf2ffdda9a3f7b6294729309776a2a43ecedd41ad78822b93fbf607b"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 228
+  },
+  "transitionalDeclarations": 41,
+  "sourceHashes": {
+    "src/agent/orchestration/runtime-intent-normalizer.ts": "69d6d54ab4081bedab95ea46da54cebb7f97223657eb172546ab50c6d3daad4e",
+    "src/agent/orchestration/intent-normalizer.js": "3b498f10428a2266e94111f5376eebfc16f9ff1e11b673932d0addb9ad1ef9b7",
+    "src/agent/orchestration/intent-normalizer.d.ts": "743902ac9b5dca3a640f8b32f2039d20616aa426e85953040a70d5d7adf5ac73",
+    "tests/unit/agent/typed-runtime-intent-normalizer.test.ts": "73ebdcde62594fb0293e298a215bdd3dad696c480fd2e7597622b6db3d232fd8",
+    "scripts/evals/groq-contract/baseline.js": "505e55162babd3c7de95f26493aeedadfa6f69a4f5abed5b95f30edfed991590",
+    "tsconfig.runtime.json": "20db774b5fa23fb77a06bac2218f4aaad8006a76713d9dc3aa64c28ac0b832c8"
+  },
+  "limits": [
+    "Incoming action projection is trusted canonical/host input; this normalizer does not validate arbitrary provider responses.",
+    "Calendar-query sanitization, temporal resolution, scope normalization and working-memory services remain injected legacy implementations.",
+    "Contextual identity is not a current ownership/live-state/lease/effect certificate; domain execution retains those checks.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke uses actual normalization and request building with live HTTP/storage disabled, not a full server boot or domain mutation.",
+    "No provider/model quality, price or latency measurement; no deployment or V2 activation."
+  ]
+}

@@ -12,8 +12,8 @@ Google authentication implementations, dotenv or application servers.
 ## Quick path: no inference or credentials
 
 ```sh
-node --experimental-vm-modules scripts/evals/groq-contract/runner.js --dry-run --baseline-ref=1290e81
-node --experimental-vm-modules scripts/evals/groq-contract/runner.js --dry-run --baseline-ref=1290e81 --pairs=50
+node --import tsx --experimental-vm-modules scripts/evals/groq-contract/runner.ts --dry-run --baseline-ref=1290e81
+node --import tsx --experimental-vm-modules scripts/evals/groq-contract/runner.ts --dry-run --baseline-ref=1290e81 --pairs=50
 ```
 
 Omitting `--dry-run` still defaults to dry-run. The report contains actual
@@ -25,10 +25,10 @@ body using one input-token budget unit per UTF-8 byte, plus the actual 8192/4096
 maximum output limit. This conservative reservation is not a tokenizer or a
 measured native prompt-token count. No private hashes are uploaded as metadata.
 
-`--repetitions=N` repeats the fourteen fixtures; `--pairs=N` takes precedence and
+`--repetitions=N` repeats the current fifty fixtures; `--pairs=N` takes precedence and
 requests an exact pair count, cycling those fixtures. The report includes counts
-per case: fifty pairs give three or four occurrences per case, not an exactly
-uniform distribution. Baseline/current order rotates AB/BA by case and
+per case: fifty pairs give one occurrence per case. Other counts may produce
+a partial cycle. Baseline/current order rotates AB/BA by case and
 repetition. Fifty fixed-context pairs forecast 100 attempted generations; this
 does **not** authorize those calls or promise their native tokens, quality or
 latency. The prior paid allowance is exhausted. Any paid comparison needs a fresh
@@ -39,7 +39,7 @@ user-approved budget.
 | Boundary | Implementation |
 |---|---|
 | Request parity | `request-payload.js` is shared by the real client and harness. Existing mocked fetch-body checks and all T3 byte/hash checks remain. Production deadline placement, routing, captures, counters and lifecycle are unchanged. |
-| Validation | `foreground-turn-validation.js` contains the actual no-owned-history sanitizer and current-user profile-source enforcement. Named router wrappers preserve initial callback and defensive follow-up behavior. Approval/continuation use their actual parsers and validators, not TurnIntent validation. |
+| Validation | `foreground-turn-validation.ts` exposes the actual no-owned-history sanitizer and current-user profile-source enforcement. Named router wrappers preserve initial callback and defensive follow-up behavior. Approval/continuation use their actual parsers and validators, not TurnIntent validation. |
 | Trusted baseline | Local hexadecimal commit ref resolved to a validated 40-character commit before `execFileSync`/`git show`; no shell, checkout, worktree, remote fetch or temporary baseline files. Only the `1290e81` provider projection is substituted. Current canonical full identity and all four description-stripped provider fingerprints are checked before comparison. The exact legacy wire extractor is retained only for parity tests, never as a historical client execution path. |
 | Policy provenance | Each file records origin/ref/hash. The policy digest includes current core-prompt source, response policy, router language guards, domain-call/executor clarification guards and language detection. Effect-owning guard modules are hashed read-only, never evaluated. Current English locks are therefore shared between both arms, rather than silently confounded with schema compaction. |
 | Virtual modules | Static named-import/export adapter with explicit pure-module allowlist, deny-by-default imports and explicit identical synthetic Google/entity adapters. The VM is **not a security sandbox** for malicious source. Regex extraction is intentionally fragile: changed layouts fail closed and require review. |
@@ -47,7 +47,7 @@ user-approved budget.
 | Structural checks | Known fixtures are completed with nulls from the actual provider schema and checked with the repository's `matchesSchema` subset, then actual canonical validators. This is not a complete JSON Schema implementation or Ajv substitute; existing structural schema tests remain authoritative. |
 | Safe artifacts | Retain allowlisted decision structure, targets, schedules, source/selection metadata, native billing identifiers, assertion outcomes and fixture-only projections. Freeform error envelopes, headers, raw prompts/history, failed-generation text and model-invented strings are never retained. Known live keys are scrubbed from identifiers and decision strings. |
 
-The fourteen scenarios cover greeting; no-history personal recall; tomorrow with a
+The original fourteen scenarios cover greeting; no-history personal recall; tomorrow with a
 missing clock and its 3 PM continuation; AM/PM ambiguity; explicit calendar
 components; the second owned task's **description**; complete status/description
 projection; a live agenda read beside a malicious quoted deletion; independent
@@ -58,7 +58,10 @@ English prompt lock. `task.list` uses an actual permitted title/container filter
 `contextRef`; mutations retain the backend's own reference restrictions.
 `time`/`main_time` alternatives are accepted only where the actual contract
 accepts them. An already-recorded preference/fact need not be redundantly saved.
-Generated acknowledgements never prove execution or persistence.
+Generated acknowledgements never prove execution or persistence. The current fifty-fixture set
+also covers language switches, task creation/completion/renaming, offsets,
+multiple schedules, advance notices, recurrence, calendar operations,
+cancellation, memory preferences and explicit noon/midnight cases.
 
 ### Reminder semantic grading correction
 
@@ -242,6 +245,7 @@ fields and instructions remain present.
 
 | Provider field | Obligations retained and model-visible surface |
 |---|---|
+| `scope` | Calendar update uses YYYY-MM-DD only to locate the original event in its local civil day; schedule remains a start-time change. Dated lookup cannot combine with contextRef. Account-wide/empty-container deletion and subscription plan scope retain their existing restrictions. |
 | `contextRef` | Select only displayed existing Working Memory reminder/task/calendar items by position, time, recurrence or title. Selection is the sole operative identity; omit target; Node ignores redundant labels. |
 | `target` | Existing-item human reference, never internal IDs; required for mutation without contextRef. Only the authoritative single-follow-up reminder.acknowledge exception remains. With contextRef omit target/ignore redundant labels. entity.delete names the project/list, cascades project tasks, and never uses account-wide scope="all" for one project. The unchanged scope field still defines account-wide and empty-container deletes. |
 | `entityName` | Entity create/upsert uses its own name. Task list/create uses implicit or explicit container, including names matching a system domain. Complete/update/delete must carry the owning named container so duplicate titles cannot cross containers. Domain-name examples remain. |
@@ -340,3 +344,11 @@ Live Groq schema acceptance and semantic adherence remain unverified. Haiku is
 deferred. T4 is available offline as described above; any paid comparison requires
 fresh authorization and a new explicit budget. No publishing or paid calls are
 part of T3/T4 implementation.
+
+
+Current runtime source provenance resolves NodeNext `.js` specifiers to their physical `.ts` files. Pure entry exports are checked against the allowlisted canonical TypeScript implementations; effect-owning files remain hash-only. Historical projection reads still use immutable `.js` paths in the baseline git commit. No transitional source JavaScript facades are required.
+
+
+## Current dated-Calendar lookup increment (2026-10-13)
+
+The current canonical description hash is d306889ef8f2ea3d6d5f6aebda0aded590cb220748a2735581480b8f20fa1456. Only the scope description adds lookup-only Calendar date guidance; the previous canonical hash in the historical evidence above is independently verified by removing that exact sentence. All four structural identities remain unchanged. Scope is now an explicitly covered provider-local compacted descriptor. The comparison runner continues using current contracts and runtime policy in both arms; 1290e81 supplies the immutable baseline projection, not an old runtime validator. The shared current canonical identity is pinned exactly, and the added pure civil-date validator has one explicit local import allowlist entry. No effect-owning module is evaluated.

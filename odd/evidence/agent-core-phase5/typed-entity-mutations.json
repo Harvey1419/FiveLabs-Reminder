@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 5 strict TypeScript entity rename/merge/delete/deduplication with classified RPC admission and interrupted-outcome propagation through the legacy tool",
+  "candidate": {
+    "filesPassed": 197,
+    "testsPassed": 2692,
+    "durationSeconds": 92.98
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 62,
+    "durationSeconds": 2.48
+  },
+  "newCases": 24,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "lostRpcNoCompatibilityReplay": "passed",
+    "onlyExplicitMissingRpcEnablesCompatibility": "passed",
+    "atomicResultIdentityAndCountsValidated": "passed",
+    "failedOrUnobservedTaskMoveStopsSourceDeletion": "passed",
+    "targetAndSourceReceiptRequired": "passed",
+    "deduplicationStopsOnUncertainty": "passed",
+    "deleteObservedIdentityGate": "passed",
+    "ownedCascadePredicates": "passed",
+    "concurrentCompletedTaskProtected": "passed",
+    "unknownOutcomeNotConvertedToAbsenceOrSuccess": "passed",
+    "compilerFreeProductionNode22": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "node": "v24.15.0",
+    "compiledEntityMutations": true,
+    "sqlBackedStructuralClient": true,
+    "reads": 14,
+    "writes": 18,
+    "rpcCalls": 6,
+    "atomicRenameCounts": true,
+    "atomicMergePreservesTaskHistory": true,
+    "committedLostRenameNoFallback": true,
+    "committedLostMergeNoFallback": true,
+    "explicitMissingRpcCompatibility": true,
+    "failedMovePreservesSource": true,
+    "deleteDryRunAndForeignOwnerNoWrites": true,
+    "completedDeleteHistoryPreserved": true,
+    "concurrentCompletedTaskPreserved": true,
+    "liveHttpCalls": 0,
+    "independentAtomicCertificateCreated": false,
+    "temporaryDatabaseRemoved": true
+  },
+  "node22": {
+    "node": "v22.23.3",
+    "productionRunnerImage": true,
+    "compilerOrTsLoaderAtExecution": false,
+    "devWorkspaceDependenciesAbsent": true,
+    "realIndexAndEntityToolFacades": true,
+    "emittedEntityMutationsUsed": true,
+    "unknownRenameAndMergeNoFallback": true,
+    "localizedToolUncertaintyPreserved": true,
+    "liveHttpCalls": 0
+  },
+  "productionImage": "sha256:1173a17556532bffd073da8353272b57c09a10739588739dbbc0d0a2788590c4",
+  "inventory": {
+    "javascript": 312,
+    "typescript": 162,
+    "transitionalDeclarations": 19
+  },
+  "limits": [
+    "Legacy RPC SQL definitions, matching thresholds, mirrors and regular fallback cascade semantics remain unchanged; no new owned independent entity certificate",
+    "Atomic RPC success describes that RPC only; subsequent project mirror maintenance remains best effort and outside its transaction",
+    "Compatibility rename still has best-effort text cascades; entity delete remains sequential with legacy cleanup/partial envelopes",
+    "PGRST202/42883 or absent host RPC allow compatibility; all other errors/lost replies/malformed receipts stop the invocation without automatic retry",
+    "SQL fixture uses consumed-column schemas plus the actual legacy RPC definitions with psql-backed client; not live PostgREST/Supabase or deployed RLS validation",
+    "Node 22 runner smoke imports real index and entity tool, using injected SDK replies; no full server boot/provider/WhatsApp/canary",
+    "Other domain stores, orchestration/tool callers, declarations and application JS remain to migrate"
+  ],
+  "noDeployment": true,
+  "noCommit": true,
+  "sourceSha256": {
+    "src/infrastructure/database/entity-mutation-persistence.ts": "fbd3eb7f68bc6cd45620fa808bcd7ac4167bfb5115cc80ba1ab063530cc9c244",
+    "src/infrastructure/database/entities.js": "bcd142fc5d769f48797e4866067a14b399e7aee6183086376622474e791477d1",
+    "src/infrastructure/database/entities.d.ts": "ee6d05b9be2649dce946d849a54bf7520cdfa2428d03a3012f076070d6a25304",
+    "src/infrastructure/database/domain-persistence-client.ts": "5eb65b1ea8f50e8f0057416be3e791f55279e10861615240aa355a4fd25f5edf",
+    "src/agent/tools/entities.js": "0fcfc3b11c5aa9f2af3ed38aa787fc60b3bdeca84b68a8a37cd428d6d41d2cc4",
+    "src/agent/tools/entities.d.ts": "a709f031af1308d154c037fb50966a2f1cb87a20da21686b390ae4b5d8c47ff3",
+    "tests/unit/infrastructure/entity-mutation-persistence.test.ts": "b1ace88973b6f92e7908aa512698052dc414e0b6f3ad32337da31065acbed541",
+    "tests/unit/agent/entity-mutation-uncertainty.test.ts": "d80cda759975a152e46a25dc982ccace16821f9b56b7fd6fb9f5289b806784d9",
+    "tsconfig.runtime.json": "16d9b6f35a4022a4de0b49c133cc3b79d358ce4cac133eaad013477c1412db4d"
+  }
+}

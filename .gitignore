@@ -21,6 +21,8 @@ scratch/
 
 # Coverage
 coverage/
+packages/*/dist/
+*.tsbuildinfo
 .codegraph/
 
 # Local Codex config/credentials
@@ -29,3 +31,4 @@ coverage/
 # Local Pi runtime state
 .atl/
 .pi/
+dist/runtime/

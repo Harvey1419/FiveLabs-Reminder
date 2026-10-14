@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript calendar read-bound construction with typed bounded/next-event results and injected legacy parsing; canonical month scope no longer intercepted by Monday prefix and dictionaries use own entries",
+  "candidate": {
+    "filesPassed": 220,
+    "testsPassed": 2906,
+    "durationSeconds": 49.44
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 158,
+    "durationSeconds": 4.12
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "remainingTodayVersusFullDayAndResultCaps": "passed",
+    "mondayWeeksSundayWeekendAndDstRangeEnd": "passed",
+    "nextEventSingleResultNullEndDiscriminator": "passed",
+    "explicitShorthandDateMutationAndNamedMonthRollover": "passed",
+    "canonicalMonthNoMondayPrefixIncludingMonthlyQuery": "passed",
+    "ownWeekdayAndMonthEntryGuards": "passed",
+    "legacyParserLazyDelegationAndFallbackReferencePolicy": "passed",
+    "offlineReadOnlyActualCalendarBoundsProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1464,
+    "intentionalGuards": 4,
+    "realTypedTimezonePrimitivesAndDeterministicLegacyParserFixtures": true,
+    "allScopesCapsNullNextEventAndDateMutationParity": true,
+    "bogotaLosAngelesUtcDstAndYearBoundary": true,
+    "ownWeekdayAndMonthEntriesAvoidInvalidDates": true,
+    "canonicalMonthNoLongerMatchesMondayPrefix": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realCalendarBoundsLegacyParserAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "localWeeksFullDaysAndInclusiveRangeEndAcrossDst": true,
+    "canonicalMonthNoMondayPrefixWithQuery": true,
+    "ownWeekdayMonthTableGuards": true,
+    "nextEventNullEndSingleResultAndOtherCaps": true,
+    "legacyShorthandMutationAndAbsoluteParserIntegration": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:0baa4698715cd6d8860253cc08ffd41abe0cc095c5c0d0bfd5d5e30ab7a51d45"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 255
+  },
+  "transitionalDeclarations": 47,
+  "sourceHashes": {
+    "src/shared/calendar-query-bounds.ts": "2058e6b7a6382cf4028200c492160871f71bd4f013b659b6ff0e05b2520c341d",
+    "src/shared/time.js": "f0d695347c9bce0b2c222a4f8e2a02a06d0d3d10ebb10bea116d4661748c642d",
+    "src/shared/time.d.ts": "a079cc09250022115039a8d8158aaffa3f307b3d33bb48308ea5732ab83099cf",
+    "tests/unit/time/typed-calendar-query-bounds.test.ts": "c0123d427f245825335a70c508dfce86e6672eef64b05985934ec3de6c43939b",
+    "scripts/evals/groq-contract/baseline.js": "5d89da781b48f550cef21e84d60cc3780a0f1a44fcb0038aae8aaf3f9b3d04fb",
+    "tsconfig.runtime.json": "e28b00bb03a467e03d0baf797ccc77a9031c79dab93ed96b48017f452e490fc2"
+  },
+  "limits": [
+    "Calendar bounds construct read parameters, not provider response certainty, current ownership or durable effect evidence.",
+    "Legacy parser remains injected and retains its default reference clock on fallback calls; this increment does not reinterpret all natural-language date policies.",
+    "Existing date-like scope insertion mutates supplied params.date; the caller must supply editable shorthand params as before.",
+    "Query-bound Date.UTC rollover and existing permissive fallback behavior are preserved, rather than adopting strict creation-date validation.",
+    "Explicit month scope intentionally now uses monthly bounds/cap even with weekday-like query text, instead of the preceding mon prefix; other legacy weekday inference priority remains unchanged.",
+    "Calendar resolver dictionaries reject inherited entries; remaining legacy parser dictionary lookup is a subsequent unit.",
+    "No SQL/read/write/scheduler boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke executes actual bounds/legacy parsing offline; not a full server boot, live calendar request or mutation.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

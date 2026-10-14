@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript core prompt composer and router prompt/billing preparation with explicit host predicates and exact offline facade adapter",
+  "candidate": {
+    "filesPassed": 234,
+    "testsPassed": 3030,
+    "durationSeconds": 50.18
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 211,
+    "durationSeconds": 7.12
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "duplicateLastTurnRemovalRawHistoryAndCurrentMessages": "passed",
+    "freeGuidanceOnlyEnforcedKnownFree": "passed",
+    "unknownAccessSeparateFromStaleProAndPrivateBillingFields": "passed",
+    "publicBillingStatusAndContextProjection": "passed",
+    "englishPolicySafeDisplayNameAndPromptCopy": "passed",
+    "tenProjectTasksAndFiveFollowupLimits": "passed",
+    "partialMemoryWordingAndAttachmentReferenceSeparation": "passed",
+    "actualTypedPromptHashAndDeniedEffectImports": "passed",
+    "closedExactPromptFacadeSyntheticAdapter": "passed",
+    "productionCompilerFreeActualPromptRouterGraph": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 883,
+    "promptStringsByteIdenticalWithActualEntityMatching": true,
+    "overviewFollowupProjectLimitsLanguageBillingAndMemoryPolicy": true,
+    "routerHistoryDedupGuidanceGateMessageAssemblyAndCallParity": true,
+    "syntheticGoogleCredentialsAndBillingAdapters": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedPromptPreparationContextGatewayAndRouterImports": true,
+    "unknownBillingAccessNoFreePromotionAndEnglishPolicy": true,
+    "liveProjectTaskLimitsHistoryDedupAndContextAssembly": true,
+    "partialMemoryAndUnknownEntitlementDropsStalePro": true,
+    "actualOwnedKnowledgeReferencesAndSharedContextArrays": true,
+    "syntheticProfileLeaseBeforeWriteAndActualFactIntegration": true,
+    "matchedProfileUserUpdateAndSameTurnDedup": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:13e302b6dff4696eade2d1dc618f102620eabe42cb8b3a2ac8625c88a4e3bf3e"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 299
+  },
+  "transitionalDeclarations": 54,
+  "sourceHashes": {
+    "src/agent/core/agent-prompt.ts": "458bad9ce12de8373dbc89774af65de152ab16594e4b6cc15f5188eba3c94b14",
+    "src/agent/core/agent-core.js": "03b8a2d9a22f12be840311ccd5851fc97a456159ad0877a93babdbe91039f49f",
+    "src/agent/core/agent-core.d.ts": "015b796c4e112bfc1c97d5219a923ea68f2cf33b5443509294e87affd1a3a06c",
+    "src/agent/orchestration/router-prompt-preparation.ts": "3a090d12af56b585904211a4b27f0dc9f804964e66c27849d584c85726ee1558",
+    "src/agent/orchestration/router-core.js": "bba7cac00a7e068ebe68236b86f2465898e81548bbbe06b5db10c357f6df4a41",
+    "tests/unit/agent/typed-agent-prompt-preparation.test.ts": "581ab300eda8de5c9f5f5e9446653ab90b1681e3ac7265ddc8995d4101a686a0",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "0360df1ad2ceec7f367aa89995178445de666c591a49aee5c19842fb5a2ab030",
+    "scripts/evals/groq-contract/baseline.js": "e48f0014e0f93c0f0b4bb820f7510462354cfa31ccc7cf0890074d60bef90368",
+    "tsconfig.runtime.json": "f8d129a39cb4102612003ddebc9a6ed17af3115e982bedf6ef56952dc92727e4"
+  },
+  "limits": [
+    "No intentional runtime prompt/copy or billing behavior changes.",
+    "Prompt context and rendered live-task/followup labels are orientation, not independent domain effect/receipt or inventory completeness certification.",
+    "Google credential usability and entity matching remain explicit host predicates; typed compositor does not execute SDK/storage operations.",
+    "Billing policy/provider configuration remain injected host functions; no price/payment capabilities are inferred from a provider name.",
+    "History budgets remain character-based and annotations are appended as before; no new token ceiling, summarization or live latency/cost measurement.",
+    "Unknown access suppresses Free guidance and renders UNKNOWN independently of a stale isPro value.",
+    "Offline evaluator accepts only the exact known prompt facade and executes the pure typed factory with existing synthetic adapters, never its actual DB/Google dependencies.",
+    "Node 22 smoke uses the actual prompt/matching graph with synthetic billing inputs and prior synthetic gateway reads, not live provider/checkout calls or full server boot.",
+    "Active-run and remaining turn host orchestration still need migration; repository-wide full TS is unfinished.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

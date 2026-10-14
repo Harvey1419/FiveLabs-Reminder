@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript canonical reminder creation/batches, cancellation/batches, update, acknowledgement, scoped lists and recurrence labels with injected year-aware date formatting",
+  "candidate": {
+    "filesPassed": 215,
+    "testsPassed": 2866,
+    "durationSeconds": 48.87
+  },
+  "focused": {
+    "filesPassed": 10,
+    "testsPassed": 171,
+    "durationSeconds": 3.56
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "exactParentIdPairingBeforeContentAndSingleAdvanceConsumption": "passed",
+    "orphanNoticeRetentionAndContentFallback": "passed",
+    "storedInstantYearAwareFormattingAndLegacyInvalidFallback": "passed",
+    "scopedSearchVersusClearDayAndRecurrentNumbering": "passed",
+    "creationEnvelopeAggregationRawIdentityAndSeriesCancellation": "passed",
+    "bilingualRecurrenceAndAcknowledgementCopy": "passed",
+    "existingWhatsAppAndProductivityPresenterTypedIntegration": "passed",
+    "offlineEvaluatorReadOnlyActualReminderRendererProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 984,
+    "allEightPublicReminderHelpers": true,
+    "esEnBogotaLosAngelesFormatting": true,
+    "parentIdContentPairingSingleUseAndOrphans": true,
+    "canonicalDateYearAndLegacyFallbackSemantics": true,
+    "recurrenceQueryScopeAndBatchSemantics": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realReminderCardsFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnRecurrenceAdvanceNoticeAndCanonicalYear": true,
+    "legacyDateFallbackAndScopedSearchPreserved": true,
+    "seriesCancellationAndAcknowledgementCopy": true,
+    "wholeTurnBatchAndUnknownGuardIntegration": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:84a9c936443ed0e38b510ff9c5a10ac9e5a910b549756a73e97bdc7e721ea00c"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 242
+  },
+  "transitionalDeclarations": 44,
+  "sourceHashes": {
+    "src/shared/reminder-card-presentation.ts": "9ab932e8745b6140a677b5e835f07aff99c42fb8e8180e152f85882b45dbff3f",
+    "src/shared/reminder-presentation.js": "d035f5794125692552aabe8b08ef53fb960e988fbc459cd60419a9aec05d204f",
+    "src/shared/reminder-presentation.d.ts": "ca519241d50410b0c8e37138c2c6a97aff02ecc243492960fea00bd9bed91e0a",
+    "tests/unit/reminders/typed-reminder-card-presentation.test.ts": "e980c5f37c4ee6113f5da48d39de7d51a79895826b13768cf38d343823db51fa",
+    "scripts/evals/groq-contract/baseline.js": "ef807535649f8230648f50f6284f99f13600f40894c6fab788182b6b4dbc8fbb",
+    "tsconfig.runtime.json": "7dc8c4c0ffbee45ad3f7ed4f0ba42ff98e2e0d2258acbbcb42067db276abb968"
+  },
+  "limits": [
+    "Rows are trusted host view data; renderers do not independently certify creation/cancellation/acknowledgement effects or pending follow-up state.",
+    "Advanced notices pair according to existing exact-parent/content rules and unmatched notices remain visible; no new domain scheduling policy is introduced.",
+    "Existing human date formatter remains injected and receives the year-aware option; valid instants supersede stale labels, invalid/missing instants retain legacy fallback.",
+    "No SQL/read/write/scheduler boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual presentation paths offline; not a full server boot, live reminder mutation or WhatsApp delivery.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

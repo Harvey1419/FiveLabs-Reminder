@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript router history/context construction, user-query sanitization and response normalization; exact pure context evaluator boundary",
+  "candidate": {
+    "filesPassed": 230,
+    "testsPassed": 2996,
+    "durationSeconds": 49.07
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 232,
+    "durationSeconds": 5.8
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "authoredQueryAttachmentBlockAndQuoteSanitization": "passed",
+    "historyRoleProjectionThirtyTurnsTwoThousandPerTurnTwelveThousandSuffix": "passed",
+    "historicalAssistantReferenceAnnotation": "passed",
+    "currentInstructionSeparateFromQuotedContext": "passed",
+    "toolCallDefaultsAndObservabilityMetadataPresenceIdentity": "passed",
+    "legacySparseInputAndMalformedToolArrayCompatibility": "passed",
+    "actualContextProvenanceAndDeniedStorageImport": "passed",
+    "actualNormalizerLatencyTestsAndTypedSourceLimitAssertion": "passed",
+    "productionCompilerFreeActualRouterGraph": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 278,
+    "historyRoleProjectionSuffixLimitsAndAnnotationParity": true,
+    "currentInstructionVsContextAndSanitizerParity": true,
+    "normalizationToolDefaultsMetadataPresenceAndLegacyFailureParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedRouterContextResponseGatewayAndRouterImports": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:76f17549699407d795dcdf69b3ac8835e3212ecaea2148c9380df78a92835920"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 289
+  },
+  "transitionalDeclarations": 53,
+  "sourceHashes": {
+    "src/agent/orchestration/router-model-context.ts": "cda6ea323a571c58d0e9a724a82752a582a513d8cc964232766880e1840b939a",
+    "src/agent/orchestration/router-model-response.ts": "e3a05f9fdcee31381179792f62cd646986ac0d12d01d9479ba701a3748404359",
+    "src/agent/orchestration/router-context.js": "fd4db564b5792e6d6bb7b4302289d960706f9a10202e0fab39256cc9f5056688",
+    "src/agent/orchestration/router-context.d.ts": "c78761d3d31331d9e66f7e37332ef58604e1570dfd5225156370476444fe996b",
+    "src/agent/orchestration/router-core.js": "d742303e82e74a0d19c18b46c56bdece08af239cbfeae38392eb58e065db81d9",
+    "tests/unit/agent/typed-router-context-response.test.ts": "49de235797003a963a4949bb11d49de0ed10e0b02db17f4844cb8f87b8ca0a2b",
+    "tests/unit/agent/provider-latency-regressions.test.js": "76d1bcbec0660c755bf2577195c810882ff756283cc058d919025dcd41c64a68",
+    "tests/unit/agent/runtime-model-contract.test.js": "1fcfe0913b81d029bd28fefcca83e01f323c52047c59299f8a7dbd9751ace647",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "762aba932d4597af1ed4594a7a60567a421ad81e34117a2ff089ac149d67d946",
+    "scripts/evals/groq-contract/baseline.js": "84c587d1f2e608735337387d80ea27644aef091218df8536d353cbd464647a98",
+    "tsconfig.runtime.json": "c93334415a73f3d98ab5b9886e5bb56803b92038f0fac81bf74465135c816b0e"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "History budgets remain UTF-16 character counts, not tokens; annotations/system boundaries are added afterward, so final request size exceeds the compacted history-only ceiling.",
+    "History compaction retains a contiguous recent suffix and truncates message tails; it does not add summarization or guarantee preserved whole conversational pairs.",
+    "Quoted/context boundary labels preserve existing prompt rules; they do not independently authorize actions or replace attachment/profile/tool validation.",
+    "Response normalization preserves raw arguments/structured intent and observability metadata without validating execution authority.",
+    "Legacy sparse response shape, malformed truthy tool_calls failures and shared metadata references remain compatible.",
+    "Evaluator executes only the exact pure context source/facade; normalized response and effect-owning router remain read-only provenance.",
+    "Router profile/context effects, decision validation and domain orchestration remain later migration units.",
+    "Node 22 smoke uses synthetic gateway responses and real router imports offline, not live provider calls or full server boot.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

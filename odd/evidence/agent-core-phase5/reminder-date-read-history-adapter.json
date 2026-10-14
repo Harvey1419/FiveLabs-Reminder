@@ -1,0 +1,166 @@
+{
+  "increment": "reminder-date-read-history-adapter",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      27,
+      28
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 9,
+    "newOfflineCases": 11,
+    "productionSourceChanges": true,
+    "dependenciesChanged": false,
+    "compilerFlagsRelaxed": false
+  },
+  "behavior": [
+    "created_today includes completed/sent non-cancelled user-created reminders instead of applying pending-only visibility",
+    "Calendar companions remain hidden from created history",
+    "Created-history header and empty-result copy in ES/EN no longer label completed rows pending",
+    "Pending and remaining visibility retains prior recurring-after-acknowledgement semantics",
+    "Case 27 uses stable noon with C already completed; A/B/C assertions remain",
+    "Case 28 fakes Date only and retains four rows/four remaining-day phrases; current canonical day header used; insert errors checked"
+  ],
+  "files": [
+    {
+      "path": "src/agent/tools/reminder-read-tools.ts",
+      "sha256": "a10ebac2005e9c53f3a3c5c2aebb1af5fbdff36021069660ea1043083e56e21a"
+    },
+    {
+      "path": "src/shared/reminder-card-presentation.ts",
+      "sha256": "13c7acc8fee1bc8a21b609a4a6b47f1fb51ed401af350d29fbc1d050f770b3d3"
+    },
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "cbf570217ccaf8452e98e2995a4a6bd24d1574e9050c814cfba446328b2e40ed"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-reminder-date-fixtures.ts",
+      "sha256": "d10c746fab187b65d890edf436f87058955b3844d9d25859d27a6d4a756607e1"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-reminder-date-fixtures.test.ts",
+      "sha256": "bbaf48592e9076140aa81c460796a5286928cbdef343bdf95a2d3660f0edfea3"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true
+    },
+    "focused": {
+      "files": 3,
+      "tests": 28,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 285,
+      "tests": 3569,
+      "durationSeconds": 63.33,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 703
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingModules": 0,
+      "delta": {
+        "changed": [
+          {
+            "path": "dist/runtime/shared/reminder-card-presentation.js",
+            "before": "37cb4a321acaea209f8223202bb465c888eba5febd355d01ebf673edec6ec1ef",
+            "after": "af9f9c4baca40d7bd8bbce8d964d1640c4982cacb3a03cdc44e95de749044875"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-read-tools.js",
+            "before": "c87d18a77db75a6db24030bb5190d7e81b44bce13031c0e63ac7d1255b842146",
+            "after": "369307a990a4070cd4518fce773b8779d08eadeeff757fded9d88055a9874fd2"
+          }
+        ],
+        "added": [],
+        "unchanged": 562,
+        "total": 564
+      }
+    },
+    "node22": {
+      "image": "hermes-compiled-runtime:local",
+      "currentDistMountedReadonly": true,
+      "network": "none",
+      "newImageRebuild": false,
+      "report": {
+        "node": "22.23.3",
+        "sdkMockRequests": 1,
+        "calendarSdkLoaded": true,
+        "healthStatus": 200,
+        "shutdownExitCode": 0,
+        "realNetwork": false
+      },
+      "additionalChecks": [
+        "Compiled created-history presenter includes completed fixture under created title without pending heading"
+      ]
+    },
+    "regressions": [
+      "Four strict wire/foreground/domain filter mappings",
+      "Actual read adapter returns B and C for creation date, A for scheduled pending date, C for acknowledgement date",
+      "Cancelled/Calendar/foreign rows excluded",
+      "Exact current instant included, past excluded from remaining scope, midnight excluded",
+      "DST creation window spans exact 23-hour civil day",
+      "Bilingual history headers and empty copy",
+      "Recurring pending reminder remains visible after prior acknowledgement"
+    ],
+    "reproduction": "Before the adapter correction the new regression omitted completed C. After the read fix it exposed the presenter pending header for created history; both defects were corrected. Remaining-day wording follows the existing canonical day header without changing inclusion bounds."
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Injected query builders do not certify actual database execution or indexes",
+    "Recorded decisions do not certify live language classification",
+    "9 behavioral cases plus other integration/acceptance suites, isolated persistence, live provider measurements and V2 activation remain open"
+  ],
+  "rollback": "Restore only this increment two production modules and integration edits; remove new date fixture/regression suite and appended migration documentation/evidence; rebuild runtime; preserve prior work."
+}

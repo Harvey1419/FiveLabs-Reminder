@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 read-only active-run recovery evidence inspection",
+  "candidate": { "filesPassed": 180, "testsPassed": 2356, "durationSeconds": 148.81 },
+  "focused": { "filesPassed": 25, "testsPassed": 482, "durationSeconds": 20.72 },
+  "newCases": 31,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "claimedAndFinalContracts": "passed",
+    "completeRunAndActionReceiptComparison": "passed",
+    "ownerRequestThreadAndPriorSequenceBinding": "passed",
+    "oldestUnknownPriority": "passed",
+    "microsecondTimestampEqualityAcrossOffsets": "passed",
+    "unknownFencesRequireIndependentEvidence": "passed",
+    "legacySuccessDoesNotAuthorizeHandoff": "passed",
+    "rpcCancellationAndSafeStorageErrors": "passed",
+    "namespaceIsolationAndNoFallback": "passed",
+    "privateInvokerRPCAndHistoryIndex": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "compiledRuntime": {
+    "mode": "strict compiled ESM reader consumes claimed/final JSON returned by actual local PostgreSQL RPC; RPC transport simulated from exported SQL fixtures",
+    "sqlFixtureCount": 2,
+    "declarationChecking": "strict, no skipLibCheck",
+    "leaseChecksPerRead": 2,
+    "grantsExecution": false,
+    "allowsHandoff": false,
+    "externalEffects": 0,
+    "resolutionWrites": 0,
+    "liveProviderCalls": 0
+  },
+  "postgres": {
+    "recoveryAssertions": 22,
+    "fixtureWrites": "schema/function/role/data fixtures inside one rolled-back transaction in dedicated local Hermes database",
+    "migrationDeployed": false,
+    "productionDatabaseCalls": 0,
+    "sqlFile": "supabase/migrations/20261012020814_agent_core_active_run_recovery.sql",
+    "concurrentRecoverySessionsTested": false
+  },
+  "inventory": { "javascript": 313, "typescript": 102, "transitionalDeclarations": 12, "legacyJavaScriptRetired": 0 },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Reader and prepared RPC/index remain disconnected; existing JS router still active",
+  "liveCalls": { "provider": 0, "productionDatabase": 0, "whatsapp": 0 },
+  "limitations": [
+    "This increment reads and reports evidence; active-run reconciliation CAS closure and authenticated mixed-engine handoff are not implemented yet.",
+    "Executed/failed/fact-bearing actions require independent domain/audit evidence. Delivery always requires independent verification.",
+    "No replay, automatic reopening, sender or production composition is supplied.",
+    "Actual local SQL is tested, but there is no live Supabase SDK RPC round trip or production advisor/migration run.",
+    "Existing broader legacy emitted runtime Supabase WebAuthn/TS7 declaration conflict remains unresolved; this reader avoids that SDK import.",
+    "Full maintained JS conversion/declaration retirement, alternative provider semantic/cost/latency evaluation and rollout gates remain open.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Remove disconnected recovery reader/contracts and prepared read RPC/index; retain existing execution checkpoints and namespace fences until independently verified reconciliation/handoff.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-recovery-typecheck.log",
+    "focused": "/private/tmp/hermes-recovery-focused.log",
+    "fullSuite": "/private/tmp/hermes-recovery-unit.log",
+    "inventory": "/private/tmp/hermes-recovery-inventory.json",
+    "postgres": "/private/tmp/hermes-recovery-postgres.log",
+    "postgresHarness": "/private/tmp/hermes-recovery-postgres.sql",
+    "sqlFixtures": "/private/tmp/hermes-recovery-sql-fixtures.json",
+    "runtime": "/private/tmp/hermes-recovery-runtime.json",
+    "runtimeCompile": "/private/tmp/hermes-recovery-runtime-compile.log",
+    "runtimeConfig": "/private/tmp/hermes-recovery-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-recovery-runtime.mjs"
+  }
+}

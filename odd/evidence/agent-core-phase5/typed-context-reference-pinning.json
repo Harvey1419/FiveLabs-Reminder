@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript deterministic name matching, contextual reference resolution and pre-mutation reminder/task ID pinning; legacy entries re-export emitted implementations",
+  "candidate": {
+    "filesPassed": 209,
+    "testsPassed": 2817,
+    "durationSeconds": 47.97
+  },
+  "focused": {
+    "filesPassed": 7,
+    "testsPassed": 87,
+    "durationSeconds": 2.01
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "candidateScopeRawIdentityAndMixedPositions": "passed",
+    "preMutationIdentitySnapshot": "passed",
+    "partialDuplicateAndMassScopeGuards": "passed",
+    "bilingualOrdinalsAndOutOfRangeTaskGuard": "passed",
+    "offlineEvaluatorTypedMatchingProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 810,
+    "matchingAndBilingualOrdinals": true,
+    "candidateScopeAndMixedPositions": true,
+    "preMutationPinningAndAmbiguity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realResolverPinningMatcherAndExecutor": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "preMutationPinningThroughRealExecutor": true,
+    "stubToolCalls": 2,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:f33ef1ed2ff4d7ea5406151d7f893d77fcefc57f2fc981a536a4082ed99634dd"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 225
+  },
+  "transitionalDeclarations": 40,
+  "sourceHashes": {
+    "src/shared/entity-matching.ts": "ee6d9b5131a37437f276caa6bc1ec460ca625733298a17f2525e4118917f2005",
+    "src/shared/entity-resolution.js": "f57dbd6453be641b84e9596cba542c6e6e09866925e4154e673e7f63cfcc43f2",
+    "src/shared/entity-resolution.d.ts": "e855d59deabe28e522eb3a758115449b2eb8920307066b10e72a8fa282ca654a",
+    "src/agent/core/context-reference-resolver.ts": "90718b01b43365b02e5f499d2dd72ba98134d9e615175751d8a6fd072bae978d",
+    "src/agent/core/context-reference.js": "2fde8f4ca7c0ad70c861d4e98d2ccdba192e7680aac58afe7e84be492f2fbdbb",
+    "src/agent/core/context-reference.d.ts": "e01ec810e89d21138dc8acce964111b55a9ad2bf6f21e2df7b7f440da2574d7c",
+    "src/agent/orchestration/context-target-pinning.ts": "232d10645c01eebadff52af7292bbf7d3573966d0a7582ac571964fb6b1ddca0",
+    "src/agent/orchestration/context-target-pinner.js": "6056ff2b6d7dcc37af29fbe6b71d4bcb0468cc3382ed68c177203389aa9a9a25",
+    "src/agent/orchestration/context-target-pinner.d.ts": "aad06dd43132ca522955cb5b7d0b03a527006e7c1ada3c007439cf413369c544",
+    "tests/unit/agent/typed-context-reference-pinning.test.ts": "f556e231db14a6234ca7b5e66234ca75beaf78b94be8db958f8b924dfd853b5b",
+    "scripts/evals/groq-contract/baseline.js": "228cf374de60596950da44d1e1f585f9a92ce03d8766a18dff9cb6be2889e56c",
+    "tsconfig.runtime.json": "86304c48f037d3aef223d68783cf0ffc83ab3efa45121c59c609e7c3e95b629e"
+  },
+  "limits": [
+    "Working-memory item projections are trusted host state, not validation of arbitrary model payloads.",
+    "Contextual resolution does not certify current ownership, live rows, leases or effects; domain execution retains those authorities.",
+    "Existing empty explicit candidate array fallback, mixed global-position/type-order ordinal fallback and first matching long ID prefix remain compatible.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke executes the real helpers/executor with stub tool replies, not a full server boot or live domain mutation.",
+    "No provider latency, cost or model-quality measurement; no deployment or V2 activation."
+  ]
+}

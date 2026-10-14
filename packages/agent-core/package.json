@@ -1,0 +1,12 @@
+{
+  "name": "@templelabs/agent-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "dependencies": {
+    "@templelabs/contracts": "workspace:*",
+    "@templelabs/ai": "workspace:*",
+    "@templelabs/tools": "workspace:*"
+  }
+}

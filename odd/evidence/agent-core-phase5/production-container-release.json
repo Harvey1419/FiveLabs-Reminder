@@ -1,0 +1,142 @@
+{
+  "certification": "production-image-local-container-smoke",
+  "status": "passed",
+  "verifiedAtUtc": "2026-10-14T01:39:56.213061+00:00",
+  "image": {
+    "tag": "five-labs-reminder-api:production",
+    "id": "sha256:3868537c9707a78f761fd225a37b289fc525f2af0378889173e19cefeaa8d9f8",
+    "created": "2026-10-13T20:35:58.346966481-05:00",
+    "repoDigests": [
+      "five-labs-reminder-api@sha256:3868537c9707a78f761fd225a37b289fc525f2af0378889173e19cefeaa8d9f8"
+    ],
+    "platform": "linux/arm64",
+    "user": "node",
+    "command": [
+      "node",
+      "dist/runtime/app/server.js"
+    ]
+  },
+  "container": {
+    "id": "a2e52902653d1a91481895ead4459aca6e0b9deddbce1b750266814ef84f94d3",
+    "node": "22.23.3",
+    "nodeEnv": "production",
+    "originalImageCommand": true,
+    "pid1Command": [
+      "node",
+      "dist/runtime/app/server.js"
+    ],
+    "health": {
+      "status": 200,
+      "body": "{\"status\":\"ok\"}"
+    },
+    "shutdown": {
+      "signal": "SIGTERM",
+      "exitCode": 0,
+      "elapsedSeconds": 0.052,
+      "oomKilled": false
+    },
+    "network": "none",
+    "syntheticExternalDependencies": true,
+    "runtimeBindMounted": false,
+    "imageRuntimeMatchesWorkspace": true,
+    "verifiedRuntimeArtifacts": 564,
+    "sourcePresent": false,
+    "compilerPresent": false,
+    "tsxPresent": false
+  },
+  "maintainedSourceInventory": {
+    "command": "pnpm run migration:check",
+    "passed": true,
+    "counts": {
+      "javascript": 0,
+      "typescript": 707
+    },
+    "remainingJavaScript": [],
+    "generatedRuntimeJavaScriptExpected": true
+  },
+  "testCertification": {
+    "command": "pnpm run test:unit",
+    "files": 286,
+    "tests": 3593,
+    "durationSeconds": 62.52,
+    "passed": true,
+    "rerunDuringContainerVerification": false,
+    "sourceEvidence": "odd/evidence/agent-core-phase5/current-protocol-behavioral-final-safety-fixtures.json",
+    "sourceEvidenceSha256": "9020335ffa2a1fd1a8759cc3000ce0fbdeb53330956336a235bc0ac73e53195c",
+    "unitLogSha256": "e979d494e8d411de27728ae641fcbcfbf14aa46d33e035a58fdec032b5ab9085",
+    "verifiedSourceHashes": [
+      "src/agent/tools/task-target-resolution.ts",
+      "src/agent/tools/task-complete-tool.ts",
+      "src/shared/task-card-presentation.ts",
+      "tests/integration/agent/agent-behavior.integration.test.ts",
+      "tests/unit/agent/current-integration-task-calendar-mutation-fixtures.test.ts",
+      "tests/fixtures/agent/behavioral-final-safety-fixtures.ts"
+    ],
+    "note": "Carries forward the completed 3,593-test run; all six increment source/fixture hashes match and all image runtime artifacts match the verified workspace build."
+  },
+  "typecheckCertification": {
+    "passed": true,
+    "sourceEvidence": "odd/evidence/agent-core-phase5/current-protocol-behavioral-final-safety-fixtures.json",
+    "rerunDuringContainerVerification": false
+  },
+  "releaseInputs": {
+    "Dockerfile": "c29aa8b6399049e741f0966734a78c5ccbb5a7c47dfcbe98f005bd1c9d749f0d",
+    "package.json": "9f153402f9bc8356650a74aea015caaa66d2a57db0908420dd723434ed7b8f0c",
+    "pnpm-lock.yaml": "c2a0eb823c3d82b723e0703329767746cebbb052cc1a1ee9dd30e31514e92ef7",
+    "railway.json": "e2f9716aae21ea67850f98805d55f649de785961e84f0a7282f59cdee5f9a185",
+    "config/agent-core-v2-canary.json": "037d6f2ec7adfbcc4b9bfb75d55ca7e4b54f1cba79603a6be983f96d4d74f680"
+  },
+  "canary": {
+    "configuration": "config/agent-core-v2-canary.json",
+    "status": "prepared_disabled",
+    "activationReady": false,
+    "environment": {
+      "AGENT_CORE_V2": "false"
+    },
+    "percentage": 0,
+    "userAllowlist": [],
+    "runtimeSelectorConnected": false,
+    "remoteConfigurationChanged": false,
+    "deploymentPerformed": false,
+    "activationGates": [
+      "Connect the authenticated production router to the V2 composition and an enforced AGENT_CORE_V2 selector",
+      "Verify stable conversation engine pinning and safe handoff for pending or unknown effects",
+      "Pass isolated external persistence, integration and transport acceptance checks",
+      "Record live provider semantic quality, usage, latency and cost against the approved baseline"
+    ]
+  },
+  "scopeLimits": [
+    "Certifies this linux/arm64 image with its original command and production-mode workers against synthetic empty external dependencies, not a live deployment",
+    "Outbound network disabled; Supabase readiness/version and idle claims simulated by a test-only preload copied into the disposable container",
+    "No runtime source/build bind mount; real reminder delivery, external database schema, Google, WhatsApp, billing and live provider behavior are not certified",
+    "AGENT_CORE_V2 and canary manifest are prepared configuration; neither is currently consumed by the production router, so setting true alone cannot enable V2"
+  ],
+  "containerLogs": [
+    "{\"smokeNode\":\"22.23.3\",\"pid\":1,\"nodeEnv\":\"production\"}",
+    "{\"syntheticRequest\":1,\"method\":\"GET\",\"path\":\"/rest/v1/hermes_inbound_turns\"}",
+    "{\"syntheticRequest\":2,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/hermes_inbound_queue_version\"}",
+    "[scheduler] started worker=worker-1-n706s (check interval: 15s with atomic locking, stable recurring IDs & persistent nudges)",
+    "[morningBriefing] worker started (monitoring 6:00 AM local briefings)",
+    "[calendarWatchRenewal] Starting periodic renewal worker (interval: 6h)",
+    "{\"syntheticRequest\":3,\"method\":\"GET\",\"path\":\"/rest/v1/user_integrations\"}",
+    "{\"syntheticRequest\":4,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/claim_hermes_inbound_turn\"}",
+    "[calendarWatchRenewal] Checking 0 active Google integrations...",
+    "[calendarWatchRenewal] Run complete: checked=0, baselined=0, renewed/established=0, errors=0",
+    "{\"syntheticRequest\":5,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/claim_next_pending_reminder\"}",
+    "{\"syntheticRequest\":6,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+    "{\"syntheticRequest\":7,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+    "{\"syntheticRequest\":8,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+    "{\"syntheticRequest\":9,\"method\":\"GET\",\"path\":\"/rest/v1/reminders\"}",
+    "Server running on port 3005",
+    "{\"syntheticRequest\":10,\"method\":\"POST\",\"path\":\"/rest/v1/rpc/claim_hermes_inbound_turn\"}",
+    "{\"smokeExitCode\":0,\"syntheticRequests\":10}"
+  ],
+  "reproduction": {
+    "bootstrapSource": "import assert from 'node:assert/strict';\nconst accepted = new Set(['hermes_inbound_queue_version', 'claim_hermes_inbound_turn', 'claim_next_pending_reminder']);\nlet intercepted = 0;\nconsole.log(JSON.stringify({ smokeNode: process.versions.node, pid: process.pid, nodeEnv: process.env.NODE_ENV }));\nglobalThis.fetch = async (input, options) => {\n  const url = new URL(input instanceof Request ? input.url : input);\n  const method = options?.method || (input instanceof Request ? input.method : 'GET');\n  assert.equal(url.origin, 'https://container-smoke.supabase.co');\n  let body;\n  if (url.pathname.startsWith('/rest/v1/rpc/')) {\n    const rpc = url.pathname.split('/').at(-1);\n    assert.ok(accepted.has(rpc), `Unexpected RPC: ${rpc}`);\n    body = rpc === 'hermes_inbound_queue_version' ? 1 : [];\n  } else {\n    assert.equal(method, 'GET', 'Smoke must not mutate database rows');\n    assert.ok(['/rest/v1/hermes_inbound_turns', '/rest/v1/reminders', '/rest/v1/users', '/rest/v1/user_integrations'].includes(url.pathname), `Unexpected table: ${url.pathname}`);\n    body = [];\n  }\n  intercepted++;\n  console.log(JSON.stringify({ syntheticRequest: intercepted, method, path: url.pathname }));\n  return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });\n};\nprocess.on('exit', code => console.log(JSON.stringify({ smokeExitCode: code, syntheticRequests: intercepted })));\n",
+    "orchestratorPythonSource": "import subprocess,json,time,hashlib\nfrom pathlib import Path\nroot=Path('/private/tmp/hermes-production-release')\nimage='five-labs-reminder-api:production'\ndef run(*args):\n result=subprocess.run(['docker',*args],capture_output=True,text=True)\n if result.returncode: raise RuntimeError(result.stderr)\n return result.stdout.strip()\nmeta=json.loads(run('image','inspect',image))[0]\n# Pin the tested artifact by immutable local image ID, even if the tag changes.\nimage_id=meta['Id']\nname='hermes-production-release-smoke'\ncid=run('create','--name',name,'--network','none',\n '-e','NODE_ENV=production','-e','NODE_OPTIONS=--max-old-space-size=96 --import=/tmp/container-smoke-bootstrap.mjs',\n '-e','SUPABASE_URL=https://container-smoke.supabase.co','-e','SUPABASE_SECRET=synthetic-secret',\n '-e','KAPSO_API_KEY=synthetic','-e','OPENROUTER_API_KEY=synthetic',image_id)\ntry:\n run('cp',str(root/'bootstrap.mjs'),cid+':/tmp/container-smoke-bootstrap.mjs')\n run('start',cid)\n health=None\n for _ in range(40):\n  probe=subprocess.run(['docker','exec','-e','NODE_OPTIONS=--max-old-space-size=96',cid,'node','--input-type=module','-e',\n   \"import {get} from 'node:http'; get('http://127.0.0.1:3005/health',r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{console.log(JSON.stringify({status:r.statusCode,body:b}));process.exit(r.statusCode===200?0:1);});}).on('error',()=>process.exit(1));\"],capture_output=True,text=True)\n  if probe.returncode==0:\n   health=json.loads(probe.stdout.splitlines()[-1]);break\n  time.sleep(.25)\n assert health and health['status']==200 and json.loads(health['body'])=={'status':'ok'},health\n audit=json.loads(run('exec','-e','NODE_OPTIONS=--max-old-space-size=96',cid,'node','--input-type=module','-e',\n  \"import {readdirSync,readFileSync,existsSync} from 'node:fs';import {createHash} from 'node:crypto';function scan(d){return readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?scan(d+'/'+e.name):[d+'/'+e.name]);}let files=scan('dist/runtime');console.log(JSON.stringify({node:process.versions.node,pid1:readFileSync('/proc/1/cmdline','utf8').split('\\\\0').filter(Boolean),sourcePresent:existsSync('src'),compilerPresent:existsSync('node_modules/typescript'),tsxPresent:existsSync('node_modules/tsx'),runtime:Object.fromEntries(files.map(f=>[f,createHash('sha256').update(readFileSync(f)).digest('hex')]))}));\"))\n assert audit['node'].startswith('22.')\n assert not audit['sourcePresent'] and not audit['compilerPresent'] and not audit['tsxPresent']\n local={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('dist/runtime').rglob('*') if p.is_file()}\n assert audit['runtime']==local,'Image runtime differs from verified workspace build'\n before=json.loads(run('inspect',cid))[0]\n assert before['Config']['Cmd']==['node','dist/runtime/app/server.js']\n assert audit['pid1']==['node','dist/runtime/app/server.js'],audit['pid1']\n started=time.monotonic()\n run('kill','--signal','SIGTERM',cid)\n exit_code=int(run('wait',cid)); elapsed=time.monotonic()-started\n state=json.loads(run('inspect',cid))[0]['State']\n logs=run('logs',cid);(root/'container.log').write_text(logs+'\\n')\n assert exit_code==0 and not state['OOMKilled'] and elapsed<25,state\n assert '\"smokeExitCode\":0' in logs\n result={'image':{'tag':image,'id':image_id,'created':meta['Created'],'repoDigests':meta.get('RepoDigests',[]),'platform':meta['Os']+'/'+meta['Architecture'],'user':meta['Config']['User'],'command':meta['Config']['Cmd']},'container':{'id':cid,'node':audit['node'],'nodeEnv':'production','originalImageCommand':True,'pid1Command':audit['pid1'],'health':health,'shutdown':{'signal':'SIGTERM','exitCode':exit_code,'elapsedSeconds':round(elapsed,3),'oomKilled':state['OOMKilled']},'network':'none','syntheticExternalDependencies':True,'runtimeBindMounted':False,'imageRuntimeMatchesWorkspace':True,'verifiedRuntimeArtifacts':len(local),'sourcePresent':False,'compilerPresent':False,'tsxPresent':False}}\n (root/'result.json').write_text(json.dumps(result,indent=2)+'\\n');print(json.dumps(result))\nfinally:\n (root/'container.log').write_text(run('logs',cid)+'\\n')\n subprocess.run(['docker','rm','-f',cid],capture_output=True,check=True)\n",
+    "temporaryContainerRemoved": true,
+    "imageMutated": false,
+    "published": false
+  },
+  "rollback": "No deployment to roll back. Canary remains disabled. Removing only the new canary manifest, reserved .env.example block and this evidence/documentation increment restores configuration preparation without changing runtime or the certified image."
+}

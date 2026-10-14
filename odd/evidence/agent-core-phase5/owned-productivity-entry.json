@@ -1,0 +1,236 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 5 owned new productivity assistant entry: authoritative history admission, one captured-input historical closure and full reload before current checkpoint/model/tools/delivery",
+  "candidate": {
+    "filesPassed": 191,
+    "testsPassed": 2610,
+    "durationSeconds": 90.4
+  },
+  "focused": {
+    "filesPassed": 36,
+    "testsPassed": 723,
+    "durationSeconds": 12.11
+  },
+  "newCases": 23,
+  "checks": {
+    "strictProjectPackageRuntimeTypecheck": "passed",
+    "ownerNonceAndNamespaceAdmission": "passed",
+    "explicitAuthenticatedGenesis": "passed",
+    "oldestUnknownAndQueuedPredecessorGates": "passed",
+    "exactAdmissionSourceBoundBeforePublication": "passed",
+    "lostReplyObservedWithoutWriteRetry": "passed",
+    "laterUnknownBlocksCurrentCheckpointModelAndDelivery": "passed",
+    "currentCheckpointOverrideForbidden": "passed",
+    "singleConcurrentAdmissionAndBoundedRead": "passed",
+    "latestClosedConversationReload": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "newAssertions": 19,
+    "staticAssertions": 288,
+    "executedAssertions": 304,
+    "countMethod": "288 static minus 20 static complete/delete loop statements plus two operations times 18 branch-selected statements",
+    "transactionRolledBack": true,
+    "migrationDeployed": false,
+    "readOnlyEntry": true,
+    "privateInvoker": true,
+    "existingPartialIndexes": "queued/running and completed/unknown predicates; one projected predecessor"
+  },
+  "runtime": {
+    "scenarios": [
+      {
+        "scenario": "success",
+        "recovery": {
+          "status": "completed",
+          "blocked": false,
+          "modelCalls": 1,
+          "currentCheckpoints": 5,
+          "currentSends": 1,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 4,
+          "unknownRemaining": 0
+        }
+      },
+      {
+        "scenario": "cancel",
+        "recovery": {
+          "status": "completed",
+          "blocked": false,
+          "modelCalls": 1,
+          "currentCheckpoints": 5,
+          "currentSends": 1,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 4,
+          "unknownRemaining": 0
+        }
+      },
+      {
+        "scenario": "lost_close",
+        "recovery": {
+          "status": "completed",
+          "blocked": false,
+          "modelCalls": 1,
+          "currentCheckpoints": 5,
+          "currentSends": 1,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 5,
+          "unknownRemaining": 0
+        }
+      },
+      {
+        "scenario": "changed_source",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_CONFLICT",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 3,
+          "unknownRemaining": 1
+        }
+      },
+      {
+        "scenario": "later_unknown",
+        "recovery": {
+          "status": "PRIOR_TURN_RECONCILIATION_REQUIRED",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 4,
+          "unknownRemaining": 1
+        }
+      },
+      {
+        "scenario": "existing_reference",
+        "recovery": {
+          "status": "completed",
+          "blocked": false,
+          "modelCalls": 1,
+          "currentCheckpoints": 5,
+          "currentSends": 1,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 4,
+          "unknownRemaining": 0
+        }
+      },
+      {
+        "scenario": "two_actions",
+        "recovery": {
+          "status": "completed",
+          "blocked": false,
+          "modelCalls": 1,
+          "currentCheckpoints": 5,
+          "currentSends": 1,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 4,
+          "unknownRemaining": 0
+        }
+      },
+      {
+        "scenario": "attempted",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_RECONCILIATION_REQUIRED",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 2,
+          "unknownRemaining": 1
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_RECONCILIATION_REQUIRED",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 2,
+          "unknownRemaining": 1
+        }
+      },
+      {
+        "scenario": "queued",
+        "recovery": {
+          "status": "PRODUCTIVITY_ENTRY_STORAGE_UNAVAILABLE",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 1,
+          "unknownRemaining": 1
+        }
+      },
+      {
+        "scenario": "legacy",
+        "recovery": {
+          "status": "PRIOR_TURN_RECONCILIATION_REQUIRED",
+          "blocked": true,
+          "modelCalls": 0,
+          "currentCheckpoints": 0,
+          "currentSends": 0,
+          "recoveryDomainCalls": 0,
+          "recoveryHttpCalls": 0,
+          "rpcCalls": 1,
+          "unknownRemaining": 1
+        }
+      }
+    ],
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "mode": "actual SQL entry/read/CAS close/observation/reload -> strict TS owned assistant, MockAIProvider, current checkpoint and simulated delivery; seeding uses simulated HTTP"
+  },
+  "node22": {
+    "node": "v22.23.3",
+    "strictEmittedOwnedAssistant": true,
+    "compilerOrTsLoaderAtExecution": false,
+    "actualSqlFixture": true,
+    "acknowledgedAndObservedClosure": true,
+    "blockedBeforeModel": true,
+    "liveHttpCalls": 0
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 138,
+    "transitionalDeclarations": 11
+  },
+  "limits": [
+    "Production router, worker handler, image runtime roots and V2 flag unchanged; factory remains isolated",
+    "Live Supabase, provider, WhatsApp and canary not exercised",
+    "Legacy/mixed/reminder unknown, baseline-only interruptions, lost domain output and uncertain delivery remain blocked",
+    "Completed prior checkpoints imported semantically; no new evidence certifies unfinished productivity turns",
+    "Node 22 standalone emits TS graph and supplies legacy JS helpers; not full application emit or full Node 22 test suite",
+    "Maintained database/orchestration/source/declaration conversion remains open"
+  ],
+  "noDeployment": true,
+  "noCommit": true,
+  "sourceSha256": {
+    "src/adapters/agent-core/owned-productivity-state-recovery.ts": "92393fae03bf86ab01704d0e830b44cd5f63c4774b393b10b063aa32b913a6ea",
+    "src/adapters/agent-core/owned-productivity-assistant.ts": "fbc7f9e78ec8b460ba6ac05ba0ccc71477ed94ffadd0e79343473157943b2e77",
+    "src/adapters/agent-core/productivity-state-recovery.ts": "a15520429ac8c1776d8965cc8f0e4123e395229e0e1f4e891e9e6387469fd2ca",
+    "src/adapters/agent-core/interrupted-completion-recovery-runtime.ts": "60fec7db8f65d6e55872c8eab9288cba876ed6b529babb7d0d14e73fd82bef3a",
+    "supabase/migrations/20261012172736_agent_core_productivity_turn_entry.sql": "0012809a05331023870c6d7ef94a9ae411762bd4f18d5741c8490c26e4584f9f",
+    "tests/unit/agent-core/owned-productivity-assistant.test.ts": "b01b2388608617f0a4866c1922d8ed05c2ba29d134bd11b2e025d8b740f634e0",
+    "tests/database/agent-core-productivity-turn-entry.sql": "eae8ce128754193c0a833483535322aee631329c8a0bc68af57b3fb05fae9dbe"
+  }
+}

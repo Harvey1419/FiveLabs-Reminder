@@ -1,0 +1,129 @@
+{
+  "increment": "current-protocol-behavioral-notice-weekday-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      29,
+      30
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 7,
+    "newOfflineCases": 5,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Case 29 seeds notification ID/content and checks both fixture inserts; initial acknowledgement binds trusted identity",
+    "Repeated recorded decision explicitly names Ir al baño instead of legacy ordinal 1 and includes first successful reply in history",
+    "Repeated DB checks preserve first acknowledgement timestamp and leave unrelated active reminder unacknowledged",
+    "Case 30 pins Wednesday reference, saves its own integration and checks exact Friday UTC boundaries",
+    "All 37 declaration titles retained; Date-only fake timers preserve network timers"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "7ef08621c301dba6132a908bb8191c91b8b13c7a7b1c49ee8bc4cd8c0cefcb36"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-notice-weekday-fixtures.ts",
+      "sha256": "43d1406feeb4e06af5ced6f61adaa0e3a5c863cc57d480542b2aaa3c33508b6a"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-active-notice-fixtures.test.ts",
+      "sha256": "1952c7fb9db08e1ffdc0f03f08851d1f504c75475785809666834f686dacc372"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-calendar-delivery-fixtures.test.ts",
+      "sha256": "3a2720e5af2e87d1d9ef171860004c6cd6a02cd82c071edb0300c4b0e521497a"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true
+    },
+    "focused": {
+      "files": 2,
+      "tests": 28,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 285,
+      "tests": 3574,
+      "durationSeconds": 64.78,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 704
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 564
+    },
+    "boundaries": [
+      "Three strict provider/foreground fixtures and applicable domain-call mappings",
+      "Real router and acknowledgement tool repeat on named closed notice with one write while another notice remains active",
+      "A genuinely new notification subsequently binds its own identity",
+      "Actual agenda read service, Google normalizer and canonical presenter exercise Friday-only data and exact local-day bounds against injected ports"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "google": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Repeat scenario uses a recorded explicit semantic target; targetless ambiguous repeat classification is not certified",
+    "No production code change infers repeat intent from raw text",
+    "Injected storage/SDK and seeded notification handoff do not certify persistence, real Calendar filtering or delivery",
+    "7 behavioral cases plus remaining integration/acceptance audits, isolated persistence, live model quality/cost/latency and V2 activation remain open"
+  ],
+  "rollback": "Restore only this increment integration/two unit-suite edits; remove new notice/weekday fixture and appended documentation/evidence; preserve prior work."
+}

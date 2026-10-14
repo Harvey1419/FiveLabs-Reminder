@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 2 reminder contracts, registry and legacy executor adapter",
+  "tools": ["reminder_create", "reminder_read", "reminder_update", "reminder_acknowledge"],
+  "candidate": { "filesPassed": 158, "testsPassed": 1910, "durationSeconds": 38.72 },
+  "focused": { "filesPassed": 3, "testsPassed": 38, "includesFoundationTests": true },
+  "newReminderCases": 27,
+  "realExecutorMockPersistenceCases": 6,
+  "checks": { "strictTypecheck": "passed", "packageCompilation": "passed", "diffWhitespace": "passed" },
+  "inventory": { "javascript": 313, "typescript": 16, "transitionalDeclarations": 2, "legacyJavaScriptRetired": 0 },
+  "runtimeCorrection": "Existing reminder-read resolves today using the supplied reference instant and user timezone instead of server wall time.",
+  "productionRouting": "V2 tools disconnected from production router; background worker unchanged.",
+  "liveProviderCalls": 0,
+  "liveDatabaseCalls": 0,
+  "limitations": [
+    "Phase 2 remains incomplete: task and calendar contracts/adapters are outstanding.",
+    "Correlation receipts do not implement durable idempotency or reconciliation.",
+    "Presenter and complete reminder routing flow remain Phase 3 work.",
+    "No provider reasoning, production latency, query latency or live database certification."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase2-focused.log",
+    "fullSuite": "/private/tmp/hermes-ts-phase2-unit.log",
+    "inventory": "/private/tmp/hermes-ts-phase2-inventory.json"
+  }
+}

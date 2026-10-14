@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 3 evidence-based turn reconciliation and explicit legacy reminder handoff",
+  "candidate": { "filesPassed": 166, "testsPassed": 2041, "durationSeconds": 38.09 },
+  "focused": { "filesPassed": 12, "testsPassed": 174, "durationSeconds": 3.12 },
+  "newCases": 24,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "compiledEsmExports": "passed",
+    "diffWhitespace": "passed",
+    "exactOwnerOperationArgumentsReceiptBinding": "passed",
+    "positiveNoEffectEvidence": "passed",
+    "uncertainTransportReceiptWithoutResend": "passed",
+    "initialConversationInterruptedTurnReconstruction": "passed",
+    "legacyFreshOwnedIdsAndActiveRunGuard": "passed",
+    "resolvedCheckpointFingerprintAndEvidenceCoverage": "passed",
+    "workerResolutionTokenBridgeAndConflict": "passed"
+  },
+  "databaseVerification": {
+    "engine": "Local PostgreSQL 17 test container; dedicated isolated Hermes database",
+    "assertionsPassed": 15,
+    "transaction": "Queue schema, resolution function, role fixtures and test writes rolled back",
+    "scope": "Actual SQL ownership/order/CAS/permissions and evidence preservation",
+    "concurrentConnectionsTested": false,
+    "productionMigrationApplied": false,
+    "migration": "supabase/migrations/20261011173445_agent_core_turn_resolution.sql",
+    "fixture": "tests/database/agent-core-turn-resolution.sql"
+  },
+  "sdkVerification": "Installed SDK projected exact-ID + user ownership handoff query passed with intercepted fetch; no network",
+  "reconciliation": {
+    "authority": "Server-assigned capability plus injected trusted durable audit/provider evidence port",
+    "unknownWrite": "Verified committed or positively proven no-effect receipt required",
+    "unknownDelivery": "Independent accepted/not-sent evidence required",
+    "automaticDomainExecutionOrResend": false,
+    "originalEvidence": "Preserved under original response; resolution appended separately"
+  },
+  "inventory": { "javascript": 313, "typescript": 46, "transitionalDeclarations": 4, "legacyJavaScriptRetired": 0 },
+  "productionRouting": "V2 remains isolated; optional resolution bridge does not activate it",
+  "liveCalls": { "provider": 0, "productionDatabase": 0, "whatsapp": 0 },
+  "limitations": [
+    "Actual audit/provider evidence source and authenticated thread/active-run guards must be wired before activation.",
+    "Older interrupted checkpoints without initial or completed conversation require an explicit baseline.",
+    "Legacy handoff imports current backend reminder-fact IDs; full historical chat, other domains, memory and pending approvals are not migrated here.",
+    "Legacy unknown turns remain blocked; only known completed legacy turns can hand off.",
+    "Migration is prepared and tested locally, not deployed; real storage/semantic/latency/cost gates remain.",
+    "Multi-hop reasoning, token/spend budgets and compaction remain Phase 4."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase3-resolution-focused.log",
+    "fullSuite": "/private/tmp/hermes-phase3-resolution-unit.log",
+    "inventory": "/private/tmp/hermes-phase3-resolution-inventory.json",
+    "sdkHarness": "/private/tmp/hermes-recovery-sdk.mjs",
+    "postgresHarness": "/private/tmp/hermes-resolution-postgres.sql"
+  }
+}

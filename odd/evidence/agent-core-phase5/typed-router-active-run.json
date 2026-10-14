@@ -1,0 +1,102 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript legacy pending-run routing: approval, continuation, cancellation and deferred draft replacement through host ports",
+  "candidate": {
+    "filesPassed": 235,
+    "testsPassed": 3045,
+    "durationSeconds": 51.15
+  },
+  "focused": {
+    "filesPassed": 10,
+    "testsPassed": 298,
+    "durationSeconds": 6.08
+  },
+  "newCases": 15,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "runningAndInvalidPendingDecisionsBlockNormalExecution": "passed",
+    "strictSharedApprovalAndContinuationValidation": "passed",
+    "authoredApprovalSeparatedFromAttachmentReference": "passed",
+    "exactSubsetIdsAndUpdatedProfileContext": "passed",
+    "unconfirmedProfileOrLeaseLossPreventsExecution": "passed",
+    "continuationSuccessAndFailureFactPresentation": "passed",
+    "exactPendingInputCancellationCASAndLostRace": "passed",
+    "approvalCancellationUsesExistingRejectionExecutor": "passed",
+    "unrelatedPreservesDraftSupersedeDefersRetirement": "passed",
+    "unknownExecutionErrorPropagatesWithoutRetry": "passed",
+    "privateConversationOwnerAndFactReceiptHostHooksPreserved": "passed",
+    "effectOrchestrationReadOnlyEvaluatorProvenance": "passed",
+    "productionCompilerFreeRouterAndControllerGraph": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "checks": 8000,
+    "intentionalDifferences": 0,
+    "compares": [
+      "response or exception",
+      "ordered host calls with options and shared strict validation",
+      "history/authored message framing",
+      "pending replacement prompt mutation",
+      "profile language/timezone propagation"
+    ],
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedPendingRunControllerAndRouterImports": true,
+    "strictSubsetApprovalAfterProfileAndHostExecutor": true,
+    "invalidPendingDecisionBlockedAndRetirementDeferred": true,
+    "actualTypedPromptPreparationContextGatewayAndRouterImports": true,
+    "unknownBillingAccessNoFreePromotionAndEnglishPolicy": true,
+    "liveProjectTaskLimitsHistoryDedupAndContextAssembly": true,
+    "partialMemoryAndUnknownEntitlementDropsStalePro": true,
+    "actualOwnedKnowledgeReferencesAndSharedContextArrays": true,
+    "syntheticProfileLeaseBeforeWriteAndActualFactIntegration": true,
+    "matchedProfileUserUpdateAndSameTurnDedup": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:1ac118aff0051a5d540b6f35043d8b5a97fe91e936998d46da58edbdf3f6c81e"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 301
+  },
+  "transitionalDeclarations": 54,
+  "sourceHashes": {
+    "src/agent/orchestration/router-active-run.ts": "56167149e5201e94d4d8b37be75bc8effc7cd3501c9bdb907599371cdb6ec7b1",
+    "src/agent/orchestration/router-core.js": "fb84852400cb868b5a047ab79686be1eeeacac984f396bdcee696adfa322ef4d",
+    "tsconfig.runtime.json": "613ecd3caacdb06da0680a424388cafa36b8c8222940c5e5e4ce8b37ad5b3a41",
+    "tests/unit/agent/typed-router-active-run.test.ts": "5eebb6d86e864c954cfba0dd3aad77639b0d56e17a50dd7352fe00f7ad67f735",
+    "scripts/evals/groq-contract/baseline.js": "0028a8bae72a857520d9687c7c108227897531c1ee819ec8ce35798f664eb1b5",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "ef874aaba51e3581f9a87114a4a815496fec40cce969f4131a79e96826ffdb89"
+  },
+  "limits": [
+    "No intentional runtime behavior changes; exact existing legacy response fallbacks retained.",
+    "Host owns retrieval, persistence, approval/continuation execution, lease checks and durable domain authority. Controller does not implement new transactional effects or certify receipts.",
+    "Conversation-state entity ownership stays in the original router private-symbol factory; projected facts are not promoted to independent authoritative evidence.",
+    "Profile language and timezone are read again after applying decision context, preserving same-turn execution context and error propagation.",
+    "Supersede augments the canonical turn prompt and returns the exact run ID but does not cancel the old draft before canonical replacement validation.",
+    "Gateway and model remain injected; no provider/model/dependency configuration changes.",
+    "Evaluator hashes this source as read-only provenance and never executes effect-owning orchestration.",
+    "Parity and Node 22 smoke use synthetic host services; no live provider, Supabase or WhatsApp calls and no full server boot.",
+    "No SQL/storage schema changes or new PostgreSQL fixture required.",
+    "Full repository TypeScript migration remains unfinished; foreground semantic decision and remaining result orchestration are still JavaScript.",
+    "No scheduler, deployment, production or V2 activation changes."
+  ]
+}

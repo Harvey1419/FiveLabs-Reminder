@@ -1,0 +1,191 @@
+import type { TaskMutationDependencies, TaskMutationInput } from './task-tool-ports.js';
+import type { FeatureRow } from '../../features/read-model-ports.js';
+type Dependencies = Pick<TaskMutationDependencies, 'completeTasksByQuery' | 'updateTask' | 'acknowledgeRemindersByTaskId' | 'resolveTaskTarget' | 'logger' | 'getNowMs'>;
+
+export function createTaskCompleteTool({ completeTasksByQuery, updateTask, acknowledgeRemindersByTaskId, resolveTaskTarget, logger, getNowMs }: Dependencies) {
+
+/** Canonical task completion mutation. */
+async function executeTaskComplete({
+  params = {},
+  user = {},
+  language = 'es',
+}: TaskMutationInput = {}) {
+  const userId = user?.id;
+  const phoneNumber = user?.phone_number;
+  const targetQuery = params.target || null;
+
+  if (!targetQuery) {
+    const message = language === 'en'
+      ? 'Which task would you like me to complete?'
+      : '¿Cuál tarea deseas que complete?';
+    return {
+      success: false,
+      action: 'missing_target_id',
+      errorCode: 'MISSING_TARGET_ID',
+      error: language === 'en'
+        ? 'Missing task to complete. Please specify which task you want to complete.'
+        : 'Falta la tarea a completar. Por favor especifica cuál tarea deseas completar.',
+      rawSummary: message,
+      confirmation: message,
+    };
+  }
+
+  const resolution = await resolveTaskTarget({
+    target: targetQuery,
+    entityName: params.entityName || null,
+    entityId: params.entityId || null,
+    userId,
+    userOrPhone: user || phoneNumber,
+    operation: 'complete',
+    allowedStatuses: ['pending'],
+  });
+
+  if (resolution.status === 'RESOLVED_CONTAINER') {
+    const result = await completeTasksByQuery({
+      userId,
+      entityName: resolution.entityName,
+      entityId: resolution.entityId || null,
+      completeAll: true,
+    });
+    if (result?.error) {
+      return {
+        success: false,
+        action: 'database_error',
+        errorCode: result.error.code || 'DATABASE_ERROR',
+        error: result.error.message,
+        rawSummary: result.error.message,
+      };
+    }
+
+    const completedCount = typeof result === 'object'
+      ? (result?.completedCount || 0)
+      : (Number(result) || 0);
+    return {
+      success: true,
+      action: 'completed_tasks',
+      data: { completedCount, entityName: resolution.entityName },
+    };
+  }
+
+  if (resolution.status === 'MISSING_CONTEXT') {
+    const message = language === 'en'
+      ? 'Which task would you like me to complete? Please specify the task title.'
+      : '¿Cuál tarea deseas que complete? Por favor especifica el nombre de la tarea.';
+    return {
+      success: false,
+      action: 'missing_target_id',
+      errorCode: 'MISSING_TARGET_ID',
+      error: message,
+      rawSummary: message,
+      confirmation: message,
+    };
+  }
+
+  if (resolution.status === 'AMBIGUOUS') {
+    const candidates = Array.isArray(resolution.candidates) ? resolution.candidates : [];
+    const candidateLines = candidates.map((cand, idx) => `${idx + 1}. *${cand.title || cand.name || 'Tarea'}*`).join('\n');
+    const message = language === 'en'
+      ? `⚠️ *Multiple tasks match your request*\n\n${candidateLines}\n\nPlease clarify which one you want to complete.`
+      : `⚠️ *Hay múltiples tareas que coinciden*\n\n${candidateLines}\n\nPor favor aclara cuál de ellas deseas completar.`;
+    return {
+      success: false,
+      action: 'ambiguous_target',
+      errorCode: 'AMBIGUOUS_TARGET',
+      error: message,
+      rawSummary: message,
+      formattedCard: message,
+      confirmation: message,
+      requiresClarification: true,
+      data: {
+        tasks: candidates.map((cand, idx) => ({
+          position: idx + 1,
+          type: 'task',
+          internalId: cand.id,
+          id: cand.id,
+          title: cand.title,
+          summary: cand.title,
+        })),
+      },
+    };
+  }
+
+  // Ownership and persisted status have already been checked by the resolver.
+  // A replay confirms that state without repeating task or reminder writes.
+  if (resolution.status === 'NOT_FOUND' && resolution.reason === 'TASK_ALREADY_COMPLETED'
+    && resolution.task?.status === 'completed' && resolution.task.user_id === userId) {
+    return {
+      success: true,
+      action: 'completed_task',
+      taskId: resolution.task.id,
+      title: resolution.task.title,
+      data: { ...resolution.task, alreadyCompleted: true },
+    };
+  }
+
+  if (resolution.status === 'NOT_FOUND' || !resolution.taskId) {
+    const message = language === 'en'
+      ? 'No pending task matching that description was found.'
+      : 'No se encontró ninguna tarea pendiente que coincida con esa descripción.';
+    return {
+      success: false,
+      action: 'task_not_found',
+      errorCode: 'NOT_FOUND',
+      error: message,
+      rawSummary: message,
+      confirmation: `⚠️ ${message}`,
+    };
+  }
+
+  const updateResult = await updateTask(resolution.taskId, { status: 'completed' }, userId);
+  if (updateResult?.error || !updateResult?.id) {
+    const errorCode = updateResult?.error?.code || 'NOT_FOUND';
+    const accessDenied = errorCode === 'ACCESS_DENIED';
+    const defaultMessage = accessDenied
+      ? (language === 'en' ? 'Access denied: this task belongs to another user.' : 'No tienes permisos sobre esta tarea.')
+      : (errorCode === 'NOT_FOUND'
+        ? (language === 'en' ? 'Task not found.' : 'No se encontró la tarea especificada.')
+        : 'Error de base de datos.');
+    return {
+      success: false,
+      action: accessDenied ? 'access_denied' : (errorCode === 'NOT_FOUND' ? 'task_not_found' : 'database_error'),
+      errorCode,
+      error: updateResult?.error?.message || defaultMessage,
+      rawSummary: defaultMessage,
+      confirmation: `⚠️ ${defaultMessage}`,
+    };
+  }
+
+  const completedTask = updateResult.data || updateResult;
+  let reminderAcknowledgement = null;
+  try {
+    reminderAcknowledgement = await acknowledgeRemindersByTaskId(completedTask.id!, userId);
+  } catch (error) {
+    reminderAcknowledgement = { error };
+  }
+  if (reminderAcknowledgement?.error) {
+    const message = language === 'en'
+      ? 'The task was completed, but its linked reminders could not be confirmed as acknowledged; some may remain active.'
+      : 'La tarea se completó, pero no pude confirmar que sus recordatorios vinculados quedaran confirmados; algunos podrían seguir activos.';
+    return {
+      success: true,
+      partialSuccess: true,
+      complete: false,
+      action: 'completed_task_partial',
+      errorCode: 'COMPANION_CLEANUP_FAILED',
+      error: message,
+      rawSummary: message,
+      data: completedTask,
+    };
+  }
+
+  return {
+    success: true,
+    action: 'completed_task',
+    taskId: completedTask.id,
+    title: completedTask.title,
+    data: completedTask,
+  };
+}
+
+return { executeTaskComplete };
+}

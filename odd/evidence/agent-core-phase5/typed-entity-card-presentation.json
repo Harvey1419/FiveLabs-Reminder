@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Pure strict TypeScript canonical entity/project create, rename, merge, deduplicate, list and delete cards; original entry re-exports emitted helpers",
+  "candidate": {
+    "filesPassed": 216,
+    "testsPassed": 2874,
+    "durationSeconds": 49.25
+  },
+  "focused": {
+    "filesPassed": 6,
+    "testsPassed": 136,
+    "durationSeconds": 2.92
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "bilingualKnownAndUnknownCategoryLabels": "passed",
+    "absentZeroAliasAndPreferredProjectCounts": "passed",
+    "stableProjectNumberingRawRowsAndHiddenIds": "passed",
+    "requestedRenameMergeMetadataPrecedence": "passed",
+    "explicitDeleteCountAndCompanionCleanupMetadata": "passed",
+    "partialCleanupWarningAndWholeTurnClassification": "passed",
+    "emptyProjectVersusOtherListsAndSingularDedupCopy": "passed",
+    "unknownOutcomesOverrideOptimisticDeletionCards": "passed",
+    "offlineEvaluatorReadOnlyActualEntityRendererProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 288,
+    "allSixPublicEntityProjectHelpers": true,
+    "esEnCategoryAndProjectListParity": true,
+    "missingZeroAliasAndExplicitCountSemantics": true,
+    "renameMergeRequestMetadataPrecedence": true,
+    "companionCleanupAndPartialWarningParity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realEntityProjectCardsFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnAllSixCanonicalOperations": true,
+    "projectCountDistinctionAndIdentityPrivacy": true,
+    "companionCleanupNotesAndPartialUnknownGuards": true,
+    "projectCategoryDefaultIntegration": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:f329ed0dc067a32e66b766e2a4076940f7a1945125ffe3a98cefbca05a78ffad"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 245
+  },
+  "transitionalDeclarations": 45,
+  "sourceHashes": {
+    "src/shared/entity-card-presentation.ts": "8a6391eb30a0baffd0c9deea0e61a187990deddd33fd1e174dbaa86670f46248",
+    "src/shared/entity-presentation.js": "a3018c9f8bd54bb31582719ade05b9afaa63c9907bd7777607a7eacb2ee36eff",
+    "src/shared/entity-presentation.d.ts": "96813ccb16555bd7cf1e496f156fb2f3fd39ff2387ecfbf5ecec2f2e8629c9ab",
+    "tests/unit/agent/typed-entity-card-presentation.test.ts": "6126b9b689573eebba4a832284660a2683abe8c7b3a343cf0c645f8bcf4875aa",
+    "scripts/evals/groq-contract/baseline.js": "f8ff2184f779a04deca7958b5b9ccf6e26efed646ca87ee4f9594a5228e54ba0",
+    "tsconfig.runtime.json": "14433d0a4dce2f84e05cfef374f3e91c598d50f4e3997c36b6b801dc9ec4518f"
+  },
+  "limits": [
+    "Card counts/names/cleanup metadata are trusted host view projections, not independent execution, tenant ownership or durable effect certificates.",
+    "Missing project counts remain distinct from explicit zero; no query/count policy or state mutation is introduced.",
+    "Existing labels/fallbacks/count conversion/row ordering remain compatible; rows are not normalized by a new schema.",
+    "Unknown/partial execution authority remains upstream in the typed fact/policy/executor paths.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual presentation paths offline; not a full server boot, live entity/project mutation or WhatsApp delivery.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

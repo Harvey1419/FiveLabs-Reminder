@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript local day-bound delegation and phone/BSUID/text/GPS locale and timezone inference; time.js now only wires/reexports typed implementations",
+  "candidate": {
+    "filesPassed": 222,
+    "testsPassed": 2924,
+    "durationSeconds": 49.33
+  },
+  "focused": {
+    "filesPassed": 6,
+    "testsPassed": 165,
+    "durationSeconds": 3.61
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "nativeDayTargetCoercionAndNextEventNullEnd": "passed",
+    "localDaysAcrossSpringFallDst": "passed",
+    "bsuidIndependentLocaleTimezoneFallbacks": "passed",
+    "nanpMembershipPriorityAndUnknownAreaFallback": "passed",
+    "accentNormalizationFirstLocationMatchPriority": "passed",
+    "nearestCityBeforeBoundingBoxesAndCoordinateCoercion": "passed",
+    "freshCityProjectionWithoutCatalogueMutation": "passed",
+    "readOnlyTypedTemporalSourceProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 3212,
+    "allSevenInferenceAndDayHelpers": true,
+    "nanpExhaustiveThreeDigitCodes": true,
+    "cityOffsetsAndGlobalGpsGrid": true,
+    "frozenClockDstDaysAndScopes": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realTimeFacadeParserCardsFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "dayBoundsAcrossDstAndNullEnd": true,
+    "phoneBsuidLocaleNanpAndTextPriority": true,
+    "nearestCityBeforeBoundingBoxAndCoordinateGuards": true,
+    "injectedDayResolverAndActualReminderCard": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:f911df1e80bf0feb618e4dd913f3a677340b8d1afab7f62853bd94373dedfa4e"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 261
+  },
+  "transitionalDeclarations": 47,
+  "sourceHashes": {
+    "src/shared/day-query-bounds.ts": "b062be281d0cce66966f2f7a35c2bfebd3d22a6b3f841cfdb44872fe3b48089d",
+    "src/shared/locale-timezone-inference.ts": "71a4294a81723fec55752af751beae33442e446ea761470747079c68dac9a5b7",
+    "src/shared/time.js": "ef09b6bdb0040445b1b381d30e2f047b1abc308ac826281d6fce7fac4a1fda62",
+    "src/shared/time.d.ts": "0f0cfc108feece07c4f83b232202b1428cfd4cb94559dcfe81b8b7ee62529804",
+    "tests/unit/time/typed-locale-day-bounds.test.ts": "ddd7b150ceb39248c1d30b5b7de7781bd7996ad1eeea328c985f89a876d5ea27",
+    "scripts/evals/groq-contract/baseline.js": "5e9cca7f225cb5f9443b6040798acff9ed59d0b0de87868703c833f7664a4f9c",
+    "tsconfig.runtime.json": "07459375a1b6feec8a3dcda3ea5e83812482ef18db9332d8d85dadd51a070f31"
+  },
+  "limits": [
+    "No intentional runtime behavior changes in this extraction.",
+    "getDayBounds retains broad legacy scope delegation, native target string coercion and null end for next_event; it is not strict day-only admission.",
+    "Phone/BSUID locale inference supplies defaults rather than locking per-turn language or proving user timezone.",
+    "City catalogue and bounding boxes remain approximate first-match heuristics, not authoritative geolocation; catalogue and NANP sets are unchanged.",
+    "Coordinate Number coercion, rounded 250 km proximity threshold and fresh projected results remain compatible.",
+    "time.js is now a JS compatibility facade; repository-wide full TypeScript migration remains incomplete.",
+    "No SQL/storage/scheduler/provider/model or transport effect boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises real graph offline, not a full server boot or live provider request.",
+    "No deployment, V2 activation, live WhatsApp effect or real provider latency/quality/cost measurement."
+  ]
+}

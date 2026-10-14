@@ -1,0 +1,79 @@
+{
+  "phase": 4,
+  "scope": "shared bounded loop and isolated reminder/task/calendar multihop composition",
+  "date": "2026-10-11",
+  "validation": {
+    "strictTypecheck": "passed",
+    "compiledEsmRuntime": {
+      "mode": "compiled ESM with scripted provider and simulated domain/journal ports",
+      "scenario": "task read -> complete -> final",
+      "events": [
+        "prepared:read",
+        "executed:read",
+        "observed:read",
+        "prepared:complete",
+        "executed:complete",
+        "observed:complete"
+      ],
+      "steps": 3,
+      "resultStatus": "completed",
+      "requiresReconciliation": false,
+      "actualProviderTokens": null,
+      "realStorage": false,
+      "realTransport": false
+    },
+    "diffCheck": "passed",
+    "focused": {
+      "files": 14,
+      "tests": 216,
+      "seconds": 4.01
+    },
+    "regression": {
+      "files": 169,
+      "tests": 2090,
+      "seconds": 42.65
+    },
+    "inventory": {
+      "javascript": 313,
+      "typescript": 55,
+      "transitionalDeclarations": 4,
+      "legacyImplementationsRetiredThisIncrement": 0
+    }
+  },
+  "implemented": [
+    "one shared AgentLoop used by reminder and productivity runners",
+    "12 scoped atomic tools and registry effect metadata",
+    "discriminated typed domain facts and reference maps",
+    "observed-task mutation and deleted-reference guards",
+    "explicit journal requirement for productivity writes",
+    "receipt/resource/operation checks",
+    "unknown and unverified companion effect fencing within and across turns",
+    "multi-domain operational summaries preserving all historical partial pending state",
+    "capability admission before journal",
+    "bounded deduplicated loop notices"
+  ],
+  "integrationFixtures": [
+    "task read -> update with scoped canonical adapter",
+    "task read -> complete through current executor and linked reminder acknowledgement",
+    "calendar read -> create through current executor and Google port",
+    "calendar read -> task create -> reminder create",
+    "compiled ESM read -> complete -> final with journal ordering"
+  ],
+  "limitations": [
+    "scripted provider validates protocol flow; real conditional reasoning not certified",
+    "mixed-domain presenter/storage/recovery/reconciliation/real transport not wired",
+    "version2 durable reminder composition remains reminder-only",
+    "1800ordinaryinputsofttarget and provider tokenization unverified",
+    "production canary/cost/latency/quality gates pending",
+    "full remaining JS migration pending"
+  ],
+  "productionRoutingChanged": false,
+  "databaseSchemaChanges": false,
+  "liveInferenceConsumed": false,
+  "logs": {
+    "focused": "/private/tmp/hermes-phase4-domain-focused.log",
+    "regression": "/private/tmp/hermes-phase4-domain-unit.log",
+    "runtime": "/private/tmp/hermes-phase4-domain-runtime.json",
+    "inventory": "/private/tmp/hermes-phase4-inventory.json"
+  }
+}

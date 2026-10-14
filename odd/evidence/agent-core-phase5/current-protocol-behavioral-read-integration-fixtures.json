@@ -1,0 +1,90 @@
+{
+  "increment": "current-protocol-behavioral-read-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "modernizedIntegrationCases": [
+      1,
+      2,
+      3,
+      4,
+      10,
+      11
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 31,
+    "sharedReadFixtures": 4,
+    "newOfflineRegressionCases": 6,
+    "productionSourceChanges": false,
+    "compilerFlagsRelaxed": false,
+    "dependencyChanges": false
+  },
+  "changes": [
+    "Current strict nullable TurnIntent fixtures validated with real schema and foreground validator",
+    "Canonical domain-call mappings including explicit task status all",
+    "Date-only fake timers and fixed UTC fixture dates",
+    "Calendar IDs retained",
+    "Calendar ERROR structured read model rendered by canonical presenter with reminder and task retained"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "eb3c1ba3b8ad1136936ecad1b4075472eeb08ba979a76af6bb98340f387230e6"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-read-fixtures.ts",
+      "sha256": "d28879ceefae082db9353f69b3dae84b561cd6113ca5b88421129cd9a1423711"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-read-fixtures.test.ts",
+      "sha256": "e6278d93717e4648f356a4282d51e5c3ee4cd74bdae6c0df67a79470f7fccb44"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "finalNoEmitRecheck": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "passed": true,
+      "files": 279,
+      "tests": 3502,
+      "durationSeconds": 57.58
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "maintainedJavaScript": 0,
+      "typescript": 690
+    },
+    "runtime": {
+      "compiledModules": 259,
+      "sourceHostImports": 0,
+      "missingModules": 0,
+      "unchangedArtifacts": 562,
+      "sha256Parity": true
+    },
+    "offlineBoundaries": [
+      "Strict schema acceptance of four shared wire fixtures",
+      "Actual foreground validation and domain-call selection",
+      "Rejected retired tool_call protocol",
+      "Spanish Calendar-error card retaining reminders and tasks"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "database": false,
+    "provider": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Offline contract and presenter checks do not certify external integration case execution or persistence",
+    "31 other behavioral cases still need a current-protocol/fixture audit",
+    "Remaining integration/acceptance suites, isolated database execution, live cost/latency and V2 rollout remain open"
+  ],
+  "rollback": "Restore only the selected integration file from this increment backup and remove its two new test/fixture files and documentation/evidence increment; preserve prior migration and unrelated workspace changes."
+}

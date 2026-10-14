@@ -1,0 +1,174 @@
+{
+  "increment": "current-protocol-behavioral-final-safety-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      34,
+      35,
+      36,
+      37
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 0,
+    "newOfflineCases": 9,
+    "productionSourceChanges": true,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Strict current wire for ambiguous task matching, exact September 15 Calendar read and displayed task completion",
+    "Pinned dates, independent Google integration, insert/read errors and unchanged completed row checks",
+    "Foreign identity injection exercises actual ownership verification rather than obsolete taskId parameter",
+    "Persisted already-completed evidence retained after resolver ownership check; replay returns existing success envelope without task or companion writes",
+    "Canonical ES/EN presenter distinguishes previously completed tasks"
+  ],
+  "files": [
+    {
+      "path": "src/agent/tools/task-target-resolution.ts",
+      "sha256": "c0fb4d258fe2c62a401a9ed6ad024a8437f7471416d7fdf5d4e4d9d2efcf0077"
+    },
+    {
+      "path": "src/agent/tools/task-complete-tool.ts",
+      "sha256": "3c64a477a6c20c620d8f8cfa7a77b9dd726f6a4c60367f78ae240d06ad4758bd"
+    },
+    {
+      "path": "src/shared/task-card-presentation.ts",
+      "sha256": "6ccb93e168805868900654c4d358f5de1a2d55a22e3d1e6d775d9f58d0425972"
+    },
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "1f57b62487fcf4065c2280458f2ee33892060a01fee74ff4666391837aa4b944"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-task-calendar-mutation-fixtures.test.ts",
+      "sha256": "340fa0186d1ca438c8067744b576566104bcce49053c835141363f443961c347"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-final-safety-fixtures.ts",
+      "sha256": "70b4afa328bca891f50fc5e721bf4a45f71b4431b6f96004c262b96765fa8e3d"
+    }
+  ],
+  "verification": {
+    "reproductionBeforeFix": {
+      "tests": 19,
+      "passed": 15,
+      "failed": 4,
+      "notes": "Two failures reproduced owned completed replay NOT_FOUND; two identified an invalid initial fixture date property, corrected to current year/month/day protocol."
+    },
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "finalAdditionalCheck": "pnpm exec tsc -p tsconfig.typecheck.json --noEmit"
+    },
+    "focused": {
+      "files": 1,
+      "tests": 19,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 286,
+      "tests": 3593,
+      "durationSeconds": 62.52,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 707
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "artifacts": 564,
+      "changedArtifacts": [
+        "dist/runtime/shared/task-card-presentation.js",
+        "dist/runtime/agent/tools/task-complete-tool.js",
+        "dist/runtime/agent/tools/task-target-resolution.js",
+        "dist/runtime/agent/tools/task-complete.d.ts",
+        "dist/runtime/agent/tools/task-complete-tool.d.ts"
+      ],
+      "unchangedArtifacts": 559,
+      "declarationDelta": "Two inferred completion return types include replay presentation metadata; no explicit schema changes"
+    },
+    "compiledNode22Smoke": {
+      "node": "22.23.3",
+      "taskReads": 2,
+      "idempotentTask": true,
+      "foreignTaskRejected": true,
+      "sdkMockRequests": 1,
+      "calendarSdkLoaded": true,
+      "healthStatus": 200,
+      "shutdownExitCode": 0,
+      "realNetwork": false
+    },
+    "boundaries": [
+      "Actual router and task resolver/completion adapter clarify duplicate titles without mutations",
+      "Actual Calendar tool reads exact explicit-day bounds and does not present stale context or mutate events",
+      "Foreign pending/foreign completed targets rejected before idempotent success",
+      "Owned completed replay confirms persisted state in ES/EN without task update or repeated linked-reminder acknowledgement",
+      "Compiled real completion composition and real Supabase SDK consume injected GET responses for owned and foreign completed rows; non-GET requests prohibited; production server health and shutdown checked with network disabled"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "google": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "All 37 scenarios are protocol-audited and prepared, not externally executed",
+    "Completion replay uses a known displayed/internal identity; pending-title searches unchanged and historical completed-title search not implemented",
+    "Recorded semantic decisions, injected SDK/storage ports and compiled smoke do not certify live provider classification or external persistence",
+    "Other acceptance suites, isolated external integrations, live quality/cost/latency and V2 activation remain open",
+    "Node 22 smoke mounts current compiled runtime in existing production image; it is not a fresh image build or deployment"
+  ],
+  "rollback": "Restore only this increment three production modules, integration and regression-suite edits; remove final-safety fixture and appended documentation/evidence; rebuild runtime; preserve prior work."
+}

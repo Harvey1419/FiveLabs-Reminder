@@ -1,0 +1,311 @@
+{
+  "increment": "strict-groq-evaluator-and-final-unit-suite",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": false,
+  "scope": {
+    "migratedJavaScriptFiles": 5,
+    "unitTestFilesMigrated": 1,
+    "newTests": 0,
+    "productionSourceChanges": false,
+    "compilerOrConfigurationChanges": true,
+    "evaluationScriptsMigrated": 4,
+    "strictCompilerConfigurationChanges": false,
+    "cliLoaderConfigurationChanges": true
+  },
+  "migration": [
+    {
+      "before": "scripts/evals/groq-contract/fixtures.js",
+      "after": "scripts/evals/groq-contract/fixtures.ts",
+      "beforeSha256": "9dbbcb3290542d752c3a8e06e3f2a97ff3028ba401909bb8cc913c15df18753e",
+      "afterSha256": "b1301988ee34d1cbd2e741e3847a6c18547f8760da5d05cfc1c718c95dab86fc"
+    },
+    {
+      "before": "scripts/evals/groq-contract/baseline.js",
+      "after": "scripts/evals/groq-contract/baseline.ts",
+      "beforeSha256": "84284f5665f014e99cb7297d82c4bda2402c4dc732e22503fd377918a42be60e",
+      "afterSha256": "48c22c12d22190cb454e8ee914ee79393ba1099538ee85d79c7bf8664c559f8d"
+    },
+    {
+      "before": "scripts/evals/groq-contract/grader.js",
+      "after": "scripts/evals/groq-contract/grader.ts",
+      "beforeSha256": "87d0768ca2d915e3d061d280d6dfe2d0e9ee51e0ac8e877f5165b95a339f3496",
+      "afterSha256": "a5374e94df2f2d77f9aef489007f223f15aa6584dc2c2e352f0a676412310691"
+    },
+    {
+      "before": "scripts/evals/groq-contract/runner.js",
+      "after": "scripts/evals/groq-contract/runner.ts",
+      "beforeSha256": "f63f6feb02f98497487b22b6f147fd121b1bd0cd13814fe46f474345c99cd984",
+      "afterSha256": "0b1a8547b5444843968bcdd7e9c177d4d548fb8ed8ad2ee043886317189d8459"
+    },
+    {
+      "before": "tests/unit/agent/groq-contract-evaluation.test.js",
+      "after": "tests/unit/agent/groq-contract-evaluation.test.ts",
+      "beforeSha256": "4e81c03c95b2d7ebb37e740d0dd41f1e092a5ebe46d63f96776a0123474b2387",
+      "afterSha256": "89b12b258d30353b7676413300eda09c47bc14578a39d15dd958617a670e9c9c"
+    }
+  ],
+  "behavior": {
+    "pureSourceBoundary": "Preserves local hexadecimal baseline commit validation, immutable 1290e81 projection and canonical/structural fingerprints, named-import pure-module allowlist, import refusal, current policy hashing and read-only effect-module provenance. VM contexts remain explicitly not security sandboxes for hostile source.",
+    "fixtureAndGrading": "Preserves all fifty owned synthetic fixtures, grader-only reminder aliases/date/clock expectations, independent semantic assertions, inferred-zero minute/parent-subject continuity, no extra side effects, owned task projections, quoted/stale evidence authority, language/learning separation and safe decision field/string allowlists. No fixture or assertion repaired.",
+    "budgetAndTransport": "Preserves default offline execution before key lookup, fixed model/provider/output/deadline checks, genuine WeakSet-owned ledgers, pre-POST generation/cost reservations, unknown-cost retention, exact serialized body verification, no retries/fallback, typed error/native usage scrubbing and refusal/truncation/finish checks. Existing injected live-path probes use synthetic keys and simulated responses only.",
+    "chainAndArtifacts": "Preserves failed-parent stop, diverged input exclusion, accepted/correct deadline-only latency samples, synthetic nonpersisted receipts, safe output path/overwrite/symlink checks and fixed/chain AB/BA pairing.",
+    "typingAndCli": "Four scripts preserve identical normalized executable JavaScript after type erasure (esbuild ES2022, syntax/whitespace normalization without identifier minification). Explicit unknown module/provider/JSON boundaries and fixture-consumed test views retain existing guards. All 148 parameterized tests remain. CLI package commands load TS using node --import tsx; active legacy evaluator hashes now use actual fixtures.ts/grader.ts. Docs reflect existing fifty-fixture set rather than historical fourteen-case counts."
+  },
+  "verification": {
+    "strictPackageRuntimeProjectTypecheck": "passed; strict flags unchanged; no suppression or explicit any added",
+    "focusedMigratedTests": {
+      "files": 1,
+      "tests": 148,
+      "durationSeconds": 5.26
+    },
+    "unitSuite": {
+      "files": 278,
+      "tests": 3496,
+      "durationSeconds": 59.2,
+      "allPreviousTestsRetained": 3496,
+      "newCases": 0
+    },
+    "compiledRuntimeGraph": {
+      "modules": 259,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "unchangedRuntimeGeneratedDeclarationHashes": 562,
+    "hostNode": "24.15.0",
+    "whitespaceCheck": "passed; includes untracked migrated files",
+    "transport": "Unit network ban and synthetic injected transports for existing live-path probes. CLI fixed/chain dry-runs and legacy smoke invoke no real provider and perform no credential lookup in their offline paths; reports are temporary local synthetic files only.",
+    "liveDatabaseProviderBillingOrWhatsAppEffects": false,
+    "dockerRebuild": false,
+    "productionDeployment": false,
+    "normalizedExecutableLogicParity": [
+      {
+        "script": "fixtures",
+        "normalizedJavaScriptSha256": "7d77d25861dc7dc9e327af556b2266578cb16e1875821fbee87583ddda374db4"
+      },
+      {
+        "script": "baseline",
+        "normalizedJavaScriptSha256": "eb539ba009546c4e53163ee392b227a7d550d3983097e71048ab0d10a7a76cdf"
+      },
+      {
+        "script": "grader",
+        "normalizedJavaScriptSha256": "73f4c52eeb39c162c3a58805fe7c8fe862b16d07b6e0884b160e4fa3ab3dbfb2"
+      },
+      {
+        "script": "runner",
+        "normalizedJavaScriptSha256": "0139f77779949c2d2722f2c89817d5efa489a04becb1a56e9280e407c988a522"
+      }
+    ],
+    "offlineCli": {
+      "dry-run": {
+        "fixtureCount": 50,
+        "pairs": 50,
+        "matchedPairs": 50,
+        "attempts": 0,
+        "forecastGenerations": 100,
+        "allFixtureGradesPassed": true,
+        "nativeUsage": null,
+        "cost": null
+      },
+      "chain": {
+        "fixtureCount": 50,
+        "pairs": 50,
+        "matchedPairs": 50,
+        "attempts": 0,
+        "forecastGenerations": 100,
+        "allFixtureGradesPassed": true,
+        "nativeUsage": null,
+        "cost": null
+      },
+      "legacyLlmSmoke": {
+        "fixtures": 50,
+        "passed": 50,
+        "fixturesSha256": "b1301988ee34d1cbd2e741e3847a6c18547f8760da5d05cfc1c718c95dab86fc",
+        "graderSha256": "a5374e94df2f2d77f9aef489007f223f15aa6584dc2c2e352f0a676412310691",
+        "provenanceMatchesActualTypeScriptSources": true,
+        "latency": "not measured; offline"
+      }
+    }
+  },
+  "inventory": {
+    "counts": {
+      "javascript": 138,
+      "typescript": 664
+    },
+    "remainingByRoot": {
+      "scripts": 7,
+      "src": 114,
+      "tests": 17
+    },
+    "remainingJavaScript": [
+      "scripts/dev/interactive-chat.js",
+      "scripts/dev/live-convergence-bench.js",
+      "scripts/dev/run-chat-validation.js",
+      "scripts/evals/agent-production.js",
+      "scripts/evals/core-conversation-live.js",
+      "scripts/evals/llm-eval.js",
+      "scripts/evals/semantic-policy-boundaries.js",
+      "src/agent/contracts/agent-run-contracts.js",
+      "src/agent/contracts/foreground-turn-schema.js",
+      "src/agent/contracts/foreground-turn-validation.js",
+      "src/agent/contracts/intent-contracts.js",
+      "src/agent/contracts/learning-candidates.js",
+      "src/agent/contracts/reminder-query.js",
+      "src/agent/contracts/response-policy.js",
+      "src/agent/contracts/schema-value.js",
+      "src/agent/contracts/tool-names.js",
+      "src/agent/contracts/turn-context.js",
+      "src/agent/core/agent-core.js",
+      "src/agent/core/agent-run.js",
+      "src/agent/core/context-reference.js",
+      "src/agent/core/execution-facts.js",
+      "src/agent/core/presentation-policy.js",
+      "src/agent/core/turn-lease.js",
+      "src/agent/core/working-memory-execution.js",
+      "src/agent/core/working-memory-store.js",
+      "src/agent/core/working-memory.js",
+      "src/agent/orchestration/clarification-flow.js",
+      "src/agent/orchestration/clarification-presentation.js",
+      "src/agent/orchestration/context-target-pinner.js",
+      "src/agent/orchestration/domain-call.js",
+      "src/agent/orchestration/intent-executor.js",
+      "src/agent/orchestration/intent-normalizer.js",
+      "src/agent/orchestration/next-best-action.js",
+      "src/agent/orchestration/observed-answer.js",
+      "src/agent/orchestration/personal-knowledge.js",
+      "src/agent/orchestration/resolve-observed-target.js",
+      "src/agent/orchestration/router-context.js",
+      "src/agent/orchestration/router-core.js",
+      "src/agent/orchestration/router.js",
+      "src/agent/orchestration/select-memory-forgetting.js",
+      "src/agent/orchestration/typed-schedule.js",
+      "src/agent/providers/attempt-diagnostics.js",
+      "src/agent/providers/client.js",
+      "src/agent/providers/request-payload.js",
+      "src/agent/tools/admin.js",
+      "src/agent/tools/calendar.js",
+      "src/agent/tools/entities.js",
+      "src/agent/tools/formatters.js",
+      "src/agent/tools/index.js",
+      "src/agent/tools/memory.js",
+      "src/agent/tools/projects.js",
+      "src/agent/tools/reminder-acknowledge.js",
+      "src/agent/tools/reminder-advance.js",
+      "src/agent/tools/reminder-bulk-cancel.js",
+      "src/agent/tools/reminder-cancel.js",
+      "src/agent/tools/reminder-create.js",
+      "src/agent/tools/reminder-owner.js",
+      "src/agent/tools/reminder-pro.js",
+      "src/agent/tools/reminder-read.js",
+      "src/agent/tools/reminder-reference.js",
+      "src/agent/tools/reminder-update.js",
+      "src/agent/tools/subscriptions.js",
+      "src/agent/tools/task-complete.js",
+      "src/agent/tools/task-create.js",
+      "src/agent/tools/task-delete.js",
+      "src/agent/tools/task-read.js",
+      "src/agent/tools/task-reference.js",
+      "src/agent/tools/task-update.js",
+      "src/agent/tools/unified-agenda.js",
+      "src/app/server.js",
+      "src/features/agenda/service.js",
+      "src/features/calendar/index.js",
+      "src/features/calendar/reconciliation.js",
+      "src/features/memory/service.js",
+      "src/features/memory/validate-candidates.js",
+      "src/features/reminders/dispatch-policy.js",
+      "src/features/tasks/service.js",
+      "src/features/users/onboarding.js",
+      "src/http/routes/google-auth.js",
+      "src/http/views/home.js",
+      "src/http/views/landing.js",
+      "src/http/views/legal.js",
+      "src/http/webhooks/google-calendar.js",
+      "src/http/webhooks/stripe.js",
+      "src/http/webhooks/whatsapp.js",
+      "src/infrastructure/database/agent-runs.js",
+      "src/infrastructure/database/entities.js",
+      "src/infrastructure/database/inbound-turns.js",
+      "src/infrastructure/database/index.js",
+      "src/infrastructure/database/integrations.js",
+      "src/infrastructure/database/memories.js",
+      "src/infrastructure/database/messages.js",
+      "src/infrastructure/database/projects.js",
+      "src/infrastructure/database/subscriptions.js",
+      "src/infrastructure/database/tasks.js",
+      "src/infrastructure/database/users.js",
+      "src/integrations/ai/embeddings.js",
+      "src/integrations/google/auth.js",
+      "src/integrations/google/calendar.js",
+      "src/integrations/media/document-processor.js",
+      "src/integrations/media/transcription.js",
+      "src/integrations/stripe/client.js",
+      "src/integrations/whatsapp/kapso-client.js",
+      "src/jobs/calendar-watch-renewal.js",
+      "src/jobs/inbound-turn-worker.js",
+      "src/jobs/memory-extractor.js",
+      "src/jobs/morning-briefing.js",
+      "src/jobs/reminder-scheduler.js",
+      "src/shared/agenda-presentation.js",
+      "src/shared/agenda-scopes.js",
+      "src/shared/auth.js",
+      "src/shared/current-user-input.js",
+      "src/shared/entity-categories.js",
+      "src/shared/entity-presentation.js",
+      "src/shared/entity-resolution.js",
+      "src/shared/language-detection.js",
+      "src/shared/presentation-tokens.js",
+      "src/shared/reminder-presentation.js",
+      "src/shared/reminder-recurrence.js",
+      "src/shared/task-presentation.js",
+      "src/shared/time.js",
+      "tests/acceptance/foreground-live.integration.test.js",
+      "tests/integration/agent/agent-behavior.integration.test.js",
+      "tests/integration/agent/coherence.integration.test.js",
+      "tests/integration/agent/hardening.integration.test.js",
+      "tests/integration/agent/natural-language-intent.integration.test.js",
+      "tests/integration/agent/orchestration.integration.test.js",
+      "tests/integration/agent/production-contracts.integration.test.js",
+      "tests/integration/agent/regression-generalization-harness.integration.test.js",
+      "tests/integration/agent/security.integration.test.js",
+      "tests/integration/calendar/google-calendar-grounding.integration.test.js",
+      "tests/integration/calendar/google-calendar-temporal-engine.integration.test.js",
+      "tests/integration/calendar/google-calendar.integration.test.js",
+      "tests/integration/entities/entity-resolution-audit.integration.test.js",
+      "tests/integration/reminders/latent-not-found-reproduction.integration.test.js",
+      "tests/integration/reminders/notification-context-identity.integration.test.js",
+      "tests/integration/reminders/reminder-acknowledge.integration.test.js",
+      "tests/integration/tasks/tasks.integration.test.js"
+    ],
+    "transitionalSourceDeclarations": 0,
+    "remainingUnitJavaScript": 0
+  },
+  "limits": [
+    "These tests still consume compatibility compositions and typed kernels; retiring the 114 source compatibility entries requires coupled SDK mocking, CLI and provenance closure.",
+    "Default dry-run and fifty passing synthetic fixtures are contract/grading smoke checks, not live model evaluation. Existing pricing constants remain explicit historical reservation assumptions rather than current pricing claims. Mock deadline/usage tests and in-memory chain receipts do not prove provider SLA, paid costs, database atomicity or actual delivery. Normalized code equality does not certify byte-identical reflection/source-text artifacts.",
+    "No new compiler-free Node 22 smoke run; preceding image certification is retained with identical runtime/generated-declaration hashes.",
+    "Full repository TypeScript completion, V2 live measurements and canary rollout remain separate open gates."
+  ],
+  "rollback": "Restore only the five original JS paths and remove their TS counterparts; restore this increment CLI/provenance/docs changes and evidence, preserving preceding migration work. Do not revert unrelated package manifest or documentation changes.",
+  "additionalChanges": [
+    {
+      "path": "package.json",
+      "beforeSha256": "9e3c8a50a822954875d5c2c76a56a11d9ad74b286c5c6833efba297dc3692f7f",
+      "afterSha256": "ed78c8c4cbb8353032979067b85fe0e513c29fa79aa6adf5c447f931d2fc5c9c"
+    },
+    {
+      "path": "scripts/evals/llm-eval.js",
+      "beforeSha256": "848e2246eedc67523cc56607d68b2d19aae5b451e48170b67a2ad6dc611026d0",
+      "afterSha256": "31f2686f1a00589a1951f6838e8c771890946e7332bbc31b326fc9db7bd5c071"
+    },
+    {
+      "path": "scripts/evals/agent-production.js",
+      "beforeSha256": "e7f115f955fd164309447901cfafe5040365145b1c9e26b3a2e33b4f525099c2",
+      "afterSha256": "27fb4a9fdef0c1bc8e8a6a8e2ba9799c2b7a253ca9c1615d3a4c079426a4eb9a"
+    },
+    {
+      "path": "docs/agent/groq-contract-evaluation.md",
+      "beforeSha256": "faefd8629aeb9ba5eabe0883b84c72d30044bf874b3e00fe9c9d184d91c11bb3",
+      "afterSha256": "d577c45f10ef8eb104b32b0b2868c091c3a162e1c57863bdba3ec31cd2d22f6b"
+    }
+  ]
+}

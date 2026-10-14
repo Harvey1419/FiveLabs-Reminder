@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 portable approval and continuation planning decisions",
+  "candidate": { "filesPassed": 176, "testsPassed": 2234, "durationSeconds": 45.94 },
+  "focused": { "filesPassed": 21, "testsPassed": 360, "durationSeconds": 7.18 },
+  "newCases": 38,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "actualLegacySchemasAndValidators": "passed",
+    "ownedThreadAndWaitingStatus": "passed",
+    "pendingOnlyApprovalSelection": "passed",
+    "distinctCanonicalContinuationDeltas": "passed",
+    "immediateZeroOffsetSchedule": "passed",
+    "cancelUnrelatedSupersedeNoSuggestions": "passed",
+    "currentUserProfileQuoteAndLanguage": "passed",
+    "immutableSnapshotIdentityDeadline": "passed",
+    "postCompletionExpiryDeadlineAbort": "passed",
+    "finalHostRejectsAdapterBypass": "passed",
+    "vendorIndependentProviderFixture": "passed",
+    "meteredFallbackAggregateUsage": "passed",
+    "exactLegacyWireParity": "passed",
+    "compiledApplicationESM": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "binding": {
+    "fingerprint": "SHA256 complete suspended-run snapshot including domain/action/targets/payload/status",
+    "freshness": "snapshot",
+    "grantsExecution": false,
+    "requirementBeforeEffects": "Fresh owned DB read, proposal comparison, authorization/status/expiry validation and atomic claim by the execution bridge",
+    "databaseCASImplemented": false
+  },
+  "compiledRuntime": {
+    "mode": "compiled ESM actual configured provider, active-run schemas/validators and legacy wire builder with simulated fetch",
+    "scenario": "executed approval ID rejected -> metered fallback -> pending subset -> same-scope per-action immediate continuation",
+    "legacyWireParity": true,
+    "attempts": 3,
+    "models": ["fixture/primary", "fixture/strict-secondary", "fixture/strict-secondary"],
+    "approvalUsage": { "inputTokens": 60, "outputTokens": 20 },
+    "continuationUsage": { "inputTokens": 30, "outputTokens": 10 },
+    "grantsExecution": false,
+    "liveProviderCalls": 0,
+    "effectsExecuted": 0
+  },
+  "inventory": { "javascript": 313, "typescript": 82, "transitionalDeclarations": 10, "legacyJavaScriptRetired": 0 },
+  "productionRouting": "Existing JS gateway/router/executor remain active; new wrappers return planning decisions only",
+  "liveCalls": { "provider": 0, "productionDatabase": 0, "whatsapp": 0 },
+  "dependenciesChangedInThisUnit": false,
+  "schemaChangedInThisUnit": false,
+  "limitations": [
+    "No active-run DB execution bridge or new approval/resume authority; fingerprint is not an atomic storage revision.",
+    "Background/multimodal requests and alternative provider adapters remain pending.",
+    "No real-model semantic, capability, cost, latency or outage-availability certification.",
+    "Remaining maintained JS inventory and transitional declaration/runtime path retirement remain required.",
+    "Mixed unknown-effect/delivery reconciliation and authenticated handoff remain before-canary prerequisites.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Remove isolated active-run wrappers/contracts/declaration; preserve previous gateway, checkpoint namespaces and unknown-state fences.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-active-typecheck.log",
+    "focused": "/private/tmp/hermes-active-focused.log",
+    "fullSuite": "/private/tmp/hermes-active-unit.log",
+    "inventory": "/private/tmp/hermes-active-inventory.json",
+    "compiledRuntime": "/private/tmp/hermes-active-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-active-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-active-runtime.mjs"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript gateway route configuration and credential lookup with host environment getter, snapshot models/providers and live timeout/reasoning/key semantics",
+  "candidate": {
+    "filesPassed": 226,
+    "testsPassed": 2956,
+    "durationSeconds": 58.3
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 202,
+    "durationSeconds": 5.87
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "strictOrdinaryAndBackgroundProfileSeparation": "passed",
+    "configurableFutureModelProviderAndLegacyAliases": "passed",
+    "frozenModelProviderSnapshotsAndLiveTimeoutEffort": "passed",
+    "finitePositiveTimeoutAndIndependentStrictFallback": "passed",
+    "parallelRequiredToolCapabilityMinTokenPolicies": "passed",
+    "liveCredentialLookupQuoteStrippingAndAlias": "passed",
+    "configuredAdapterLegacyTypesDerivedFromActualConfiguration": "passed",
+    "readOnlyTypedRoutingProvenance": "passed",
+    "productionCompilerFreeActualSyntheticFallback": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 4102,
+    "environmentKeys": 29,
+    "fixtures": 293,
+    "strictOrdinaryAndMemoryProfileParity": true,
+    "modelProviderSnapshotAndLiveCredentialsTimeoutEffortParity": true,
+    "aliasesProviderParsingPositiveTimeoutsFrozenConfiguration": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualRoutingClientAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:3c93994cfea55e65481c5ada1927598b46d0c02f4170c0f3ff8be0fa02e03492"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 275
+  },
+  "transitionalDeclarations": 51,
+  "sourceHashes": {
+    "src/agent/providers/gateway-routing.ts": "2dccdcba8c77e40877c624dac892c2c3ba7ecd3c1cb24232e923d0faf2d6501a",
+    "src/agent/providers/client.js": "684a8a0b28f38b3820ec31c99d0b43efeca09e9b87b004f7f9035028798a5396",
+    "src/agent/providers/client.d.ts": "596bea7ce1e55b9ce7478f45343ce83d7a07664b13f3d5bc755efbae349b6b96",
+    "tests/unit/agent/typed-gateway-routing.test.ts": "0736c8b57d31bf7bf201a4da981615efbc30700cf9942af0eecb925f0e8dd02d",
+    "scripts/evals/groq-contract/baseline.js": "ec99dbfeb9c4289f53d171f7e7de300fd911a6766815a151d4b440f3fcad1f5f",
+    "tsconfig.runtime.json": "2480b9ee2a6ad8008ec850730f6dba675ac600fee0fc07745bdcc3b4de4211f9"
+  },
+  "limits": [
+    "No intentional runtime behavior changes in this extraction.",
+    "Model/provider lists are initialized once; credentials/timeouts/reasoning still read live settings. Changing a model at runtime retains the existing restart requirement.",
+    "Configurable future model/provider strings are not proof of wire/structured-tool capability or measured quality/cost/latency.",
+    "Existing strict/native/background route priorities, unsupported parallel flag, fallback aliases and finite-positive timeout policy remain unchanged.",
+    "Credential lookup preserves existing environment/quote/alias semantics and remains a host-only boundary; no actual keys are recorded in evidence.",
+    "Legacy adapter configuration type names remain available as projections of the actual typed configuration.",
+    "client.js transport, request/response parsing, trace IO, chain retries and request-payload.js remain subsequent migration units; the router remains unfinished.",
+    "Node 22 smoke uses three synthetic fetch responses in a network-disabled container; no live provider calls, real model metrics or full server boot.",
+    "No scheduler, SQL/storage/provider configuration/model choice/deployment/V2 activation or live WhatsApp effect changed; no new PostgreSQL fixture required."
+  ]
+}

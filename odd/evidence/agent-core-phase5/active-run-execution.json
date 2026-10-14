@@ -1,0 +1,93 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 owned active-run approval/resume execution bridge",
+  "candidate": { "filesPassed": 179, "testsPassed": 2325, "durationSeconds": 44.7 },
+  "focused": { "filesPassed": 24, "testsPassed": 451, "durationSeconds": 7.81 },
+  "newCases": 26,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "completeExecutionSnapshotBinding": "passed",
+    "ownedLiveLeaseAndAuthenticatedContext": "passed",
+    "actualLegacyExecutorDomainAndTemporalParity": "passed",
+    "pendingOnlyApprovalAndEvidencePreservation": "passed",
+    "perActionContinuationAndCancellation": "passed",
+    "hostAuthorizationBeforeFence": "passed",
+    "durableFenceBeforeExternalDispatch": "passed",
+    "exactStorageReceiptValidation": "passed",
+    "unknownEffectStopsLaterWrites": "passed",
+    "noStorageFallback": "passed",
+    "legacyStorageLiveBindings": "passed",
+    "checkpointNamespaceIsolation": "passed",
+    "realSQLAtomicClaimActionCASAndPrivateRoles": "passed",
+    "twoActualPostgresConnections": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "compiledRuntime": {
+    "mode": "compiled ESM actual structured decision wrappers, RPC adapter, owned bridge and legacy domain executor; provider/storage/tools simulated",
+    "scenario": "approval -> atomic claim -> authorization -> unknown fence -> effect -> receipt -> final; immediate continuation through canonical resolver",
+    "toolsExecuted": 2,
+    "claimCount": 2,
+    "authorizations": 2,
+    "unknownFencesBeforeEffects": true,
+    "terminalReceipts": true,
+    "liveProviderCalls": 0,
+    "productionDatabaseCalls": 0,
+    "whatsappCalls": 0,
+    "declarationChecking": "temporary runtime fixture uses skipLibCheck=true for existing Supabase WebAuthn conflict; project strict typecheck remains enabled"
+  },
+  "postgres": {
+    "activeRunAssertions": 33,
+    "reminderResolutionAssertions": 19,
+    "fixtureWrites": "rolled back with schema/function/role fixtures in dedicated local Hermes database",
+    "migrationDeployed": false,
+    "productionDatabaseCalls": 0
+  },
+  "concurrency": {
+    "mode": "two actual PostgreSQL sessions in a newly created disposable local database",
+    "secondSessionWaitedOnOwnerLock": true,
+    "winningClaims": 1,
+    "duplicateClaims": 0,
+    "atomicStartCheckpoint": true,
+    "domainEffects": 0,
+    "temporaryDatabaseRemoved": true
+  },
+  "storage": {
+    "claim": "Complete locked proposal equality plus owner/status/expiry/live inbound lease; private nonce and start checkpoint in same transaction",
+    "mutation": "Live nonce/lease and prepared-action CAS; final state checks action identity set; fence/outcome checkpoints atomic with action updates",
+    "authorization": "Authenticated host callback per actual domain call, never model JSON",
+    "checkpointNamespace": "agentCoreActiveRun; foreign recovery/handoff paths reject it",
+    "defaultExecutor": "Legacy behavior retained through live default storage getters",
+    "sqlFile": "supabase/migrations/20261012010906_agent_core_active_run_claim.sql"
+  },
+  "inventory": { "javascript": 313, "typescript": 99, "transitionalDeclarations": 12, "legacyJavaScriptRetired": 0 },
+  "liveCalls": { "provider": 0, "productionDatabase": 0, "whatsapp": 0 },
+  "dependenciesChangedInThisUnit": false,
+  "preparedSchemaFunctionsChanged": true,
+  "productionRouting": "New bridge/store remain disconnected; default JS executor still serves the existing router",
+  "limitations": [
+    "No active-run unknown-effect resolver, authenticated cross-engine state handoff or WhatsApp delivery composition yet.",
+    "Denial/interruption after a claim retains quarantined evidence; no automatic reopening/replay.",
+    "Prepared migrations not deployed; no actual Supabase SDK RPC round trip or production data touched.",
+    "Temporary emitted legacy fixture skips declaration checks due existing Supabase WebAuthn/TS7 conflict; strict project checks remain enabled. Dependency compatibility must be resolved before the full TS emitted runtime.",
+    "Fixtures do not certify real provider semantics, domain API outcomes, cost or latency.",
+    "Full maintained JS conversion/declaration retirement, alternate provider evaluation and production canary gates remain required.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Remove disconnected bridge and optional runtime seam; if claims/checkpoints have persisted, disable admission and retain evidence/namespace fences until verified resolution/handoff.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-execution-typecheck.log",
+    "focused": "/private/tmp/hermes-execution-focused.log",
+    "fullSuite": "/private/tmp/hermes-execution-unit.log",
+    "inventory": "/private/tmp/hermes-execution-inventory.json",
+    "compiledRuntime": "/private/tmp/hermes-execution-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-execution-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-execution-runtime.mjs",
+    "postgresHarness": "/private/tmp/hermes-execution-postgres.sql",
+    "concurrency": "/private/tmp/hermes-execution-concurrency.json",
+    "concurrencyHarness": "/private/tmp/hermes-claim-concurrency.py"
+  }
+}

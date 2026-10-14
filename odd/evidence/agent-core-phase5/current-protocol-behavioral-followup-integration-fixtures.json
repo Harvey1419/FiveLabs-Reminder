@@ -1,0 +1,113 @@
+{
+  "increment": "current-protocol-behavioral-followup-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "modernizedIntegrationCases": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "cumulativeModernizedCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 26,
+    "newOfflineRegressionCases": 9,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Calendar birthday search preserves full-year text filter and asserts stable event identity/title",
+    "Memory birthday fixture seeds owned active fact, checks insertion and uses explicit memory.list instead of unsupported invented chat response",
+    "Memory cleanup limited to fixture owner and dedicated topic",
+    "Natural acknowledgement targets retained with stored acknowledgement assertions",
+    "Ambiguous doctor clarification retains two null acknowledgement assertions",
+    "Date-only fake timers preserve real network timers"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "c23c828aa87c885082c9a163baabb86e031112dffed5eec2cf0d154f6eaa66cf"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-read-fixtures.ts",
+      "sha256": "b1007962bc8468ef387cb01c32192f31aabf5ebd635e8045273848154e3eb0fc"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-followup-fixtures.ts",
+      "sha256": "e0d5afc795aa43df8d7745a5647a022b7ef983edfea7c36c6294d0caff144a31"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-followup-fixtures.test.ts",
+      "sha256": "e30772884e238e7b52aff46685a0949d1580012778117c2488f9a1e605699193"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true
+    },
+    "focused": {
+      "files": 2,
+      "tests": 15,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 280,
+      "tests": 3511,
+      "durationSeconds": 58.41,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 692
+      }
+    },
+    "runtime": {
+      "compiledModules": 259,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 562
+    },
+    "semanticChecks": [
+      "Five strict provider wire fixtures validate via actual foreground validator and domain-call builder",
+      "Two acknowledgement targets resolve owned matching reminder while retaining unrelated reminder",
+      "Ambiguous doctor target produces AMBIGUOUS_TARGET with zero acknowledgement calls",
+      "Scoped memory inventory renders stored fact without extraction or semantic search"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "database": false,
+    "provider": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Offline injected storage does not certify database persistence",
+    "Fixtures do not measure model interpretation or semantic embedding retrieval",
+    "26 other behavioral integration cases and other integration/acceptance suites remain pending audit",
+    "Dedicated database execution, live provider quality/cost/latency and V2 activation remain open"
+  ],
+  "rollback": "Restore only this increment edits to behavioral integration and shared read fixture; remove its new followup fixture/regression suite and appended documentation/evidence, preserving prior work."
+}

@@ -1,5 +1,6 @@
 packages:
   - '.'
+  - 'packages/*'
 
 minimumReleaseAgeExclude:
   - googleapis@178.0.0
