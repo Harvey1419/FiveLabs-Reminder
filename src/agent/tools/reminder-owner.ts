@@ -1,4 +1,4 @@
-import { normalizePhoneNumber } from '../../integrations/whatsapp/kapso-client.js';
+import { normalizePhoneNumber } from '../../shared/phone-number.js';
 import { createReminderOwnerTools } from './reminder-owner-tools.js';
 const service = createReminderOwnerTools({
   normalizePhoneNumber: ((...args: Parameters<typeof normalizePhoneNumber>) => normalizePhoneNumber(...args)) as unknown as Parameters<typeof createReminderOwnerTools>[0]['normalizePhoneNumber'],

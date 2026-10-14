@@ -2457,3 +2457,10 @@ A supportive acknowledgement is selected only from explicit tiredness/long-day l
 Regression journeys inject wrong UTC/local times, wrong dates, invented bulk actions and unlimited inventory claims. They verify that the delivered text and durable delivery plan use the certified cards, that mutation dispatch happens once, and that raw draft provenance is preserved. CI now enforces `migration:check` instead of a vacuous JavaScript syntax scan in a TypeScript-only repository. It also builds the production image and runs `smoke:container`: the original compiled server must start on Node 22, return health 200, omit source/compiler/tsx, and exit cleanly on SIGTERM. External calls are empty fixtures in a container without network access; no paid inference or production writes occur. This is a build/runtime gate, not live model-quality certification.
 
 The next retirement block must replace the productivity bridges to `executeTool` with direct typed domain-service ports. Existing services and background scheduling remain until their callers are accounted for; the V1 router and handoff cannot be removed before that parity and continuity gate. Roll back this dialogue change by reverting the dialogue schema/runner/presenter and corresponding tests together; phase 0 remains an independent commit.
+
+
+### Productivity implementation relocation
+
+Task, reminder and calendar operation implementations now live in `src/features/*/operations`. The 24 old tool entry points retain compatibility exports, so V1 callers and existing API tests keep the same functions while domain code has one implementation. SQL ownership, recurring-reminder cancellation, companion cleanup and Google authentication behavior are reused rather than reimplemented.
+
+Reminder-prefix and phone normalization are pure shared helpers. Previously importing either helper through the WhatsApp client pulled the webhook, router-core and generic dispatcher into the domain graph. Transport and domain callers now share those helpers without that cycle. Existing task/reminder/calendar parity and calendar source-boundary checks are retained against the relocated implementations.

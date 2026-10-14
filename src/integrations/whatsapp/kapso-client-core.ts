@@ -1,3 +1,5 @@
+import { normalizePhoneNumber } from '../../shared/phone-number.js';
+import { stripReminderPrefix } from '../../shared/reminder-prefix.js';
 import { boundWhatsAppText } from '../../shared/whatsapp-text-boundary.js';
 import { KapsoConfigurationError, KapsoValidationError } from './kapso-errors.js';
 import { createKapsoDispatch } from './kapso-dispatch.js';
@@ -35,15 +37,6 @@ export function createKapsoClient(dependencies: KapsoClientDependencies) {
   const { assertTurnLease, fetch, supabase, userCache, getEnv, getNowMs, logger } = dependencies;
   const dispatch = createKapsoDispatch({ ...dependencies, sendWhatsAppText });
   const postMessage = dispatch.postMessage;
-  /**
-   * Clean phone number to E.164 without +, spaces, hyphens, or parentheses.
-   */
-  function normalizePhoneNumber(rawPhone: unknown) {
-    if (!rawPhone || typeof rawPhone !== 'string') return null;
-    const digits = rawPhone.replace(/\D/g, '');
-    return digits.length >= 7 ? digits : null;
-  }
-
   /**
    * Official Kapso WhatsApp sender following enterprise best practices:
    * - Uses `to` for valid E.164 phone numbers.
@@ -524,21 +517,6 @@ export function createKapsoClient(dependencies: KapsoClientDependencies) {
       logger.error('[kapso] sendReminderConfirmation failed:', (err as { message: string; code: string | undefined; status: number }).message);
       return { success: false, error: (err as { message: string; code: string | undefined; status: number }).message, code: (err as { message: string; code: string | undefined; status: number }).code, status: (err as { message: string; code: string | undefined; status: number }).status, outcome: (err as { message: string; code: string | undefined; status: number }).code === 'DELIVERY_OUTCOME_UNKNOWN' ? 'unknown' : 'failure' };
     }
-  }
-
-  /**
-   * Strip existing reminder prefixes (e.g. "⏰ *Recordatorio:*", "⏰ Recordatorio:", "Recordatorio:") idempotently.
-   */
-  function stripReminderPrefix(text: unknown) {
-    if (!text || typeof text !== 'string') return '';
-    let s = text.trim();
-    const pattern = /^(\s*⏰\s*)?(\*?Recordatorio:\*?|\*?Recordatorio\*?:?)\s*/i;
-    while (pattern.test(s)) {
-      const match = pattern.exec(s);
-      if (!match || match[0].length === 0) break;
-      s = s.slice(match[0].length).trim();
-    }
-    return s;
   }
 
   /**

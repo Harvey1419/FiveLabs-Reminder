@@ -1,7 +1,7 @@
 import type { ReminderQuery, ReminderRow, ReminderToolInput, ReminderOwner } from './reminder-tool-ports.js';
 
 export interface Dependencies {
-  normalizePhoneNumber: typeof import('../../integrations/whatsapp/kapso-client.js').normalizePhoneNumber;
+  normalizePhoneNumber: typeof import('../../shared/phone-number.js').normalizePhoneNumber;
   logger: Pick<Console, 'log' | 'warn' | 'error'>;
 }
 

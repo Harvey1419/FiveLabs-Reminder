@@ -1,5 +1,5 @@
 import { formatHumanFriendlyDateTime, DEFAULT_TIMEZONE } from '../../shared/time.js';
-import { stripReminderPrefix } from '../../integrations/whatsapp/kapso-client.js';
+import { stripReminderPrefix } from '../../shared/reminder-prefix.js';
 import { createFormattersTools } from './formatters-tools.js';
 const service = createFormattersTools({
   formatHumanFriendlyDateTime: ((...args: Parameters<typeof formatHumanFriendlyDateTime>) => formatHumanFriendlyDateTime(...args)) as unknown as Parameters<typeof createFormattersTools>[0]['formatHumanFriendlyDateTime'],

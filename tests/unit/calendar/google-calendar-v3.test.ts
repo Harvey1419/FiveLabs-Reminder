@@ -135,8 +135,8 @@ describe('Google Calendar current architecture', () => {
     });
 
     it('keeps calendar mutation identity separate from patch fields and legacy aliases', () => {
-      expect(readFileSync(new URL('../../../src/agent/tools/calendar.ts', import.meta.url), 'utf8')).toContain('createCalendarTool');
-      const source = readFileSync(new URL('../../../src/agent/tools/calendar-tool.ts', import.meta.url), 'utf8');
+      expect(readFileSync(new URL('../../../src/features/calendar/operations/calendar.ts', import.meta.url), 'utf8')).toContain('createCalendarTool');
+      const source = readFileSync(new URL('../../../src/features/calendar/operations/calendar-tool.ts', import.meta.url), 'utf8');
       expect(source).toContain("String(params.target || '').trim()");
       expect(source).not.toContain('params.eventId || params.id');
       expect(source).not.toContain('params.query || params.q || params.semanticFilter');

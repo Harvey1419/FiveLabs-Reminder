@@ -3,7 +3,7 @@ import type { CardRow, CardOutcome, EntityDeletion } from './reminder-tool-ports
 export interface Dependencies {
   formatHumanFriendlyDateTime: typeof import('../../shared/time.js').formatHumanFriendlyDateTime;
   DEFAULT_TIMEZONE: typeof import('../../shared/time.js').DEFAULT_TIMEZONE;
-  stripReminderPrefix: typeof import('../../integrations/whatsapp/kapso-client.js').stripReminderPrefix;
+  stripReminderPrefix: typeof import('../../shared/reminder-prefix.js').stripReminderPrefix;
   logger: Pick<Console, 'log' | 'warn' | 'error'>;
 }
 
