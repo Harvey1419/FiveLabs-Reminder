@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "incident": {
+    "runId": "e5cfc9f1-2ff2-41b3-96a4-239a7be1411c",
+    "source": "Railway and owner-checked durable checkpoint",
+    "read": "today",
+    "returnedRecords": 0,
+    "verifiedRead": true,
+    "inputEstimates": [
+      1654,
+      2038
+    ],
+    "notice": "provider_unavailable",
+    "secondGenerationId": "gen-1792016947-2Sw6CJiwyU4hc4qFytBC",
+    "secondUsageVerified": false,
+    "rootCause": "A redundant narration inference failed after the read succeeded; this was not context overflow"
+  },
+  "implementation": {
+    "control": "typed turnDisposition envelope, required on reads, optional on other tools",
+    "completionGate": "all normalized items successful and complete, no questions, issues, rejections or uncertain effects",
+    "domainMetadata": "stripped before execution, retained in model transcript and tool observation",
+    "regexIntentClassifier": "removed",
+    "schemaScope": "recent successful owned tool cache, bounded defaults, explicit selections retained across steps",
+    "emptyRead": "no automatic mutation followups or redundant empty limited-list footer",
+    "presentation": "today empty list no longer claims global completion"
+  },
+  "validation": {
+    "unitTests": 3863,
+    "unitFiles": 304,
+    "conversationIntegrationTests": 37,
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "maintainedJavaScript": 0,
+    "offline": "seven original and nineteen extended cases at both budgets; primary positives pass, explicit boundaries remain negative",
+    "container": {
+      "imageId": "sha256:451be19d17b0eae1a0b82ab4cb8949ad4d74f7c6918cb9e72eb2889cd6ac8a38",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 50,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "incidentReplay": {
+    "privateCheckpointMessages": 76,
+    "externalProductionWrites": 0,
+    "WhatsAppSends": 0,
+    "method": "configured provider, isolated ports, same checkpoint; discovery may precede read; no mandatory narration after finish",
+    "results": [
+      {
+        "case": "read_today_long_history",
+        "budget": 1800,
+        "complete": false,
+        "reads": 0,
+        "writes": 0,
+        "steps": 1,
+        "inputEstimates": [
+          1785
+        ],
+        "notices": [
+          "provider_unavailable"
+        ],
+        "semanticChecks": {
+          "todayFilter": false
+        },
+        "generationIds": []
+      },
+      {
+        "case": "read_today_long_history",
+        "budget": 2500,
+        "complete": true,
+        "reads": 1,
+        "writes": 0,
+        "steps": 2,
+        "inputEstimates": [
+          2391,
+          2185
+        ],
+        "notices": [],
+        "semanticChecks": {
+          "todayFilter": true
+        },
+        "generationIds": [
+          "gen-1792018161-6HFivuraOenjFak7bjJf",
+          "gen-1792018162-woujlmaadsvr200PEuS8"
+        ]
+      }
+    ]
+  },
+  "broaderLiveEvaluation": {
+    "method": "one paired run per scenario, isolated ports, not a statistical reliability claim",
+    "primaryPassed": 4,
+    "primaryTotal": 5,
+    "results": [
+      {
+        "case": "read_today_long_history",
+        "budget": 2500,
+        "complete": true,
+        "reads": 1,
+        "writes": 0,
+        "steps": 2,
+        "inputEstimates": [
+          2470,
+          2182
+        ],
+        "notices": [],
+        "semanticChecks": {
+          "todayFilter": true
+        },
+        "generationIds": [
+          "gen-1792018080-5zdUD0hrV0yDutNoCEJs",
+          "gen-1792018081-htjieCBMfcQcFuBQPpcA"
+        ]
+      },
+      {
+        "case": "three_reminders",
+        "budget": 2500,
+        "complete": true,
+        "reads": 0,
+        "writes": 3,
+        "steps": 4,
+        "inputEstimates": [
+          1762,
+          1614,
+          1780,
+          1957
+        ],
+        "notices": [],
+        "semanticChecks": {
+          "relativeTimes": true
+        },
+        "generationIds": [
+          "gen-1792018083-3OIEoUvXSajPNbH8c6nq",
+          "gen-1792018085-7W5j47jUg2xhIU3t5yVI",
+          "gen-1792018086-sAvHQLARsZ2K4a7BwOLX",
+          "gen-1792018088-Fn8Qh9RcKi3l3HQ9YSsJ"
+        ]
+      },
+      {
+        "case": "mixed_recurring_reminders",
+        "budget": 2500,
+        "complete": false,
+        "reads": 0,
+        "writes": 1,
+        "steps": 2,
+        "inputEstimates": [
+          1767,
+          1964
+        ],
+        "notices": [
+          "provider_unavailable"
+        ],
+        "semanticChecks": {
+          "localTimes": false
+        },
+        "generationIds": [
+          "gen-1792018092-DWOttVXoscg6v6IckgEq",
+          "gen-1792018093-HAt3Tqk5oS6lnAxrZ3t4"
+        ]
+      },
+      {
+        "case": "reminders_and_tasks",
+        "budget": 2500,
+        "complete": true,
+        "reads": 0,
+        "writes": 4,
+        "steps": 4,
+        "inputEstimates": [
+          1767,
+          1944,
+          2109,
+          2286
+        ],
+        "notices": [],
+        "semanticChecks": {},
+        "generationIds": [
+          "gen-1792018096-n8hudwX8xzKmRrXktC1P",
+          "gen-1792018097-1T4aFMH4wA3GX3PBtgLk",
+          "gen-1792018098-nzhXwnUqIZtQQxnZZ0WD",
+          "gen-1792018099-sVMloM8xRBtT0nBazauq"
+        ]
+      },
+      {
+        "case": "project_grouped_tasks",
+        "budget": 2500,
+        "complete": true,
+        "reads": 0,
+        "writes": 4,
+        "steps": 4,
+        "inputEstimates": [
+          1771,
+          1923,
+          2073,
+          2221
+        ],
+        "notices": [],
+        "semanticChecks": {
+          "projectBinding": true
+        },
+        "generationIds": [
+          "gen-1792018103-dWBQX94NM5kR3gGQGwLJ",
+          "gen-1792018104-CgFzkaM8M1wRJRDgAAFV",
+          "gen-1792018105-qLzBz9Ga1MS1vW7SH1Sl",
+          "gen-1792018106-iQPqQMCqsKVwiZudYOfT"
+        ]
+      }
+    ],
+    "unresolved": "The recurring-plus-single case had one verified creation followed by a Groq rejection for an unadvertised cancellation; it is a failed live case, not a passed certification. Other intermediate failed runs remain private diagnostic evidence."
+  },
+  "rollout": {
+    "method": "GitHub main push only",
+    "state": "local validation complete; verify CI and exact Railway deployment after push"
+  },
+  "limitations": [
+    "Finish is a model declaration validated against tool outcomes, not proof of semantic coverage of every user goal",
+    "Provider errors can still occur before verified execution",
+    "Persistent conversational compaction remains a separate planned block"
+  ]
+}

@@ -147,7 +147,7 @@ describe('reminder list delivery-state semantics', () => {
     ['upcoming', 'You have no pending reminders. Enjoy your peace of mind! ☕', 'No tienes recordatorios pendientes. ¡Tranquilidad total y todo bajo control! ☕'],
     ['tomorrow', 'You have no reminders scheduled for tomorrow. Your day is completely clear! 🚀', 'No tienes recordatorios programados para mañana. ¡Día completamente despejado! 🚀'],
     ['day_after_tomorrow', 'You have no reminders scheduled for the day after tomorrow. Enjoy your clear schedule! ✨', 'No tienes recordatorios programados para pasado mañana. ¡Panorama despejado! ✨'],
-    ['today', 'You have no pending reminders for today. You are all caught up! ☕', 'No tienes recordatorios pendientes para hoy. ¡Estás al día por completo! ☕'],
+    ['today', 'You have no pending reminders for today. ☕', 'No tienes recordatorios pendientes para hoy. ☕'],
     ['this_week', 'You have no reminders scheduled for this week. Have a relaxed and focused week! 🌟', 'No tienes recordatorios programados para esta semana. ¡Semana libre de alarmas por ahora! 🌟'],
     ['next_week', 'You have no reminders scheduled for next week. Clear schedule ahead! 🎯', 'No tienes recordatorios programados para la próxima semana. ¡Agenda despejada! 🎯'],
     ['completed_today', 'You have no pending reminders. Enjoy your peace of mind! ☕', 'No tienes recordatorios pendientes. ¡Tranquilidad total y todo bajo control! ☕'],

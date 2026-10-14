@@ -8,7 +8,7 @@ Old conversation was already omitted or summarized, but the entire active user t
 
 Live tests exposed another protocol defect: multiple `tools_select` calls were acknowledged as loaded but only the last schema was retained. Groq rejected subsequent calls to absent tools, sometimes returning a generated error without verified usage. Such errors remain non-retryable; raising the budget does not make those errors safe to replay.
 
-The loop now retains a batch of selected schemas, exposes only unloaded names through discovery, and warms task/reminder creation schemas under existing authenticated capabilities. Explicit selection now replaces the initial scope; common ES/EN listing requests prefetch read schemas instead. See `v2-read-context-recovery.md` for the incident correction. Backend input validation, observed-ID checks, durable write authorization and attachment write caps remain enforced. The persona is shorter and explicitly asks for independent atomic actions, avoiding unnecessary rediscovery and preflight reads.
+The loop now retains a batch of selected schemas, exposes only unloaded names through discovery, and warms task/reminder creation schemas under existing authenticated capabilities. Explicit selection now replaces the initial scope; recent successful schemas are cached from the owned interaction without classifying user phrases. See `v2-read-context-recovery.md` for the incident correction. Backend input validation, observed-ID checks, durable write authorization and attachment write caps remain enforced. The persona is shorter and explicitly asks for independent atomic actions, avoiding unnecessary rediscovery and preflight reads.
 
 ## What compaction sends
 
@@ -31,3 +31,5 @@ Relative reminders additionally support `delayMinutes`. The tool boundary comput
 `pnpm exec tsx scripts/evals/v2-complex-budget.ts --live --output=<path>` runs five paired cases through the configured provider and isolated in-memory ports. Grading checks write counts, recurrence counts, relative/local timestamps and project grouping where relevant. It makes paid inference calls but no production writes or WhatsApp sends. This is one paired run per fixture, not a statistical semantic benchmark; project grouping is simulated, not certification of standalone project-management parity.
 
 Evidence: `odd/evidence/agent-core-phase5/v2-2500-complex-release.json`. Earlier failed live passes informed the protocol fixes; they were not relabeled as successful tests. Main deployment must be certified by GitHub CI, Railway SUCCESS on the exact commit and `/health` after rollout.
+
+Verified batch completion now uses a typed `turnDisposition` envelope, removing the prior regex selector and optionalizing final narration only after host verification. See [completion contract](v2-verified-completion.md).

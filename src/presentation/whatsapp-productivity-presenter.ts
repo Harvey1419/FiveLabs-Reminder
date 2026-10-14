@@ -121,7 +121,7 @@ export class WhatsAppProductivityPresenter {
             result: item.result, readFilter: item.readScope?.filter ?? null, readQuery: item.readScope?.query ?? null };
         }) });
         sections.push(reply.text);
-        if (items.some(item => item.result?.coverage === 'bounded_list')) sections.push(en
+        if (items.some(item => item.domain === 'reminders' && item.result?.coverage === 'bounded_list' && item.result.records.length > 0)) sections.push(en
           ? 'This is a limited list of returned results.' : 'Esta es una lista limitada de los resultados devueltos.');
         continue;
       }

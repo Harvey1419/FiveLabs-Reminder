@@ -1,5 +1,5 @@
 import { productivityBudget } from './productivity-budget.js';
-import { initialProductivityTools } from './productivity-tool-scope.js';
+import { recentToolScope } from './recent-tool-scope.js';
 import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
 import { createMemoryDomainPort } from './memories-domain.js';
@@ -81,8 +81,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
       telemetry('provider_attempt', { runId: context.runId, requestId: context.requestId, ...attempt });
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
-  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven', initialTools: initialProductivityTools(authoredText),
+  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
     personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget,
+    initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
     authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete', 'memory_forget'].includes(call.name) && registry.effect(call.name) === 'destructive')

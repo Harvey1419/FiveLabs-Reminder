@@ -18,3 +18,5 @@ Verification includes audio admission with a historical ledger, selection scope,
 Reproduce offline with `pnpm run eval:context-budgets`. For a bounded paid isolated read evaluation use `pnpm exec tsx scripts/evals/v2-complex-budget.ts --live --case=read_today_long_history --output=/private/tmp/read-eval.json`. An explicitly obtained private checkpoint can be supplied with `--snapshot=/private/tmp/checkpoint.json`; this option is restricted to the read case. The 2,500-token gate and full transcript validation remain enforced.
 
 Roll back the release commit to restore the previous schema loading, read projection and presentation together. Deploy only through GitHub; Railway CLI deployment is not part of this workflow.
+
+Follow-up: the phrase-based schema hints described above were retired in favor of registry warming and model-declared verified completion. See [the current protocol](v2-verified-completion.md).

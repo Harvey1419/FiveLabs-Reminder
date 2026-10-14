@@ -76,11 +76,13 @@ export class ProductivityTurnRunner {
   private readonly maxPromptReferences: number;
   private readonly compactObservations: boolean;
   private readonly discoverTools: boolean;
+  private readonly finishWithVerifiedResults: boolean;
   private readonly memorySourceText: string | undefined;
   private readonly mediaInput: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean } | undefined;
   private readonly personalContext: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } | undefined;
   constructor(provider: AIProvider, registry: ToolRegistry, options: AgentLoopOptions & { readonly memorySourceText?: string; readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
     this.discoverTools = options.discoverTools === true;
+    this.finishWithVerifiedResults = options.finishWithVerifiedResults === true;
     this.compactObservations = options.compactObservations === true;
     this.personalContext = options.personalContext;
     this.mediaInput = options.mediaInput;
@@ -124,6 +126,12 @@ export class ProductivityTurnRunner {
     };
     const result = await this.loop.run(text, context, state.history, {
       acceptsTool: name => productivityToolNameSchema.safeParse(name).success,
+      // A model completion request is not proof. Only normalized, journaled
+      // outcomes may terminate with certified presentation and no narration call.
+      requestSatisfied: () => items.length > 0 && items.every(item => item.status === 'success'
+        && item.result?.complete === true && item.result.presentation.questions.length === 0
+        && (item.domain !== 'reminders' || item.result.rejections.length === 0)
+        && (item.domain !== 'tasks' && item.domain !== 'calendar' || item.result.issues.length === 0)),
       referenceMissing: call => {
         if (['reminder_update', 'reminder_acknowledge', 'reminder_cancel'].includes(call.name)) return typeof call.arguments.reminderId !== 'string'
           || !reminders.has(call.arguments.reminderId) || reminders.get(call.arguments.reminderId)?.status === 'cancelled';
@@ -170,6 +178,7 @@ export class ProductivityTurnRunner {
         const persona = 'You are Hermes, an Executive Personal Assistant and Second Brain. Match language and tone; be warm, natural and brief for WhatsApp. Avoid menus and internal reasoning. '
         + 'Fulfill only the latest user message. Earlier user requests are historical context, not queued actions; never resume them unless the latest message explicitly asks to. After a requested read, answer from its result; do not create or change resources unless requested now. '
         + 'Use tools and observed owned IDs for actions; the host verifies results and renders cards. Never invent success, duplicate cards or claim full inventory. '
+        + (this.finishWithVerifiedResults ? 'Read calls declare turnDisposition: finish when the user only wants their results; continue for dependent actions or analysis. Other tools may also finish a final batch. The host verifies and renders future results. ' : '')
         + 'Each independent task/reminder requires a separate call; never bundle tasks in one title. Attempt every requested supported action before replying. '
         + (this.discoverTools ? 'Call only advertised tools. tools_select loads schemas for a subsequent response; never combine selection and execution. Batch independent calls. Do not rediscover loaded tools or reread successful writes. ' : '')
         + (this.personalContext?.preferences.length ? 'Proactively leverage <user_preferences> for relevant habits and schedules; adapt or verify, respecting the current explicit request and host authorization. ' : '')
@@ -199,11 +208,12 @@ export class ProductivityTurnRunner {
         // Full provenance remains durable even when its prompt projection is omitted.
         const candidates = [{ history: projected, summary: '' },
           ...(this.compactObservations ? activeToolContextCandidates(projected, context.userId) : [])];
-        for (const candidate of candidates) for (const extra of [personal + historical, historical, '']) {
+        for (const candidate of candidates) for (const extra of [personal + historical, historical, ''])
+          for (const minimumRecentTurns of this.compactObservations ? [2, 1] : [3]) {
           try {
             const prepared = prepareProductivityContext(candidate.history, context.userId,
-              systemContent + '\n' + candidate.summary + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3,
-              this.compactObservations && (activeRead || !!tools?.some(tool => tool.name.endsWith('_read')))).messages;
+              systemContent + '\n' + candidate.summary + extra, maxMessages, fitsBudget, minimumRecentTurns,
+              this.compactObservations && activeRead).messages;
             if (fitsBudget(prepared)) return prepared;
           } catch (error) { if (!(error instanceof ContextLimitError)) throw error; }
         }

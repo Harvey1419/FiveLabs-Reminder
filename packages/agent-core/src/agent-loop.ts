@@ -1,4 +1,4 @@
-import { aiResponseSchema, aiTranscriptSchema, type AIMessage, type JsonObject,
+import { aiResponseSchema, aiTranscriptSchema, turnDispositionSchema, type AIMessage, type JsonObject,
   type ToolCall, type ToolSpecification, type TurnContext } from '@templelabs/contracts';
 import { AIProviderError } from '@templelabs/ai';
 import type { AIProvider } from '@templelabs/ai';
@@ -13,6 +13,7 @@ export interface AgentLoopOptions {
   readonly discoverTools?: boolean;
   readonly initialTools?: readonly string[];
   readonly readFollowups?: Readonly<Record<string, readonly string[]>>;
+  readonly finishWithVerifiedResults?: boolean;
   readonly continuationReserveTokens?: number;
   readonly maxModelSteps?: number;
   readonly maxTotalTokens?: number;
@@ -40,6 +41,7 @@ export interface AgentLoopUsage {
 /** Domain state stays in a host-owned policy. Journal exceptions must escape dispatch. */
 export interface AgentLoopPolicy {
   acceptsTool(name: string): boolean;
+  requestSatisfied?(): boolean;
   referenceMissing(call: ToolCall): boolean;
   readonly writeJournalAvailable: boolean;
   prepareContext(history: readonly AIMessage[], maxMessages: number,
@@ -67,8 +69,24 @@ function compactSchemaHints(value: JsonValue): JsonValue {
   return value;
 }
 
+/** Execution metadata belongs to the model wire envelope, never domain inputs. */
+function withTurnDisposition(schema: JsonObject, required: boolean): JsonObject {
+  for (const key of ['anyOf', 'oneOf']) if (Array.isArray(schema[key])) return { ...schema,
+    [key]: schema[key].map(branch => {
+      if (!branch || typeof branch !== 'object' || Array.isArray(branch)) throw new Error('Invalid tool schema branch');
+      return withTurnDisposition(branch, required);
+    }) };
+  const properties = schema.properties;
+  if (schema.type !== 'object' || !properties || typeof properties !== 'object' || Array.isArray(properties)
+    || Object.hasOwn(properties, 'turnDisposition')) throw new Error('Invalid domain tool envelope');
+  return { ...schema, properties: { ...properties,
+    turnDisposition: { type: 'string', enum: turnDispositionSchema.options, description: 'finish: present verified results after this batch; continue: inspect results for more actions or analysis.' } },
+    required: [...(Array.isArray(schema.required) ? schema.required : []), ...(required ? ['turnDisposition'] : [])] };
+}
+
 export class AgentLoop {
   private readonly discoverTools: boolean;
+  private readonly finishWithVerifiedResults: boolean;
   private readonly initialTools: readonly string[];
   private readonly readFollowups: Readonly<Record<string, readonly string[]>>;
   private readonly continuationReserveTokens: number;
@@ -91,6 +109,7 @@ export class AgentLoop {
     options: AgentLoopOptions = {}) {
     if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
     this.discoverTools = options.discoverTools === true;
+    this.finishWithVerifiedResults = options.finishWithVerifiedResults === true;
     this.initialTools = [...new Set(options.initialTools ?? [])];
     if (this.initialTools.length > 2 || this.initialTools.some(name => !name || name === 'tools_select')) throw new Error('Invalid initial tool scope');
     this.readFollowups = structuredClone(options.readFollowups ?? {});
@@ -135,12 +154,16 @@ export class AgentLoop {
     let reconciliationRequired = false;
     let conversationReply: string | null = null;
     const finish = (): AgentLoopResult => ({ history, conversationReply, notices: [...new Set(notices)], usage: { ...usage }, requiresReconciliation: reconciliationRequired });
-    const catalogue = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name)).map(tool => this.discoverTools
-      ? { ...tool, inputSchema: compactSchemaHints(tool.inputSchema) as JsonObject } : tool);
+    const catalogue = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name)).map(tool => {
+      const inputSchema = this.discoverTools ? compactSchemaHints(tool.inputSchema) as JsonObject : tool.inputSchema;
+      if (!this.finishWithVerifiedResults) return { ...tool, inputSchema };
+      return { ...tool, inputSchema: withTurnDisposition(inputSchema, this.registry.effect(tool.name) === 'read') };
+    });
     if (catalogue.some(tool => tool.name === 'tools_select')) throw new Error('Reserved tool name');
     const discovery = { name: 'tools_select', description: 'Select the next operation to load its input schema. Selection performs no operation. Use the returned schema on the next step.',
       inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) } }, required: ['name'], additionalProperties: false } };
     let selected: readonly string[] = this.initialTools.filter(name => catalogue.some(tool => tool.name === name));
+    let explicitSelections: readonly string[] = [];
     let followups: readonly string[] = [];
     const completedWrites = new Set<string>();
     let totalTokens = 0;
@@ -152,8 +175,9 @@ export class AgentLoop {
       // that scope; keeping unrelated create schemas can starve a simple read.
       const loaded = catalogue.filter(tool => selected.includes(tool.name) || followups.includes(tool.name));
       const unloaded = catalogue.filter(tool => !loaded.some(current => current.name === tool.name));
-      const scopedDiscovery = { ...discovery, inputSchema: { ...discovery.inputSchema,
-        properties: { name: { type: 'string', enum: unloaded.map(tool => tool.name) } } } };
+      // Discovery is idempotent. Rejecting a repeated selection in the provider
+      // prevents the loop from observing/correcting it at all.
+      const scopedDiscovery = discovery;
       const tools = this.discoverTools ? [...(unloaded.length ? [scopedDiscovery] : []), ...loaded] : catalogue;
       const availableNames = new Set(tools.map(tool => tool.name));
       const inputCeiling = this.maxInputTokens - (tools.some(tool => this.registry.effect(tool.name) === 'read') ? this.continuationReserveTokens : 0);
@@ -170,6 +194,9 @@ export class AgentLoop {
             && estimateRequest(messages) < this.maxTotalTokens - totalTokens, tools) };
       } catch (error) {
         if (error instanceof ContextLimitError) {
+          // Warm schemas are optional performance hints, never mandatory context.
+          // Retry preparation once with discovery alone before rejecting the turn.
+          if (step === 0 && this.discoverTools && selected.length) { selected = []; step--; continue; }
           notices.push('limit_reached'); return finish();
         }
         throw error;
@@ -218,25 +245,37 @@ export class AgentLoop {
         notices.push('limit_reached'); return finish();
       }
       if (new Set(calls.map(call => call.id)).size !== calls.length
-        || response.usage.outputTokens > availableOutput) {
+        || response.usage.outputTokens > availableOutput
+        || this.finishWithVerifiedResults && calls.some(call => call.name !== 'tools_select' && Object.hasOwn(call.arguments, 'turnDisposition')
+          && !turnDispositionSchema.safeParse(call.arguments.turnDisposition).success)) {
         notices.push('invalid_response'); return finish();
       }
       // Namespacing avoids collisions between provider-local IDs on separate turns.
       const normalizedCalls = calls.map(call => ({ ...call,
+        arguments: this.finishWithVerifiedResults && catalogue.some(tool => tool.name === call.name)
+          ? Object.fromEntries(Object.entries(call.arguments).filter(([key]) => key !== 'turnDisposition')) : call.arguments,
         id: `${encodeURIComponent(context.requestId)}:${step === 0 ? '' : `step:${step}:`}${encodeURIComponent(call.id)}` }));
-      history.push({ role: 'assistant', content: response.message.content, toolCalls: normalizedCalls });
+      history.push({ role: 'assistant', content: response.message.content, toolCalls: normalizedCalls.map((call, index) => ({ ...call,
+        arguments: calls[index]!.arguments })) });
       if (!calls.length && response.stopReason === 'completed') conversationReply = response.message.content.trim() || null;
       totalCalls += calls.length;
+      const finishRequested = this.finishWithVerifiedResults && calls.some(call => call.name !== 'tools_select' && call.arguments.turnDisposition === 'finish');
       for (const call of normalizedCalls) {
         if (this.discoverTools && call.name === 'tools_select') {
           const name = call.arguments.name;
           const valid = availableNames.has(call.name) && Object.keys(call.arguments).length === 1
             && typeof name === 'string' && catalogue.some(tool => tool.name === name);
-          if (valid) selected = [...new Set(normalizedCalls.filter(candidate => candidate.name === 'tools_select'
+          const alreadyLoaded = typeof name === 'string' && availableNames.has(name);
+          if (valid) {
+            explicitSelections = [...new Set([...explicitSelections, ...normalizedCalls.filter(candidate => candidate.name === 'tools_select'
             && Object.keys(candidate.arguments).length === 1 && typeof candidate.arguments.name === 'string'
-            && catalogue.some(tool => tool.name === candidate.arguments.name)).map(candidate => String(candidate.arguments.name)))];
+            && catalogue.some(tool => tool.name === candidate.arguments.name)).map(candidate => String(candidate.arguments.name))])];
+            selected = explicitSelections;
+          }
           history.push({ role: 'tool', toolCallId: call.id, content: valid
-            ? { status: 'success', selectedTool: name, observation: 'Schema loaded for the next step. No domain action executed.' }
+            ? { status: 'success', selectedTool: name, alreadyLoaded, observation: alreadyLoaded
+              ? `Schema already loaded. Call ${name} directly next; do not select it again. No domain action executed.`
+              : 'Schema loaded for the next step. No domain action executed.' }
             : { status: 'denied', code: 'TOOL_UNAVAILABLE' }, isError: !valid });
           continue;
         }
@@ -304,14 +343,19 @@ export class AgentLoop {
         if (outcome.status === 'indeterminate' || policy.requiresReconciliation(call, outcome)) reconciliationRequired = true;
         await policy.afterOutcome(structuredClone(call), outcome);
         if (this.discoverTools && read && outcome.status === 'success') {
-          followups = this.readFollowups[call.name] ?? [];
+          const data = outcome.data as unknown;
+          const resources = data && typeof data === 'object' ? ('records' in data ? data.records : 'events' in data ? data.events : null) : null;
+          followups = Array.isArray(resources) && resources.length ? this.readFollowups[call.name] ?? [] : [];
           if (followups.length) selected = selected.filter(name => name !== call.name);
         }
         if (this.discoverTools && !read && (outcome.status === 'success' || outcome.status === 'partial')) { followups = []; }
-        const content: JsonObject = { status: outcome.status, observation: outcome.observation };
+        const disposition = calls[normalizedCalls.indexOf(call)]?.arguments.turnDisposition;
+        const content: JsonObject = { status: outcome.status, observation: outcome.observation,
+          ...(this.finishWithVerifiedResults && disposition !== undefined ? { turnDisposition: disposition } : {}) };
         history.push({ role: 'tool', toolCallId: call.id, content, isError: outcome.status !== 'success' && outcome.status !== 'partial' });
       }
       aiTranscriptSchema.parse(history);
+      if (finishRequested && !notices.length && !reconciliationRequired && policy.requestSatisfied?.()) return finish();
       if (!calls.length || reconciliationRequired || this.maxModelSteps === 1) return finish();
       if (step + 1 === this.maxModelSteps) notices.push('limit_reached');
     }

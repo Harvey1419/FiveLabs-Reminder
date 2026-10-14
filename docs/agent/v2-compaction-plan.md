@@ -8,7 +8,7 @@ API-key versus subscription authentication does not determine compaction ownersh
 
 ## Delivery sequence
 
-1. **Incident prerequisites:** replace warmed schemas on explicit selection, prefetch bounded fresh-read schemas, omit unrelated historical reference arrays, prefer active reads over raw old commands, and render honest empty-result notices. Implemented in the read-context recovery work unit, with checkpoint replay and bounded tests.
+1. **Incident prerequisites:** replace warmed schemas on explicit selection, warm bounded read schemas without phrase classification, omit unrelated historical reference arrays, prefer active reads over raw old commands, and render honest empty-result notices. Implemented in the read-context recovery work unit, with checkpoint replay and bounded tests.
 2. **Explain context pressure:** measure instructions, schemas, current request, recent interaction, memories and observations before/after projection. Distinguish preparation limits, deadline/step limits and provider errors; preserve generation IDs and unknown usage.
 3. **Persist portable continuity:** version summaries with source-message boundaries, goals, relevant dialogue, explicit corrections, unresolved questions and references to durable receipts. Validate summaries against host-owned state; personal memory admission remains separate. Preserve the latest interaction when needed to interpret the current message.
 4. **Compact at safe boundaries:** reserve continuation space before each call; project large observations and load older details on demand. Keep original current text, complete tool pairs, pending approvals and uncertain effects. A summary cannot authorize writes or certify a database result.
@@ -18,3 +18,5 @@ API-key versus subscription authentication does not determine compaction ownersh
 The incident fix establishes prerequisites, not full Pi/OpenCode parity. A summary alone cannot repair overly broad tool scopes, ungrounded action selection or arbitrary provider failures. No claim of definitive elimination of all incomplete responses is justified by a single successful replay.
 
 References: [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/compaction.md), [OpenCode](https://dev.opencode.ai/v2/docs/compaction/), [OpenAI native compaction](https://developers.openai.com/api/docs/guides/compaction), [OpenRouter message transforms](https://openrouter.ai/docs/guides/features/message-transforms).
+
+The verified-completion follow-up removes the regex selector and adds model-declared, host-verified `turnDisposition` to finish successful batches without mandatory narration inference. This is an execution contract prerequisite; persistent conversational summaries remain pending. See [verified completion](v2-verified-completion.md).

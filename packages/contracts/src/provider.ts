@@ -1,4 +1,6 @@
 import { z } from 'zod';
+/** Model execution control; peeled from the wire before domain validation. */
+export const turnDispositionSchema = z.enum(['continue', 'finish']);
 
 const identifier = z.string().min(1);
 export const jsonObjectSchema = z.record(z.string(), z.json());

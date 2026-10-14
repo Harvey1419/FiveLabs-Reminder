@@ -1,0 +1,17 @@
+# Verified tool-batch completion
+
+Production turn `e5cfc9f1-2ff2-41b3-96a4-239a7be1411c` successfully read today's reminders and returned zero records. It did not exceed the 2,500-token policy: the estimates were 1,654 and 2,038. The redundant narration request returned a generation ID with HTTP 200 but no verifiable usage, so the gateway stopped without retrying unknown inference. The presenter combined a verified empty list with a provider-failure notice and an excessive claim that the user was completely caught up.
+
+Domain calls can now declare `turnDisposition: continue | finish` in a typed, model-facing envelope. When enabled, the native schema requires that field on read calls and permits it on other domain calls, including discriminated schema branches. `tools_select` remains separate discovery control. The core validates and removes the disposition before domain validation, authorization and persistence dispatch. It preserves the original declaration in the model transcript and paired tool observation for audit.
+
+`finish` requests presentation after the entire batch executes; it does not certify anything itself. The host finishes without another inference only when every normalized current-turn item succeeded, has complete results, and has no pending questions, rejections or issues. Partial, failed, unowned, denied and uncertain effects cannot satisfy the gate. `continue` preserves observation-driven reasoning. Recorded calls without metadata continue through the previous path rather than being interpreted as completion.
+
+This replaces phrase classification: the regex schema selector from the previous release is removed. The last successful, available tool schemas are cached from the owned conversation, with a bounded two-schema registry fallback. User text is not classified. The model selects other schemas dynamically. Warm schemas yield to discovery when they alone prevent initial context preparation. Empty reads do not preload mutation followups without returned resource IDs. Explicit selections accumulate across steps, and idempotent rediscovery receives precise feedback rather than an upstream enum rejection.
+
+The runner tries to preserve the immediately preceding interaction with the current message, falling back to the current turn plus host-owned operational summary under budget pressure. Reads compact at actual execution boundaries rather than assuming every turn containing an available read tool is itself a read.
+
+The presenter derives empty-list wording from actual records, keeps the existing card style, removes the global all-caught-up claim for today's empty list, and avoids an unnecessary limited-list footer on empty reminder results. It does not fabricate dialogue or hide a real unfinished request.
+
+Tests cover one-call empty/populated reads, full-batch verification, absent/malformed completion declarations, unresolved results, receipt ownership, continuation, durable checkpointing and single accepted delivery. Real-provider replay uses the private 76-message incident checkpoint with isolated ports, never live reminder writes or WhatsApp sends. Typed completion is portable across providers supporting tool schemas; it is not provider-native context compaction. Semantic correctness of the model's chosen actions still requires evaluations.
+
+Roll back this release commit as one unit to restore the previous loop/projection/presentation and schema-selection policy. Publish through GitHub main only; verify CI, the exact Railway deployment and `/health`.

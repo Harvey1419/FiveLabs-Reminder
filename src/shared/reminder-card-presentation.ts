@@ -256,8 +256,8 @@ export function createReminderPresentation(dependencies: ReminderPresentationDep
         case 'pending_today':
         case 'remaining_today':
           emptyMsg = isEn
-            ? 'You have no pending reminders for today. You are all caught up! ☕'
-            : 'No tienes recordatorios pendientes para hoy. ¡Estás al día por completo! ☕';
+            ? 'You have no pending reminders for today. ☕'
+            : 'No tienes recordatorios pendientes para hoy. ☕';
           break;
         case 'this_week':
           emptyMsg = isEn

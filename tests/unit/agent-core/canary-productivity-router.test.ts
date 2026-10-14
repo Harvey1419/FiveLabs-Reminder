@@ -41,9 +41,23 @@ function fixture() {
   const route = createCanaryRouter<Awaited<ReturnType<typeof routeCanaryProductivity>>>({ baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }),
     lease: () => lease, readPrior: async () => null });
   return { lease, send, baseline, persisted: () => persisted,
-    run: (authorized = false) => withTurnLease(lease, () => route('Lista mis tareas', user, [], { inputModality: 'text', agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
+    run: (authorized = false, text = 'Lista mis tareas') => withTurnLease(lease, () => route(text, user, [], { inputModality: 'text', agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
 }
 describe('canary admission executes actual durable V2 composition', () => {
+  it('delivers a verified empty today read once without a redundant provider request', async () => {
+    const f = fixture(); state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select', name: 'tools_select', arguments: { name: 'reminder_read' } }]) },
+      { response: answer([{ id: 'read', name: 'reminder_read', arguments: { filter: 'today', turnDisposition: 'finish' } }]) },
+      { response: new Error('The redundant narration request would fail') },
+    ]);
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [] } });
+    const result = await f.run(false, 'Oye, ¿qué recordatorios tengo para hoy?');
+    expect(state.provider.requests).toHaveLength(2); expect(domainExecute).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce();
+    expect(result.confirmation).toContain('No tienes recordatorios pendientes para hoy');
+    expect(result.confirmation).not.toMatch(/No pude|lista limitada|al día por completo/);
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { uiPayload: { notices: [] } },
+      effects: [{ call: { name: 'reminder_read' }, item: { status: 'success' } }], deliveries: [{ status: 'accepted' }] } });
+  });
   it('finishes a voice reminder list with a historical ledger without retaining unrelated warm schemas', async () => {
     const f = fixture();
     const records = Array.from({ length: 5 }, (_, index) => ({ id: `22222222-2222-4222-8222-22222222222${index}`,
@@ -211,7 +225,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(2500);
       expect(request.tools.length).toBeLessThanOrEqual(5);
       expect(request.messages.some(message => typeof message.content === 'string' && message.content.includes('Old 0'))).toBe(false);
-      expect(request.messages.filter(message => message.role === 'user')).toEqual([{ role: 'user', content: 'Lista mis tareas' }]);
+      expect(request.messages.filter(message => message.role === 'user').at(-1)).toEqual({ role: 'user', content: 'Lista mis tareas' });
       expect(String(request.messages[0]!.content)).toContain('operationalSummary');
     }
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history: priorHistory } } } });
@@ -340,6 +354,23 @@ describe('canary admission executes actual durable V2 composition', () => {
     const result = await f.run(true);
     expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select','task_create','reminder_create']);
     expect(domainExecute).toHaveBeenCalledTimes(2); expect(result.confirmation).toContain('Salir'); expect(result.confirmation).toContain('Preparar informe');
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
+  });
+  it('retains consecutive explicit selections and permits idempotent rediscovery', async () => {
+    const f = fixture(), id = '11111111-1111-4111-8111-111111111111';
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select-reminder', name: 'tools_select', arguments: { name: 'reminder_create' } }]) },
+      { response: answer([{ id: 'select-task', name: 'tools_select', arguments: { name: 'task_create' } }]) },
+      { response: answer([{ id: 'create-reminder', name: 'reminder_create', arguments: { content: 'Salir', delayMinutes: 10, turnDisposition: 'continue' } },
+        { id: 'create-task', name: 'task_create', arguments: { title: 'Preparar informe', turnDisposition: 'finish' } }]) },
+      { response: new Error('No redundant final inference') },
+    ]);
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'created_reminders_batch', data: [{ id, content: 'Salir', sendAt: '2026-10-15T20:00:00Z' }] })
+      .mockResolvedValueOnce({ success: true, action: 'created_tasks_batch', data: [{ id, title: 'Preparar informe', status: 'pending' }] });
+    await f.run(true, 'Crea un recordatorio y una tarea');
+    expect(state.provider.requests).toHaveLength(3); expect(domainExecute).toHaveBeenCalledTimes(2);
+    expect(state.provider.requests[2]!.tools.map(tool => tool.name)).toEqual(['tools_select', 'task_create', 'reminder_create']);
+    expect(JSON.stringify(state.provider.requests[1]!.tools[0]!.inputSchema)).toContain('reminder_create');
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
   });
   it('failed delivery is fenced as unknown and never executes baseline', async () => {

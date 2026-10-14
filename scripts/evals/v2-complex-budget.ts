@@ -7,7 +7,7 @@ import { aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, t
 import { createReminderTools, createTaskTools, createCalendarTools, createMemoryTools, ToolRegistry } from '@templelabs/tools';
 import { createConfiguredAIProvider } from '../../src/adapters/agent-core/configured-ai-provider.js';
 import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
-import { initialProductivityTools } from '../../src/adapters/agent-core/productivity-tool-scope.js';
+import { recentToolScope } from '../../src/adapters/agent-core/recent-tool-scope.js';
 const live = process.argv.includes('--live');
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
 const caseName = process.argv.find(arg => arg.startsWith('--case='))?.slice(7);
@@ -77,13 +77,15 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
   }, estimateInputTokens: estimateBoundedInput, onAttempt: attempt => { attempts.push(attempt); } }) : new MockAIProvider(scenario.script.map(response => ({ response })));
   const provider: AIProvider = { capabilities: source.capabilities, complete: async request => { requests.push(request); const result = await source.complete(request); decisions.push({ available: request.tools.map(t=>t.name), calls: result.message.toolCalls.map(c=>({name:c.name,arguments:c.arguments})) }); return result; } };
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
+  const previous = snapshotPath ? productivityConversationSchema.parse({ ...JSON.parse(readFileSync(snapshotPath, 'utf8')), userId: context.userId, handledRequestIds: [] })
+    : scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
   const runner = new ProductivityTurnRunner(provider, registry, { ...productivityBudget, maxInputTokens: budget, maxModelSteps: scenario.cap ?? productivityBudget.maxModelSteps,
-    continuation: 'observation_driven', initialTools: initialProductivityTools(scenario.text), discoverTools: true, compactObservations: true, maxPromptReferences: 5,
+    initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
+    continuation: 'observation_driven', discoverTools: true, compactObservations: true, maxPromptReferences: 5,
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] },
     personalContext: { displayName: 'Juan', preferences: ['Prefiero avisos 20 minutos antes', 'Prefiero reuniones por la mañana'], memories: ['Trabajo en Globant', 'Estoy preparando el proyecto Atlas'] },
     estimateInputTokens: input => wire.estimateNativeInput(requestSchema.parse(input)), authorizeWrite: async () => true });
-  const previous = snapshotPath ? productivityConversationSchema.parse({ ...JSON.parse(readFileSync(snapshotPath, 'utf8')), userId: context.userId, handledRequestIds: [] })
-    : scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
+
   const started = Date.now(); let result; let error: string | null = null;
   try { result = await runner.run(scenario.text, context, previous, { beforeDispatch: async () => {}, afterOutcome: async () => {} }); }
   catch (failure) { error = failure instanceof Error ? failure.message : 'Unknown'; }
