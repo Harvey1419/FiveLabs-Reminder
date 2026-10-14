@@ -1,0 +1,73 @@
+{
+  "artifact": "v2-production-github-release",
+  "sourceCommit": "3ddd94ecea0fadd2336cfff015b25ac11646c331",
+  "sourceBranch": "main",
+  "sourceRepository": "Harvey1419/FiveLabs-Reminder",
+  "origin": "GitHub push to main",
+  "deployment": {
+    "id": "30fa9ea6-2501-49ae-89e6-4f5ffbf87e83",
+    "status": "SUCCESS",
+    "createdAt": "2026-10-14T06:01:59.774Z",
+    "updatedAt": "2026-10-14T06:02:46.315Z",
+    "serviceId": "f3fbb519-b7b8-4c43-8570-d17609363472",
+    "environmentId": "1e3e5c59-e54a-4a34-a632-d1cfab41cf41",
+    "projectId": "19a32952-8b25-400e-afa0-9e659b78f6b3",
+    "regions": [
+      "us-east4-eqdc4a"
+    ]
+  },
+  "supersedesCliDeployment": "982826d7-068b-4dee-800b-67e21b8de2c5",
+  "startup": [
+    {
+      "timestamp": "2026-10-14T06:02:43.035744779Z",
+      "message": "Starting Container"
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670662241Z",
+      "message": "[scheduler] started worker=worker-1-bu0mm (check interval: 15s with atomic locking, stable recurring IDs & persistent nudges)"
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670667601Z",
+      "message": "[morningBriefing] worker started (monitoring 6:00 AM local briefings)"
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670670961Z",
+      "message": "[calendarWatchRenewal] Starting periodic renewal worker (interval: 6h)"
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670673791Z",
+      "message": "Server running on port 3005"
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670676181Z",
+      "message": "[calendarWatchRenewal] Checking 5 active Google integrations..."
+    },
+    {
+      "timestamp": "2026-10-14T06:02:43.670678811Z",
+      "message": "[calendarWatchRenewal] Run complete: checked=5, baselined=0, renewed/established=0, errors=0"
+    }
+  ],
+  "checks": {
+    "localUnitPassed": 3709,
+    "localUnitFiles": 292,
+    "typecheckErrors": 0,
+    "maintainedJavaScript": 0
+  },
+  "liveMutationVerification": "Pending a new user message; no production reminder was deleted for verification",
+  "policy": "Deploy only from GitHub; no Railway CLI uploads/redeploys",
+  "githubActions": {
+    "runId": 38519866273,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/Harvey1419/FiveLabs-Reminder/actions/runs/38519866273"
+  },
+  "health": {
+    "checkedAtUtc": "2026-10-14T06:03:25.274848+00:00",
+    "url": "https://hermes.templelabs.co/health",
+    "status": 200,
+    "body": {
+      "status": "ok"
+    },
+    "requestId": "IBFZEI3oT8GeJZdkaP71AA"
+  }
+}
