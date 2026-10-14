@@ -1,4 +1,4 @@
-import { OpenRouterProvider, type OpenRouterRoute } from '@templelabs/ai';
+import { OpenRouterProvider, type OpenRouterRoute, type OpenRouterProviderOptions } from '@templelabs/ai';
 import { MODEL_CONFIG, getOpenRouterApiKey, type LegacyOpenRouterConfiguration, type LegacyStrictOpenRouterConfiguration, type LegacyBackgroundOpenRouterConfiguration } from '../../agent/providers/client.js';
 
 export interface ConfiguredAIProviderOptions {
@@ -7,6 +7,8 @@ export interface ConfiguredAIProviderOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly fetch?: typeof globalThis.fetch;
   readonly now?: () => number;
+  readonly estimateInputTokens?: OpenRouterProviderOptions['estimateInputTokens'];
+  readonly onAttempt?: OpenRouterProviderOptions['onAttempt'];
 }
 function positive(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -27,7 +29,9 @@ export function createConfiguredAIProvider(options: ConfiguredAIProviderOptions 
       timeoutMs: positive(env.OPENROUTER_LAST_RESORT_TIMEOUT_MS, 3500), temperature: 0, minOutputTokens: 2800 },
   ];
   return new OpenRouterProvider({ apiKey: options.apiKey ?? getOpenRouterApiKey() ?? '', routes,
-    ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
+    ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}),
+    ...(options.estimateInputTokens ? { estimateInputTokens: options.estimateInputTokens } : {}),
+    ...(options.onAttempt ? { onAttempt: options.onAttempt } : {}) });
 }
 
 export interface ConfiguredStructuredAIProviderOptions extends Omit<ConfiguredAIProviderOptions, 'config'> {

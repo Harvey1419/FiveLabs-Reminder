@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { estimateBoundedInput, type OpenRouterAttempt } from '@templelabs/ai';
+import { aiTranscriptSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { ProductivityTurnRunner, type AgentLoopOptions } from '@templelabs/agent-core';
 import { createTaskTools, createCalendarTools, createReminderTools, ToolRegistry } from '@templelabs/tools';
 import type { ProductivityConversation } from '@templelabs/contracts';
@@ -13,6 +15,10 @@ import { detectLanguageFromText } from '../../shared/language-detection.js';
 import type { CanaryAdmission } from '../../agent/orchestration/canary-router.js';
 import type { routeMessage as baseline } from '../../agent/orchestration/router-core.js';
 import { recordV2Delivery } from './canary-delivery-receipt.js';
+
+function telemetry(event: string, data: unknown): void {
+  try { console.info(`[agent-core-v2] ${event}`, JSON.stringify(data)); } catch { /* Logging cannot invalidate a committed effect. */ }
+}
 
 type Result = Awaited<ReturnType<typeof baseline>>;
 const userSchema = z.object({ id: z.string().min(1), phone_number: z.string().optional(), timezone: z.string().optional(), locale: z.string().optional() });
@@ -34,16 +40,27 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     ...createTaskTools(createLegacyTaskPort(user)), ...createCalendarTools(createLegacyCalendarPort(user)),
     ...createReminderTools(createLegacyReminderPort(user)),
   ]);
-  const previous: ProductivityConversation | undefined = admission.prior
-    ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined;
+  const previous: ProductivityConversation | undefined = admission.handoff ?? (admission.prior
+    ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined);
   const writePolicy = z.custom<NonNullable<AgentLoopOptions['authorizeWrite']>>(value => typeof value === 'function')
     .safeParse(options.agentCoreAuthorizeWrite);
-  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(createConfiguredAIProvider(), registry, { continuation: 'observation_driven',
+  const attempts: OpenRouterAttempt[] = [];
+  const provider = createConfiguredAIProvider({ estimateInputTokens: estimateBoundedInput,
+    onAttempt: attempt => {
+      attempts.push(attempt);
+      telemetry('provider_attempt', { runId: context.runId, requestId: context.requestId, ...attempt });
+    } });
+  const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
+  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
+    discoverTools: true, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, maxOutputTokens: 768,
+    estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
     authorizeWrite: async (call, scopedContext) => registry.effect(call.name) === 'write'
       && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
+  telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,
+    inputTarget: 1800, ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
   const result: Result = { confirmation: handled.reply.text, intent: 'query', language,
-    entities: { _agentCoreEngine: 'v2' }, executionFacts: [], memoryDisposition: 'skip_operational' };
+    entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: 1800, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
   recordV2Delivery(result, handled.messageIds);
   return result;
 }

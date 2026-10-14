@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OpenRouterProvider, decodeOpenRouterResponse, openRouterPayload, reportedOpenRouterUsage,
-  type CompletionRequest, type OpenRouterRoute } from '@templelabs/ai';
+  estimateBoundedInput, type OpenRouterAttempt, type CompletionRequest, type OpenRouterRoute } from '@templelabs/ai';
 import type { AIMessage } from '@templelabs/contracts';
 import { createConfiguredAIProvider } from '../../../src/adapters/agent-core/configured-ai-provider.js';
 
@@ -229,5 +229,51 @@ describe('bounded provider fallback and safe accounting', () => {
     const provider = createConfiguredAIProvider({ apiKey: 'fixture-key', config, env: { OPENROUTER_PRIMARY_TIMEOUT_MS: '50', OPENROUTER_PRIMARY_REASONING_EFFORT: 'low' }, fetch });
     await provider.complete(request());
     expect(body(fetch)).toMatchObject({ model: 'fixture/configured', reasoning: { effort: 'low', exclude: true } });
+  });
+});
+
+
+describe('bounded V2 wire estimation and generation telemetry', () => {
+  it('estimates the actual route payload and keeps preflight below 1800 including schemas', async () => {
+    const fetch = transport([json(wire({ id: 'gen-fixture-1', model: 'fixture/actual', provider: 'Google AI Studio' }))]);
+    const attempts: OpenRouterAttempt[] = [];
+    const provider = new OpenRouterProvider({ apiKey: 'fixture-secret', routes, fetch,
+      estimateInputTokens: estimateBoundedInput, onAttempt: attempt => attempts.push(attempt) });
+    const req = { ...request(), maxInputTokens: 1800, maxTotalTokens: 3000 };
+    expect(provider.estimateNativeInput(req)).toBeLessThanOrEqual(1800);
+    await provider.forTurn().complete(req);
+    expect(estimateBoundedInput(body(fetch))).toBeLessThanOrEqual(1800);
+    expect(attempts).toEqual([expect.objectContaining({ generationId: 'gen-fixture-1', model: 'fixture/actual', provider: 'Google AI Studio',
+      usage: { inputTokens: 20, outputTokens: 10 }, requestedProviders: ['fixture-primary'], outcome: 'response', status: 200 })]);
+    expect(JSON.stringify(attempts)).not.toContain('fixture-secret'); expect(JSON.stringify(attempts)).not.toContain('Crea una tarea');
+  });
+  it('logs metered failed attempts and successful fallback separately without inventing an actual provider', async () => {
+    const fetch = transport([json({ id: 'gen-failed', error: {}, usage: { prompt_tokens: 3, completion_tokens: 0 } }, 502), json(wire({ id: 'gen-fallback' }))]);
+    const attempts: OpenRouterAttempt[] = [];
+    const provider = new OpenRouterProvider({ apiKey: 'fixture', routes, fetch, estimateInputTokens: estimateBoundedInput,
+      onAttempt: attempt => attempts.push(attempt) });
+    expect((await provider.complete({ ...request(), maxInputTokens: 1800 })).usage.inputTokens).toBe(23);
+    expect(attempts.map(attempt => [attempt.generationId, attempt.route, attempt.provider, attempt.status])).toEqual([
+      ['gen-failed', 'primary', null, 502], ['gen-fallback', 'secondary', null, 200],
+    ]);
+  });
+  it('never sends an over-budget wire payload, including multilingual input and tool schema bytes', async () => {
+    const fetch = transport([]);
+    const provider = new OpenRouterProvider({ apiKey: 'fixture', routes, fetch, estimateInputTokens: estimateBoundedInput });
+    const req = { ...request([{ role: 'user', content: '🧬 中文 '.repeat(2000) }]), maxInputTokens: 1800 };
+    await expect(provider.complete(req)).rejects.toMatchObject({ code: 'GATEWAY_BUDGET' }); expect(fetch).not.toHaveBeenCalled();
+    expect(() => estimateBoundedInput({ content: '<|endoftext|> <|im_start|>' })).not.toThrow();
+  });
+  it('records authoritative over-budget usage then rejects the response before execution', async () => {
+    const fetch = transport([json(wire({ id: 'gen-over', usage: { prompt_tokens: 1801, completion_tokens: 10 } }))]);
+    const attempts: OpenRouterAttempt[] = [];
+    const provider = new OpenRouterProvider({ apiKey: 'fixture', routes, fetch, estimateInputTokens: estimateBoundedInput, onAttempt: attempt => attempts.push(attempt) });
+    await expect(provider.complete({ ...request(), maxInputTokens: 1800 })).rejects.toMatchObject({ code: 'GATEWAY_BUDGET' });
+    expect(attempts[0]?.usage?.inputTokens).toBe(1801); expect(fetch).toHaveBeenCalledOnce();
+  });
+  it('does not retry successful inference when telemetry logging throws', async () => {
+    const fetch = transport([json(wire())]);
+    const provider = new OpenRouterProvider({ apiKey: 'fixture', routes, fetch, onAttempt: () => { throw new Error('logger failed'); } });
+    expect((await provider.forTurn().complete(request())).usage.inputTokens).toBe(20); expect(fetch).toHaveBeenCalledOnce();
   });
 });

@@ -1,0 +1,62 @@
+{
+  "phase": "agent-core-phase5",
+  "artifact": "v2-bounded-context-baseline-handoff",
+  "verifiedAtUtc": "2026-10-14T04:05:00Z",
+  "implementation": {
+    "baselineHandoff": {
+      "file": "src/agent/orchestration/canary-router.ts",
+      "mechanism": "Transfers completed baseline turns with verified reference receipts and no pending unconfirmed actions into V2 dialogue history, eliminating permanent baseline lock-in."
+    },
+    "tokenBudget": {
+      "target": 1800,
+      "maxTotalTokens": 12000,
+      "maxOutputTokens": 768,
+      "maxPromptReferences": 5,
+      "toolDiscovery": true,
+      "estimator": "tiktoken@1.0.22 (tiktoken/lite with o200k_base.json ranks, 20% safety margin + 256 framing reserve)",
+      "atomicToolEstimates": [
+        { "operation": "calendar_connect", "estimatedWireInput": 822 },
+        { "operation": "reminder_read", "estimatedWireInput": 919 },
+        { "operation": "calendar_read", "estimatedWireInput": 949 },
+        { "operation": "task_complete", "estimatedWireInput": 960 },
+        { "operation": "task_create", "estimatedWireInput": 966 },
+        { "operation": "reminder_acknowledge", "estimatedWireInput": 980 },
+        { "operation": "reminder_create", "estimatedWireInput": 984 },
+        { "operation": "task_update", "estimatedWireInput": 1070 },
+        { "operation": "task_read", "estimatedWireInput": 1137 },
+        { "operation": "calendar_create", "estimatedWireInput": 1141 },
+        { "operation": "reminder_update", "estimatedWireInput": 1152 }
+      ],
+      "maximumEstimatedWireInput": 1152
+    },
+    "telemetry": {
+      "events": ["provider_attempt", "turn_usage"],
+      "capturedFields": ["runId", "requestId", "generationId", "model", "provider", "usage", "inputTarget", "accountingComplete"]
+    }
+  },
+  "verification": {
+    "unitTests": {
+      "totalPassed": 3670,
+      "totalFailed": 0,
+      "testFiles": 290,
+      "allPassed": true
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "compiledModules": 281,
+      "missingRuntimeModules": 0,
+      "sourceHostImports": 0
+    },
+    "codebaseInventory": {
+      "maintainedJsFiles": 0,
+      "strictTsFiles": 720
+    },
+    "container": {
+      "tag": "five-labs-reminder-api:v2-bounded-context",
+      "id": "sha256:f3849e445a782343296a764e535e38a43d57990aec1bfea71821b364efc31725",
+      "node": "22.23.3",
+      "healthCheck": { "status": 200, "body": "{\"status\":\"ok\"}" },
+      "gracefulShutdown": { "signal": "SIGTERM", "exitCode": 0, "elapsedSeconds": 0.069, "oomKilled": false }
+    }
+  }
+}

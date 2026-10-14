@@ -9,6 +9,8 @@ import { ContextLimitError } from './operational-context.js';
 export interface AgentLoopOptions {
   /** Explicit opt-in until real provider/canary gates pass. */
   readonly continuation?: 'single_decision' | 'observation_driven';
+  /** Discover one authorized atomic schema at a time; never execute catalogue selections. */
+  readonly discoverTools?: boolean;
   readonly maxModelSteps?: number;
   readonly maxTotalTokens?: number;
   readonly maxInputTokens?: number;
@@ -47,7 +49,20 @@ export interface AgentLoopResult {
   readonly history: AIMessage[]; readonly notices: LoopNotice[]; readonly usage: AgentLoopUsage;
 }
 
+type JsonValue = JsonObject[string];
+
+/** Date formats are model hints; generated leap-year regexes duplicate hundreds of tokens.
+ * The registry still validates the original Zod input, including patterns and refinements. */
+function compactSchemaHints(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) return value.map(compactSchemaHints);
+  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !(key === 'pattern' && ['date', 'date-time'].includes(String(value.format))))
+    .map(([key, item]) => [key, compactSchemaHints(item)]));
+  return value;
+}
+
 export class AgentLoop {
+  private readonly discoverTools: boolean;
   private readonly maxModelSteps: number;
   private readonly maxTotalTokens: number;
   private readonly maxInputTokens: number;
@@ -65,6 +80,7 @@ export class AgentLoop {
   constructor(private readonly provider: AIProvider, private readonly registry: ToolRegistry,
     options: AgentLoopOptions = {}) {
     if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
+    this.discoverTools = options.discoverTools === true;
     this.maxModelSteps = options.continuation === 'observation_driven' ? options.maxModelSteps ?? 4 : 1;
     this.maxTotalTokens = options.maxTotalTokens ?? 32000;
     this.maxInputTokens = options.maxInputTokens ?? this.maxTotalTokens;
@@ -102,14 +118,20 @@ export class AgentLoop {
     const usage = { accountingComplete: true, modelSteps: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: this.pricing ? 0 : null };
     let reconciliationRequired = false;
     const finish = (): AgentLoopResult => ({ history, notices: [...new Set(notices)], usage: { ...usage }, requiresReconciliation: reconciliationRequired });
-    const tools = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name));
-    const availableNames = new Set(tools.map(tool => tool.name));
+    const catalogue = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name)).map(tool => this.discoverTools
+      ? { ...tool, inputSchema: compactSchemaHints(tool.inputSchema) as JsonObject } : tool);
+    if (catalogue.some(tool => tool.name === 'tools_select')) throw new Error('Reserved tool name');
+    const discovery = { name: 'tools_select', description: 'Select the next operation to load its input schema. Selection performs no operation. Use the returned schema on the next step.',
+      inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) } }, required: ['name'], additionalProperties: false } };
+    let selected: string | undefined;
     const completedWrites = new Set<string>();
     let totalTokens = 0;
     let costUsd = 0;
     let totalCalls = 0;
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
+      const tools = this.discoverTools ? [...(catalogue.length ? [discovery] : []), ...catalogue.filter(tool => tool.name === selected)] : catalogue;
+      const availableNames = new Set(tools.map(tool => tool.name));
       const estimateRequest = (messages: readonly AIMessage[]): number => {
         const tokens = this.estimateInputTokens({ messages, tools });
         if (!Number.isSafeInteger(tokens) || tokens < 0) throw new Error('Invalid input token estimate');
@@ -180,6 +202,16 @@ export class AgentLoop {
       history.push({ role: 'assistant', content: '', toolCalls: normalizedCalls });
       totalCalls += calls.length;
       for (const call of normalizedCalls) {
+        if (this.discoverTools && call.name === 'tools_select') {
+          const name = call.arguments.name;
+          const valid = availableNames.has(call.name) && Object.keys(call.arguments).length === 1
+            && typeof name === 'string' && catalogue.some(tool => tool.name === name);
+          if (valid) selected = name;
+          history.push({ role: 'tool', toolCallId: call.id, content: valid
+            ? { status: 'success', selectedTool: name, observation: 'Schema loaded for the next step. No domain action executed.' }
+            : { status: 'denied', code: 'TOOL_UNAVAILABLE' }, isError: !valid });
+          continue;
+        }
         const effect = this.registry.effect(call.name);
         if (!availableNames.has(call.name) || !policy.acceptsTool(call.name) || !effect) {
           notices.push('unavailable_tool');

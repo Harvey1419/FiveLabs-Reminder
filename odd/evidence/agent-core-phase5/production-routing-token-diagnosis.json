@@ -1,0 +1,150 @@
+{
+  "diagnosis": "production-routing-token-diagnosis",
+  "verifiedAtUtc": "2026-10-14T03:18:37.281320+00:00",
+  "deployedCommit": "523b10416138123e168f38510e2fa9744e303c42",
+  "deploymentId": "d7627e8b-7a61-4739-a2f3-d401ac8de370",
+  "remoteOperation": "read_only",
+  "productionRoutes": {
+    "AGENT_CORE_V2": "true",
+    "AGENT_CORE_V2_ALLOWLIST": null,
+    "OPENROUTER_PRIMARY_MODEL": "openai/gpt-oss-120b",
+    "OPENROUTER_PRIMARY_PROVIDERS": "groq",
+    "OPENROUTER_STRICT_SECONDARY_MODEL": "openai/gpt-oss-120b",
+    "OPENROUTER_STRICT_SECONDARY_PROVIDERS": "cerebras/fp16"
+  },
+  "openrouterGenerations": [
+    {
+      "id": "gen-1791947377-6lmibB0p9GvodL8ABVgg",
+      "created_at": "2026-10-14T03:09:37.851Z",
+      "model": "openai/gpt-oss-120b",
+      "provider_name": "Groq",
+      "tokens_prompt": 3789,
+      "native_tokens_prompt": 8121,
+      "tokens_completion": 223,
+      "native_tokens_completion": 817,
+      "native_tokens_reasoning": 575,
+      "total_cost": 0.00170835,
+      "finish_reason": "stop"
+    },
+    {
+      "id": "gen-1791947389-1aRrepFo41HHeeEsV59m",
+      "httpStatus": 404
+    },
+    {
+      "id": "gen-1791947392-2HNjAAyopR7n4Vg8DC4s",
+      "created_at": "2026-10-14T03:09:52.05Z",
+      "model": "openai/gpt-oss-120b",
+      "provider_name": "Cerebras",
+      "tokens_prompt": 3761,
+      "native_tokens_prompt": 8912,
+      "tokens_completion": 654,
+      "native_tokens_completion": 584,
+      "native_tokens_reasoning": 342,
+      "total_cost": 0.0035572,
+      "finish_reason": "stop"
+    },
+    {
+      "id": "gen-1791947429-svjgFDt3lLqrcyiblqZm",
+      "created_at": "2026-10-14T03:10:29.291Z",
+      "model": "openai/gpt-oss-120b",
+      "provider_name": "Groq",
+      "tokens_prompt": 3768,
+      "native_tokens_prompt": 8117,
+      "tokens_completion": 251,
+      "native_tokens_completion": 867,
+      "native_tokens_reasoning": 603,
+      "total_cost": 0.00173775,
+      "finish_reason": "stop"
+    }
+  ],
+  "queueSample": {
+    "since": "2026-10-14T02:58:18Z",
+    "limit": 12,
+    "returned": 5,
+    "completedV2": 1,
+    "withoutV2Checkpoint": 4,
+    "rows": [
+      {
+        "id": "2d07d3f9-c558-4ce3-bb3f-f830788635b9",
+        "status": "completed",
+        "created_at": "2026-10-14T03:12:19.726024+00:00",
+        "v2_phase": "completed"
+      },
+      {
+        "id": "9be77350-1ce1-4fb2-8a9f-3c0ebfbf2e28",
+        "status": "completed",
+        "created_at": "2026-10-14T03:10:27.758613+00:00",
+        "v2_phase": null
+      },
+      {
+        "id": "e3063279-5caa-4766-804a-f3fc915400ab",
+        "status": "completed",
+        "created_at": "2026-10-14T03:09:47.88883+00:00",
+        "v2_phase": null
+      },
+      {
+        "id": "cb9ec28a-fbf4-473f-89f2-5670ab3d9fe7",
+        "status": "completed",
+        "created_at": "2026-10-14T03:09:36.357561+00:00",
+        "v2_phase": null
+      },
+      {
+        "id": "b6cee4e7-73ef-4679-aa74-8bc48bd8b91b",
+        "status": "completed",
+        "created_at": "2026-10-14T03:09:14.516947+00:00",
+        "v2_phase": null
+      }
+    ]
+  },
+  "findings": [
+    {
+      "cause": "existing_baseline_pin",
+      "source": "src/agent/orchestration/canary-router.ts",
+      "condition": "selected !== v2 || !supported || (prior && !priorV2)",
+      "effect": "Even with flag true and percentage100, completed baseline conversations never automatically enter V2; a completed V2 sample shows the new composition is deployed for admitted conversations."
+    },
+    {
+      "cause": "strict_baseline_fallback",
+      "source": "src/agent/providers/gateway-routing.ts",
+      "effect": "Strict foreground fallback remains gpt-oss-120b on cerebras/fp16; recent runtime logs record Groq provider error then Cerebras success."
+    },
+    {
+      "cause": "baseline_context_and_schema",
+      "source": "src/agent/orchestration/router-model-context.ts",
+      "effect": "Observed baseline requests contain 33 messages, 30 projected history messages and a 17453-byte structured schema. Native OpenRouter metadata confirms 8121/8912/8117 input tokens; byte sizes are not tokenizer measurements."
+    },
+    {
+      "cause": "target_budget_not_wired",
+      "source": "src/adapters/agent-core/canary-productivity-router.ts",
+      "effect": "V2 constructor supplies continuation/write policy but no maxInputTokens or tokenizer. AgentLoop defaults maxTotalTokens/maxInputTokens to32000 with serialized-byte conservative reservation. The1800-token target remains unimplemented, not a certified hard ceiling."
+    },
+    {
+      "cause": "v2_provider_observability_missing",
+      "source": "src/adapters/agent-core/canary-productivity-router.ts",
+      "effect": "Handled V2 usage is not returned or logged here; typed AIResponse omits generation/provider identity. The diagnosed generation IDs come from baseline logs, so this inspection does not measure the recent V2 call tokens."
+    }
+  ],
+  "nextImplementationScope": [
+    "Authenticated completed-baseline to V2 handoff preserving conversation references, active state and receipts; never reset/erase a thread to bypass the guard",
+    "Provider-aware whole-request budget including tools/schema/framing, with scoped tool exposure and meaningful native-token evaluation",
+    "Per-turn engine/admission reason and per-attempt provider/model/generation ID/native usage telemetry for V2"
+  ],
+  "sources": {
+    "openrouterMetadataApi": "https://openrouter.ai/docs/api/api-reference/generations/get-request-&-usage-metadata-for-a-generation",
+    "queueMetadataQuery": "GET hermes_inbound_turns with bounded date window, status and checkpoint phase projections; no request body or reply content retrieved",
+    "sourceHashes": {
+      "src/agent/orchestration/canary-router.ts": "e2e47f0bdacf32943eb422d553653dd83e820e59daa31e9235262f658a371c6a",
+      "src/agent/providers/gateway-routing.ts": "2dccdcba8c77e40877c624dac892c2c3ba7ecd3c1cb24232e923d0faf2d6501a",
+      "src/agent/orchestration/router-model-context.ts": "cda6ea323a571c58d0e9a724a82752a582a513d8cc964232766880e1840b939a",
+      "src/adapters/agent-core/canary-productivity-router.ts": "c91dc690157f5a4d99d0fade967ae3b2a0f69985026653333f65a5b93d4636eb",
+      "packages/agent-core/src/agent-loop.ts": "989c06bba01d63e82c2e5315d26d55f6569f2572f64506336a201b1f9973cd79",
+      "packages/agent-core/src/context-manager.ts": "a4fcbb1e68a8bb63ebec7cf161e10794935a1244df90221dc1299ef65a670a31"
+    }
+  },
+  "limits": [
+    "Five queued turns and three successful baseline generations are a bounded diagnostic sample, not an account-wide or load evaluation",
+    "One failed Groq generation metadata endpoint returned404; fallback/error was confirmed separately in runtime logs",
+    "No user-specific conversation identity was fetched; baseline samples correlate by creation time and runtime request trace, not by exposing phone/user records",
+    "No production settings, database rows, conversations or checkpoints were changed; no LLM request or WhatsApp send was triggered"
+  ]
+}

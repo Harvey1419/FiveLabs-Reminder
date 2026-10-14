@@ -8,9 +8,17 @@ export type GatewayFailureCode = 'UNSUPPORTED_CAPABILITY' | 'INVALID_REQUEST' | 
 export class GatewayError extends AIProviderError {
   constructor(code: GatewayFailureCode, usage?: AIResponse['usage'], accountingComplete = true) { super(code, usage, accountingComplete); this.name = 'GatewayError'; }
 }
+export interface OpenRouterAttempt {
+  readonly route: string; readonly model: string; readonly requestedProviders: readonly string[];
+  readonly provider: string | null; readonly generationId: string | null;
+  readonly inputEstimate: number; readonly usage: AIResponse['usage'] | null;
+  readonly status: number | null; readonly outcome: 'response' | 'transport_unknown';
+}
 export interface OpenRouterProviderOptions {
   readonly apiKey: string; readonly routes: readonly OpenRouterRoute[];
   readonly fetch?: typeof globalThis.fetch; readonly now?: () => number;
+  readonly estimateInputTokens?: (payload: unknown) => number;
+  readonly onAttempt?: (attempt: OpenRouterAttempt) => void;
 }
 /** Also races adapters that ignore AbortSignal; no subsequent route starts after host cancellation. */
 async function abortable<T>(work: () => Promise<T>, signal: AbortSignal): Promise<T> {
@@ -32,6 +40,8 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
   readonly #apiKey: string;
   private readonly transport: typeof globalThis.fetch;
   private readonly now: () => number;
+  private readonly estimateInputTokens: (payload: unknown) => number;
+  private readonly onAttempt: OpenRouterProviderOptions['onAttempt'];
   constructor(options: OpenRouterProviderOptions) {
     if (!options.apiKey.trim() || /[\r\n]/.test(options.apiKey)) throw new GatewayError('MISSING_CREDENTIALS');
     if (!options.routes.length || options.routes.length > 3) throw new GatewayError('INVALID_REQUEST');
@@ -56,10 +66,21 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
     this.mediaCapabilities = Object.freeze({ image: options.routes.some(route => route.media?.includes('image')),
       pdf: options.routes.some(route => route.media?.includes('pdf')) });
     this.routes = structuredClone(options.routes); this.#apiKey = options.apiKey.trim();
+    this.estimateInputTokens = options.estimateInputTokens ?? (value => new TextEncoder().encode(JSON.stringify(value)).length + 256);
+    this.onAttempt = options.onAttempt;
     this.transport = options.fetch ?? globalThis.fetch; this.now = options.now ?? Date.now;
   }
   forTurn(): OpenRouterProvider {
-    return new OpenRouterProvider({ apiKey: this.#apiKey, routes: this.routes, fetch: this.transport, now: this.now });
+    return new OpenRouterProvider({ apiKey: this.#apiKey, routes: this.routes, fetch: this.transport, now: this.now,
+      estimateInputTokens: this.estimateInputTokens, ...(this.onAttempt ? { onAttempt: this.onAttempt } : {}) });
+  }
+  /** Same route payload used by the wire guard, including schemas and framing. */
+  estimateNativeInput(request: Pick<CompletionRequest, 'messages' | 'tools'>): number {
+    const complete = { ...request, maxOutputTokens: 1024, deadlineMs: 0, signal: new AbortController().signal };
+    return Math.max(...this.routes.map(route => this.estimateInputTokens(openRouterPayload(complete, route, 1024))));
+  }
+  private report(attempt: OpenRouterAttempt): void {
+    try { this.onAttempt?.(structuredClone(attempt)); } catch { /* Telemetry cannot retry inference or effects. */ }
   }
   complete(request: CompletionRequest): Promise<AIResponse> {
     return this.generate(request, openRouterPayload, decodeOpenRouterResponse);
@@ -109,7 +130,8 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
       if (route.minOutputTokens !== undefined && output < route.minOutputTokens) continue;
       const body = JSON.stringify(payloadFor(request, route, output));
       // Conservative reservation, not provider tokenization. Includes schemas and wire overhead.
-      const inputEstimate = new TextEncoder().encode(body).length + 256;
+      const inputEstimate = this.estimateInputTokens(JSON.parse(body));
+      if (!Number.isSafeInteger(inputEstimate) || inputEstimate < 0) fail('INVALID_REQUEST');
       const totalRemaining = request.maxTotalTokens === undefined ? Infinity : request.maxTotalTokens - usage.inputTokens - usage.outputTokens;
       if ((request.maxInputTokens !== undefined && usage.inputTokens + inputEstimate > request.maxInputTokens) || inputEstimate >= totalRemaining) fail('GATEWAY_BUDGET');
       const payload = JSON.parse(body) as Record<string, unknown>;
@@ -131,12 +153,20 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
         }), signal);
         raw = await abortable(() => response.json() as Promise<unknown>, signal);
       } catch {
+        this.report({ route: route.id, model: route.model, requestedProviders: route.providers, provider: null,
+          generationId: null, inputEstimate, usage: null, status: null, outcome: 'transport_unknown' });
         if (request.signal.aborted) fail('GATEWAY_ABORTED', false);
         if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', false);
         // Unknown inference spend must not be silently represented by zero or retried.
         fail('UNVERIFIED_USAGE', false);
       } finally { clearTimeout(timer); }
       const attemptUsage = reportedOpenRouterUsage(raw);
+      const metadata = raw !== null && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+      const safeLabel = (value: unknown): string | null => typeof value === 'string' && /^[\w./:-]{1,200}$/.test(value) ? value : null;
+      this.report({ route: route.id, model: safeLabel(metadata.model) ?? route.model, requestedProviders: route.providers,
+        provider: typeof metadata.provider === 'string' && /^[\w ./:()-]{1,200}$/.test(metadata.provider) && metadata.provider.trim()
+          ? metadata.provider : null, generationId: safeLabel(metadata.id), inputEstimate,
+        usage: attemptUsage, status: response.status, outcome: 'response' });
       if (attemptUsage) {
         usage.inputTokens += attemptUsage.inputTokens; usage.outputTokens += attemptUsage.outputTokens;
       }

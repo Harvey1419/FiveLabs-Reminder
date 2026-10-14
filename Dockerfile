@@ -29,6 +29,7 @@ COPY --chown=node:node public/ ./public/
 COPY --chown=node:node config/ ./config/
 COPY --chown=node:node --from=builder /app/packages/contracts/dist ./packages/contracts/dist
 COPY --chown=node:node --from=builder /app/packages/contracts/package.json ./packages/contracts/package.json
+COPY --chown=node:node --from=dependencies /app/packages/ai/node_modules ./packages/ai/node_modules
 COPY --chown=node:node --from=builder /app/packages/ai/dist ./packages/ai/dist
 COPY --chown=node:node --from=builder /app/packages/ai/package.json ./packages/ai/package.json
 COPY --chown=node:node --from=builder /app/packages/tools/dist ./packages/tools/dist

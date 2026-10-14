@@ -98,6 +98,26 @@ describe('canary configuration and authenticated admission', () => {
     const f = fixture(); f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { confirmation: 'Done' } });
     await f.route('Turn', user, [], options); expect(f.baseline).toHaveBeenCalledOnce(); expect(f.v2).not.toHaveBeenCalled();
   });
+  it('hands off a completed baseline turn only through the verified host port and preserves references', async () => {
+    const f = fixture(); const prior: InboundStoredTurn = { id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { confirmation: 'Done' } };
+    f.readPrior.mockResolvedValue(prior);
+    const handoff = vi.fn(async () => ({ userId: 'owner', history: [], tasks: [], reminders: [], events: [], handledRequestIds: ['prior-message'], referenceOrder: [] }));
+    const route = createCanaryRouter({ ...f.deps, handoff });
+    await route('Next', user, [], options);
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).toHaveBeenCalledOnce();
+    expect(f.v2.mock.calls[0]).toBeDefined();
+    expect(handoff).toHaveBeenCalledWith(prior, expect.objectContaining({ userId: 'owner' }), 'thread', []);
+    f.policy.enabled = false;
+    f.deps.lease.mockReturnValue({ ...f.lease, inboundTurn: { ...f.lease.inboundTurn, id: 'rollback', messageId: 'rollback' } });
+    await route('Rollback', user, [], options);
+    expect(handoff).toHaveBeenCalledOnce(); expect(f.baseline).toHaveBeenCalledOnce();
+  });
+  it('does not admit V2 or fall back after a failed handoff read', async () => {
+    const f = fixture(); f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: {} });
+    const route = createCanaryRouter({ ...f.deps, handoff: async () => { throw new Error('storage unavailable'); } });
+    await expect(route('Next', user, [], options)).rejects.toThrow('storage unavailable');
+    expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
+  });
   it('continues a completed V2 checkpoint and allows a subsequent disabled rollback without replaying it', async () => {
     const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());
     await f.route('Continue', user, [], options); expect(f.v2).toHaveBeenCalledOnce();

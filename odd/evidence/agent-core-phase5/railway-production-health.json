@@ -1,0 +1,205 @@
+{
+  "checkedAtUtc": "2026-10-14T03:05:13.514Z",
+  "mode": "read_only",
+  "scope": {
+    "projectId": "19a32952-8b25-400e-afa0-9e659b78f6b3",
+    "environmentId": "1e3e5c59-e54a-4a34-a632-d1cfab41cf41",
+    "serviceId": "f3fbb519-b7b8-4c43-8570-d17609363472"
+  },
+  "service": {
+    "name": "Hermes-TempleLabs",
+    "state": "live",
+    "domain": "https://hermes.templelabs.co"
+  },
+  "deployment": {
+    "id": "d7627e8b-7a61-4739-a2f3-d401ac8de370",
+    "status": "SUCCESS",
+    "commitHash": "523b10416138123e168f38510e2fa9744e303c42",
+    "branch": "main",
+    "createdAt": "2026-10-14T02:57:55.697Z"
+  },
+  "health": {
+    "url": "https://hermes.templelabs.co/health",
+    "status": 200,
+    "body": {
+      "status": "ok"
+    },
+    "requestSeconds": 0.573519
+  },
+  "environmentStatus": {
+    "environment": {
+      "id": "1e3e5c59-e54a-4a34-a632-d1cfab41cf41",
+      "name": "production"
+    },
+    "pendingWork": [],
+    "services": [
+      {
+        "activeDeployments": [
+          {
+            "createdAt": "2026-10-14T02:57:55.697Z",
+            "id": "d7627e8b-7a61-4739-a2f3-d401ac8de370",
+            "status": "SUCCESS",
+            "statusUpdatedAt": "2026-10-14T02:58:18.946Z"
+          }
+        ],
+        "cronJob": null,
+        "hasIssues": false,
+        "hasVolume": false,
+        "isCronJob": false,
+        "issues": {
+          "criticalCount": 0,
+          "warningCount": 0
+        },
+        "recentFailedDeployments": [],
+        "recentFailures": 0,
+        "replicaStatus": {
+          "crashed": 0,
+          "running": 1,
+          "total": 1
+        },
+        "serviceId": "f3fbb519-b7b8-4c43-8570-d17609363472",
+        "serviceName": "Hermes-TempleLabs",
+        "state": "online",
+        "statusText": "Online"
+      }
+    ],
+    "summary": {
+      "servicesWithIssues": 0,
+      "totalFailures": 0,
+      "totalServices": 1
+    }
+  },
+  "metrics": [
+    {
+      "average": 0.0074741286111111105,
+      "current": 0.005919266666666667,
+      "max": 0.09070596666666668,
+      "measurement": "CPU_USAGE",
+      "min": 0.0026752166666666665,
+      "sampleCount": 60
+    },
+    {
+      "average": 0.12610836479999998,
+      "current": 0.097288192,
+      "max": 0.209952768,
+      "measurement": "MEMORY_USAGE_GB",
+      "min": 0.093775872,
+      "sampleCount": 60
+    },
+    {
+      "average": 8,
+      "current": 8,
+      "max": 8,
+      "measurement": "MEMORY_LIMIT_GB",
+      "min": 8,
+      "sampleCount": 60
+    }
+  ],
+  "httpErrorRate": {
+    "hoursBack": 1,
+    "clientErrorCount": 0,
+    "errorCount": 0,
+    "errorRate": 0,
+    "totalRequests": 5
+  },
+  "applicationConfiguration": {
+    "AGENT_CORE_V2": "true",
+    "AGENT_CORE_V2_ALLOWLIST": null,
+    "BILLING_PROVIDER": "stripe",
+    "PORT": "3005",
+    "manifestPercentage": 100,
+    "manifestSource": "git HEAD matching deployed commit; build logs confirm config copy",
+    "configReadFromLiveFilesystem": false
+  },
+  "build": {
+    "dockerfileObserved": true,
+    "node22AlpineObserved": true,
+    "compiledWorkspacePackagesObserved": true,
+    "manifestCopyObserved": true
+  },
+  "startup": [
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "[scheduler] started worker=worker-1-s8ktn (check interval: 15s with atomic locking, stable recurring IDs & persistent nudges)",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048694242Z"
+    },
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "[morningBriefing] worker started (monitoring 6:00 AM local briefings)",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048698702Z"
+    },
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "[calendarWatchRenewal] Starting periodic renewal worker (interval: 6h)",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048702402Z"
+    },
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "Server running on port 3005",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048706562Z"
+    },
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "[calendarWatchRenewal] Checking 5 active Google integrations...",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048710012Z"
+    },
+    {
+      "attributes": [
+        {
+          "key": "level",
+          "value": "\"info\""
+        }
+      ],
+      "message": "[calendarWatchRenewal] Run complete: checked=5, baselined=0, renewed/established=0, errors=0",
+      "severity": "info",
+      "timestamp": "2026-10-14T02:58:16.048714232Z"
+    }
+  ],
+  "findings": {
+    "activeReplica": 1,
+    "recentDeploymentFailures24h": 0,
+    "stagedChanges": false,
+    "retiredProviderVariableNames": [
+      "MP_ACCESS_TOKEN",
+      "MP_PLAN_ID",
+      "MP_WEBHOOK_SECRET"
+    ]
+  },
+  "limits": [
+    "No real WhatsApp turn or V2 mutation was executed",
+    "The one-hour HTTP window contains only five requests; it is not a load or conversational quality evaluation",
+    "SSH inspection was unavailable: no SSH key offered; no keys were created or registered",
+    "Existing baseline conversations retain the handoff constraint; global selection does not override continuity gates"
+  ],
+  "remoteChanges": false
+}

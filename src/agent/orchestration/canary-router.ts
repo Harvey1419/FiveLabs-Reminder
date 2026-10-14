@@ -1,10 +1,10 @@
-import type { TurnContext } from '@templelabs/contracts';
+import type { ProductivityConversation, TurnContext } from '@templelabs/contracts';
 import type { InboundTurnLease } from '../core/turn-lease.js';
 import type { InboundStoredTurn } from '../../adapters/agent-core/inbound-checkpoint-reader.js';
 import { selectCanaryEngine, type CanaryPolicy } from './canary-selector.js';
 
 export type CanaryRoute<Result> = (text: unknown, user: unknown, history?: readonly unknown[], options?: Record<string, unknown>) => Promise<Result>;
-export interface CanaryAdmission { context: TurnContext; threadId: string; prior: InboundStoredTurn | null }
+export interface CanaryAdmission { context: TurnContext; threadId: string; prior: InboundStoredTurn | null; handoff?: ProductivityConversation }
 function blocked(): never {
   throw Object.assign(new Error('Turn requires reconciliation before engine admission'), { code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });
 }
@@ -14,6 +14,7 @@ const managed = ['agentCore', 'agentCoreProductivity', 'agentCoreActiveRun', 'ag
 export function createCanaryRouter<Result>(deps: {
   baseline: CanaryRoute<Result>;
   v2(text: string, user: unknown, options: Record<string, unknown>, admission: CanaryAdmission): Promise<Result>;
+  handoff?(prior: InboundStoredTurn, context: TurnContext, threadId: string, history: readonly unknown[]): Promise<ProductivityConversation | null>;
   policy(): CanaryPolicy;
   lease(): InboundTurnLease | null;
   readPrior(context: TurnContext, threadId: string): Promise<InboundStoredTurn | null>;
@@ -44,12 +45,19 @@ export function createCanaryRouter<Result>(deps: {
     const supported = typeof text === 'string' && text.trim().length > 0 && text.length <= 8000
       && (!options.inputModality || options.inputModality === 'text') && !options.attachmentOnly
       && delivery !== null && typeof delivery === 'object' && 'send' in delivery && typeof delivery.send === 'function';
-    // A completed baseline conversation stays pinned to baseline until an explicit handoff exists.
+    // Unsupported input remains on its existing engine before admission.
     if (selected === 'v2' && priorV2 && !supported) blocked();
-    if (selected !== 'v2' || !supported || (prior && !priorV2)) return deps.baseline(text, user, history, options);
+    if (selected !== 'v2' || !supported) return deps.baseline(text, user, history, options);
+    let handoff: ProductivityConversation | undefined;
+    if (prior && !priorV2) {
+      const transferred = await deps.handoff?.(prior, context, lease.inboundTurn.threadId, history);
+      if (!transferred) return deps.baseline(text, user, history, options);
+      if (transferred.userId !== context.userId) blocked();
+      handoff = transferred;
+    }
     // Once admitted, failures propagate. Never execute the baseline as a retry after V2 effects.
     await lease.assertActive();
     admittedV2.add(lease);
-    return deps.v2(text as string, user, options, { context, threadId: lease.inboundTurn.threadId, prior });
+    return deps.v2(text as string, user, options, { context, threadId: lease.inboundTurn.threadId, prior, ...(handoff ? { handoff } : {}) });
   };
 }

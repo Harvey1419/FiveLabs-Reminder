@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MockAIProvider } from '@templelabs/ai';
+import { MockAIProvider, OpenRouterProvider, type MockCompletion, estimateBoundedInput } from '@templelabs/ai';
 import type { JsonObject, AIResponse } from '@templelabs/contracts';
 import { untrustedResultMock } from '../../support/unit/contract-boundary.js';
 const state = vi.hoisted(() => ({ provider: null as MockAIProvider | null }));
@@ -17,6 +17,15 @@ const user = { id: 'owner', timezone: 'America/Bogota', locale: 'es-CO' };
 function answer(calls: AIResponse['message']['toolCalls'] = []): AIResponse {
   return { message: { role: 'assistant', content: 'internal instructions', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 30, outputTokens: 10 } };
 }
+function discover(steps: MockCompletion[]): MockCompletion[] {
+  let selected: string | undefined;
+  return steps.flatMap(step => {
+    const name = step.response instanceof Error ? undefined : step.response.message.toolCalls[0]?.name;
+    if (!name || name === selected) return [step];
+    selected = name;
+    return [{ response: answer([{ id: `select-${name}`, name: 'tools_select', arguments: { name } }]) }, step];
+  });
+}
 beforeEach(() => vi.clearAllMocks());
 function fixture() {
   let persisted: JsonObject = {};
@@ -31,7 +40,7 @@ function fixture() {
 }
 describe('canary admission executes actual durable V2 composition', () => {
   it('reads through the registered domain adapter, checkpoints and sends exactly once', async () => {
-    const f = fixture(); state.provider = new MockAIProvider([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]);
+    const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]));
     untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Preparar reporte', status: 'pending' }] } });
     const result = await f.run();
     expect(f.baseline).not.toHaveBeenCalled(); expect(executeTool).toHaveBeenCalledOnce();
@@ -41,11 +50,11 @@ describe('canary admission executes actual durable V2 composition', () => {
   });
   it('journals one admitted task completion and never dispatches a destructive delete capability', async () => {
     const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
-    state.provider = new MockAIProvider([
+    state.provider = new MockAIProvider(discover([
       { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
-    ]);
+    ]));
     untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'completed_task', data: { id, title: 'Preparar reporte', status: 'completed' } });
     await f.run(true);
@@ -59,11 +68,11 @@ describe('canary admission executes actual durable V2 composition', () => {
   });
   it('the actual webhook policy authorizes a global tester mutation and keeps a single accepted send', async () => {
     const f = fixture(), webhook = createWhatsAppFixture(); const id = '11111111-1111-4111-8111-111111111111';
-    state.provider = new MockAIProvider([
+    state.provider = new MockAIProvider(discover([
       { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
-    ]);
+    ]));
     untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'completed_task', data: { id, title: 'Preparar reporte', status: 'completed' } });
     const baseline = vi.fn(async (): Promise<Awaited<ReturnType<typeof routeCanaryProductivity>>> => ({ intent: 'chat', executionFacts: [], language: 'en', confirmation: 'Baseline' }));
@@ -82,11 +91,11 @@ describe('canary admission executes actual durable V2 composition', () => {
   });
   it('canary membership alone does not authorize a write', async () => {
     const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
-    state.provider = new MockAIProvider([
+    state.provider = new MockAIProvider(discover([
       { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
-    ]);
+    ]));
     untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } });
     await f.run();
     expect(executeTool).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
@@ -94,8 +103,80 @@ describe('canary admission executes actual durable V2 composition', () => {
       { call: { name: 'task_read' }, item: { status: 'success' } }, { call: { name: 'task_complete' }, item: { status: 'approval_required' } },
     ] } });
   });
+  it.each(['task_read', 'task_create', 'task_update', 'task_complete', 'reminder_read', 'reminder_create', 'reminder_update',
+    'reminder_acknowledge', 'calendar_read', 'calendar_create', 'calendar_connect'])('loads the atomic %s wire schema within 1800 without performing discovery effects', async name => {
+    const f = fixture(); state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select', name: 'tools_select', arguments: { name } }]) }, { response: answer() },
+    ]);
+    await f.run(); expect(executeTool).not.toHaveBeenCalled(); expect(state.provider.requests).toHaveLength(2);
+    const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
+    expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', name]);
+    expect(wire.estimateNativeInput(state.provider.requests[1]!)).toBeLessThanOrEqual(1800);
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [] } });
+  });
+  it('retains strict backend date validation after removing generated regexes from model hints', async () => {
+    const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'create', name: 'calendar_create',
+      arguments: { kind: 'timed', summary: 'Invalid leap date', startIso: '2026-02-29T20:00:00Z', endIso: '2026-02-29T21:00:00Z' } }]) }, { response: answer() }]));
+    await f.run(true); expect(executeTool).not.toHaveBeenCalled();
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [{ call: { name: 'calendar_create' }, item: { status: 'validation_failed' } }] } });
+    const schema = JSON.stringify(state.provider.requests[1]!.tools.find(tool => tool.name === 'calendar_create')!.inputSchema);
+    expect(schema).toContain('date-time'); expect(schema).not.toContain('pattern');
+  });
+  it('journals transferred references before completing an owned baseline task in V2', async () => {
+    const f = fixture(), id = '11111111-1111-4111-8111-111111111111';
+    const transferred = { userId: 'owner', history: [], tasks: [{ id, title: 'Reporte', description: null, priority: null,
+      status: 'pending' as const, dueDateIso: null, entityId: null, entityName: null }], reminders: [], events: [], handledRequestIds: ['prior-message'],
+      referenceOrder: [{ domain: 'tasks' as const, id, position: 1 }] };
+    state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) }, { response: answer() }]));
+    untrustedResultMock(executeTool).mockImplementation(async () => {
+      expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: transferred }, effects: [{ call: { name: 'task_complete' }, item: null }] } });
+      return { success: true, action: 'completed_task', data: { id, title: 'Reporte', status: 'completed' } };
+    });
+    const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, percentage: 100 as const, userAllowlist: [] }),
+      lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }),
+      handoff: async () => transferred });
+    await withTurnLease(f.lease, () => route('Completa la primera tarea', user, [], { inputModality: 'text', agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; } }));
+    expect(executeTool).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+  });
+  it('uses the compactor under the 1800 target, exposes one atomic schema and retains durable dialogue', async () => {
+    const f = fixture(); const priorHistory = Array.from({ length: 10 }, (_, i) => [
+      { role: 'user' as const, content: i < 8 ? `Old ${i} `.repeat(300) : `Recent ${i}` },
+      { role: 'assistant' as const, content: `Reply ${i}`, toolCalls: [] },
+    ]).flat();
+    state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]));
+    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
+    const result = await withTurnLease(f.lease, () => routeCanaryProductivity('Lista mis tareas', user, { agentCoreDelivery: { send: f.send } },
+      { context: { userId: 'owner', runId: 'run', requestId: 'request', timezone: user.timezone, language: 'es',
+        referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: f.lease.signal }, threadId: 'thread', prior: null,
+        handoff: { userId: 'owner', history: priorHistory, tasks: [], reminders: [], events: [], handledRequestIds: [] } }));
+    for (const request of state.provider.requests) {
+      expect(request.maxInputTokens).toBe(1800); expect(request.maxTotalTokens).toBeLessThanOrEqual(12000);
+      expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(1800);
+      expect(request.tools.length).toBeLessThanOrEqual(2);
+      expect(request.messages.some(message => typeof message.content === 'string' && message.content.includes('Old 0'))).toBe(false);
+      expect(request.messages.filter(message => message.role === 'user').length).toBeGreaterThanOrEqual(3);
+    }
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history: priorHistory } } } });
+    expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 1800, inputTokens: 90, outputTokens: 30, accountingComplete: true } });
+  });
+  it('blocks an oversized essential turn before inference or domain writes', async () => {
+    const f = fixture(); state.provider = new MockAIProvider([]);
+    await withTurnLease(f.lease, () => routeCanaryProductivity('🧬'.repeat(3500), user, { agentCoreDelivery: { send: f.send } },
+      { context: { userId: 'owner', runId: 'run', requestId: 'request', timezone: user.timezone, language: 'es',
+        referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: f.lease.signal }, threadId: 'thread', prior: null }));
+    expect(state.provider.requests).toHaveLength(0); expect(executeTool).not.toHaveBeenCalled();
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['limit_reached'] } } } });
+  });
+  it('denies unadvertised domain calls even when selected in the same batch', async () => {
+    const f = fixture(); state.provider = new MockAIProvider([{ response: answer([
+      { id: 'select', name: 'tools_select', arguments: { name: 'task_read' } },
+      { id: 'bypass', name: 'task_read', arguments: { status: 'all' } },
+    ]) }, { response: answer() }]);
+    await f.run(true); expect(executeTool).not.toHaveBeenCalled();
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['unavailable_tool'] } } } });
+  });
   it('failed delivery is fenced as unknown and never executes baseline', async () => {
-    const f = fixture(); state.provider = new MockAIProvider([{ response: answer() }]); f.send.mockRejectedValue(new Error('timeout'));
+    const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer() }])); f.send.mockRejectedValue(new Error('timeout'));
     await expect(f.run()).rejects.toMatchObject({ code: 'DELIVERY_OUTCOME_UNKNOWN' });
     expect(f.baseline).not.toHaveBeenCalled(); expect(f.send).toHaveBeenCalledOnce();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { deliveries: [{ status: 'unknown', messageId: null }] } });
