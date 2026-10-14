@@ -32,8 +32,8 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   const detected = detectLanguageFromText(text);
   const language = detected === 'en' || detected === 'es' ? detected : admission.context.language;
   const subscription = await getUserSubscription(user.id);
-  const capabilities = new Set(['tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete',
-    'calendar.read', 'calendar.create', 'calendar.connect', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge']);
+  const capabilities = new Set(['tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete',
+    'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge', 'reminders.cancel']);
   if (hasProAccess(subscription)) capabilities.add('reminders.pro');
   const context = { ...admission.context, capabilities, language };
   const registry = new ToolRegistry([
@@ -52,9 +52,10 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
-    discoverTools: true, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, maxOutputTokens: 768,
+    discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
+    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'] }, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, maxOutputTokens: 768,
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
-    authorizeWrite: async (call, scopedContext) => registry.effect(call.name) === 'write'
+    authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete'].includes(call.name) && registry.effect(call.name) === 'destructive')
       && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,

@@ -48,7 +48,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     expect(f.send).toHaveBeenCalledOnce(); expect(v2DeliveryReceipt(result)).toEqual(['wamid.v2']);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', userId: 'owner', runId: 'run', deliveries: [{ status: 'accepted', messageId: 'wamid.v2' }] } });
   });
-  it('journals one admitted task completion and never dispatches a destructive delete capability', async () => {
+  it('journals one admitted task completion under scoped discovery and host authorization', async () => {
     const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
     state.provider = new MockAIProvider(discover([
       { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
@@ -104,7 +104,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     ] } });
   });
   it.each(['task_read', 'task_create', 'task_update', 'task_complete', 'reminder_read', 'reminder_create', 'reminder_update',
-    'reminder_acknowledge', 'calendar_read', 'calendar_create', 'calendar_connect'])('loads the atomic %s wire schema within 1800 without performing discovery effects', async name => {
+    'reminder_acknowledge', 'reminder_cancel', 'task_delete', 'calendar_read', 'calendar_create', 'calendar_connect', 'calendar_update', 'calendar_delete'])('loads the atomic %s wire schema within 1800 without performing discovery effects', async name => {
     const f = fixture(); state.provider = new MockAIProvider([
       { response: answer([{ id: 'select', name: 'tools_select', arguments: { name } }]) }, { response: answer() },
     ]);
@@ -152,12 +152,77 @@ describe('canary admission executes actual durable V2 composition', () => {
     for (const request of state.provider.requests) {
       expect(request.maxInputTokens).toBe(1800); expect(request.maxTotalTokens).toBeLessThanOrEqual(12000);
       expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(1800);
-      expect(request.tools.length).toBeLessThanOrEqual(2);
+      expect(request.tools.length).toBeLessThanOrEqual(3);
       expect(request.messages.some(message => typeof message.content === 'string' && message.content.includes('Old 0'))).toBe(false);
       expect(request.messages.filter(message => message.role === 'user').length).toBeGreaterThanOrEqual(3);
     }
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history: priorHistory } } } });
     expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 1800, inputTokens: 90, outputTokens: 30, accountingComplete: true } });
+  });
+  it.each([false, true])('reads then cancels within budget with transcribed audio and prior dialogue=%s', async priorDialogue => {
+    const f = fixture(), id = '22222222-2222-4222-8222-222222222222';
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select', name: 'tools_select', arguments: { name: 'reminder_read' } }]) },
+      { response: answer([{ id: 'read', name: 'reminder_read', arguments: { query: 'amoxicilina' } }]) },
+      { response: answer([{ id: 'cancel', name: 'reminder_cancel', arguments: { reminderId: id } }]) },
+      { response: answer() },
+    ]);
+    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_reminders', data: { reminders: [
+      { id, content: 'Amoxicilina 500 mg', send_at: '2026-10-15T08:25:00Z', recurrence_rule: 'daily' },
+      { id: '33333333-3333-4333-8333-333333333333', content: 'Me amo mucho', send_at: '2026-10-15T13:00:00Z', recurrence_rule: 'daily' },
+    ] } }).mockResolvedValueOnce({ success: true, complete: true, action: 'cancelled_recurring_reminder_series', data: {
+      cancelledCount: 1, cancelledReminders: [{ id, content: 'Amoxicilina 500 mg', sendAt: '2026-10-15T08:25:00Z', recurrenceRule: 'daily', status: 'cancelled' }],
+    } });
+    const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
+    Object.assign(state.provider, { estimateNativeInput: wire.estimateNativeInput.bind(wire) });
+    const history = priorDialogue ? Array.from({ length: 3 }, (_, i) => [
+      { role: 'user' as const, content: `Previous request ${i} `.repeat(20) },
+      { role: 'assistant' as const, content: `Previous answer ${i} `.repeat(20), toolCalls: [] },
+    ]).flat() : [];
+    const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }), lease: () => f.lease, readPrior: async () => priorDialogue ? { id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} } : null,
+      handoff: async () => ({ userId: 'owner', history, tasks: [], reminders: [], events: [], handledRequestIds: [] }) });
+    const result = await withTurnLease(f.lease, () => route('¿Podrías eliminar el recordatorio de la moxicilina, por favor?', user, [], {
+      inputModality: 'audio', attachmentOnly: false, agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; },
+    }));
+    expect(executeTool).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+    expect(result.confirmation).toContain('eliminado'); expect(result.confirmation).not.toContain('Algunas acciones solicitadas');
+    expect(result.confirmation).toContain('Me amo mucho');
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, effects: [
+      { call: { name: 'reminder_read' }, item: { status: 'success' } }, { call: { name: 'reminder_cancel' }, item: { status: 'success' } },
+    ] } });
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
+    if (priorDialogue) {
+      expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history } } } });
+      expect(state.provider.requests[2]!.messages.filter(message => message.role === 'user')).toHaveLength(1);
+    }
+    expect(state.provider.requests[2]!.tools.some(tool => tool.name === 'reminder_cancel')).toBe(true);
+    const observation = state.provider.requests[2]!.messages.find(message => message.role === 'tool' && typeof message.content === 'object' && message.content && 'observation' in message.content && typeof message.content.observation === 'object');
+    expect(observation).toMatchObject({ content: { observation: { records: expect.arrayContaining([expect.objectContaining({ id, content: 'Amoxicilina 500 mg', time: '2026-10-15T08:25:00Z' })]) } } });
+  });
+  it('authorizes one destructive task deletion through V2 while retaining the lease and journal', async () => {
+    const f = fixture(), id = '11111111-1111-4111-8111-111111111111';
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select', name: 'tools_select', arguments: { name: 'task_read' } }]) },
+      { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
+      { response: answer([{ id: 'delete', name: 'task_delete', arguments: { taskId: id } }]) }, { response: answer() },
+    ]);
+    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Report', status: 'pending' }] } })
+      .mockResolvedValueOnce({ success: true, action: 'deleted_task', data: { id, title: 'Report', status: 'deleted' } });
+    await f.run(true); expect(executeTool).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce();
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, effects: [
+      { call: { name: 'task_read' } }, { call: { name: 'task_delete' }, item: { status: 'success' } },
+    ] } });
+  });
+  it('requires host authorization for reminder cancellation despite canary membership', async () => {
+    const f = fixture(), id = '22222222-2222-4222-8222-222222222222';
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select', name: 'tools_select', arguments: { name: 'reminder_read' } }]) },
+      { response: answer([{ id: 'read', name: 'reminder_read', arguments: { query: 'amoxicilina' } }]) },
+      { response: answer([{ id: 'cancel', name: 'reminder_cancel', arguments: { reminderId: id } }]) }, { response: answer() },
+    ]);
+    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [{ id, content: 'Amoxicilina' }] } });
+    await f.run(); expect(executeTool).toHaveBeenCalledOnce();
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [{ call: { name: 'reminder_read' } }, { call: { name: 'reminder_cancel' }, item: { status: 'approval_required' } }] } });
   });
   it('blocks an oversized essential turn before inference or domain writes', async () => {
     const f = fixture(); state.provider = new MockAIProvider([]);

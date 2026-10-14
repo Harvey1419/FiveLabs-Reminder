@@ -1,0 +1,173 @@
+{
+  "phase": "agent-core-phase5",
+  "artifact": "v2-audio-productivity-parity",
+  "verifiedAtUtc": "2026-10-14T05:45:47.122419+00:00",
+  "baseCommit": "befff6a5cf06de631cc325fb189b8f9c53dca88e",
+  "implementation": {
+    "admission": {
+      "transcribedAudioSupported": true,
+      "attachmentOnlyNotAdmitted": true,
+      "newRejections": "Host-private no-effects error classification, durable agentCoreAdmissionRejected certificate and terminal worker completion.",
+      "legacyRejections": "Only unknown rows with the known pre-engine PRIOR_TURN_RECONCILIATION_REQUIRED producer code and null/empty response are skipped under a current thread lease.",
+      "noBlindUnknownSkip": true,
+      "originalRowsUnmodified": true,
+      "lastActualConversationPreserved": true,
+      "inspectionRowLimitPerPass": 100,
+      "unsafeErrorsRemainBlocked": [
+        "WORKER_LEASE_EXPIRED",
+        "REPLY_DELIVERY_UNKNOWN",
+        "PROCESSING_INTERRUPTED",
+        "execution_or_delivery_checkpoints",
+        "invalid_owner_certificate"
+      ]
+    },
+    "mutations": [
+      "reminder_cancel",
+      "task_delete",
+      "calendar_update",
+      "calendar_delete"
+    ],
+    "mutationSafeguards": [
+      "explicit host authorization",
+      "owner and capability checks",
+      "observed resource identity",
+      "durable pre-dispatch journal",
+      "no automatic retry of uncertain effects"
+    ],
+    "reminderCancellation": {
+      "logicalStatus": "cancelled",
+      "recurringRoutineAndLinkedNotices": true,
+      "historyRetained": true,
+      "partialAndAlreadyInactiveDistinguished": true
+    },
+    "calendarMutations": {
+      "ownerBoundDateReadBeforeMutation": true,
+      "targetIdentityVerified": true,
+      "timedAndAllDayUpdateInputs": true,
+      "unconfirmedCompanionCleanupRequiresReconciliation": true
+    },
+    "context": {
+      "inputTargetPerCall": 1800,
+      "maxTotalTokensPerTurn": 12000,
+      "readContinuationReserveTokens": 256,
+      "compactModelObservations": true,
+      "durableEvidencePreserved": true,
+      "referencesAlreadyVisibleInRecentToolObservationsNotRepeated": true,
+      "scopedReadFollowups": {
+        "reminder_read": [
+          "reminder_cancel"
+        ],
+        "task_read": [
+          "task_delete"
+        ],
+        "calendar_read": [
+          "calendar_delete"
+        ]
+      },
+      "wireEstimatesAreNotExactTokenizerGuaranteesForEveryModel": true
+    },
+    "presentation": {
+      "confirmedMutationsSupersedeFullyCoveredIntermediateReadCards": true,
+      "partialCancellationNeverClaimsFullRoutineCancellation": true
+    }
+  },
+  "verification": {
+    "typecheck": {
+      "exitCode": 0,
+      "compiledModules": 282,
+      "missingRuntimeModules": 0,
+      "sourceHostImports": 0
+    },
+    "unitTests": {
+      "totalPassed": 3707,
+      "totalFailed": 0,
+      "testFiles": 292
+    },
+    "inventory": {
+      "maintainedJsFiles": 0,
+      "typeScriptSources": 723,
+      "checkExitCode": 0
+    },
+    "dockerBuild": {
+      "exitCode": 0,
+      "tag": "five-labs-reminder-api:v2-productivity-parity",
+      "id": "sha256:39ee401fa2c5c2af099e92e9fda48316296958631908feff27eda70691e06745",
+      "created": "2026-10-14T00:41:33.909503282-05:00",
+      "repoDigests": [
+        "five-labs-reminder-api@sha256:39ee401fa2c5c2af099e92e9fda48316296958631908feff27eda70691e06745"
+      ],
+      "platform": "linux/arm64",
+      "user": "node",
+      "command": [
+        "node",
+        "dist/runtime/app/server.js"
+      ]
+    },
+    "container": {
+      "id": "5c897209b3f7bc2225c0aad305f31cb6764bc15506df09b40c24d13392a36b10",
+      "node": "22.23.3",
+      "nodeEnv": "production",
+      "originalImageCommand": true,
+      "pid1Command": [
+        "node",
+        "dist/runtime/app/server.js"
+      ],
+      "health": {
+        "status": 200,
+        "body": "{\"status\":\"ok\"}"
+      },
+      "shutdown": {
+        "signal": "SIGTERM",
+        "exitCode": 0,
+        "elapsedSeconds": 0.051,
+        "oomKilled": false
+      },
+      "network": "none",
+      "syntheticExternalDependencies": true,
+      "runtimeBindMounted": false,
+      "imageRuntimeMatchesWorkspace": true,
+      "verifiedRuntimeArtifacts": 610,
+      "sourcePresent": false,
+      "compilerPresent": false,
+      "tsxPresent": false
+    },
+    "compiledAudioCancellationSmoke": {
+      "node": "22.23.3",
+      "compiledProductionRouter": true,
+      "audioAdmitted": true,
+      "legacyAdmissionCascadeSkipped": true,
+      "priorRowsUnmodified": true,
+      "baselineHandoff": true,
+      "domainSteps": 2,
+      "providerCalls": 4,
+      "inputTarget": 1800,
+      "wireInputEstimates": [
+        820,
+        1093,
+        1405,
+        1436
+      ],
+      "maximumWireInputEstimate": 1436,
+      "syntheticCancellationWrites": 1,
+      "sends": 1,
+      "notices": [],
+      "phase": "completed",
+      "realNetwork": false,
+      "tokensReportedAreSynthetic": true
+    }
+  },
+  "externalState": {
+    "railwayDeploymentPerformed": false,
+    "productionDatabaseModified": false,
+    "realLLMCalls": 0,
+    "realWhatsAppMessages": 0,
+    "productionUnblockRequiresDeploymentAndMatchingStoredGateErrorEvidence": true
+  },
+  "validationLogSha256": {
+    "parity-typecheck.log": "7675f2cbffa7cc14f811fb7b73f1f1ce3d1098bf08f946591704f799f392c38d",
+    "parity-unit.log": "3d0a137dd7cf0a85bacd43f81639a1828a7e33793ecfe96dd7f0a291f85680ab",
+    "parity-inventory.log": "23b33a6d6cbbf837f409a8069b8d566b4f8cc1f2649c4720e80f6e6f2112f11b",
+    "parity-docker-build.log": "c977dfc3ec32ac12a430843e19c63916976cc0e7d378c96c807cc3a884307ecd",
+    "compiled-audio-cancel.log": "47dbe5c60c19838b0496650f0618848fcb462cff546e297cf01242e0b0354e0b"
+  }
+}

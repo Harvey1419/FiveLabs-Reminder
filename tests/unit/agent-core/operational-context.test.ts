@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MockAIProvider } from '@templelabs/ai';
-import { prepareReminderContext, summarizeReminderOperations, ReminderTurnRunner } from '@templelabs/agent-core';
+import { prepareReminderContext, prepareProductivityContext, summarizeReminderOperations, ReminderTurnRunner } from '@templelabs/agent-core';
 import { aiTranscriptSchema, reminderOperationalSummarySchema,
   type AIMessage, type AIResponse, type TurnContext } from '@templelabs/contracts';
 import { createReminderTools, ToolRegistry } from '@templelabs/tools';
@@ -122,6 +122,17 @@ describe('historical reminder operational summaries', () => {
     expect(prepared.omittedMessages).toBe(3);
     expect(summaryOf(prepared.messages).pending[0]?.status).toBe('indeterminate');
     expect(() => prepareReminderContext(history, 'owner', 'Persona', 8, () => true)).toThrow('recent turns exceed');
+  });
+
+  it('bounded productivity summarizes earlier dialogue but retains pending states and the full active tool pair', () => {
+    const history = [...turn('pending', 'indeterminate'), ...turn('a', 'failed'), ...turn('active', 'success')];
+    const original = structuredClone(history);
+    const prepared = prepareProductivityContext(history, 'owner', 'Persona', 64, messages => messages.length <= 4, 1);
+    expect(prepared.omittedMessages).toBe(6);
+    expect(prepared.messages.slice(1)).toEqual(turn('active', 'success'));
+    expect(summaryOf(prepared.messages).pending[0]?.status).toBe('indeterminate');
+    expect(aiTranscriptSchema.safeParse(prepared.messages).success).toBe(true);
+    expect(history).toEqual(original);
   });
 
   it('never derives write authorization from an old pending summary', async () => {

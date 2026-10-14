@@ -1,0 +1,127 @@
+{
+  "artifact": "v2-production-continuation-budget-fix",
+  "verifiedAtUtc": "2026-10-14T06:01:41.824836+00:00",
+  "observedProduction": {
+    "runId": "c25d61ca-cfd7-4ae0-95c0-6eb7c729d852",
+    "deploymentId": "982826d7-068b-4dee-800b-67e21b8de2c5",
+    "provider": "Groq",
+    "model": "openai/gpt-oss-120b",
+    "modelSteps": 2,
+    "inputEstimates": [
+      1686,
+      1533
+    ],
+    "reportedInputTokens": 2096,
+    "reportedOutputTokens": 250,
+    "source": "User supplied logs corroborated by bounded Railway MCP logs",
+    "noDatabaseMutationForAudit": true
+  },
+  "diagnosis": "Three recent full turns were mandatory even when a projected read result needed room before cancellation. Empty-history smoke missed accumulated dialogue.",
+  "fix": {
+    "preserveLongestFittingWindow": true,
+    "minimumActiveTurnsInBoundedV2": 1,
+    "otherCallersDefaultRecentTurns": 3,
+    "completeCurrentToolPairsPreserved": true,
+    "pendingOperationalStatePreserved": true,
+    "durableHistoryUnchanged": true,
+    "ownedReferencesSurviveHistoricalObservationCompaction": true,
+    "inputTokensPerRequest": 1800,
+    "cumulativeTurnTokens": 12000,
+    "memorySkipReasonCorrected": true
+  },
+  "regression": {
+    "beforeFix": "Read executed once; cancellation not dispatched with prior dialogue",
+    "afterFix": "Read and cancellation both execute, exactly one send, no limit notices",
+    "priorTurns": 3,
+    "returnedReminders": 2,
+    "nativeOpenRouterEnvelopeEstimateGuard": true,
+    "paidModelCalls": false,
+    "realWhatsAppSend": false,
+    "realReminderCancellation": false
+  },
+  "verification": {
+    "typecheckErrors": 0,
+    "unitFiles": 292,
+    "unitPassed": 3709,
+    "unitFailed": 0,
+    "maintainedJavaScript": 0,
+    "typeScriptSources": 723,
+    "dockerBuildSucceeded": true,
+    "container": {
+      "image": {
+        "tag": "five-labs-reminder-api:v2-productivity-parity",
+        "id": "sha256:e859ca08763a37e2e42e9af730ecb9f03489e78034e64dea5e7a7b1d03770747",
+        "created": "2026-10-14T00:59:55.079450988-05:00",
+        "repoDigests": [
+          "five-labs-reminder-api@sha256:e859ca08763a37e2e42e9af730ecb9f03489e78034e64dea5e7a7b1d03770747"
+        ],
+        "platform": "linux/arm64",
+        "user": "node",
+        "command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ]
+      },
+      "container": {
+        "id": "b86c94740e6f65af454954c35fbbe8fe7cdcee0a4d977622266ce2079d0b67c4",
+        "node": "22.23.3",
+        "nodeEnv": "production",
+        "originalImageCommand": true,
+        "pid1Command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ],
+        "health": {
+          "status": 200,
+          "body": "{\"status\":\"ok\"}"
+        },
+        "shutdown": {
+          "signal": "SIGTERM",
+          "exitCode": 0,
+          "elapsedSeconds": 0.046,
+          "oomKilled": false
+        },
+        "network": "none",
+        "syntheticExternalDependencies": true,
+        "runtimeBindMounted": false,
+        "imageRuntimeMatchesWorkspace": true,
+        "verifiedRuntimeArtifacts": 610,
+        "sourcePresent": false,
+        "compilerPresent": false,
+        "tsxPresent": false
+      }
+    }
+  },
+  "logs": {
+    "typecheck": {
+      "path": "/private/tmp/v2-budget-typecheck.log",
+      "sha256": "7675f2cbffa7cc14f811fb7b73f1f1ce3d1098bf08f946591704f799f392c38d"
+    },
+    "unit": {
+      "path": "/private/tmp/v2-budget-unit.log",
+      "sha256": "4f3736bb64ead6d089b64edee36281ee2a0f47bf418055a7c6033e37b8ac33af"
+    },
+    "inventory": {
+      "path": "/private/tmp/v2-budget-inventory.log",
+      "sha256": "23b33a6d6cbbf837f409a8069b8d566b4f8cc1f2649c4720e80f6e6f2112f11b"
+    },
+    "docker": {
+      "path": "/private/tmp/v2-budget-docker.log",
+      "sha256": "b1a02cb1b68975bc0d0a80118a85e582754754b4b2aad53e1a903b2535ac8e16"
+    },
+    "regressionBeforeFix": {
+      "path": "/private/tmp/v2-budget-repro.log",
+      "sha256": "ab89235ed08524725894c7958013b1fb60554818ff485554c7a20dc1a75f50d5"
+    }
+  },
+  "delivery": {
+    "requiredOrigin": "GitHub main branch",
+    "railwayCliDeployForbiddenByUser": true,
+    "productionVerificationPending": true
+  },
+  "limitations": [
+    "Synthetic regression does not certify future live model intent selection.",
+    "Oversized essential current observations or unresolved operational state may still exhaust the hard input budget.",
+    "Original smoke artifact remains historical evidence for the pre-followup image."
+  ]
+}

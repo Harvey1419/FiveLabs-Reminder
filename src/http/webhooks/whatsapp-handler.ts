@@ -894,7 +894,7 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
             learningCandidatesProvided: result.learningCandidatesProvided === true,
           }));
         } else {
-          logger.log(`[memory-extractor req=${correlationId}] skipped attachment-only turn`);
+          logger.log(`[memory-extractor req=${correlationId}] skipped ${deliveredV2 ? 'V2-delivered' : 'attachment-only'} turn`);
         }
         });
       });

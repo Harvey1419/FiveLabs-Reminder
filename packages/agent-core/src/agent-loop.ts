@@ -1,5 +1,5 @@
 import { aiResponseSchema, aiTranscriptSchema, type AIMessage, type JsonObject,
-  type ToolCall, type TurnContext } from '@templelabs/contracts';
+  type ToolCall, type ToolSpecification, type TurnContext } from '@templelabs/contracts';
 import { AIProviderError } from '@templelabs/ai';
 import type { AIProvider } from '@templelabs/ai';
 import type { ToolRegistry, ToolOutcome } from '@templelabs/tools';
@@ -11,6 +11,8 @@ export interface AgentLoopOptions {
   readonly continuation?: 'single_decision' | 'observation_driven';
   /** Discover one authorized atomic schema at a time; never execute catalogue selections. */
   readonly discoverTools?: boolean;
+  readonly readFollowups?: Readonly<Record<string, readonly string[]>>;
+  readonly continuationReserveTokens?: number;
   readonly maxModelSteps?: number;
   readonly maxTotalTokens?: number;
   readonly maxInputTokens?: number;
@@ -38,7 +40,7 @@ export interface AgentLoopPolicy {
   referenceMissing(call: ToolCall): boolean;
   readonly writeJournalAvailable: boolean;
   prepareContext(history: readonly AIMessage[], maxMessages: number,
-    fitsBudget: (messages: readonly AIMessage[]) => boolean): AIMessage[];
+    fitsBudget: (messages: readonly AIMessage[]) => boolean, tools?: readonly ToolSpecification[]): AIMessage[];
   requiresReconciliation(call: ToolCall, outcome: ToolOutcome<unknown>): boolean;
   normalizeOutcome(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<unknown>;
   beforeDispatch(call: ToolCall, context: TurnContext): Promise<void>;
@@ -63,6 +65,8 @@ function compactSchemaHints(value: JsonValue): JsonValue {
 
 export class AgentLoop {
   private readonly discoverTools: boolean;
+  private readonly readFollowups: Readonly<Record<string, readonly string[]>>;
+  private readonly continuationReserveTokens: number;
   private readonly maxModelSteps: number;
   private readonly maxTotalTokens: number;
   private readonly maxInputTokens: number;
@@ -81,6 +85,9 @@ export class AgentLoop {
     options: AgentLoopOptions = {}) {
     if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
     this.discoverTools = options.discoverTools === true;
+    this.readFollowups = structuredClone(options.readFollowups ?? {});
+    this.continuationReserveTokens = options.continuationReserveTokens ?? 0;
+    if (!Number.isSafeInteger(this.continuationReserveTokens) || this.continuationReserveTokens < 0) throw new Error('Invalid continuation reserve');
     this.maxModelSteps = options.continuation === 'observation_driven' ? options.maxModelSteps ?? 4 : 1;
     this.maxTotalTokens = options.maxTotalTokens ?? 32000;
     this.maxInputTokens = options.maxInputTokens ?? this.maxTotalTokens;
@@ -124,14 +131,16 @@ export class AgentLoop {
     const discovery = { name: 'tools_select', description: 'Select the next operation to load its input schema. Selection performs no operation. Use the returned schema on the next step.',
       inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) } }, required: ['name'], additionalProperties: false } };
     let selected: string | undefined;
+    let followups: readonly string[] = [];
     const completedWrites = new Set<string>();
     let totalTokens = 0;
     let costUsd = 0;
     let totalCalls = 0;
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
-      const tools = this.discoverTools ? [...(catalogue.length ? [discovery] : []), ...catalogue.filter(tool => tool.name === selected)] : catalogue;
+      const tools = this.discoverTools ? [...(catalogue.length ? [discovery] : []), ...catalogue.filter(tool => tool.name === selected || followups.includes(tool.name))] : catalogue;
       const availableNames = new Set(tools.map(tool => tool.name));
+      const inputCeiling = this.maxInputTokens - (tools.some(tool => this.registry.effect(tool.name) === 'read') ? this.continuationReserveTokens : 0);
       const estimateRequest = (messages: readonly AIMessage[]): number => {
         const tokens = this.estimateInputTokens({ messages, tools });
         if (!Number.isSafeInteger(tokens) || tokens < 0) throw new Error('Invalid input token estimate');
@@ -141,8 +150,8 @@ export class AgentLoop {
       try {
         // Leave room for the next assistant response without dropping any of its tool pairs.
         prepared = { messages: policy.prepareContext(history, Math.max(1, this.maxHistoryMessages - 1),
-          messages => estimateRequest(messages) <= this.maxInputTokens
-            && estimateRequest(messages) < this.maxTotalTokens - totalTokens) };
+          messages => estimateRequest(messages) <= inputCeiling
+            && estimateRequest(messages) < this.maxTotalTokens - totalTokens, tools) };
       } catch (error) {
         if (step > 0 && error instanceof ContextLimitError) {
           notices.push('limit_reached'); return finish();
@@ -154,7 +163,7 @@ export class AgentLoop {
       const availableOutput = Math.min(this.maxOutputTokens, this.maxTotalTokens - totalTokens - estimate);
       const reservedCost = this.pricing ? (estimate * this.pricing.inputUsdPerMillion
         + Math.max(0, availableOutput) * this.pricing.outputUsdPerMillion) / 1e6 : 0;
-      if (estimate > this.maxInputTokens || availableOutput < 1 || (this.maxCostUsd !== undefined && costUsd + reservedCost > this.maxCostUsd)
+      if (estimate > inputCeiling || availableOutput < 1 || (this.maxCostUsd !== undefined && costUsd + reservedCost > this.maxCostUsd)
         || this.now() >= deadlineMs || context.signal.aborted) {
         notices.push('limit_reached'); return finish();
       }
@@ -272,6 +281,8 @@ export class AgentLoop {
         if (!read && (outcome.status === 'success' || outcome.status === 'partial')) completedWrites.add(writeKey);
         if (outcome.status === 'indeterminate' || policy.requiresReconciliation(call, outcome)) reconciliationRequired = true;
         await policy.afterOutcome(structuredClone(call), outcome);
+        if (this.discoverTools && read && outcome.status === 'success') followups = this.readFollowups[call.name] ?? [];
+        if (this.discoverTools && !read && (outcome.status === 'success' || outcome.status === 'partial')) { selected = call.name; followups = []; }
         const content: JsonObject = { status: outcome.status, observation: outcome.observation };
         history.push({ role: 'tool', toolCallId: call.id, content, isError: outcome.status !== 'success' && outcome.status !== 'partial' });
       }

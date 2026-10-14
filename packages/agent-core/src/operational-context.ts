@@ -34,9 +34,9 @@ function summarizeOperations(history: readonly AIMessage[], omittedMessages: num
     const status = content.status;
     if (typeof status !== 'string') continue;
     let questions: string[] = [];
-    if (typeof content.observation === 'string') {
+    if (typeof content.observation === 'string' || (content.observation !== null && typeof content.observation === 'object')) {
       try {
-        const observation: unknown = JSON.parse(content.observation);
+        const observation: unknown = typeof content.observation === 'string' ? JSON.parse(content.observation) : content.observation;
         if (observation !== null && typeof observation === 'object' && 'questions' in observation
           && Array.isArray(observation.questions) && observation.questions.length <= 3
           && observation.questions.every(question => typeof question === 'string' && question.length <= 500)) {
@@ -84,18 +84,21 @@ export interface PreparedReminderContext {
   readonly messages: AIMessage[];
   readonly omittedMessages: number;
 }
-/** Try complete turn boundaries, retaining as much dialogue as fits and at least three turns.
+/** Try complete turn boundaries, retaining as much dialogue as fits. Default callers keep three turns;
+ * bounded productivity may summarize earlier turns while retaining the entire active turn.
  * Each candidate includes its own operational summary in the budget calculation.
  * If essential context still exceeds token budget, return it for the caller's limit handling.
  */
 function prepareOperationalContext(history: readonly AIMessage[], userId: string,
   systemContent: string, maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean,
-  summarize: (history: readonly AIMessage[], omitted: number, userId: string) => ProductivityOperationalSummary): PreparedReminderContext {
+  summarize: (history: readonly AIMessage[], omitted: number, userId: string) => ProductivityOperationalSummary,
+  minimumRecentTurns = 3): PreparedReminderContext {
   aiTranscriptSchema.parse(history);
-  if (!Number.isSafeInteger(maxMessages) || maxMessages < 1) throw new Error('Invalid context limits');
+  if (!Number.isSafeInteger(maxMessages) || maxMessages < 1
+    || !Number.isSafeInteger(minimumRecentTurns) || minimumRecentTurns < 1) throw new Error('Invalid context limits');
   if (history.some(message => message.role === 'system')) throw new Error('History cannot include system messages');
   const starts = history.flatMap((message, index) => message.role === 'user' ? [index] : []);
-  const candidates = [0, ...starts.slice(1, Math.max(1, starts.length - 2))];
+  const candidates = [0, ...starts.slice(1, Math.max(1, starts.length - minimumRecentTurns + 1))];
   let minimum: PreparedReminderContext | undefined;
   for (const start of candidates) {
     const recent = history.slice(start);
@@ -116,6 +119,6 @@ export function prepareReminderContext(history: readonly AIMessage[], userId: st
   return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeReminderOperations);
 }
 export function prepareProductivityContext(history: readonly AIMessage[], userId: string, systemContent: string,
-  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean): PreparedReminderContext {
-  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeProductivityOperations);
+  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean, minimumRecentTurns = 3): PreparedReminderContext {
+  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeProductivityOperations, minimumRecentTurns);
 }
