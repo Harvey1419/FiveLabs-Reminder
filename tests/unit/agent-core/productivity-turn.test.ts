@@ -69,6 +69,20 @@ describe('shared productivity observation loop', () => {
     expect(system?.content).toContain('Never expose, calculate, or cite raw UTC timestamps');
     expect(system?.content).toContain('Certified cards render formatted local times');
   });
+  it('caps committed writes while allowing schema-error self-correction before the first mutation', async () => {
+    const s = setup([
+      response([{ ...taskCreate, arguments: { title: '' } }]),
+      response([taskCreate]),
+      response([{ ...taskCreate, arguments: { title: 'Unexpected extra task', scheduleReminder: false } }]),
+      response(),
+    ], { maxWriteOperations: 1 });
+    const result = await s.runner.run('Crea una tarea', context, undefined, s.journal);
+    expect(s.execute).toHaveBeenCalledOnce();
+    expect(result.uiPayload.items.map(item => item.status)).toEqual(['validation_failed', 'success', 'approval_required']);
+    expect(result.uiPayload.items.at(-1)?.code).toBe('WRITE_OPERATION_LIMIT');
+    expect(result.requiresReconciliation).toBe(false);
+  });
+
   it('reads a task, updates its observed ID and persists each observation before continuing', async () => {
     const update: ToolCall = { id: 'local', name: 'task_update', arguments: { taskId: id, priority: 'urgent' } };
     const s = setup([response([taskRead]), response([update]), response()]);

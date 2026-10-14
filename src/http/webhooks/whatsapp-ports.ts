@@ -50,7 +50,7 @@ export interface WhatsAppWebhookDependencies {
   checkpointTurnResponse(response: Record<string, unknown>): Promise<void>;
   withoutTurnLease<T>(work: () => T): T;
   clearWorkingMemory(key: unknown): unknown;
-  routeMessage(text: string, user: WhatsAppUser, history: unknown[], options: { correlationId: unknown; requestTimeMs: number; inputModality: string; attachmentOnly: boolean; currentUserText: string; agentCoreAuthorizeWrite?: import('@templelabs/agent-core').AgentLoopOptions['authorizeWrite']; agentCoreDelivery?: import('../../adapters/agent-core/durable-productivity-assistant.js').ProductivityDeliveryPort }): Promise<WhatsAppRouteResult>;
+  routeMessage(text: string, user: WhatsAppUser, history: unknown[], options: { correlationId: unknown; requestTimeMs: number; inputModality: string; attachmentOnly: boolean; currentUserText: string; agentCoreMedia?: import('@templelabs/contracts').TurnMediaInput; agentCoreAuthorizeWrite?: import('@templelabs/agent-core').AgentLoopOptions['authorizeWrite']; agentCoreDelivery?: import('../../adapters/agent-core/durable-productivity-assistant.js').ProductivityDeliveryPort }): Promise<WhatsAppRouteResult>;
   sendWhatsAppText(input: WhatsAppSendInput): Promise<WhatsAppDelivery>;
   sendWhatsAppCtaUrl(input: WhatsAppSendInput): Promise<WhatsAppDelivery>;
   sendWhatsAppFlow(input: WhatsAppSendInput): Promise<WhatsAppDelivery>;

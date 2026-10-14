@@ -1,3 +1,4 @@
+import { createFileTurnInput } from '../../../src/shared/turn-media-input.js';
 import { readFileSync } from 'node:fs';
 import { interruptedActiveCompletionEvidenceSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { inspectInterruptedActiveCompletion } from '../../../src/adapters/agent-core/interrupted-active-completion.js';
@@ -129,6 +130,23 @@ describe('canary configuration and authenticated admission', () => {
     const route = createCanaryRouter({ ...f.deps, handoff: async () => { throw new Error('storage unavailable'); } });
     await expect(route('Next', user, [], options)).rejects.toMatchObject({ code: 'BASELINE_HANDOFF_FAILED' });
     expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
+  });
+  it.each(['image', 'document'] as const)('admits a structured %s in an existing V2 conversation instead of dispatching its raw extraction', async kind => {
+    const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());
+    const media = createFileTurnInput('owner', 'current-message', kind, '', 'OCR '.repeat(10000));
+    await f.route('Unbounded raw extraction'.repeat(1000), user, [], { ...options, inputModality: kind, attachmentOnly: true, agentCoreMedia: media });
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).toHaveBeenCalledOnce();
+    expect(JSON.stringify(f.v2.mock.calls)).toContain('untrustedAttachment');
+    expect(JSON.stringify(f.v2.mock.calls)).not.toContain('Unbounded raw extraction');
+  });
+  it('rejects foreign structured evidence before dispatch and requires the trusted delivery binding', async () => {
+    const f = fixture();
+    const media = createFileTurnInput('foreign', 'current-message', 'image', '', 'OCR');
+    await expect(f.route('OCR', user, [], { ...options, inputModality: 'image', agentCoreMedia: media })).rejects.toMatchObject({ code: 'V2_INVALID_MEDIA_INPUT' });
+    expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
+    const next = fixture(); next.readPrior.mockResolvedValue(await completedV2());
+    await expect(next.route('OCR', user, [], { inputModality: 'image', agentCoreMedia: { ...media, userId: 'owner' } })).rejects.toMatchObject({ code: 'V2_UNSUPPORTED_INPUT' });
+    expect(next.v2).not.toHaveBeenCalled(); expect(next.baseline).not.toHaveBeenCalled();
   });
   it('admits transcribed audio into an existing V2 conversation', async () => {
     const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());

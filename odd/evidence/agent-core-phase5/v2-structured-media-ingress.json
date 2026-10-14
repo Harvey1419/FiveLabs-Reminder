@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "scope": "Structured extracted images/documents and locations through durable V2 admission",
+  "branch": "feat/v2-structured-media-ingress",
+  "baseCommit": "22e497c7da8e9d9b5d8f07a3658652571e265327",
+  "productionDeployment": false,
+  "productionInputBudget": 1800,
+  "contract": {
+    "schema": "TurnMediaInput",
+    "binding": [
+      "userId",
+      "requestId",
+      "modality"
+    ],
+    "maxExtractionCharacters": 800,
+    "maxLocationLabelCharacters": 120,
+    "surrogateSafe": true,
+    "coverage": "extracted_excerpt",
+    "fullRawExtraction": "existing history persistence only",
+    "coordinates": "finite and range-validated; no timezone override"
+  },
+  "admission": {
+    "verifiedMediaAllowedOnExistingV2Threads": true,
+    "requiresTrustedDelivery": true,
+    "invalidEvidence": "certified no-effect rejection before engine dispatch",
+    "oldHistory": "existing authenticated compatibility reader",
+    "noV1RetryAfterAdmission": true
+  },
+  "authorization": {
+    "attachmentOnly": "no tools",
+    "caption": "conservative direct ES/EN instruction grants; quoted spans and negated commands excluded",
+    "ocrAndLocationLabels": "never grants",
+    "writes": "one successful/partial operation for one unambiguous domain, plus observed-owned-reference checks and lease-bound host policy",
+    "validationFailures": "may self-correct before first successful write",
+    "extraWrites": "WRITE_OPERATION_LIMIT before dispatch",
+    "unsupportedOrAmbiguousCaption": "clarification or subsequent explicit text required"
+  },
+  "conversation": {
+    "naturalDialogue": true,
+    "partialExtractionGuidance": true,
+    "toneSource": "authored caption only",
+    "languageSource": "authored caption or user locale",
+    "memoryQueries": "authored caption only; attachment-only semantic lookup omitted",
+    "automaticMemoryLearning": "unchanged, delivered V2 turns skip operational extraction"
+  },
+  "validation": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unit": {
+      "files": 296,
+      "passed": 3795
+    },
+    "conversationIntegration": {
+      "files": 3,
+      "passed": 29,
+      "newMediaJourneys": 9
+    },
+    "maintainedJavaScript": 0,
+    "typeScriptSources": 775,
+    "compiledRuntime": {
+      "modules": 302,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "v2Boundary": {
+      "modules": 161,
+      "forbiddenV1Imports": 0
+    },
+    "v1CallerInventory": {
+      "runtimeEdges": 13,
+      "driftGate": "passed"
+    },
+    "budgetComparison": "same offline 1800/2500 capacity comparison still passes; production unchanged",
+    "container": {
+      "tag": "five-labs-reminder-api:v2-media-ingress",
+      "imageId": "sha256:b1e84eab9a6aa4c83080f794182bd4e813cb145a1f7d5810d5c16219ca9a86fd",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 56,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "limits": [
+    "Extraction has its own upstream model/provider request and separate token accounting",
+    "No binary multimodal reasoning or retrieval of omitted document ranges",
+    "Caption grammar is conservative and is not full semantic/bulk attachment parity",
+    "Memory mutations/extraction and non-productivity tool parity remain before V1 retirement",
+    "Approval and unsupported-media lifecycles remain explicit retirement gates"
+  ],
+  "externalEffects": {
+    "paidInferenceCalls": 0,
+    "productionDatabaseWrites": 0,
+    "realWhatsAppSends": 0,
+    "deployments": 0
+  },
+  "rollback": "Revert this media-ingress work unit including contract/builder, webhook and canary options, caption grants/prompt and loop write cap together; previous continuity and native productivity services remain independent.",
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm run lint",
+    "pnpm run test:unit",
+    "pnpm run test:conversation",
+    "pnpm run inventory:v1",
+    "pnpm run check:v2-boundary",
+    "pnpm run migration:check",
+    "pnpm run eval:context-budgets",
+    "docker build -t five-labs-reminder-api:v2-media-ingress .",
+    "pnpm run smoke:container five-labs-reminder-api:v2-media-ingress"
+  ]
+}

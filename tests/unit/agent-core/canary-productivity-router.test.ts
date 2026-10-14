@@ -78,7 +78,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     ]));
     untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'completed_task', data: { id, title: 'Preparar reporte', status: 'completed' } });
-    const baseline = vi.fn(async (): Promise<Awaited<ReturnType<typeof routeCanaryProductivity>>> => ({ intent: 'chat', executionFacts: [], language: 'en', confirmation: 'Baseline' }));
+    const baseline = vi.fn(async (): Promise<Awaited<ReturnType<typeof routeCanaryProductivity>>> => ({ intent: 'chat', executionFacts: [], language: 'en', confirmation: 'Baseline', entities: {} }));
     const globalRoute = createCanaryRouter<Awaited<ReturnType<typeof routeCanaryProductivity>>>({ baseline, v2: routeCanaryProductivity,
       policy: () => ({ enabled: true, userAllowlist: [], percentage: 100 }), lease: () => f.lease, readPrior: async () => null });
     webhook.deps.assertTurnLease.mockImplementation(assertTurnLease);

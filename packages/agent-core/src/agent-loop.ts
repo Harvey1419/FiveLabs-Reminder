@@ -20,6 +20,8 @@ export interface AgentLoopOptions {
   readonly maxCostUsd?: number;
   readonly pricing?: { readonly inputUsdPerMillion: number; readonly outputUsdPerMillion: number };
   readonly maxToolCalls?: number;
+  /** Host-scoped cap on successful/partial writes; validation failures may still self-correct. */
+  readonly maxWriteOperations?: number;
   readonly maxHistoryMessages?: number;
   readonly maxOutputTokens?: number;
   readonly timeoutMs?: number;
@@ -76,6 +78,7 @@ export class AgentLoop {
   private readonly pricing: AgentLoopOptions['pricing'];
   private readonly now: () => number;
   private readonly maxToolCalls: number;
+  private readonly maxWriteOperations: number;
   private readonly maxHistoryMessages: number;
   private readonly maxOutputTokens: number;
   private readonly timeoutMs: number;
@@ -101,13 +104,14 @@ export class AgentLoop {
     if (this.pricing && Object.values(this.pricing).some(rate => !Number.isFinite(rate) || rate < 0)) throw new Error('Invalid provider pricing');
     this.now = options.now ?? Date.now;
     this.maxToolCalls = options.maxToolCalls ?? 4;
+    this.maxWriteOperations = options.maxWriteOperations ?? this.maxToolCalls;
     this.maxHistoryMessages = options.maxHistoryMessages ?? 64;
     this.maxOutputTokens = options.maxOutputTokens ?? 1024;
     this.timeoutMs = options.timeoutMs ?? 15000;
     this.executionMode = options.executionMode ?? 'execute';
     if (!['execute', 'shadow'].includes(this.executionMode)) throw new Error('Invalid execution mode');
     this.authorizeWrite = options.authorizeWrite ?? (async () => false);
-    for (const [name, value] of Object.entries({ maxModelSteps: this.maxModelSteps, maxInputTokens: this.maxInputTokens, maxTotalTokens: this.maxTotalTokens, maxToolCalls: this.maxToolCalls, maxHistoryMessages: this.maxHistoryMessages,
+    for (const [name, value] of Object.entries({ maxModelSteps: this.maxModelSteps, maxInputTokens: this.maxInputTokens, maxTotalTokens: this.maxTotalTokens, maxToolCalls: this.maxToolCalls, maxWriteOperations: this.maxWriteOperations, maxHistoryMessages: this.maxHistoryMessages,
       maxOutputTokens: this.maxOutputTokens, timeoutMs: this.timeoutMs })) {
       if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Invalid ${name}`);
     }
@@ -235,10 +239,11 @@ export class AgentLoop {
         const journalMissing = !read && !policy.writeJournalAvailable;
         const writeKey = `${call.name}:${canonicalArguments(call.arguments)}`;
         const repeatedWrite = !read && completedWrites.has(writeKey);
+        const writeLimitReached = !read && completedWrites.size >= this.maxWriteOperations;
         let stopped = this.now() >= deadlineMs || context.signal.aborted;
         let permitted = read;
         const blockedByUnknown = reconciliationRequired && !read;
-        if (!permitted && !referenceMissing && !stopped && !blockedByUnknown && !repeatedWrite && !journalMissing && this.executionMode === 'execute') {
+        if (!permitted && !referenceMissing && !stopped && !blockedByUnknown && !repeatedWrite && !writeLimitReached && !journalMissing && this.executionMode === 'execute') {
           try { permitted = await this.authorizeWrite(structuredClone(call), context); }
           catch { permitted = false; }
         }
@@ -247,6 +252,8 @@ export class AgentLoop {
           ? { status: 'failed' as const, code: 'TURN_STOPPED', observation: 'No action dispatched after the turn was stopped.' }
           : repeatedWrite
             ? { status: 'denied' as const, code: 'DUPLICATE_WRITE', observation: 'This exact write already completed in this turn; use its earlier receipt.' }
+          : writeLimitReached
+            ? { status: 'approval_required' as const, code: 'WRITE_OPERATION_LIMIT', observation: 'The host-authorized write scope for this turn is exhausted; no additional write was dispatched.' }
           : journalMissing
             ? { status: 'failed' as const, code: 'DURABLE_JOURNAL_REQUIRED', observation: 'No write was dispatched; an execution journal is required.' }
           : referenceMissing
@@ -258,13 +265,13 @@ export class AgentLoop {
                 ? { status: 'approval_required', code: this.executionMode === 'shadow' ? 'SHADOW_WRITE_DISABLED' : 'USER_AUTHORIZATION_REQUIRED',
                   observation: 'No write was dispatched; authorization or execution mode did not permit it.' }
                 : { status: 'failed', code: 'NOT_DISPATCHED', observation: 'Not dispatched.' };
-        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !journalMissing && permitted) {
+        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !writeLimitReached && !journalMissing && permitted) {
           await policy.beforeDispatch(structuredClone(call), context);
           // Persistence can consume the remaining deadline or lose ownership.
           stopped = this.now() >= deadlineMs || context.signal.aborted;
           if (stopped) outcome = { status: 'failed', code: 'TURN_STOPPED', observation: 'No action dispatched after the turn was stopped.' };
         }
-        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !journalMissing && permitted) {
+        if (!stopped && !referenceMissing && !blockedByUnknown && !repeatedWrite && !writeLimitReached && !journalMissing && permitted) {
           try { outcome = await this.registry.execute(call.name, call.arguments, context, call.id); }
           catch { outcome = read
             ? { status: 'failed', code: 'READ_UNAVAILABLE', observation: 'The read was not verified.' }

@@ -1,3 +1,4 @@
+import { readTurnMediaInput, mediaModelText } from '../../shared/turn-media-input.js';
 import type { ProductivityConversation, TurnContext } from '@templelabs/contracts';
 import type { InboundTurnLease } from '../core/turn-lease.js';
 import type { InboundStoredTurn } from '../../adapters/agent-core/inbound-checkpoint-reader.js';
@@ -51,9 +52,11 @@ export function createCanaryRouter<Result>(deps: {
       recoverProductivityStoredTurn(prior, context.userId);
     } else if (prior && managed.some(key => Object.hasOwn(prior.response ?? {}, key))) blocked();
     const delivery = options.agentCoreDelivery;
-    const supported = typeof text === 'string' && text.trim().length > 0 && text.length <= 8000
-      && (!options.inputModality || options.inputModality === 'text' || options.inputModality === 'audio') && !options.attachmentOnly
-      && delivery !== null && typeof delivery === 'object' && 'send' in delivery && typeof delivery.send === 'function';
+    const media = readTurnMediaInput(options.agentCoreMedia, context, options.inputModality);
+    if (selected === 'v2' && options.agentCoreMedia !== undefined && !media) return rejectBeforeEngine(lease, context.userId, 'V2_INVALID_MEDIA_INPUT');
+    const hasDelivery = delivery !== null && typeof delivery === 'object' && 'send' in delivery && typeof delivery.send === 'function';
+    const supported = hasDelivery && (Boolean(media) || typeof text === 'string' && text.trim().length > 0 && text.length <= 8000
+      && (!options.inputModality || options.inputModality === 'text' || options.inputModality === 'audio') && !options.attachmentOnly);
     // Unsupported input remains on its existing engine before admission.
     if (selected === 'v2' && priorV2 && !supported) return rejectBeforeEngine(lease, context.userId, 'V2_UNSUPPORTED_INPUT');
     if (selected !== 'v2' || !supported) return deps.baseline(text, user, history, options);
@@ -73,6 +76,6 @@ export function createCanaryRouter<Result>(deps: {
     // Once admitted, failures propagate. Never execute the baseline as a retry after V2 effects.
     await lease.assertActive();
     admittedV2.add(lease);
-    return deps.v2(text as string, user, options, { context, threadId: lease.inboundTurn.threadId, prior, ...(handoff ? { handoff } : {}) });
+    return deps.v2(media ? mediaModelText(media) : text as string, user, options, { context, threadId: lease.inboundTurn.threadId, prior, ...(handoff ? { handoff } : {}) });
   };
 }

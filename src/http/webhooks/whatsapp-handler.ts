@@ -1,3 +1,5 @@
+import { createFileTurnInput, createLocationTurnInput } from '../../shared/turn-media-input.js';
+import type { TurnMediaInput } from '@templelabs/contracts';
 import { v2DeliveryReceipt } from '../../adapters/agent-core/canary-delivery-receipt.js';
 import type { WhatsAppPayload, WhatsAppRequest, WhatsAppResponse, WhatsAppDomainRow, WhatsAppStatus, WhatsAppWebhookDependencies, WhatsAppDelivery } from './whatsapp-ports.js';
 
@@ -624,6 +626,7 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
 
         let mediaElapsedMs = 0;
         let attachmentOnly = false;
+        let agentCoreMedia: TurnMediaInput | undefined;
         if (isLocation) {
           const loc = message.location || {};
           const lat = loc.latitude;
@@ -631,6 +634,8 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
           const locName = loc.name || loc.address || '';
           const nearest = getNearestCityFromCoordinates(lat, lon);
           const placeText = locName || (nearest ? `${nearest.city}, ${nearest.region || nearest.country}` : '');
+          if (messageId) agentCoreMedia = createLocationTurnInput(user.id, messageId, lat, lon, placeText) ?? undefined;
+          attachmentOnly = true;
           messageText = `[Ubicación compartida: ${placeText ? `${placeText} ` : ''}(lat ${lat}, lon ${lon})]`;
         } else if (isAudio && (audioObj?.id || message.id || audioObj?.media_url || audioObj?.url || audioObj?.download_url)) {
           const mediaStart = getNowMs();
@@ -656,8 +661,9 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
           if (imageBuffer) {
             const mimeType = message.image?.mime_type || 'image/jpeg';
             const extracted = await processDocumentOrImage(imageBuffer, mimeType, caption);
-            if (extracted) {
+            if (extracted?.trim()) {
               attachmentOnly = !caption.trim();
+              if (messageId) agentCoreMedia = createFileTurnInput(user.id, messageId, 'image', caption, extracted);
               messageText = caption
                 ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
                 : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
@@ -673,8 +679,9 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
           if (docBuffer) {
             const mimeType = message.document?.mime_type || 'application/pdf';
             const extracted = await processDocumentOrImage(docBuffer, mimeType, caption);
-            if (extracted) {
+            if (extracted?.trim()) {
               attachmentOnly = !caption.trim();
+              if (messageId) agentCoreMedia = createFileTurnInput(user.id, messageId, 'document', caption, extracted);
               messageText = caption
                 ? `${caption}\n\n<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`
                 : `<untrusted_attachment_content>\n${extracted}\n</untrusted_attachment_content>`;
@@ -773,6 +780,7 @@ export function createWhatsAppWebhook({ enqueueInboundTurn, assertTurnLease, che
           inputModality,
           attachmentOnly,
           currentUserText,
+          ...(agentCoreMedia ? { agentCoreMedia } : {}),
           agentCoreAuthorizeWrite: async (_call, context) => {
             context.signal.throwIfAborted();
             await assertTurnLease();
