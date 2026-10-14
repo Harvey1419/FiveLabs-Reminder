@@ -200,8 +200,11 @@ describe('canary admission executes actual durable V2 composition', () => {
       { role: 'user' as const, content: `Previous request ${i} `.repeat(20) },
       { role: 'assistant' as const, content: `Previous answer ${i} `.repeat(20), toolCalls: [] },
     ]).flat() : [];
+    const legacyHandoff = { sourceRunId: 'prior', sourceRequestId: 'prior-message', referenceGaps: Array.from({ length: 50 }, (_, index) => ({
+      id: `old-reference-${index}`, type: 'reminder', position: index + 1, title: 'Long historical title '.repeat(10).slice(0, 200), reason: 'missing' as const,
+    })) };
     const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }), lease: () => f.lease, readPrior: async () => priorDialogue ? { id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} } : null,
-      handoff: async () => ({ userId: 'owner', history, tasks: [], reminders: [], events: [], handledRequestIds: [] }) });
+      handoff: async () => ({ userId: 'owner', history, tasks: [], reminders: [], events: [], handledRequestIds: [], legacyHandoff }) });
     const result = await withTurnLease(f.lease, () => route('¿Podrías eliminar el recordatorio de la moxicilina, por favor?', user, [], {
       inputModality: 'audio', attachmentOnly: false, agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; },
     }));
@@ -211,6 +214,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, effects: [
       { call: { name: 'reminder_read' }, item: { status: 'success' } }, { call: { name: 'reminder_cancel' }, item: { status: 'success' } },
     ] } });
+    if (priorDialogue) expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { conversation: { legacyHandoff } } } });
     for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
     if (priorDialogue) {
       expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history } } } });

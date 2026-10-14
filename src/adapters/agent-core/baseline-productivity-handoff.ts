@@ -12,57 +12,77 @@ export interface BaselineHandoffSource {
   readEvent(id: string, context: TurnContext, raw: unknown): Promise<CalendarEvent | null>;
 }
 /** Only queue-owned, completed baseline state is eligible. Prose is dialogue, never a receipt.
- * A null result leaves pending/unsupported references with the baseline before V2 admission. */
+ * A null result leaves genuinely pending/uncertain execution unadmitted, without replay. */
 export async function handoffBaselineProductivity(prior: InboundStoredTurn, context: TurnContext,
   threadId: string, history: readonly unknown[], source: BaselineHandoffSource): Promise<ProductivityConversation | null> {
   if (prior.status !== 'completed' || prior.thread_id !== threadId) throw new Error('Invalid baseline handoff anchor');
-  // Legacy administrative closures have no transferable conversation checkpoint.
-  if (!prior.response) return null;
+  // A completed turn without a response contributes dialogue only, never invented receipts.
+  const response = prior.response ?? {};
   context.signal.throwIfAborted();
-  if (prior.response.intent === 'action_unconfirmed') return null;
-  if (Array.isArray(prior.response.executionFacts) && prior.response.executionFacts.some(value => {
+  if (response.intent === 'action_unconfirmed') return null;
+  if (Array.isArray(response.executionFacts) && response.executionFacts.some(value => {
     const fact = object.safeParse(value);
     return !fact.success || ['unknown', 'partial_success'].includes(String(fact.data.outcome));
   })) return null;
   if (await source.hasActiveRun(context)) return null;
-  const entities = object.parse(prior.response.entities ?? {});
+  const entities = object.parse(response.entities ?? {});
   const clarification = object.parse(entities._conversationState ?? {});
   if (clarification.pendingIntent || (Array.isArray(clarification.pendingClarifications) && clarification.pendingClarifications.length)) return null;
   const memory = object.parse(entities._workingMemory ?? clarification.workingMemory ?? {});
   if (memory.infraFault === true) return null;
-  const items = z.array(z.object({ internalId: z.string().optional(), id: z.string().optional(),
-    type: z.string(), position: z.number().int().positive().optional(), raw: z.unknown().optional() }).passthrough())
+  const items = z.array(z.object({ internalId: z.string().min(1).max(128).optional(), id: z.string().min(1).max(128).optional(),
+    type: z.string().min(1).max(50), position: z.number().int().positive().optional(), raw: z.unknown().optional() }).passthrough())
     .max(50).parse(memory.items ?? []);
   if (items.length >= 50 && typeof memory.notificationReminderId === 'string' && !items.some(item => (item.internalId ?? item.id) === memory.notificationReminderId)) return null;
   if (typeof memory.notificationReminderId === 'string' && !items.some(item => (item.internalId ?? item.id) === memory.notificationReminderId)) {
     items.push({ id: memory.notificationReminderId, type: 'reminder' });
   }
   const tasks: TaskRecord[] = [], reminders: ReminderRecord[] = [], events: CalendarEvent[] = [];
+  const referenceGaps: NonNullable<ProductivityConversation['legacyHandoff']>['referenceGaps'] = [];
+  const seen = new Set<string>();
   const referenceOrder: NonNullable<ProductivityConversation['referenceOrder']> = [];
   for (const [index, item] of items.entries()) {
     context.signal.throwIfAborted();
     const id = item.internalId ?? item.id;
-    if (!id) return null;
+    if (!id) throw new Error('HANDOFF_REFERENCE_ID_MISSING');
+    const key = `${item.type}:${id}`;
+    if (seen.has(key)) throw new Error('HANDOFF_DUPLICATE_REFERENCE');
+    seen.add(key);
+    const hint = typeof item.title === 'string' ? item.title : typeof item.summary === 'string' ? item.summary : null;
+    const gap = { id, type: item.type, position: item.position ?? index + 1, title: hint?.slice(0, 200) ?? null };
     const domain = item.type === 'task' ? 'tasks' : item.type === 'reminder' ? 'reminders'
       : ['calendar', 'calendar_event', 'event'].includes(item.type) ? 'calendar' : null;
-    if (!domain) return null;
+    if (!domain) { referenceGaps.push({ ...gap, reason: 'unsupported' }); continue; }
     const record = domain === 'tasks' ? await source.readTask(id, context)
       : domain === 'reminders' ? await source.readReminder(id, context) : await source.readEvent(id, context, item.raw);
-    if (!record || record.id !== id || referenceOrder.some(reference => reference.domain === domain && reference.id === id)) return null;
+    if (!record) { referenceGaps.push({ ...gap, reason: 'missing' }); continue; }
+    if (record.id !== id || referenceOrder.some(reference => reference.domain === domain && reference.id === id)) throw new Error('HANDOFF_REFERENCE_ID_MISMATCH');
     if (domain === 'tasks') tasks.push(taskRecordSchema.parse(record));
     else if (domain === 'reminders') reminders.push(reminderRecordSchema.parse(record));
     else events.push(calendarEventSchema.parse(record));
     referenceOrder.push({ domain, id, position: item.position ?? index + 1 });
   }
-  const dialogue = z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
-    .parse(history).map(message => message.role === 'assistant' ? { ...message, toolCalls: [] } : message);
+  const dialogue = z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string(), messageId: z.string().optional() }))
+    .parse(history).filter(message => message.messageId !== context.requestId)
+    .map(({ role, content }) => role === 'assistant' ? { role, content, toolCalls: [] } : { role, content });
   // The certified final response wins over a missing/stale history tail; no invented user turn.
-  if (typeof prior.response.confirmation === 'string' && dialogue.at(-1)?.content !== prior.response.confirmation) {
-    dialogue.push({ role: 'assistant', content: prior.response.confirmation, toolCalls: [] });
+  if (typeof response.confirmation === 'string' && dialogue.at(-1)?.content !== response.confirmation) {
+    dialogue.push({ role: 'assistant', content: response.confirmation, toolCalls: [] });
+  }
+  // Import at most three exchanges and 2400 characters. The original queue/history
+  // stays intact; old prose is conversational context, not a tool receipt or instruction.
+  const boundedDialogue: typeof dialogue = [];
+  let remaining = 2400;
+  for (const message of dialogue.slice(-6).reverse()) {
+    if (remaining <= 0) break;
+    const content = message.content.slice(0, Math.min(800, remaining));
+    remaining -= content.length;
+    boundedDialogue.unshift({ ...message, content });
   }
   context.signal.throwIfAborted();
-  return productivityConversationSchema.parse({ userId: context.userId, history: dialogue,
-    tasks, reminders, events, referenceOrder, handledRequestIds: [prior.message_id] });
+  return productivityConversationSchema.parse({ userId: context.userId, history: boundedDialogue,
+    tasks, reminders, events, referenceOrder, handledRequestIds: [prior.message_id],
+    legacyHandoff: { sourceRunId: prior.id, sourceRequestId: prior.message_id, referenceGaps } });
 }
 
 /** Bounded, owner-filtered reads. No run expiry updates or replay of baseline actions. */
@@ -93,7 +113,7 @@ export function createBaselineHandoffSource(client: InboundCheckpointClient,
         entityId: row.entity_id ?? null, entityName: null }) : null;
     },
     async readReminder(id, context) {
-      const row = await read('reminders', 'id,user_id,content,send_at,recurrence_rule,source,parent_reminder_id,requires_confirmation,acknowledged_at', id, context);
+      const row = await read('reminders', 'id,user_id,content,send_at,status,recurrence_rule,source,parent_reminder_id,requires_confirmation,acknowledged_at', id, context);
       return row ? reminderRecordSchema.parse(normalizeReminderRecord(row)) : null;
     },
     readEvent,

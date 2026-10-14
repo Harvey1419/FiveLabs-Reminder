@@ -65,12 +65,14 @@ describe('typed domain persistence boundaries', () => {
   it('clamps history reads and preserves chronological order and content', async () => {
     const f = queryFixture<MessageRow>(); f.state.rows = [
       { id: 'new',role: 'assistant',content: 'Respuesta',created_at: '2026-10-12T12:00:00Z' },
-      { id: 'old',role: 'user',content: 'Pregunta',created_at: '2026-10-12T11:00:00Z' },
+      { id: 'old',message_id: 'old-msg',role: 'user',content: 'Pregunta',created_at: '2026-10-12T11:00:00Z' },
     ];
     const store = createMessagePersistence(f.getClient); const history = await store.getRecentMessages('phone',200);
     expect(history.map(row => row.content)).toEqual(['Pregunta','Respuesta']); expect(f.query.limit).toHaveBeenCalledWith(100);
     expect(f.query.eq).toHaveBeenCalledWith('phone_number','phone'); expect(history[0]).not.toHaveProperty('id');
     expect(f.state.rows[0]?.id).toBe('new');
+    expect(history[0]?.messageId).toBe('old-msg'); expect(history[1]).not.toHaveProperty('messageId');
+    expect(f.query.select).toHaveBeenCalledWith(expect.stringContaining('message_id'));
   });
   it('best-effort duplicate history cannot be mistaken for a durable inbound receipt', async () => {
     const f = queryFixture<MessageRow>(); f.state.error = { code: '23505',message: 'Duplicate' };

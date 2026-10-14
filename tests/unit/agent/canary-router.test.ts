@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { interruptedActiveCompletionEvidenceSchema, jsonObjectSchema } from '@templelabs/contracts';
+import { inspectInterruptedActiveCompletion } from '../../../src/adapters/agent-core/interrupted-active-completion.js';
 import { describe, it, expect, vi } from 'vitest';
 import { readCanaryPolicy, selectCanaryEngine, type CanaryPolicy } from '../../../src/agent/orchestration/canary-selector.js';
 import { createCanaryRouter } from '../../../src/agent/orchestration/canary-router.js';
@@ -102,9 +105,10 @@ describe('canary configuration and authenticated admission', () => {
     const f = fixture(); f.deps.lease.mockReturnValue(null); await f.route('Turn', user, [], options);
     expect(f.baseline).toHaveBeenCalledOnce(); expect(f.v2).not.toHaveBeenCalled(); expect(f.readPrior).not.toHaveBeenCalled();
   });
-  it('keeps an existing baseline conversation pinned instead of reconstructing a V2 handoff from chat prose', async () => {
+  it('rejects an unverified baseline handoff without executing either engine or importing prose as receipts', async () => {
     const f = fixture(); f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { confirmation: 'Done' } });
-    await f.route('Turn', user, [], options); expect(f.baseline).toHaveBeenCalledOnce(); expect(f.v2).not.toHaveBeenCalled();
+    await expect(f.route('Turn', user, [], options)).rejects.toMatchObject({ code: 'BASELINE_HANDOFF_RECONCILIATION_REQUIRED' });
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled();
   });
   it('hands off a completed baseline turn only through the verified host port and preserves references', async () => {
     const f = fixture(); const prior: InboundStoredTurn = { id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { confirmation: 'Done' } };
@@ -155,6 +159,25 @@ describe('canary configuration and authenticated admission', () => {
     f.readPrior.mockResolvedValue({ id: 'run', message_id: 'request', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { agentCoreProductivity: {} } });
     await expect(f.route('Turn', user, [], options)).rejects.toThrow();
     expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled(); expect(f.lease.checkpoint).not.toHaveBeenCalled();
+  });
+  it('continues a certified active-turn completion as V2 without rereading baseline or replaying execution', async () => {
+    const state = interruptedActiveCompletionEvidenceSchema.parse(JSON.parse(readFileSync(
+      new URL('../../fixtures/agent-core/interrupted-completion-evidence.json', import.meta.url), 'utf8')));
+    const prior = state.snapshot.prior;
+    const report = inspectInterruptedActiveCompletion(state, state.snapshot.run.user_id, prior.thread_id);
+    expect(report.completion).not.toBeNull();
+    const f = fixture({ enabled: true, userAllowlist: ['*'] });
+    f.deps.lease.mockReturnValue({ ...f.lease, inboundTurn: { ...f.lease.inboundTurn, threadId: prior.thread_id } });
+    f.readPrior.mockResolvedValue({ ...prior, status: 'completed', response: { ...prior.response, agentCoreActiveCompletion: jsonObjectSchema.parse(report.completion) } });
+    const handoff = vi.fn(async () => null);
+    await createCanaryRouter({ ...f.deps, handoff })('Gracias', { ...user, id: state.snapshot.run.user_id }, [], options);
+    expect(f.v2).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled(); expect(handoff).not.toHaveBeenCalled();
+  });
+  it.each(['agentCoreActiveCompletion', 'agentCoreActiveResolution'])('rejects a forged %s instead of replaying baseline', async key => {
+    const f = fixture();
+    f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'prior-msg', thread_id: 'thread', sequence_id: 1, status: 'completed', response: { [key]: {} } });
+    await expect(f.route('Gracias', user, [], options)).rejects.toMatchObject({ code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled();
   });
   it('does not fallback after a V2 exception', async () => {
     const f = fixture(); f.v2.mockRejectedValue(new Error('effect outcome unknown'));

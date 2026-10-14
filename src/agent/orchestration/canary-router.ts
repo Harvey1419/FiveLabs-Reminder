@@ -9,7 +9,7 @@ export interface CanaryAdmission { context: TurnContext; threadId: string; prior
 function blocked(): never {
   throw Object.assign(new Error('Turn requires reconciliation before engine admission'), { code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });
 }
-const managed = ['agentCore', 'agentCoreProductivity', 'agentCoreActiveRun', 'agentCoreActiveResolution',
+const managed = ['agentCore', 'agentCoreResolution', 'agentCoreProductivity', 'agentCoreActiveRun', 'agentCoreActiveResolution',
   'agentCoreActiveCompletion', 'agentCoreDeliveryManifest', 'agentCoreBaseline', 'agentCoreAdmissionRejected'];
 
 export function createCanaryRouter<Result>(deps: {
@@ -43,7 +43,8 @@ export function createCanaryRouter<Result>(deps: {
       throw error;
     }
     if (prior?.status !== undefined && prior.status !== 'completed') blocked();
-    const priorV2 = prior?.response && Object.hasOwn(prior.response, 'agentCoreProductivity');
+    const priorV2 = prior?.response && ['agentCoreProductivity', 'agentCoreActiveCompletion', 'agentCoreActiveResolution']
+      .some(key => Object.hasOwn(prior.response!, key));
     if (priorV2) {
       // Validate the prior V2 state before allowing either continuation or rollback.
       const { recoverProductivityStoredTurn } = await import('../../adapters/agent-core/productivity-state-recovery.js');
@@ -65,7 +66,7 @@ export function createCanaryRouter<Result>(deps: {
         // cannot turn into an unknown execution and quarantine the next message.
         return rejectBeforeEngine(lease, context.userId, 'BASELINE_HANDOFF_FAILED');
       }
-      if (!transferred) return deps.baseline(text, user, history, options);
+      if (!transferred) return rejectBeforeEngine(lease, context.userId, 'BASELINE_HANDOFF_RECONCILIATION_REQUIRED');
       if (transferred.userId !== context.userId) blocked();
       handoff = transferred;
     }

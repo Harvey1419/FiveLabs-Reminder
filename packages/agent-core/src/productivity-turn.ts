@@ -162,8 +162,14 @@ export class ProductivityTurnRunner {
           referenceOrder: referenceOrder?.filter(reference => !visible.has(reference.id)
             && (!this.compactObservations || domains.includes(reference.domain === 'tasks' ? 'task' : reference.domain === 'reminders' ? 'reminder' : 'calendar'))).slice(0, this.maxPromptReferences) ?? [],
           referenceCoverage: 'bounded_historical_references_read_to_resolve_other_resources', referenceFreshness: 'historical_or_current_tool_observation' });
-        // Personal data is optional: compact it before sacrificing essential protocol state.
-        for (const extra of [personal, '']) {
+        const gaps = state.legacyHandoff?.referenceGaps
+          .filter(gap => !visible.has(gap.id) && !tasks.has(gap.id) && !reminders.has(gap.id) && !events.has(gap.id))
+          .slice(0, this.maxPromptReferences).map(gap => ({ ...gap, title: gap.title?.slice(0, 80) ?? null })) ?? [];
+        const historical = gaps.length ? '\n' + JSON.stringify({ historicalReferenceGaps: gaps,
+          historicalGapsAreNotMutationReferences: true }) : '';
+        // Optional personal data and historical hints yield to essential protocol state.
+        // Full provenance remains durable even when its prompt projection is omitted.
+        for (const extra of [personal + historical, historical, '']) {
           const prepared = prepareProductivityContext(projected, context.userId, systemContent + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3).messages;
           if (fitsBudget(prepared) || !extra) return prepared;
         }
@@ -195,7 +201,8 @@ export class ProductivityTurnRunner {
     return { conversationReply, usage: result.usage, requiresReconciliation: result.requiresReconciliation,
       conversation: productivityConversationSchema.parse({ userId: context.userId, history: result.history,
         reminders: [...reminders.values()].slice(-50), tasks: [...tasks.values()].slice(-50),
-        events: [...events.values()].slice(-50), ...(referenceOrder ? { referenceOrder } : {}), handledRequestIds: [...state.handledRequestIds, context.requestId] }),
+        events: [...events.values()].slice(-50), ...(referenceOrder ? { referenceOrder } : {}),
+        ...(state.legacyHandoff ? { legacyHandoff: state.legacyHandoff } : {}), handledRequestIds: [...state.handledRequestIds, context.requestId] }),
       uiPayload: productivityUiPayloadSchema.parse({ language: context.language, timezone: context.timezone, conversationReply,
         ...(dialogue ? { dialogue } : {}),
         items, notices: result.notices }) };

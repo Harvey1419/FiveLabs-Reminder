@@ -100,7 +100,7 @@ export function createMessagePersistence(getClient: () => DomainPersistenceClien
     try {
       const { data, error } = await getClient()
         .from('messages')
-        .select('role, content, intent, entities, created_at')
+        .select('role, content, intent, entities, created_at, message_id')
         .eq('phone_number', phone)
         .order('created_at', { ascending: false })
         .limit(safeLimit);
@@ -114,7 +114,8 @@ export function createMessagePersistence(getClient: () => DomainPersistenceClien
       return (data || [])
         .slice()
         .reverse()
-        .map(({ role, content, intent, entities, created_at: createdAt }) => ({ role, content, intent, entities, createdAt }));
+        .map(({ role, content, intent, entities, created_at: createdAt, message_id }) => ({ role, content, intent, entities, createdAt,
+          ...(typeof message_id === 'string' ? { messageId: message_id } : {}) }));
     } catch (err) {
       console.error('getRecentMessages threw:', err);
       return [];

@@ -34,6 +34,10 @@ export const productivityItemSchema = z.discriminatedUnion('domain', [
 });
 export const productivityConversationSchema = z.strictObject({
   userId: z.string().min(1), history: z.array(aiMessageSchema),
+  legacyHandoff: z.strictObject({ sourceRunId: z.string().min(1), sourceRequestId: z.string().min(1),
+    referenceGaps: z.array(z.strictObject({ id: z.string().min(1).max(128), type: z.string().min(1).max(50),
+      position: z.number().int().positive(), title: z.string().max(200).nullable(), reason: z.enum(['missing', 'unsupported']) })).max(51),
+  }).optional(),
   referenceOrder: z.array(z.strictObject({ domain: z.enum(['tasks', 'reminders', 'calendar']), id: z.string().min(1), position: z.number().int().positive() })).max(51).optional(),
   reminders: z.array(reminderRecordSchema).max(50), tasks: z.array(taskRecordSchema).max(50),
   events: z.array(calendarEventSchema).max(50), handledRequestIds: z.array(z.string().min(1)).max(100),
