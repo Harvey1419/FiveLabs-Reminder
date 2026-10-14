@@ -83,7 +83,7 @@ describe('owned durable reminder checkpoint recovery', () => {
       expect(query.find(call => call[0] === 'select')?.[1][0]).not.toContain('request');
     }
     expect(s.queries[1]).toContainEqual(['eq', ['status', 'unknown']]);
-    expect(s.queries[1]).toContainEqual(['order', ['sequence_id', { ascending: true }]]);
+    expect(s.queries[1]).toContainEqual(['order', ['sequence_id', { ascending: false }]]);
     expect(s.queries[2]).toContainEqual(['lt', ['sequence_id', 100]]);
     expect(s.queries[2]).toContainEqual(['order', ['sequence_id', { ascending: false }]]);
   });

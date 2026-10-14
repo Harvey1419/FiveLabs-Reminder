@@ -6,7 +6,7 @@ import { taskRecordSchema, taskResultSchema, taskReadInputSchema } from './tasks
 import { calendarEventSchema, calendarResultSchema, calendarReadInputSchema } from './calendar.js';
 
 export const taskToolNameSchema = z.enum(['task_create', 'task_read', 'task_update', 'task_complete', 'task_delete']);
-export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect']);
+export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect', 'calendar_update', 'calendar_delete']);
 export const productivityToolNameSchema = z.enum([...reminderToolNameSchema.options,
   ...taskToolNameSchema.options, ...calendarToolNameSchema.options]);
 const common = {

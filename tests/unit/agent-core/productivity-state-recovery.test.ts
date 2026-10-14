@@ -47,7 +47,7 @@ describe('owned mixed checkpoint continuity', () => {
       expect(query).toContainEqual(['eq', ['thread_id', 'thread']]); expect(query).toContainEqual(['limit', [1]]);
       expect(query).toContainEqual(['abortSignal', [expect.any(AbortSignal)]]);
     }
-    expect(s.queries[1]).toContainEqual(['order', ['sequence_id', { ascending: true }]]);
+    expect(s.queries[1]).toContainEqual(['order', ['sequence_id', { ascending: false }]]);
     expect(s.queries[2]).toContainEqual(['lt', ['sequence_id', 100]]);
   });
   it('continues with the previously verified task ID without replaying old effects or deliveries', async () => {

@@ -36,6 +36,7 @@ export const reminderUpdateInputSchema = z.strictObject({
   || value.recurrence !== undefined || value.deliveryPolicy !== undefined, {
   message: 'At least one update is required',
 });
+export const reminderCancelInputSchema = z.strictObject({ reminderId: z.uuid() });
 export const reminderAcknowledgeInputSchema = z.strictObject({ reminderId: z.uuid() });
 
 export const reminderRecordSchema = z.strictObject({
@@ -47,9 +48,10 @@ export const reminderRecordSchema = z.strictObject({
   parentReminderId: z.string().min(1).max(128).nullable(),
   requiresConfirmation: z.boolean(),
   acknowledgedAt: instant.nullable(),
+  status: z.enum(['pending', 'sent', 'failed', 'cancelled']).optional(),
 });
 export const reminderResultSchema = z.strictObject({
-  operation: z.enum(['create', 'read', 'update', 'acknowledge']),
+  operation: z.enum(['create', 'read', 'update', 'acknowledge', 'cancel']),
   records: z.array(reminderRecordSchema).max(50),
   complete: z.boolean(),
   coverage: z.enum(['operation', 'bounded_list']),
@@ -70,4 +72,5 @@ export type ReminderRequest =
   | { readonly operation: 'create'; readonly input: z.infer<typeof reminderCreateInputSchema> }
   | { readonly operation: 'read'; readonly input: z.infer<typeof reminderReadInputSchema> }
   | { readonly operation: 'update'; readonly input: z.infer<typeof reminderUpdateInputSchema> }
+  | { readonly operation: 'cancel'; readonly input: z.infer<typeof reminderCancelInputSchema> }
   | { readonly operation: 'acknowledge'; readonly input: z.infer<typeof reminderAcknowledgeInputSchema> };

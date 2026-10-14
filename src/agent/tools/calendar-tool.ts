@@ -231,7 +231,7 @@ async function resolveCalendarMutationTarget({ target, user, phoneNumber, userId
  * Domain tool for managing Google Calendar synchronization (Architecture V3).
  */
 async function executeCalendarTool({ action, params = {}, user, language = 'es', referenceTime = null }: CalendarToolInput) {
-  if (action === 'update_event' && params.lookupDate !== undefined
+  if ((action === 'update_event' || action === 'delete_event') && params.lookupDate !== undefined
     && (!isCalendarLookupDate(params.lookupDate) || parseStructuredOrdinal(String(params.target || '')) !== null)) {
     return { success: false, errorCode: 'INVALID_CALENDAR_LOOKUP_DATE', error: 'La fecha de búsqueda requiere YYYY-MM-DD y un nombre de evento.' };
   }
@@ -685,6 +685,7 @@ async function executeCalendarTool({ action, params = {}, user, language = 'es',
         });
 
         let companionUpdated = false;
+        let companionRescheduleFailed = false;
         if (startDateTime) {
           try {
             const resch = await rescheduleCalendarCompanionReminders({
@@ -695,6 +696,7 @@ async function executeCalendarTool({ action, params = {}, user, language = 'es',
             });
             companionUpdated = resch.rescheduled > 0;
           } catch (rErr) {
+            companionRescheduleFailed = true;
             logger.warn('[calendarTools] Companion reschedule error:', (rErr as { message: string; code: string }).message);
           }
         }
@@ -715,9 +717,10 @@ async function executeCalendarTool({ action, params = {}, user, language = 'es',
         return {
           success: true,
           action: 'google_event_updated',
+          partialSuccess: companionRescheduleFailed, complete: !companionRescheduleFailed,
           data: {
             ...updated,
-            companionUpdated,
+            companionUpdated, companionRescheduleFailed,
           },
           rawSummary: summary,
           formattedCard: summary,
@@ -787,9 +790,10 @@ async function executeCalendarTool({ action, params = {}, user, language = 'es',
         user,
         phoneNumber,
         userId,
-        timezone: tz,
+        timezone: tz, lookupDate: params.lookupDate, referenceTime,
       });
 
+      if (refRes.status === 'ERROR') return { success: false, errorCode: 'SERVICE_UNAVAILABLE', error: 'The event could not be verified.' };
       if (refRes.status === 'AMBIGUOUS') {
         return {
           success: false,

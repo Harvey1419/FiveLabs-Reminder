@@ -409,7 +409,7 @@ async function executeSingleReminderCancellation({
       cancelledCount,
       cancelledReminders: (cancelled || []).map(({ id }) => {
         const row = targets.find(target => target.id === id);
-        return { id, content: row?.content, sendAt: row?.send_at, status: 'cancelled', recurrenceRule: row?.recurrence_rule || null };
+        return { id, content: row?.content, sendAt: row?.send_at, status: 'cancelled', recurrenceRule: row?.recurrence_rule || null, isAdvanceNotice: row ? isAdvanceNotice(row) : false };
       }),
       logicalCancelledCount: primaryTargets.length,
       linkedAdvanceNoticesCancelled: childNotices.length,

@@ -52,7 +52,7 @@ export class ReminderTurnRunner {
     const uiPayload: ReminderUiPayload = { language: context.language, timezone: context.timezone, items: [], notices: [] };
     const result = await this.loop.run(text, context, state.history, {
       acceptsTool: name => reminderToolNameSchema.safeParse(name).success,
-      referenceMissing: call => (call.name === 'reminder_update' || call.name === 'reminder_acknowledge')
+      referenceMissing: call => (call.name === 'reminder_update' || call.name === 'reminder_acknowledge' || call.name === 'reminder_cancel')
         && (typeof call.arguments.reminderId !== 'string' || !references.has(call.arguments.reminderId)),
       // Retain isolated reminder compatibility. Its durable composition supplies the journal.
       writeJournalAvailable: true,

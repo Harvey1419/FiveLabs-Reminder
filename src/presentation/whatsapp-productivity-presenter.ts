@@ -48,6 +48,13 @@ export class WhatsAppProductivityPresenter {
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();
     const groups = new Map<string, ProductivityItem[]>();
     for (const item of payload.items) {
+      if (item.toolName.endsWith('_read') && item.status === 'success' && item.result) {
+        const ids = item.domain === 'calendar' ? item.result.events.map(event => event.id) : item.result.records.map(record => record.id);
+        const written = new Set(payload.items.filter(other => other.domain === item.domain && !other.toolName.endsWith('_read')
+          && other.status === 'success' && other.result?.complete).flatMap(other => !other.result ? []
+            : other.domain === 'calendar' ? other.result.events.map(event => event.id) : other.result.records.map(record => record.id)));
+        if (ids.length && ids.every(id => written.has(id))) continue;
+      }
       const cta = item.result?.presentation.cta;
       if (cta?.url && /^https:\/\//i.test(cta.url)) {
         const url = new URL(cta.url);
@@ -107,7 +114,9 @@ export class WhatsAppProductivityPresenter {
           if (first.result?.connection === 'connected') sections.push(en ? '✅ Google Calendar connected.' : '✅ Google Calendar conectado.');
         } else {
           const heading = first.toolName === 'calendar_create'
-            ? (en ? '✅ *Event created*' : '✅ *Evento creado*') : '📅 *Google Calendar*';
+            ? (en ? '✅ *Event created*' : '✅ *Evento creado*')
+            : first.toolName === 'calendar_update' ? (en ? '✏️ *Event updated*' : '✏️ *Evento actualizado*')
+            : first.toolName === 'calendar_delete' ? (en ? '🗑️ *Event deleted*' : '🗑️ *Evento eliminado*') : '📅 *Google Calendar*';
           const scope = first.readScope;
           const labels: Record<string, [string, string]> = {
             today: ['hoy', 'today'], remaining_today: ['lo que queda de hoy', 'the rest of today'],

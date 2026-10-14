@@ -1,6 +1,6 @@
 import {
   reminderCreateInputSchema, reminderReadInputSchema, reminderUpdateInputSchema,
-  reminderAcknowledgeInputSchema, reminderResultSchema,
+  reminderCancelInputSchema, reminderAcknowledgeInputSchema, reminderResultSchema,
   type ReminderRequest, type ReminderResult, type TurnContext,
 } from '@templelabs/contracts';
 import type { ToolOutcome } from './index.js';
@@ -29,6 +29,11 @@ export function createReminderTools(port: ReminderDomainPort) {
       description: 'Update one owned reminder by its observed UUID. Supply only requested changes; null recurrence removes recurrence. Delivery policy changes preserve the principal/advance-notice relationship.',
       inputSchema: reminderUpdateInputSchema, outputSchema: reminderResultSchema,
       handler: (input, context, operationId) => port.execute({ operation: 'update', input }, context, operationId),
+    }),
+    defineTool({ name: 'reminder_cancel', effect: 'destructive', requiredCapability: 'reminders.cancel',
+      description: 'Cancel the observed owned reminder explicitly requested by the user. A recurring target cancels its active routine and linked notices. Does not acknowledge completion or erase history.',
+      inputSchema: reminderCancelInputSchema, outputSchema: reminderResultSchema,
+      handler: (input, context, operationId) => port.execute({ operation: 'cancel', input }, context, operationId),
     }),
     defineTool({
       name: 'reminder_acknowledge', effect: 'write', requiredCapability: 'reminders.acknowledge',

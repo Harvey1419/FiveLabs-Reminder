@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { aiMessageSchema } from './provider.js';
 import { reminderRecordSchema, reminderResultSchema } from './reminders.js';
 
-export const reminderToolNameSchema = z.enum(['reminder_create', 'reminder_read', 'reminder_update', 'reminder_acknowledge']);
+export const reminderToolNameSchema = z.enum(['reminder_create', 'reminder_read', 'reminder_update', 'reminder_acknowledge', 'reminder_cancel']);
 export const reminderUiItemSchema = z.strictObject({
   callId: z.string().min(1), toolName: reminderToolNameSchema,
   status: z.enum(['success', 'partial', 'validation_failed', 'denied', 'approval_required', 'clarification_required', 'failed', 'indeterminate']),

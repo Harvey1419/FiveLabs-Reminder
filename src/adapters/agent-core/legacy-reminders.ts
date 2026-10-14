@@ -24,10 +24,10 @@ const noEffectCodes = new Set([
 const expectedActions = {
   create: new Set(['created_reminders_batch', 'partially_created_reminders']),
   read: new Set(['listed_reminders']), update: new Set(['updated_reminder']),
-  acknowledge: new Set(['acknowledged_reminder']),
+  acknowledge: new Set(['acknowledged_reminder']), cancel: new Set(['cancelled_reminder', 'cancelled_recurring_reminder_series']),
 };
 const toolNames = {
-  create: 'reminder_create', read: 'reminder_read', update: 'reminder_update', acknowledge: 'reminder_acknowledge',
+  create: 'reminder_create', read: 'reminder_read', update: 'reminder_update', acknowledge: 'reminder_acknowledge', cancel: 'reminder_cancel',
 };
 
 function optionalString(value: unknown): string | null {
@@ -45,6 +45,7 @@ export function normalizeLegacyReminderRecord(value: unknown): ReminderRecord {
     parentReminderId: optionalString(row.parentReminderId ?? row.parent_reminder_id),
     requiresConfirmation: row.requiresConfirmation === true || row.requires_confirmation === true,
     acknowledgedAt: optionalString(row.acknowledged_at),
+    ...(row.status === 'cancelled' ? { status: 'cancelled' as const } : {}),
   };
 }
 const normalizeRecord = normalizeLegacyReminderRecord;
@@ -75,6 +76,7 @@ function legacyParams(request: ReminderRequest, context: TurnContext): JsonObjec
         ...(changes.deliveryPolicy ? { deliveryPolicy: changes.deliveryPolicy } : {}),
       };
     }
+    case 'cancel': return { action: 'cancel', target: request.input.reminderId };
     case 'acknowledge': return { action: 'acknowledge', reminderId: request.input.reminderId };
   }
 }
@@ -91,10 +93,13 @@ function normalizeOutcome(raw: unknown, operation: ReminderRequest['operation'],
   if (result.success && !expectedActions[operation].has(result.action)) throw new Error('Unexpected domain action');
 
   const dataObject = !Array.isArray(result.data) && result.data != null ? objectSchema.parse(result.data) : {};
+  const alreadyInactive = operation === 'cancel' && result.action === 'reminder_already_inactive' && result.complete === true;
   const hasEffects = result.success || result.partialSuccess === true;
+  if (alreadyInactive) return { status: 'failed', code: 'ALREADY_INACTIVE', observation: 'The reminder is already inactive; no cancellation write was made.' };
   let rows: unknown[] = [];
   if (hasEffects) {
     if (operation === 'create') rows = z.array(z.unknown()).parse(Array.isArray(result.data) ? result.data : dataObject.items);
+    else if (operation === 'cancel') rows = z.array(z.unknown()).parse(dataObject.cancelledReminders);
     else if (operation === 'read') rows = z.array(z.unknown()).parse(dataObject.reminders);
     else rows = [dataObject.reminder ?? result.data];
     if (operation !== 'read' && rows.length === 0) throw new Error('Write reported success without resource evidence');

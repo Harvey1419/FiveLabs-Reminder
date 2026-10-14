@@ -3,7 +3,7 @@ import {
 } from '@templelabs/contracts';
 import {
   formatCanonicalReminderCreate, formatCanonicalReminderUpdate,
-  formatCanonicalReminderAcknowledge, formatCanonicalReminderList,
+  formatCanonicalReminderAcknowledge, formatCanonicalReminderCancel, formatCanonicalReminderList,
 } from '../shared/reminder-presentation.js';
 
 export interface WhatsAppPresentation {
@@ -21,6 +21,7 @@ function uniqueRecords(items: readonly ReminderUiItem[]): ReminderRecord[] {
 }
 function errorText(item: ReminderUiItem, language: 'es' | 'en'): string {
   const en = language === 'en';
+  if (item.code === 'ALREADY_INACTIVE') return en ? 'This reminder was already inactive. No changes were made.' : 'Este recordatorio ya estaba inactivo. No hice cambios.';
   if (item.status === 'indeterminate' || item.code === 'EFFECT_RECONCILIATION_REQUIRED') return en
     ? '⚠️ *Outcome not confirmed*\nI could not confirm this action. It needs checking before trying again.'
     : '⚠️ *Resultado sin confirmar*\nNo pude confirmar esta acción. Hay que verificarla antes de volver a intentarla.';
@@ -63,6 +64,12 @@ export class WhatsAppCardPresenter {
       const records = uniqueRecords(items).map(canonical);
       switch (first.toolName) {
         case 'reminder_create': cards.push(formatCanonicalReminderCreate(records, context)); break;
+        case 'reminder_cancel': {
+          const principal = records.filter(record => !record.isAdvanceNotice);
+          const render = items.every(item => item.status === 'success' && item.result?.complete)
+            ? formatCanonicalReminderCancel : (record: unknown, ctx: { language: 'es' | 'en'; timezone: string }) => `${ctx.language === 'en' ? '⚠️ Reminder cancellation partially confirmed' : '⚠️ Cancelación de recordatorio parcialmente confirmada'}\n${typeof record === 'object' && record && 'content' in record ? String(record.content) : ''}`;
+          cards.push(...(principal.length ? principal : records).map(record => render(record, context))); break;
+        }
         case 'reminder_update': cards.push(...records.map(record => formatCanonicalReminderUpdate(record, context))); break;
         case 'reminder_acknowledge': cards.push(...records.map(record => formatCanonicalReminderAcknowledge(record, context))); break;
         case 'reminder_read': cards.push(formatCanonicalReminderList({ reminders: records,

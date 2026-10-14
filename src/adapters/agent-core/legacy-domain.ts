@@ -30,7 +30,7 @@ export function presentation(result: LegacyEnvelope) {
 }
 const noEffectCodes = new Set([
   'ACCESS_DENIED', 'NOT_FOUND', 'INVALID_PARAMETERS', 'INVALID_TIME', 'TIME_IN_PAST',
-  'MISSING_TARGET_ID', 'MISSING_REQUIRED_CONTEXT', 'AMBIGUOUS_TARGET', 'AUTH_REQUIRED',
+  'MISSING_TARGET_ID', 'UNSUPPORTED_CALENDAR_DURATION', 'INCOMPATIBLE_CALENDAR_PATCH', 'INVALID_CALENDAR_INTERVAL', 'MISSING_REQUIRED_CONTEXT', 'AMBIGUOUS_TARGET', 'AUTH_REQUIRED',
 ]);
 export function failedOutcome<Output>(result: LegacyEnvelope, data: Output, observation: string,
   effect: 'read' | 'write', operationId: string): ToolOutcome<Output> {
