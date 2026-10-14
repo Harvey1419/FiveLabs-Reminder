@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "scope": "V2 asynchronous proactive learning and standing-preference guidance",
+  "branch": "feat/v2-proactive-memory",
+  "baseCommit": "11edb38",
+  "productionDeployment": false,
+  "lifecycle": {
+    "trigger": "all delivery receipts accepted and durable completion published",
+    "foregroundAwaitsLearning": false,
+    "inboundLeaseInherited": false,
+    "backgroundDeadlineMs": 20000,
+    "maxPendingJobs": 32,
+    "durability": "best-effort process-local queue, no restart recovery",
+    "forgetCancellation": "cancel older pending/in-flight process-local jobs before newer authored forget request",
+    "writeRetry": false
+  },
+  "learning": {
+    "source": "current authored text; voice transcription or attachment caption accepted; assistant/OCR/quoted payloads excluded",
+    "maxSourceCharacters": 2400,
+    "maxCandidates": 3,
+    "categories": [
+      "fact",
+      "preference"
+    ],
+    "exactSpanRequired": true,
+    "independentSemanticAdmission": true,
+    "persistence": "existing native owner-scoped Supabase memories store with exact-content reuse and optional compatible embeddings",
+    "implicitLegacyReminderWrites": false,
+    "explicitSaveForgetTurns": "excluded from automatic learning"
+  },
+  "proactivity": {
+    "guidance": "when preferences are present, adapt relevant requests or verify preferences with the user",
+    "explicitRequestTakesPrecedence": true,
+    "additionalActionsRequireAuthorization": true,
+    "futureContext": "existing standing-preference and relevant-memory readers via bounded readPersonalContext"
+  },
+  "budgets": {
+    "foregroundInput": 1800,
+    "extractionInput": 1800,
+    "extractionTotal": 3000,
+    "extractionOutput": 1024,
+    "auxiliaryUsage": "extraction/admission/embeddings logged separately from reasoning loop"
+  },
+  "validation": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unit": {
+      "files": 300,
+      "passed": 3825,
+      "newProactiveTests": 11
+    },
+    "conversationIntegration": {
+      "files": 4,
+      "passed": 37,
+      "newLearningJourney": 1
+    },
+    "maintainedJavaScript": 0,
+    "typeScriptSources": 789,
+    "compiledRuntime": {
+      "modules": 309,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "v2Boundary": {
+      "modules": 169,
+      "forbiddenV1Imports": 0
+    },
+    "v1CallerInventory": {
+      "runtimeEdges": 13,
+      "driftGate": "passed"
+    },
+    "productionReadOnlyQuery": "active preferences for synthetic nil user, limit 2, returned []",
+    "productionBuild": "TypeScript packages and emitted runtime compiled; Docker validation not requested for this block"
+  },
+  "limits": [
+    "Queue saturation/restart can discard learning",
+    "Cancellation is process-local and does not erase already committed writes",
+    "No semantic supersession, correction/versioning or durable background outbox",
+    "Scripted tests verify protocol, persistence and prompt injection; live model quality and latency not measured"
+  ],
+  "externalEffects": {
+    "paidInferenceCalls": 0,
+    "productionDatabaseWrites": 0,
+    "realWhatsAppSends": 0,
+    "deployments": 0
+  },
+  "rollback": "Revert this proactive-learning unit: scheduling hook, background adapter and provider purpose, persona guidance, tests and docs; explicit memory tools remain independent.",
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm run test:unit",
+    "pnpm run test:conversation",
+    "pnpm run lint",
+    "pnpm run migration:check",
+    "pnpm run check:v2-boundary",
+    "pnpm run inventory:v1"
+  ]
+}

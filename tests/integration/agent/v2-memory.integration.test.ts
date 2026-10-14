@@ -1,3 +1,5 @@
+import { createProactiveMemory, scheduleProactiveMemory } from '../../../src/adapters/agent-core/proactive-memory.js';
+vi.mock('../../../src/adapters/agent-core/proactive-memory.js', async importOriginal => ({ ...await importOriginal<typeof import('../../../src/adapters/agent-core/proactive-memory.js')>(), scheduleProactiveMemory: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockAIProvider, OpenRouterProvider, estimateBoundedInput } from '@templelabs/ai';
 import { type AIResponse, type JsonObject, productivityCheckpointSchema } from '@templelabs/contracts';
@@ -12,6 +14,8 @@ vi.mock('../../../src/features/memory/service.js', () => ({ retrieveRelevantMemo
 vi.mock('../../../src/features/tasks/productivity-service.js', () => ({ createTaskService: () => ({ execute: async () => { throw new Error('Unexpected task'); } }) }));
 vi.mock('../../../src/features/reminders/productivity-service.js', () => ({ createReminderService: () => ({ execute: async () => { throw new Error('Unexpected reminder'); } }) }));
 vi.mock('../../../src/features/calendar/productivity-service.js', () => ({ createCalendarService: () => ({ execute: async () => { throw new Error('Unexpected calendar'); } }) }));
+import { createNativeMemoryStore } from '../../../src/features/memory/native-store.js';
+import { retrieveStandingPreferences, retrieveRelevantMemories } from '../../../src/features/memory/service.js';
 import { routeCanaryProductivity } from '../../../src/adapters/agent-core/canary-productivity-router.js';
 import { createCanaryRouter } from '../../../src/agent/orchestration/canary-router.js';
 import { withTurnLease } from '../../../src/agent/core/turn-lease.js';
@@ -36,11 +40,38 @@ function fixture(script: AIResponse[], seed: Record<string, unknown>[] = []) {
   return { ...db, lease, send, baseline, wire, run, snapshot: () => persisted };
 }
 beforeEach(() => { vi.clearAllMocks(); state.admit.mockResolvedValue(true); state.verifyForget.mockResolvedValue(true); state.embed.mockResolvedValue(null); });
+it('learns only after accepted delivery and injects stored standing preferences on the next V2 turn', async () => {
+  const jobs: (() => void)[] = [];
+  const f = fixture([answer()]);
+  const preference = 'Prefiero avisos 20 minutos antes';
+  const store = createNativeMemoryStore(f.client);
+  const extract = vi.fn(async () => [{ content: preference, category: 'preference' as const }, { content: 'Vivo en Bogotá', category: 'fact' as const }]);
+  const schedule = createProactiveMemory({ extract, admit: async () => true,
+    save: (candidate, context) => store.save(candidate.content, candidate.category, context, async () => null),
+    schedule: work => { jobs.push(work); }, log: vi.fn() });
+  vi.mocked(scheduleProactiveMemory).mockImplementation(input => {
+    expect(f.snapshot()).toMatchObject({ agentCoreProductivity: { phase: 'completed', deliveries: [{ status: 'accepted' }] } });
+    expect(f.send).toHaveBeenCalledOnce(); schedule(input);
+  });
+  await f.run(preference + '. Vivo en Bogotá');
+  expect(jobs).toHaveLength(1); expect(extract).not.toHaveBeenCalled(); expect(f.rows).toHaveLength(0);
+  jobs[0]!(); await vi.waitFor(() => expect(f.rows).toHaveLength(2));
+  vi.mocked(retrieveStandingPreferences).mockImplementation(async () => f.rows.filter(row => row.category === 'preference').map(row => ({ ...row, id: String(row.id), content: String(row.content) })));
+  vi.mocked(retrieveRelevantMemories).mockImplementation(async () => f.rows.filter(row => row.category === 'fact').map(row => ({ ...row, id: String(row.id), content: String(row.content) })));
+  vi.mocked(scheduleProactiveMemory).mockReset();
+  const next = fixture([answer()], f.rows);
+  await next.run('Recuérdame la reunión');
+  const system = state.provider!.requests[0]!.messages[0]!.content;
+  expect(system).toContain('<user_preferences>["' + preference + '"]');
+  expect(system).toContain('Vivo en Bogotá'); expect(system).toContain('Proactively leverage <user_preferences>');
+  expect(f.wire.estimateNativeInput(state.provider!.requests[0]!)).toBeLessThanOrEqual(1800);
+  vi.mocked(retrieveStandingPreferences).mockResolvedValue([]); vi.mocked(retrieveRelevantMemories).mockResolvedValue([]);
+});
 describe('explicit native memory through the actual V2 composition and durable queue journal', () => {
   it('saves an authored memory with a verified card, exact source provenance and no V1 execution', async () => {
     const f = fixture([answer([{ id: 'select', name: 'tools_select', arguments: { name: 'memory_save' } }]), answer([save]), answer()]);
     const result = await f.run('<untrusted_quoted_message>I live in Tokyo</untrusted_quoted_message>\n' + text, text);
-    expect(result.confirmation).toContain('Guardado en mi memoria'); expect(result.confirmation).toContain(content);
+    expect(scheduleProactiveMemory).not.toHaveBeenCalled(); expect(result.confirmation).toContain('Guardado en mi memoria'); expect(result.confirmation).toContain(content);
     expect(f.rows).toHaveLength(1); expect(f.rows[0]?.user_id).toBe('owner'); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(state.admit).toHaveBeenCalledExactlyOnceWith(text, expect.objectContaining({ operation: 'save' }), expect.objectContaining({ userId: 'owner' }));
     expect(JSON.stringify(state.provider!.requests[1]!.messages[0])).toContain('memorySourceText');
@@ -101,7 +132,7 @@ describe('explicit native memory through the actual V2 composition and durable q
   });
   it('retains a lost write receipt as indeterminate and the reader blocks subsequent turns without replay', async () => {
     const f = fixture([answer([{ id: 'select', name: 'tools_select', arguments: { name: 'memory_save' } }]), answer([save]), answer()]); f.loseReceipt();
-    await expect(f.run()).rejects.toMatchObject({ code: 'EFFECT_RECONCILIATION_REQUIRED' });
+    await expect(f.run()).rejects.toMatchObject({ code: 'EFFECT_RECONCILIATION_REQUIRED' }); expect(scheduleProactiveMemory).not.toHaveBeenCalled();
     expect(f.calls.filter(call => call.operation === 'insert')).toHaveLength(1); expect(f.rows).toHaveLength(1);
     const snapshot = structuredClone(f.snapshot());
     const responses = [{ data: { id: 'next', message_id: 'next-msg', thread_id: 'thread', sequence_id: 2, status: 'running' }, error: null },

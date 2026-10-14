@@ -56,7 +56,7 @@ export function createConfiguredStructuredAIProvider(options: ConfiguredStructur
     ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
 }
 
-export type BackgroundPurpose = 'policy_compilation' | 'memory_admission' | 'next_best_action' | 'memory';
+export type BackgroundPurpose = 'policy_compilation' | 'memory_admission' | 'next_best_action' | 'memory' | 'memory_extraction';
 export interface ConfiguredBackgroundAIProviderOptions extends Omit<ConfiguredAIProviderOptions, 'config'> {
   readonly config?: LegacyBackgroundOpenRouterConfiguration;
 }
@@ -64,7 +64,7 @@ export interface ConfiguredBackgroundAIProviderOptions extends Omit<ConfiguredAI
 export function createConfiguredBackgroundAIProvider(purpose: BackgroundPurpose, options: ConfiguredBackgroundAIProviderOptions = {}): OpenRouterProvider {
   const config = options.config ?? MODEL_CONFIG.openrouter, env = options.env ?? process.env;
   let routes: OpenRouterRoute[];
-  if (purpose === 'memory') routes = [
+  if (purpose === 'memory' || purpose === 'memory_extraction') routes = [
     { id: 'memory_primary', model: config.memoryPrimary, providers: config.memoryPrimaryProviders,
       timeoutMs: positive(env.OPENROUTER_MEMORY_PRIMARY_TIMEOUT_MS, 9000), temperature: 0,
       reasoning: { effort: env.OPENROUTER_MEMORY_PRIMARY_REASONING_EFFORT || 'low', exclude: true } },
@@ -86,6 +86,7 @@ export function createConfiguredBackgroundAIProvider(purpose: BackgroundPurpose,
         reasoning: { effort: 'low', exclude: true } }] : []),
     ];
   }
+  if (purpose === 'memory_extraction') routes = routes.map(route => ({ ...route, structuredOutput: true }));
   return new OpenRouterProvider({ apiKey: options.apiKey ?? getOpenRouterApiKey() ?? '', routes,
     ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}), ...(options.estimateInputTokens ? { estimateInputTokens: options.estimateInputTokens } : {}), ...(options.onAttempt ? { onAttempt: options.onAttempt } : {}) });
 }

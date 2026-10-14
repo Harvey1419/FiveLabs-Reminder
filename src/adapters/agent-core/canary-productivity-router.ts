@@ -1,3 +1,4 @@
+import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
 import { createMemoryDomainPort } from './memories-domain.js';
 import { readTurnMediaInput, mediaAllowedTools } from '../../shared/turn-media-input.js';
@@ -45,6 +46,8 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   const media = readTurnMediaInput(options.agentCoreMedia, admission.context, options.inputModality);
   if (options.agentCoreMedia !== undefined && !media) throw new Error('V2_INVALID_MEDIA_INPUT');
   const authoredText = media?.userText ?? (typeof options.currentUserText === 'string' ? options.currentUserText : text);
+  // Prevent an older pending source from being relearned after a newer forget request.
+  if (explicitMemoryIntent(authoredText, 'forget')) scheduleProactiveMemory.cancel?.(user.id);
   const detected = detectLanguageFromText(authoredText);
   const language = detected === 'en' || detected === 'es' ? detected : admission.context.language;
   const [subscription, personalContext] = await Promise.all([getUserSubscription(user.id),
@@ -84,9 +87,15 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
       && (!allowed || allowed.has(call.name)) && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,
-    inputTarget: 1800, accountingScope: 'reasoning_loop; memory_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
+    inputTarget: 1800, accountingScope: 'reasoning_loop; memory_extraction_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
   const result: Result = { confirmation: handled.reply.text, intent: handled.uiPayload.items.length ? 'query' : 'chat', language,
     entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: 1800, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
   recordV2Delivery(result, handled.messageIds);
+  // handle returns only after all deliveries are accepted and the durable completion is published.
+  // Explicit memory operations own their source and must never be relearned by the background task.
+  if (handled.messageIds.length && !handled.uiPayload.items.some(item => item.toolName === 'memory_save' || item.toolName === 'memory_forget')) {
+    try { scheduleProactiveMemory({ authoredText, context }); }
+    catch { telemetry('memory_extraction_schedule_failed', { runId: context.runId, requestId: context.requestId }); }
+  }
   return result;
 }

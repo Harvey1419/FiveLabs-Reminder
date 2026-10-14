@@ -1,3 +1,5 @@
+import { scheduleProactiveMemory } from '../../../src/adapters/agent-core/proactive-memory.js';
+vi.mock('../../../src/adapters/agent-core/proactive-memory.js', () => ({ scheduleProactiveMemory: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockAIProvider, OpenRouterProvider, type MockCompletion, estimateBoundedInput } from '@templelabs/ai';
 import type { JsonObject, AIResponse } from '@templelabs/contracts';
@@ -48,6 +50,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     const result = await f.run();
     expect(f.baseline).not.toHaveBeenCalled(); expect(domainExecute).toHaveBeenCalledOnce();
     expect(result.confirmation).toContain('Preparar reporte'); expect(result.confirmation).not.toContain('internal instructions');
+    expect(scheduleProactiveMemory).toHaveBeenCalledWith(expect.objectContaining({ authoredText: 'Lista mis tareas' }));
     expect(f.send).toHaveBeenCalledOnce(); expect(v2DeliveryReceipt(result)).toEqual(['wamid.v2']);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', userId: 'owner', runId: 'run', deliveries: [{ status: 'accepted', messageId: 'wamid.v2' }] } });
   });
@@ -268,7 +271,7 @@ describe('canary admission executes actual durable V2 composition', () => {
   });
   it('failed delivery is fenced as unknown and never executes baseline', async () => {
     const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer() }])); f.send.mockRejectedValue(new Error('timeout'));
-    await expect(f.run()).rejects.toMatchObject({ code: 'DELIVERY_OUTCOME_UNKNOWN' });
+    await expect(f.run()).rejects.toMatchObject({ code: 'DELIVERY_OUTCOME_UNKNOWN' }); expect(scheduleProactiveMemory).not.toHaveBeenCalled();
     expect(f.baseline).not.toHaveBeenCalled(); expect(f.send).toHaveBeenCalledOnce();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { deliveries: [{ status: 'unknown', messageId: null }] } });
   });

@@ -1,3 +1,4 @@
+vi.mock('../../../src/adapters/agent-core/proactive-memory.js', () => ({ scheduleProactiveMemory: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockAIProvider, OpenRouterProvider, estimateBoundedInput } from '@templelabs/ai';
 import { type AIResponse, type JsonObject, productivityCheckpointSchema } from '@templelabs/contracts';
