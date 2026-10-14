@@ -44,6 +44,39 @@ function fixture() {
     run: (authorized = false) => withTurnLease(lease, () => route('Lista mis tareas', user, [], { inputModality: 'text', agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
 }
 describe('canary admission executes actual durable V2 composition', () => {
+  it('finishes a voice reminder list with a historical ledger without retaining unrelated warm schemas', async () => {
+    const f = fixture();
+    const records = Array.from({ length: 5 }, (_, index) => ({ id: `22222222-2222-4222-8222-22222222222${index}`,
+      content: 'Unrelated historical reminder '.repeat(20), sendAt: '2026-10-15T20:00:00Z', recurrence: null,
+      isAdvanceNotice: false, parentReminderId: null, requiresConfirmation: false, acknowledgedAt: null }));
+    const history = Array.from({ length: 30 }, (_, index) => [
+      { role: 'user' as const, content: `Previous request ${index} `.repeat(10) },
+      { role: 'assistant' as const, content: `Previous answer ${index} `.repeat(10), toolCalls: [] },
+    ]).flat();
+    const previous = { userId: 'owner', history, reminders: records, tasks: [], events: [], handledRequestIds: ['old-message'],
+      referenceOrder: records.map((record, index) => ({ domain: 'reminders' as const, id: record.id, position: index + 1 })) };
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select-read', name: 'tools_select', arguments: { name: 'reminder_read' } }]) },
+      { response: answer([{ id: 'read', name: 'reminder_read', arguments: { filter: 'today' } }]) },
+      { response: answer() },
+    ]);
+    const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
+    Object.assign(state.provider, { estimateNativeInput: wire.estimateNativeInput.bind(wire) });
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [
+      { id: records[0]!.id, content: 'Salir', send_at: '2026-10-15T20:00:00Z' },
+    ] } });
+    const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }),
+      lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'old-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }), handoff: async () => previous });
+    const result = await withTurnLease(f.lease, () => route('Oye, ¿qué recordatorios tengo para hoy?', user, [], {
+      inputModality: 'audio', attachmentOnly: false, agentCoreDelivery: { send: f.send },
+    }));
+    expect(domainExecute).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce();
+    expect(result.confirmation).toContain('Salir');
+    expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', 'reminder_read']);
+    expect(JSON.stringify(state.provider.requests[1]!.messages)).not.toContain('Unrelated historical reminder');
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, start: { conversation: { reminders: records, history } } } });
+  });
   it('reads through the registered domain adapter, checkpoints and sends exactly once', async () => {
     const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]));
     untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Preparar reporte', status: 'pending' }] } });
@@ -116,7 +149,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     ]);
     await f.run(); expect(domainExecute).not.toHaveBeenCalled(); expect(state.provider.requests).toHaveLength(2);
     const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
-    expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(['tools_select',name,'task_create','reminder_create']));
+    expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', name]);
     expect(wire.estimateNativeInput(state.provider.requests[1]!)).toBeLessThanOrEqual(2500);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [] } });
   });
@@ -178,7 +211,8 @@ describe('canary admission executes actual durable V2 composition', () => {
       expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(2500);
       expect(request.tools.length).toBeLessThanOrEqual(5);
       expect(request.messages.some(message => typeof message.content === 'string' && message.content.includes('Old 0'))).toBe(false);
-      expect(request.messages.filter(message => message.role === 'user').length).toBeGreaterThanOrEqual(3);
+      expect(request.messages.filter(message => message.role === 'user')).toEqual([{ role: 'user', content: 'Lista mis tareas' }]);
+      expect(String(request.messages[0]!.content)).toContain('operationalSummary');
     }
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history: priorHistory } } } });
     expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 2500, inputTokens: 90, outputTokens: 30, accountingComplete: true } });
@@ -263,8 +297,8 @@ describe('canary admission executes actual durable V2 composition', () => {
   });
   it('denies unadvertised domain calls even when selected in the same batch', async () => {
     const f = fixture(); state.provider = new MockAIProvider([{ response: answer([
-      { id: 'select', name: 'tools_select', arguments: { name: 'task_read' } },
-      { id: 'bypass', name: 'task_read', arguments: { status: 'all' } },
+      { id: 'select', name: 'tools_select', arguments: { name: 'calendar_read' } },
+      { id: 'bypass', name: 'calendar_read', arguments: {} },
     ]) }, { response: answer() }]);
     await f.run(true); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['unavailable_tool'] } } } });

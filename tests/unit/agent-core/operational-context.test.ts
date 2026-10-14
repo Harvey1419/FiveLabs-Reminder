@@ -34,6 +34,14 @@ function runner(script: AIResponse = response, options: ConstructorParameters<ty
 }
 
 describe('historical reminder operational summaries', () => {
+  it('prefers the active request for fresh reads while retaining unresolved effects and durable history', () => {
+    const history: AIMessage[] = [...turn('unknown', 'indeterminate'), { role: 'user', content: 'Qué recordatorios tengo hoy?' }];
+    const original = structuredClone(history);
+    const prepared = prepareProductivityContext(history, 'owner', 'system', 64, () => true, 1, true);
+    expect(prepared.messages.filter(message => message.role === 'user')).toEqual([history.at(-1)]);
+    expect(summaryOf(prepared.messages).pending).toEqual([expect.objectContaining({ callId: 'unknown', status: 'indeterminate', arguments: args })]);
+    expect(history).toEqual(original);
+  });
   it('preserves pending approval, clarification and unknown-effect identity without promoting prose', () => {
     const history = [...turn('approval', 'approval_required'), ...turn('clarification', 'clarification_required'),
       ...turn('unknown', 'indeterminate'), ...turn('later', 'failed')];

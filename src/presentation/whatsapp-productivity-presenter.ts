@@ -187,7 +187,9 @@ export class WhatsAppProductivityPresenter {
       : !payload.items.length
         ? (en ? 'I could not process your request right now. I have not made any changes. Please try again in a moment.' : 'No pude procesar tu solicitud en este momento. No hice cambios. Inténtalo de nuevo en un momento.')
         : (en ? 'I could not finish the response. Please check the operation status shown above.' : 'No pude terminar la respuesta. Revisa el estado de las operaciones indicado arriba.'));
-    else if (payload.notices.length) sections.push(en ? 'I could not finish all of this request. Confirmed results are shown above.' : 'No pude completar toda la solicitud. Los resultados confirmados están arriba.');
+    else if (payload.notices.length) sections.push(payload.items.length
+      ? (en ? 'I could not finish all of this request. Check the operation results above.' : 'No pude completar toda la solicitud. Revisa los resultados de las operaciones de arriba.')
+      : (en ? 'I could not complete your request. I have not made any changes.' : 'No pude completar tu solicitud. No hice cambios.'));
     return { text: boundWhatsAppText([...new Set(sections.filter(Boolean))].join('\n\n')
       || (en ? 'I could not prepare a useful response. Could you tell me a little more?' : 'No pude preparar una respuesta útil. ¿Me cuentas un poco más?')),
     ctas: [...ctas.values()], flows: [...flows.values()] };

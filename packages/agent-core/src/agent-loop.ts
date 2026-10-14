@@ -148,7 +148,9 @@ export class AgentLoop {
     let totalCalls = 0;
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
-      const loaded = catalogue.filter(tool => this.initialTools.includes(tool.name) || selected.includes(tool.name) || followups.includes(tool.name));
+      // Warm schemas bootstrap the first decision. An explicit selection replaces
+      // that scope; keeping unrelated create schemas can starve a simple read.
+      const loaded = catalogue.filter(tool => selected.includes(tool.name) || followups.includes(tool.name));
       const unloaded = catalogue.filter(tool => !loaded.some(current => current.name === tool.name));
       const scopedDiscovery = { ...discovery, inputSchema: { ...discovery.inputSchema,
         properties: { name: { type: 'string', enum: unloaded.map(tool => tool.name) } } } };

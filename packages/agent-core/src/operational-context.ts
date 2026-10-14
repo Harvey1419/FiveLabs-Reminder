@@ -92,13 +92,14 @@ export interface PreparedReminderContext {
 function prepareOperationalContext(history: readonly AIMessage[], userId: string,
   systemContent: string, maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean,
   summarize: (history: readonly AIMessage[], omitted: number, userId: string) => ProductivityOperationalSummary,
-  minimumRecentTurns = 3): PreparedReminderContext {
+  minimumRecentTurns = 3, preferRecent = false): PreparedReminderContext {
   aiTranscriptSchema.parse(history);
   if (!Number.isSafeInteger(maxMessages) || maxMessages < 1
     || !Number.isSafeInteger(minimumRecentTurns) || minimumRecentTurns < 1) throw new Error('Invalid context limits');
   if (history.some(message => message.role === 'system')) throw new Error('History cannot include system messages');
   const starts = history.flatMap((message, index) => message.role === 'user' ? [index] : []);
   const candidates = [0, ...starts.slice(1, Math.max(1, starts.length - minimumRecentTurns + 1))];
+  if (preferRecent) candidates.reverse();
   let minimum: PreparedReminderContext | undefined;
   for (const start of candidates) {
     const recent = history.slice(start);
@@ -119,6 +120,6 @@ export function prepareReminderContext(history: readonly AIMessage[], userId: st
   return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeReminderOperations);
 }
 export function prepareProductivityContext(history: readonly AIMessage[], userId: string, systemContent: string,
-  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean, minimumRecentTurns = 3): PreparedReminderContext {
-  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeProductivityOperations, minimumRecentTurns);
+  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean, minimumRecentTurns = 3, preferRecent = false): PreparedReminderContext {
+  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeProductivityOperations, minimumRecentTurns, preferRecent);
 }

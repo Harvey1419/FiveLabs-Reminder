@@ -1,4 +1,5 @@
 import { productivityBudget } from './productivity-budget.js';
+import { initialProductivityTools } from './productivity-tool-scope.js';
 import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
 import { createMemoryDomainPort } from './memories-domain.js';
@@ -80,7 +81,7 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
       telemetry('provider_attempt', { runId: context.runId, requestId: context.requestId, ...attempt });
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
-  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven', initialTools: ['task_create', 'reminder_create'],
+  const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven', initialTools: initialProductivityTools(authoredText),
     personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget,
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),

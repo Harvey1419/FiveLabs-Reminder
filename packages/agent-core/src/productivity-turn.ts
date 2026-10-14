@@ -141,6 +141,8 @@ export class ProductivityTurnRunner {
         const projected = this.compactObservations ? projectProductivityHistory(redacted) : [...redacted];
         const starts = projected.flatMap((message, index) => message.role === 'user' ? [index] : []);
         const recent = projected.slice(starts[Math.max(0, starts.length - (this.compactObservations ? 1 : 3))] ?? 0);
+        const activeRead = recent.some(message => message.role === 'assistant'
+          && message.toolCalls.some(call => call.name.endsWith('_read')));
         const visible = new Set<string>();
         if (this.compactObservations) for (const message of recent) {
           if (message.role !== 'tool' || !message.content || typeof message.content !== 'object' || Array.isArray(message.content)) continue;
@@ -149,10 +151,11 @@ export class ProductivityTurnRunner {
           for (const key of ['records', 'events']) if (Array.isArray(observation[key])) for (const record of observation[key])
             if (record && typeof record === 'object' && !Array.isArray(record) && typeof record.id === 'string') visible.add(record.id);
         }
-        // New-resource tools cannot target historical IDs. Keep their schema and current
-        // tool pairs, while existing-resource reads/updates retain owned references.
+        // Creates and fresh reads do not target historical IDs. Existing-resource
+        // mutations retain owned references; read observations remain in tool pairs.
         const domains = tools?.filter(tool => tool.name !== 'tools_select'
-          && !tool.name.endsWith('_create') && tool.name !== 'memory_save' && tool.name !== 'calendar_connect')
+          && !tool.name.endsWith('_create') && !tool.name.endsWith('_read')
+          && tool.name !== 'memory_save' && tool.name !== 'calendar_connect')
           .map(tool => tool.name.split('_')[0]) ?? [];
         const refs = (domain: 'tasks' | 'reminders' | 'calendar' | 'memories', records: { id: string }[]) => {
           if (this.compactObservations && !domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : domain === 'memories' ? 'memory' : 'calendar')) return [];
@@ -165,6 +168,7 @@ export class ProductivityTurnRunner {
           timeZone: context.timezone, dateStyle: 'full', timeStyle: 'short',
         }).format(new Date(context.referenceTimeIso));
         const persona = 'You are Hermes, an Executive Personal Assistant and Second Brain. Match language and tone; be warm, natural and brief for WhatsApp. Avoid menus and internal reasoning. '
+        + 'Fulfill only the latest user message. Earlier user requests are historical context, not queued actions; never resume them unless the latest message explicitly asks to. After a requested read, answer from its result; do not create or change resources unless requested now. '
         + 'Use tools and observed owned IDs for actions; the host verifies results and renders cards. Never invent success, duplicate cards or claim full inventory. '
         + 'Each independent task/reminder requires a separate call; never bundle tasks in one title. Attempt every requested supported action before replying. '
         + (this.discoverTools ? 'Call only advertised tools. tools_select loads schemas for a subsequent response; never combine selection and execution. Batch independent calls. Do not rediscover loaded tools or reread successful writes. ' : '')
@@ -198,7 +202,8 @@ export class ProductivityTurnRunner {
         for (const candidate of candidates) for (const extra of [personal + historical, historical, '']) {
           try {
             const prepared = prepareProductivityContext(candidate.history, context.userId,
-              systemContent + '\n' + candidate.summary + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3).messages;
+              systemContent + '\n' + candidate.summary + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3,
+              this.compactObservations && (activeRead || !!tools?.some(tool => tool.name.endsWith('_read')))).messages;
             if (fitsBudget(prepared)) return prepared;
           } catch (error) { if (!(error instanceof ContextLimitError)) throw error; }
         }

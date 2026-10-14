@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "incident": {
+    "runId": "b2487334-df20-47b1-aaa2-b8cfbc05bfd7",
+    "source": "Railway runtime logs and owner-checked durable checkpoint",
+    "inputTarget": 2500,
+    "initialInputEstimate": 2473,
+    "modelSteps": 1,
+    "domainEffects": 0,
+    "notice": "limit_reached",
+    "delivery": "accepted",
+    "snapshotMessages": 73
+  },
+  "corrections": [
+    "Explicit schema selection replaces warm schemas",
+    "Read schema prefetch uses authored text only and grants no authorization",
+    "Fresh reads omit historical resource arrays",
+    "Active read continuations prioritize current request plus host-owned operational summary",
+    "Earlier requests are not queued work",
+    "Empty results do not claim confirmed operations above"
+  ],
+  "validation": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "maintainedJavaScript": 0,
+    "unitFiles": 303,
+    "unitTestsPassed": 3855,
+    "conversationIntegrationTestsPassed": 37,
+    "agentCoreTestsPassed": 933,
+    "offlineCapacityGate": "seven original and nineteen extended cases at both budgets; primary 2500 positives pass, explicit boundaries remain negative",
+    "container": {
+      "imageId": "sha256:3bec90066c22ef994258e5421605e73fbb85b7c3b02d7992375d763b1ee12913",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 49,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "liveReplay": {
+    "provider": "configured OpenRouter/Groq",
+    "productionDatabaseWrites": 0,
+    "WhatsAppSends": 0,
+    "method": "Private incident checkpoint replay, current production capabilities and read followups, isolated domain ports",
+    "results": [
+      {
+        "budget": 1800,
+        "complete": false,
+        "reads": 1,
+        "writes": 0,
+        "steps": 1,
+        "inputEstimates": [
+          1479
+        ],
+        "notices": [
+          "limit_reached"
+        ],
+        "semanticChecks": {
+          "todayFilter": true
+        },
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 1,
+          "inputTokens": 1016,
+          "outputTokens": 64,
+          "estimatedCostUsd": null
+        },
+        "generationIds": [
+          "gen-1792016448-ID7w5NeeE6GPHtXxcKb5"
+        ]
+      },
+      {
+        "budget": 2500,
+        "complete": true,
+        "reads": 1,
+        "writes": 0,
+        "steps": 2,
+        "inputEstimates": [
+          1593,
+          1958
+        ],
+        "notices": [],
+        "semanticChecks": {
+          "todayFilter": true
+        },
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 2,
+          "inputTokens": 2475,
+          "outputTokens": 321,
+          "estimatedCostUsd": null
+        },
+        "generationIds": [
+          "gen-1792016449-eJvUxo49JtJWJENQi6A4",
+          "gen-1792016450-BMbDbE0jCrmQFPUmh1Vc"
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "One final paired live replay is not a statistical reliability guarantee",
+    "Earlier failed replay passes exposed unavailable-tool and historical-command replay defects; those passes are not certifications",
+    "1800 remains insufficient for this read with production followup schemas",
+    "Live replay does not certify actual reminder inventory or production WhatsApp delivery",
+    "Persistent conversational compaction and source-grounded mutation authorization remain planned"
+  ],
+  "rollout": {
+    "method": "GitHub main push only",
+    "status": "local validation complete; production deployment to be verified after push"
+  }
+}

@@ -34,6 +34,11 @@ describe('verified mixed WhatsApp presentation', () => {
     expect(reply.text).toContain('No hice cambios');
     expect(reply.text).not.toContain('están arriba');
   });
+  it.each(['es', 'en'] as const)('does not invent results above after a context limit without tools in %s', language => {
+    const reply = new WhatsAppProductivityPresenter().render({ language, timezone: context.timezone, items: [], notices: ['limit_reached'] });
+    expect(reply.text).toContain(language === 'es' ? 'No hice cambios' : 'I have not made any changes');
+    expect(reply.text).not.toMatch(/arriba|above/);
+  });
   it('renders all three domains with one task flow and no model prose or flow-token leakage', async () => {
     const s = setup();
     const result = await s.run();

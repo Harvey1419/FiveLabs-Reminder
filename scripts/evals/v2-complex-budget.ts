@@ -1,14 +1,18 @@
 import 'dotenv/config';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { z } from 'zod';
 import { ProductivityTurnRunner } from '@templelabs/agent-core';
 import { MockAIProvider, OpenRouterProvider, estimateBoundedInput, type AIProvider } from '@templelabs/ai';
-import { aiTranscriptSchema, jsonObjectSchema, type AIResponse, type ToolCall, type TurnContext, type ReminderRecord, type TaskRecord } from '@templelabs/contracts';
+import { aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, type AIResponse, type ToolCall, type TurnContext, type ReminderRecord, type TaskRecord } from '@templelabs/contracts';
 import { createReminderTools, createTaskTools, createCalendarTools, createMemoryTools, ToolRegistry } from '@templelabs/tools';
 import { createConfiguredAIProvider } from '../../src/adapters/agent-core/configured-ai-provider.js';
 import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
+import { initialProductivityTools } from '../../src/adapters/agent-core/productivity-tool-scope.js';
 const live = process.argv.includes('--live');
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
+const caseName = process.argv.find(arg => arg.startsWith('--case='))?.slice(7);
+const snapshotPath = process.argv.find(arg => arg.startsWith('--snapshot='))?.slice(11);
+if (snapshotPath && caseName !== 'read_today_long_history') throw new Error('Snapshot replay requires the isolated read-only case');
 const uuid = (index: number) => `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`;
 const anchor = '2026-10-15T15:00:00Z';
 const answer = (toolCalls: ToolCall[] = []): AIResponse => ({ message: { role: 'assistant', content: toolCalls.length ? '' : 'Listo.', toolCalls }, stopReason: toolCalls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 0, outputTokens: 0 } });
@@ -16,8 +20,9 @@ const call = (name: string, args: ToolCall['arguments'], index: number): ToolCal
 const batches = (groups: ToolCall[][]): AIResponse[] => groups.flatMap((group, index) => [answer([call('tools_select', { name: group[0]!.name }, 100 + index)]), answer(group)]).concat(answer());
 const reminder = (i: number, length = 25, recurring = false) => call('reminder_create', { content: `Recordatorio ${i} ` + 'detalle '.repeat(length).slice(0, length), targetTimeIso: '2026-10-15T15:10:00Z', ...(recurring ? { recurrence: 'daily' } : {}) }, i);
 const task = (i: number, project = false) => call('task_create', { title: `Tarea ${i}`, description: 'Revisar requisitos y entregar el informe al cliente.', ...(project ? { entityName: 'Proyecto Atlas', entityCategory: 'project' } : {}) }, i);
-interface Scenario { name: string; text: string; script: AIResponse[]; writes: number; live?: boolean; reminders?: number; tasks?: number; recurring?: number; longHistory?: boolean; cap?: number }
+interface Scenario { name: string; text: string; script: AIResponse[]; writes: number; reads?: number; live?: boolean; reminders?: number; tasks?: number; recurring?: number; longHistory?: boolean; cap?: number }
 const scenarios: Scenario[] = [
+  { name: 'read_today_long_history', text: 'Oye, ¿qué recordatorios tengo para hoy?', script: batches([[call('reminder_read', { filter: 'today' }, 1)]]), writes: 0, reads: 1, longHistory: true, live: true },
   { name: 'three_reminders', text: 'Recuérdame salir en 10 minutos, llamar a Ana en 20 minutos y revisar el horno en 30 minutos.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, reminders: 3, tasks: 0, live: true },
   { name: 'mixed_recurring_reminders', text: 'Crea dos recordatorios: caminar mañana a las 8 AM todos los días, y llamar al taller mañana a las 11 AM sólo una vez.', script: batches([[reminder(1, 25, true), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, recurring: 1, live: true },
   { name: 'reminders_and_tasks', text: 'Recuérdame llamar a Ana en 10 minutos y revisar el horno en 20 minutos. Además crea las tareas revisar propuesta y preparar informe.', script: batches([[reminder(1), reminder(2)], [task(3), task(4)]]), writes: 4, reminders: 2, tasks: 2, live: true },
@@ -31,10 +36,11 @@ const scenarios: Scenario[] = [
   { name: 'bounded_steps_negative_control', text: 'Crea tres recordatorios.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, cap: 1 },
 ];
 const results: unknown[] = [];
-for (const scenario of scenarios.filter(s => !live || s.live)) for (const budget of [1800, 2500]) {
+for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of [1800, 2500]) {
   const controller = new AbortController();
   const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: anchor, signal: controller.signal,
-    capabilities: new Set(['reminders.read', 'reminders.create', 'reminders.pro', 'tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete', 'calendar.read', 'calendar.create', 'memories.read']) };
+    capabilities: new Set(['reminders.read', 'reminders.create', 'reminders.update', 'reminders.cancel', 'reminders.acknowledge', 'reminders.pro',
+      'tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete', 'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'memories.read', 'memories.save', 'memories.forget']) };
   const observed: { name: string; input: unknown }[] = [];
   const reminders: ReminderRecord[] = []; const tasks: TaskRecord[] = [];
   const presentation = { canonicalCard: null, questions: [], cta: null };
@@ -72,10 +78,12 @@ for (const scenario of scenarios.filter(s => !live || s.live)) for (const budget
   const provider: AIProvider = { capabilities: source.capabilities, complete: async request => { requests.push(request); const result = await source.complete(request); decisions.push({ available: request.tools.map(t=>t.name), calls: result.message.toolCalls.map(c=>({name:c.name,arguments:c.arguments})) }); return result; } };
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const runner = new ProductivityTurnRunner(provider, registry, { ...productivityBudget, maxInputTokens: budget, maxModelSteps: scenario.cap ?? productivityBudget.maxModelSteps,
-    continuation: 'observation_driven', initialTools: ['task_create', 'reminder_create'], discoverTools: true, compactObservations: true, maxPromptReferences: 5,
+    continuation: 'observation_driven', initialTools: initialProductivityTools(scenario.text), discoverTools: true, compactObservations: true, maxPromptReferences: 5,
+    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] },
     personalContext: { displayName: 'Juan', preferences: ['Prefiero avisos 20 minutos antes', 'Prefiero reuniones por la mañana'], memories: ['Trabajo en Globant', 'Estoy preparando el proyecto Atlas'] },
     estimateInputTokens: input => wire.estimateNativeInput(requestSchema.parse(input)), authorizeWrite: async () => true });
-  const previous = scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
+  const previous = snapshotPath ? productivityConversationSchema.parse({ ...JSON.parse(readFileSync(snapshotPath, 'utf8')), userId: context.userId, handledRequestIds: [] })
+    : scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
   const started = Date.now(); let result; let error: string | null = null;
   try { result = await runner.run(scenario.text, context, previous, { beforeDispatch: async () => {}, afterOutcome: async () => {} }); }
   catch (failure) { error = failure instanceof Error ? failure.message : 'Unknown'; }
@@ -84,6 +92,8 @@ for (const scenario of scenarios.filter(s => !live || s.live)) for (const budget
   const folded = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const matches = (word: string, iso: string) => reminders.some(r => folded(r.content).includes(word) && Date.parse(r.sendAt ?? '') === Date.parse(iso));
   const semanticChecks: Record<string, boolean> = {};
+  if (scenario.name === 'read_today_long_history') semanticChecks.todayFilter = observed.some(o => o.name === 'reminder_read'
+    && !!o.input && typeof o.input === 'object' && 'filter' in o.input && o.input.filter === 'today');
   if (scenario.name === 'three_reminders') {
     semanticChecks.relativeTimes = matches('sal', '2026-10-15T15:10:00Z') && matches('ana', '2026-10-15T15:20:00Z') && matches('horno', '2026-10-15T15:30:00Z');
   }
@@ -91,11 +101,13 @@ for (const scenario of scenarios.filter(s => !live || s.live)) for (const budget
     semanticChecks.localTimes = matches('camin', '2026-10-16T13:00:00Z') && matches('taller', '2026-10-16T16:00:00Z');
   }
   if (scenario.name === 'project_grouped_tasks') semanticChecks.projectBinding = tasks.every(t => folded(t.entityName ?? '').includes('atlas'));
-  const structuralComplete = !!result && !result.uiPayload.notices.length && writes === scenario.writes;
+  const reads = observed.filter(o => o.name.endsWith('_read')).length;
+  const structuralComplete = !!result && !result.uiPayload.notices.length && writes === scenario.writes
+    && (scenario.reads === undefined || reads === scenario.reads);
   const semanticComplete = structuralComplete && (!live || Object.values(semanticChecks).every(Boolean)) && (scenario.reminders === undefined || reminders.length === scenario.reminders)
     && (scenario.tasks === undefined || tasks.length === scenario.tasks) && (scenario.recurring === undefined || reminders.filter(r => r.recurrence).length === scenario.recurring);
   results.push({ case: scenario.name, budget, complete: semanticComplete, sourceCharacters: scenario.text.length, error, notices: result?.uiPayload.notices ?? [], writes, expectedWrites: scenario.writes,
-    reminders: reminders.length, recurring: reminders.filter(r => r.recurrence).length, tasks: tasks.length, semanticChecks, actions: live ? observed : [], steps: requests.length, elapsedMs: Date.now() - started,
+    reads, reminders: reminders.length, recurring: reminders.filter(r => r.recurrence).length, tasks: tasks.length, semanticChecks, actions: live ? observed : [], steps: requests.length, elapsedMs: Date.now() - started,
     inputEstimates: estimates, maxInputEstimate: Math.max(0, ...estimates), totalInputEstimate: estimates.reduce((a,b) => a+b,0), usage: result?.usage ?? null, attempts, rawResponses, decisions,
     originalHistoryMessages: previous?.history.length ?? 0, durableHistoryMessages: result?.conversation.history.length ?? 0 });
   if (!live && budget === 2500 && !['rich_source_5000','rich_source_6000','bounded_steps_negative_control'].includes(scenario.name) && !semanticComplete) throw new Error('Complex capacity regression: ' + scenario.name);
