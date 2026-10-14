@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "scope": "Optional context fallback and historical reference scoping for new-resource tool continuation",
+  "baseCommit": "f44ab2c",
+  "productionIncident": {
+    "runId": "72fb643c-d2e2-42e1-aa51-cbe8abf63e6d",
+    "selectedTool": "reminder_create",
+    "domainEffects": 0,
+    "notices": [
+      "limit_reached"
+    ],
+    "backgroundMemoriesSaved": 0,
+    "firstInputEstimate": 1788,
+    "firstProviderInputTokens": 1205
+  },
+  "changes": [
+    "Catch ContextLimitError only while optional context extras can still be dropped",
+    "Exclude historical ID reference arrays from compact new-resource schemas",
+    "Retain current user/tool pairs, durable history and existing-resource ownership safeguards"
+  ],
+  "limits": [
+    "Fixed regressions do not guarantee every multi-step turn fits 1800",
+    "Scripted tests do not measure live model interpretation of conflicting durations",
+    "Host input estimates remain conservative rather than actual provider counts"
+  ],
+  "inputBudgetUnchanged": 1800,
+  "validation": {
+    "unitFiles": 300,
+    "unitPassed": 3829,
+    "conversationIntegrationPassed": 37,
+    "focusedRegressionPassed": 37,
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "maintainedJavaScript": 0,
+    "container": {
+      "tag": "five-labs-reminder-api:v2-memory-reliability",
+      "imageId": "sha256:f6caa8e6ff8eeeed8c04eff595911dc1f4bf7b3fcce643ff171610479a6732d4",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 81,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "productionDeployment": false,
+  "externalEffects": {
+    "paidInferenceCalls": 0,
+    "productionDatabaseWrites": 0,
+    "realMessagesSent": 0,
+    "deployments": 0
+  },
+  "rollback": "Revert this continuation/fallback work unit independently of the personal-memory boundary hardening."
+}

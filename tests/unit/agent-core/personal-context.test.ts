@@ -57,3 +57,14 @@ describe('bounded owned personal context', () => {
     expect(result.conversationReply).toBe('¡Buenos días, Juan!');
   });
 });
+
+it('drops optional personalization on ContextLimitError and keeps the current user turn', async () => {
+  const provider = new MockAIProvider([{ response: { message: { role: 'assistant', content: 'Entendido.', toolCalls: [] }, stopReason: 'completed', usage: { inputTokens: 10, outputTokens: 10 } } }]);
+  const runner = new ProductivityTurnRunner(provider, new ToolRegistry([]), { maxInputTokens: 1800, compactObservations: true,
+    personalContext: { displayName: 'Juan', memories: [], preferences: [] },
+    estimateInputTokens: input => JSON.stringify(input).includes('<user_preferences>') ? 1801 : 100 });
+  const result = await runner.run('Recuérdame salir en 10 minutos', context);
+  expect(provider.requests).toHaveLength(1); expect(result.uiPayload.notices).toEqual([]);
+  expect(provider.requests[0]!.messages[0]!.content).not.toContain('<user_preferences>');
+  expect(provider.requests[0]!.messages.at(-1)).toMatchObject({ role: 'user', content: 'Recuérdame salir en 10 minutos' });
+});

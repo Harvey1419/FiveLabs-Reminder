@@ -10,7 +10,7 @@ import type { AIProvider } from '@templelabs/ai';
 import type { ToolOutcome, ToolRegistry } from '@templelabs/tools';
 import { compactModelRecord, projectProductivityHistory } from './productivity-model-context.js';
 import { AgentLoop, type AgentLoopOptions, type AgentLoopUsage } from './agent-loop.js';
-import { prepareProductivityContext, summarizeProductivityOperations } from './operational-context.js';
+import { ContextLimitError, prepareProductivityContext, summarizeProductivityOperations } from './operational-context.js';
 
 export interface ProductivityExecutionJournal {
   beforeDispatch(call: ToolCall, context: TurnContext): Promise<void>;
@@ -146,7 +146,11 @@ export class ProductivityTurnRunner {
           for (const key of ['records', 'events']) if (Array.isArray(observation[key])) for (const record of observation[key])
             if (record && typeof record === 'object' && !Array.isArray(record) && typeof record.id === 'string') visible.add(record.id);
         }
-        const domains = tools?.filter(tool => tool.name !== 'tools_select').map(tool => tool.name.split('_')[0]) ?? [];
+        // New-resource tools cannot target historical IDs. Keep their schema and current
+        // tool pairs, while existing-resource reads/updates retain owned references.
+        const domains = tools?.filter(tool => tool.name !== 'tools_select'
+          && !tool.name.endsWith('_create') && tool.name !== 'memory_save' && tool.name !== 'calendar_connect')
+          .map(tool => tool.name.split('_')[0]) ?? [];
         const refs = (domain: 'tasks' | 'reminders' | 'calendar' | 'memories', records: { id: string }[]) => {
           if (this.compactObservations && !domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : domain === 'memories' ? 'memory' : 'calendar')) return [];
           return promptRecords(domain, records).filter(record => !visible.has(record.id)).map(record => this.compactObservations
@@ -189,8 +193,14 @@ export class ProductivityTurnRunner {
         // Optional personal data and historical hints yield to essential protocol state.
         // Full provenance remains durable even when its prompt projection is omitted.
         for (const extra of [personal + historical, historical, '']) {
-          const prepared = prepareProductivityContext(projected, context.userId, systemContent + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3).messages;
-          if (fitsBudget(prepared) || !extra) return prepared;
+          try {
+            const prepared = prepareProductivityContext(projected, context.userId, systemContent + extra, maxMessages, fitsBudget, this.compactObservations ? 1 : 3).messages;
+            if (fitsBudget(prepared) || !extra) return prepared;
+          } catch (error) {
+            if (!(error instanceof ContextLimitError) || !extra) throw error;
+            // Retry without optional personalization/hints; never discard the
+            // authenticated current user message or its assistant/tool pairs.
+          }
         }
         throw new Error('Unreachable context preparation');
       },

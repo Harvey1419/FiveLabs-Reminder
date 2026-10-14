@@ -2564,3 +2564,11 @@ This is best-effort process-local learning: queue saturation and process restart
 ### Memory reliability follow-up
 
 The first reliability work unit enforces explicit owned/live personal-context rows and separates standing profile facts from behavioral preferences. It adds guidance against treating assistant history or contact labels as verified personal identity. The observed incorrect legacy name was retired only under its exact owner/content/ID filters. See [memory reliability](memory-reliability.md) for evidence limitations and the source-attribution, atomic-revision, conflict-retrieval and durable-learning work units inspired by Engram and claude-mem. Those persistence changes remain proposed.
+
+### Discovery-to-create continuation budget
+
+Production turn `72fb643c-d2e2-42e1-aa51-cbe8abf63e6d` selected `reminder_create` but had no domain effects and ended with `limit_reached`. Its background learning completed with zero saved memories; that was independent of reminder execution. Context preparation could throw `ContextLimitError` on its first optional-personalization candidate, bypassing the intended retries without those extras. New-resource schemas also loaded unrelated historical resource references.
+
+The runner now catches only `ContextLimitError` while optional extras remain, then retries without those extras. Essential current-turn user/assistant/tool pairs remain intact; other errors propagate. Under compact observation mode, new-resource tools omit historical ID reference arrays; existing-resource read/update/cancel/delete paths retain them. Durable records/history are unchanged, and the host still enforces the 1,800-token input estimate. Historical shorthand in a new request may still need clarification; this change does not interpret the competing durations in an audio transcript or certify live temporal reasoning.
+
+Regression tests cover an observed-owned reminder ledger followed by discovery/create/verified delivery without `limit_reached`, and an optional-context budget exception falling back to the current user turn. Evidence: `odd/evidence/agent-core-phase5/v2-create-continuation-budget.json`.

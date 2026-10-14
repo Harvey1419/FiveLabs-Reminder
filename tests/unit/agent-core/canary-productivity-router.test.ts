@@ -269,6 +269,31 @@ describe('canary admission executes actual durable V2 composition', () => {
     await f.run(true); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['unavailable_tool'] } } } });
   });
+  it('creates a fresh voice reminder under 1800 with a large historical reminder ledger and optional personal data', async () => {
+    const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
+    const records = Array.from({ length: 5 }, (_, index) => ({ id: `22222222-2222-4222-8222-22222222222${index}`,
+      content: 'Historical unrelated reminder '.repeat(20), sendAt: '2026-10-15T20:00:00Z', recurrence: null,
+      isAdvanceNotice: false, parentReminderId: null, requiresConfirmation: false, acknowledgedAt: null }));
+    const previous = { userId: 'owner', history: [], reminders: records, tasks: [], events: [], handledRequestIds: ['old-message'],
+      referenceOrder: records.map((record, index) => ({ domain: 'reminders' as const, id: record.id, position: index + 1 })) };
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select-create', name: 'tools_select', arguments: { name: 'reminder_create' } }]) },
+      { response: answer([{ id: 'create', name: 'reminder_create', arguments: { content: 'Salir', targetTimeIso: '2026-10-15T20:10:00Z' } }]) },
+      { response: answer() },
+    ]);
+    const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
+    Object.assign(state.provider, { estimateNativeInput: wire.estimateNativeInput.bind(wire) });
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'created_reminders_batch', data: [{ id, content: 'Salir', sendAt: '2026-10-15T20:10:00Z' }] });
+    const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }),
+      lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'old-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }), handoff: async () => previous });
+    const result = await withTurnLease(f.lease, () => route('Me recuerdo en 10 segundos, en 10 minutos que tengo que salir, porfa.', user, [], {
+      inputModality: 'audio', currentUserText: 'Me recuerdo en 10 segundos, en 10 minutos que tengo que salir, porfa.', agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => true,
+    }));
+    expect(domainExecute).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+    expect(result.confirmation).toContain('Salir'); expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { reminders: records } } } });
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
+  });
   it('failed delivery is fenced as unknown and never executes baseline', async () => {
     const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer() }])); f.send.mockRejectedValue(new Error('timeout'));
     await expect(f.run()).rejects.toMatchObject({ code: 'DELIVERY_OUTCOME_UNKNOWN' }); expect(scheduleProactiveMemory).not.toHaveBeenCalled();
