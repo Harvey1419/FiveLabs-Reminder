@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const roots = ['src', 'scripts', 'tests', 'test', 'packages'];
+const roots = ['src', 'scripts', 'tests', 'packages'];
 const skipped = new Set(['node_modules', 'dist', 'coverage']);
 const javascript: string[] = [];
 const typescript: string[] = [];

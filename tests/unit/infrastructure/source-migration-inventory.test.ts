@@ -12,7 +12,7 @@ const directories: string[] = [];
 function fixture(): string {
   const root = mkdtempSync(join(tmpdir(), 'hermes-inventory-'));
   directories.push(root);
-  for (const directory of ['src', 'scripts/checks', 'tests', 'test', 'packages']) mkdirSync(join(root, directory), { recursive: true });
+  for (const directory of ['src', 'scripts/checks', 'tests', 'packages']) mkdirSync(join(root, directory), { recursive: true });
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(root, 'scripts/checks/source-migration-inventory.ts'), checker);
   return root;
@@ -50,7 +50,7 @@ describe('full TypeScript completion inventory', () => {
     writeFileSync(join(root, 'vitest.config.ts'), 'export default {};');
     writeFileSync(join(root, 'src/entry.mts'), '');
     writeFileSync(join(root, 'tests/example.cts'), '');
-    for (const directory of ['src/dist', 'packages/node_modules', 'test/coverage']) {
+    for (const directory of ['src/dist', 'packages/node_modules', 'tests/coverage']) {
       mkdirSync(join(root, directory), { recursive: true });
       writeFileSync(join(root, directory, 'generated.js'), '');
     }
