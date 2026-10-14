@@ -43,8 +43,14 @@ jobs:
       - name: Build and typecheck TypeScript packages and tests
         run: pnpm run typecheck
 
+      - name: Lint TypeScript syntax and safety
+        run: pnpm run lint
+
       - name: Run unit tests
         run: pnpm run test:unit
+
+      - name: Verify durable conversation integration offline
+        run: pnpm run test:conversation
 
       - name: Verify compiled ESM package imports
         run: node --input-type=module -e 'await import("./packages/agent-core/dist/index.js"); await import("./packages/ai/dist/index.js"); await import("./dist/runtime/jobs/inbound-turn-worker.js"); await import("./dist/runtime/agent/core/active-run-executor.js"); await import("./dist/runtime/agent/core/active-run-lifecycle.js")'
