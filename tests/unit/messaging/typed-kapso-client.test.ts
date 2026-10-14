@@ -12,6 +12,17 @@ function fixture() {
   return { deps, ...createKapsoClient(deps as unknown as KapsoClientDependencies) };
 }
 describe('typed Kapso client adapters', () => {
+  it('bounds text for both phone and business recipients before dispatch without splitting Unicode', async () => {
+    const f = fixture();
+    for (const recipient of [{ phoneNumber: '573000000001' }, { bsuid: 'CO.fixture' }]) {
+      await f.sendWhatsAppText({ ...recipient, text: '👨‍👩‍👧‍👦'.repeat(600) });
+    }
+    for (const call of f.deps.fetch.mock.calls) {
+      const payload = JSON.parse(String(call[1]?.body));
+      expect(payload.text.body.length).toBeLessThanOrEqual(4000);
+      expect(payload.text.body.replace(/\n\n…$/, '').split('👨‍👩‍👧‍👦').join('')).toBe('');
+    }
+  });
   it('reads configuration live and retains BSUID recipient routing', async () => {
     const f = fixture(); let config = { KAPSO_API_KEY: 'first', KAPSO_PHONE_NUMBER_ID: 'phone1' }; f.deps.getEnv = () => config;
     const client = createKapsoClient(f.deps); await client.sendReminderConfirmation('CO.identity', 'Hello'); config = { KAPSO_API_KEY: 'second', KAPSO_PHONE_NUMBER_ID: 'phone2' }; await client.sendReminderConfirmation('+57 300 000 0001', 'Hola');

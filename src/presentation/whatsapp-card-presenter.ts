@@ -1,3 +1,4 @@
+import { boundWhatsAppText } from '../shared/whatsapp-text-boundary.js';
 import {
   reminderUiPayloadSchema, type ReminderRecord, type ReminderUiItem, type ReminderUiPayload,
 } from '@templelabs/contracts';
@@ -88,8 +89,8 @@ export class WhatsAppCardPresenter {
     const notice = payload.notices.length ? (payload.language === 'en'
       ? 'I could not complete all of this request. No additional actions were attempted.'
       : 'No pude completar toda esta solicitud. No intenté acciones adicionales.') : '';
-    return { text: [text, notice].filter(Boolean).join('\n\n') || (payload.language === 'en'
+    return { text: boundWhatsAppText([text, notice].filter(Boolean).join('\n\n') || (payload.language === 'en'
       ? 'What reminder would you like to create, check or change?'
-      : '¿Qué recordatorio quieres crear, consultar o cambiar?'), ctas: [...ctas.values()] };
+      : '¿Qué recordatorio quieres crear, consultar o cambiar?')), ctas: [...ctas.values()] };
   }
 }

@@ -1,0 +1,61 @@
+{
+  "verifiedAtUtc": "2026-10-14T15:09:20.485Z",
+  "leaseOwnerId": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+  "targets": [
+    {
+      "id": "35a0e43b-5447-4e62-a5bd-14301d27c2ce",
+      "status": "completed",
+      "resolution": {
+        "runId": "35a0e43b-5447-4e62-a5bd-14301d27c2ce",
+        "userId": "c26c09b8-4857-4bb4-ab2b-55537f4eddad",
+        "effects": "read_only",
+        "version": 1,
+        "delivery": "rejected",
+        "threadId": "573041202199",
+        "rejection": {
+          "source": "railway_provider_error_log",
+          "message": "Param text.body must be at most 4096 characters long.",
+          "provider": "Kapso",
+          "httpStatus": 400,
+          "loggedAtUtc": "2026-10-13T03:48:03.155Z",
+          "providerCode": 100,
+          "correlationId": "6629c532-a9d5-4482-a17c-9817a8d0aa65"
+        },
+        "requestId": "wamid.HBgMNTczMDQxMjAyMTk5FQIAEhgUM0E5N0QxNDJCNDZGOTVDQjlFNDgA",
+        "leaseOwnerId": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+        "resolvedAtUtc": "2026-10-14T15:09:19.022827+00:00",
+        "sourceFingerprint": "f36f0ccfc14392d98ffd6a9f7d03235c76a36cefe62ff028955e191bd3a419f3"
+      },
+      "originalEvidencePreserved": true
+    },
+    {
+      "id": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+      "status": "completed",
+      "resolution": {
+        "runId": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+        "userId": "c26c09b8-4857-4bb4-ab2b-55537f4eddad",
+        "effects": "read_only",
+        "version": 1,
+        "delivery": "rejected",
+        "threadId": "573041202199",
+        "rejection": {
+          "source": "railway_provider_error_log",
+          "message": "Param text.body must be at most 4096 characters long.",
+          "provider": "Kapso",
+          "httpStatus": 400,
+          "loggedAtUtc": "2026-10-13T03:47:16.350Z",
+          "providerCode": 100,
+          "correlationId": "7fb490fb-ed4a-4f13-8de7-f32c652da391"
+        },
+        "requestId": "wamid.HBgMNTczMDQxMjAyMTk5FQIAEhgUM0FGQThBQzkxNEY4NUM5Q0Y4QjEA",
+        "leaseOwnerId": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+        "resolvedAtUtc": "2026-10-14T15:09:20.035194+00:00",
+        "sourceFingerprint": "970105497751b6cd5163493ce53cf200c193f49b38270616bcd8d735fffc2a35"
+      },
+      "originalEvidencePreserved": true
+    }
+  ],
+  "replayedMessages": 0,
+  "executedDomainMutations": 0,
+  "sentWhatsAppMessages": 0
+}

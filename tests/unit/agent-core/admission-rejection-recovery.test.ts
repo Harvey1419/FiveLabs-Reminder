@@ -25,6 +25,22 @@ function fixture(prior: InboundStoredTurn[]) {
   return { onUnknown, run: () => withTurnLease(lease, () => readPriorInboundTurn(client, context, 'thread', onUnknown)) };
 }
 describe('admission failures do not quarantine effect-free future turns', () => {
+  it('skips a lease-resolved rejected delivery while preserving the last actual conversation', async () => {
+    const rejected = row('rejected', 95, 'completed', { delivery: { status: 'attempted' }, agentCoreTransportRejected: {
+      version: 1, userId: 'owner', runId: 'rejected', requestId: 'rejected-message', threadId: 'thread', effects: 'read_only', delivery: 'rejected',
+      sourceFingerprint: 'a'.repeat(64), leaseOwnerId: '11111111-1111-4111-8111-111111111111', resolvedAtUtc: '2026-10-14T15:00:00Z',
+      rejection: { source: 'railway_provider_error_log', provider: 'Kapso', httpStatus: 400, providerCode: 100,
+        message: 'Param text.body must be at most 4096 characters long.', correlationId: '11111111-1111-4111-8111-111111111111', loggedAtUtc: '2026-10-13T03:47:16Z' },
+    } });
+    const actual = row('actual', 80, 'completed', { agentCoreProductivity: { phase: 'completed' } });
+    expect(await fixture([rejected, actual]).run()).toEqual(actual);
+    await expect(fixture([{ ...rejected, status: 'unknown' }, actual]).run()).rejects.toThrow('uncertain prior');
+    const foreign = structuredClone(rejected);
+    const certificate = foreign.response!.agentCoreTransportRejected;
+    if (!certificate || typeof certificate !== 'object' || Array.isArray(certificate)) throw new Error('Missing fixture certificate');
+    certificate.userId = 'foreign';
+    expect(await fixture([foreign, actual]).run()).toEqual(foreign);
+  });
   it.each([null, {}])('skips the old audio rejection with response %s and its empty cascade while preserving the last actual conversation', async response => {
     const first = { ...row('bc23fc5d', 90, 'unknown', response), last_error: 'PRIOR_TURN_RECONCILIATION_REQUIRED' };
     const cascade = { ...row('805f2116', 95, 'unknown'), last_error: 'PRIOR_TURN_RECONCILIATION_REQUIRED' };

@@ -1,3 +1,4 @@
+import { boundWhatsAppText } from '../../shared/whatsapp-text-boundary.js';
 import { KapsoConfigurationError, KapsoValidationError } from './kapso-errors.js';
 import { createKapsoDispatch } from './kapso-dispatch.js';
 import type { KapsoDispatchDependencies, KapsoPayload, KapsoDispatchResult } from './kapso-dispatch.js';
@@ -95,14 +96,14 @@ export function createKapsoClient(dependencies: KapsoClientDependencies) {
         messaging_product: 'whatsapp',
         to: cleanPhone,
         type: 'text',
-        text: { body: text },
+        text: { body: boundWhatsAppText(text) },
       };
     } else {
       payload = {
         messaging_product: 'whatsapp',
         recipient: cleanBsuid,
         type: 'text',
-        text: { body: text },
+        text: { body: boundWhatsAppText(text) },
       };
     }
 
@@ -468,7 +469,7 @@ export function createKapsoClient(dependencies: KapsoClientDependencies) {
 
     const interactivePayload: KapsoInteractivePayload = {
       type: 'list',
-      body: { text: String(bodyText || '').slice(0, 4096) },
+      body: { text: boundWhatsAppText(String(bodyText || '')) },
       action: {
         button: String(buttonText || 'Ver opciones').slice(0, 20),
         sections: formattedSections,

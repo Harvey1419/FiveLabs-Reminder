@@ -22,6 +22,15 @@ export const inboundStoredTurnSchema = identitySchema.extend({ response: jsonObj
 const rowSchema = inboundStoredTurnSchema;
 export type InboundStoredTurn = z.infer<typeof rowSchema>;
 
+const transportRejectionSchema = z.object({
+  version: z.literal(1), userId: z.string().min(1), runId: z.string().min(1), requestId: z.string().min(1), threadId: z.string().min(1),
+  effects: z.literal('read_only'), delivery: z.literal('rejected'), sourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  leaseOwnerId: z.string().uuid(), resolvedAtUtc: z.string().min(1),
+  rejection: z.object({ source: z.literal('railway_provider_error_log'), provider: z.literal('Kapso'), httpStatus: z.literal(400),
+    providerCode: z.literal(100), message: z.literal('Param text.body must be at most 4096 characters long.'),
+    correlationId: z.string().uuid(), loggedAtUtc: z.string().min(1) }),
+});
+
 /** Fenced queue reader shared by checkpoint versions. All older unknown turns block continuity. */
 export async function readPriorInboundTurn(client: InboundCheckpointClient, context: TurnContext,
   threadId: string, onUnknown: (turn: InboundStoredTurn) => never): Promise<InboundStoredTurn | null> {
@@ -56,6 +65,12 @@ export async function readPriorInboundTurn(client: InboundCheckpointClient, cont
   };
   const safeRejection = (row: InboundStoredTurn): boolean => {
     const response = row.response;
+    // Administrative closure preserves the old response. It is not a completed conversation.
+    if (row.status === 'completed' && response?.agentCoreTransportRejected) {
+      const proof = transportRejectionSchema.safeParse(response.agentCoreTransportRejected);
+      if (proof.success && proof.data.userId === context.userId && proof.data.runId === row.id
+        && proof.data.requestId === row.message_id && proof.data.threadId === threadId) return true;
+    }
     // The old router emitted this particular gate error only BEFORE invoking either engine.
     // A started V2 run always checkpoints its namespace before any domain dispatch or delivery.
     // Never generalize this to empty-response timeouts, lease expiry, or arbitrary unknown errors.
