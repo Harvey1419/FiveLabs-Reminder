@@ -196,11 +196,12 @@
   },
   "externalState": {
     "productionQueueRecoveryPerformed": true,
-    "productionSchemaMigrationApplied": "20261014145738_hermes_rejected_transport_recovery",
+    "productionSchemaMigrationApplied": "20261014150843_hermes_rejected_transport_recovery",
     "applicationDeploymentPerformed": false,
     "paidModelEvaluationsPerformed": false,
     "realWhatsAppMessagesSentByVerification": false,
-    "deploymentMustOriginateFrom": "GitHub"
+    "deploymentMustOriginateFrom": "GitHub",
+    "remoteMigrationHistoryVerified": true
   },
   "limits": [
     "Conversation integration uses scripted providers and synthetic storage/transport; this does not certify future live model wording or intent selection.",
