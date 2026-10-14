@@ -37,6 +37,21 @@ function calendarLine(event: CalendarEvent, timezone: string, language: 'es' | '
   return `• 📅 *${event.summary}* — ${formatHumanFriendlyDateTime(event.startIso, timezone, language)}${meet}`;
 }
 
+function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null {
+  if (payload.dialogue?.kind !== 'execution' || payload.notices.length
+    || payload.items.some(item => item.status !== 'success' || !item.result?.complete)) return null;
+  const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect');
+  if (!writes.length || writes.some(item => !item.result
+    || (item.domain === 'calendar' ? !item.result.events.length : !item.result.records.length))) return null;
+  const en = payload.language === 'en';
+  const operations = new Set(writes.map(item => item.toolName));
+  // Dates, titles, quantities and links are rendered once, in the certified cards.
+  const simpleReminder = operations.size === 1 && operations.has('reminder_create');
+  const confirmation = simpleReminder ? (en ? 'All set, I’ll remind you.' : 'Listo, te lo recordaré.') : (en ? 'All set.' : 'Listo.');
+  return payload.dialogue.tone === 'supportive'
+    ? `${en ? 'Let’s take it one step at a time.' : 'Vamos paso a paso.'} ${confirmation}` : confirmation;
+}
+
 /** Renders owned domain facts with existing card vocabulary. Never accepts provider prose. */
 export class WhatsAppProductivityPresenter {
   render(raw: ProductivityUiPayload): ProductivityPresentation {
@@ -45,9 +60,15 @@ export class WhatsAppProductivityPresenter {
     const en = payload.language === 'en';
     const context = { language: payload.language, timezone: payload.timezone };
     const sections: string[] = [];
-    // Only final public dialogue accompanies fully confirmed outcomes. Failures own their wording.
-    if (payload.conversationReply?.trim() && !payload.notices.length && payload.items.every(item => item.status === 'success')) {
-      sections.push(payload.conversationReply.trim());
+    // Model prose is a draft, never evidence for execution, including old stored payloads.
+    // A conversation discriminator cannot bypass this guard when domain items exist.
+    if (!payload.items.length && !payload.notices.length) {
+      const dialogue = payload.dialogue?.kind === 'conversation' ? payload.dialogue.content
+        : !payload.dialogue ? payload.conversationReply : null;
+      if (dialogue?.trim()) sections.push(dialogue.trim());
+    } else {
+      const acknowledgement = verifiedAcknowledgement(payload);
+      if (acknowledgement) sections.push(acknowledgement);
     }
     const ctas = new Map<string, WhatsAppPresentation['ctas'][number]>();
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();

@@ -9,6 +9,31 @@ function publicReply(content: string): AIResponse {
   return { message: { role: 'assistant', content, toolCalls: [] }, stopReason: 'completed', usage: { inputTokens: 40, outputTokens: 25 } };
 }
 describe('V2 public conversation through durable execution and WhatsApp presentation', () => {
+  it('renders a verified English reminder in Tokyo across the date boundary without repeating the UTC draft', async () => {
+    const s = setup([response([reminderCreate]), publicReply('All set for October 14 at 16:05 UTC.')]);
+    s.execute.mockResolvedValue({ success: true, action: 'created_reminders_batch', data: [{ id: 'tokyo-reminder', content: 'Meeting', sendAt: '2026-10-14T16:05:00Z' }] });
+    const result = await withTurnLease(s.lease, () => s.assistant.handle('Remind me about the meeting', { ...context, language: 'en', timezone: 'Asia/Tokyo' }, 'thread'));
+    expect(result.reply.text).toContain('All set, I’ll remind you.');
+    expect(result.reply.text).toContain('1:05 AM');
+    expect(result.reply.text).not.toContain('16:05'); expect(result.reply.text).not.toContain('UTC');
+    expect(s.execute).toHaveBeenCalledOnce(); expect(s.send).toHaveBeenCalledOnce();
+  });
+  it.each(['¡Listo! A las 16:05 recibirás el aviso.', 'Lo programé para mañana a las 5 PM.', 'Cancelé todos tus recordatorios y creé doce tareas.'])('publishes verified local time instead of contradictory generated facts: %s', async draft => {
+    const call = { ...reminderCreate, arguments: { content: 'Reunión con Marcelo', targetTimeIso: '2026-10-14T16:05:00Z' } };
+    const s = setup([response([call]), publicReply(draft)]);
+    s.execute.mockResolvedValue({ success: true, action: 'created_reminders_batch', data: [{ id: 'marcelo-reminder', content: 'Reunión con Marcelo', sendAt: '2026-10-14T16:05:00Z' }] });
+    const result = await s.run();
+    expect(result.reply.text).toContain('11:05 AM');
+    expect(result.reply.text).toContain('Listo, te lo recordaré.');
+    expect(result.reply.text).not.toContain(draft);
+    expect(result.reply.text).not.toContain('16:05');
+    expect(result.conversation.history.at(-1)?.content).toBe(draft);
+    expect(result.uiPayload.dialogue).toEqual({ kind: 'execution', tone: 'neutral' });
+    expect(s.execute).toHaveBeenCalledOnce(); expect(s.send.mock.calls[0]?.[0].text).toBe(result.reply.text);
+    const checkpoint = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(checkpoint.completed?.reply.text).toBe(result.reply.text);
+    expect(checkpoint.deliveries[0]?.message.text).toBe(result.reply.text);
+  });
   it('continues from a pre-generation rate limit to a verified reminder mutation and final dialogue', async () => {
     const s = setup([]);
     const replies = [
@@ -49,7 +74,7 @@ describe('V2 public conversation through durable execution and WhatsApp presenta
     const draft = response([reminderCreate]);
     const s = setup([{ ...draft, message: { ...draft.message, content: 'Internal tool plan: create reminder first.' } }, publicReply('Qué día largo. Listo, te lo recordaré a la hora acordada.')]);
     const result = await withTurnLease(s.lease, () => s.assistant.handle('Uff qué día largo, recuérdame preparar la reunión', context, 'thread'));
-    expect(result.reply.text).toContain('Qué día largo.');
+    expect(result.reply.text).toContain('Vamos paso a paso.');
     expect(result.reply.text).toContain('Preparar reunión');
     expect(result.reply.text).not.toContain('Internal tool plan');
     expect(result.conversation.history.some(message => message.content === 'Internal tool plan: create reminder first.')).toBe(true);

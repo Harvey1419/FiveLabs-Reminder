@@ -5,6 +5,30 @@ import { formatCanonicalTaskCreate } from '../../../src/shared/task-presentation
 import { context, setup, taskCreate, response, taskId } from './productivity-fixtures.js';
 
 describe('verified mixed WhatsApp presentation', () => {
+  it.each(['old payload', 'forged conversation discriminator'] as const)('ignores contradictory execution prose from %s', async variant => {
+    const s = setup([response([taskCreate]), response()]);
+    const result = await s.run();
+    const draft = 'Completé todas tus tareas a las 16:05. https://wrong.example';
+    const payload = { ...result.uiPayload, conversationReply: draft, dialogue: variant === 'old payload' ? undefined
+      : { kind: 'conversation' as const, content: draft } };
+    const text = new WhatsAppProductivityPresenter().render(payload).text;
+    expect(text).toContain('Tarea creada'); expect(text).toContain('Propuesta');
+    expect(text).not.toContain('Completé'); expect(text).not.toContain('16:05'); expect(text).not.toContain('wrong.example');
+  });
+  it.each(['failed', 'indeterminate', 'partial'] as const)('never publishes success dialogue for a %s operation', async status => {
+    const result = await setup([response([taskCreate]), response()]).run();
+    const item = result.uiPayload.items[0]!;
+    if (item.domain !== 'tasks' || !item.result) throw new Error('Expected task fixture');
+    const changed = productivityItemSchema.parse({ ...item, status, result: status === 'partial'
+      ? { ...item.result, complete: false } : null });
+    const text = new WhatsAppProductivityPresenter().render({ ...result.uiPayload, items: [changed], conversationReply: 'Hecho, completé todo.' }).text;
+    expect(text).not.toContain('Hecho, completé todo.'); expect(text).not.toContain('Listo.');
+  });
+  it('does not narrate an unbounded inventory from a successful bounded read', async () => {
+    const result = await setup([response([{ id: 'read', name: 'task_read', arguments: {} }]), response()]).run();
+    const text = new WhatsAppProductivityPresenter().render({ ...result.uiPayload, conversationReply: 'Estas son absolutamente todas tus tareas, sin excepciones.' }).text;
+    expect(text).toContain('lista limitada'); expect(text).not.toContain('absolutamente todas');
+  });
   it('does not claim there are confirmed results above when the provider failed before any tool', () => {
     const reply = new WhatsAppProductivityPresenter().render({ language: 'es', timezone: context.timezone, items: [], notices: ['provider_unavailable'] });
     expect(reply.text).toContain('No hice cambios');
@@ -30,7 +54,7 @@ describe('verified mixed WhatsApp presentation', () => {
     const item = result.uiPayload.items[0]!;
     const payload = { ...result.uiPayload, items: [item, { ...item, callId: 'other' }] };
     const reply = new WhatsAppProductivityPresenter().render(payload);
-    expect(reply.text).toBe(formatCanonicalTaskCreate([{ id: taskId, title: 'Propuesta', description: null,
+    expect(reply.text).toBe('Listo.\n\n' + formatCanonicalTaskCreate([{ id: taskId, title: 'Propuesta', description: null,
       priority: null, status: 'pending', dueDate: null, entityName: null }], { language: 'es', timezone: context.timezone }));
     expect(reply.flows).toHaveLength(1);
   });

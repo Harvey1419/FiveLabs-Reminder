@@ -1,0 +1,113 @@
+{
+  "recordedAtUtc": "2026-10-14T16:30:36.210048+00:00",
+  "phase": "V1 retirement: verified execution dialogue and CI acceptance",
+  "parentPhase0Commit": "5cbdd54",
+  "behavior": [
+    "Conversation-only turns retain generated dialogue.",
+    "Domain outcomes suppress generated factual paragraphs, including legacy payloads and a forged conversation discriminator.",
+    "A typed execution channel supplies finite acknowledgement tone; the host confirms only complete verified mutations, with dates and details rendered once in certified cards.",
+    "Raw drafts remain in history and conversationReply for provenance."
+  ],
+  "verification": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unitTestsPassed": 3736,
+    "unitFilesPassed": 293,
+    "conversationIntegrationTestsPassed": 12,
+    "maintainedTypeScriptFiles": 731,
+    "maintainedJavaScriptFiles": 0,
+    "compiledRuntimeModules": 284,
+    "missingCompiledImports": 0,
+    "productionContainer": {
+      "imageId": "sha256:06e582fbf940cf0c8d01a167723a25f7235db3811dc5ded2d489415e7b957c0e",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 70,
+      "network": "none",
+      "syntheticDependencies": true
+    },
+    "compiledRouterScenarios": [
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "publicDialogueAndVerifiedCard": true,
+        "textLimit": 4000,
+        "audioAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 2,
+        "providerCalls": 4,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          943,
+          1320,
+          1464,
+          1672
+        ],
+        "maximumWireInputEstimate": 1672,
+        "syntheticCancellationWrites": 1,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:06e582fbf940cf0c8d01a167723a25f7235db3811dc5ded2d489415e7b957c0e"
+      },
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "naturalGreeting": true,
+        "textLimit": 4000,
+        "textAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 0,
+        "providerCalls": 1,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          932
+        ],
+        "maximumWireInputEstimate": 932,
+        "syntheticCancellationWrites": 0,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:06e582fbf940cf0c8d01a167723a25f7235db3811dc5ded2d489415e7b957c0e"
+      }
+    ]
+  },
+  "ciChanges": [
+    "Enforce maintained-source inventory instead of empty JavaScript syntax scan.",
+    "Build production Docker image.",
+    "Run reusable offline Node 22 startup, health 200 and graceful SIGTERM shutdown gate."
+  ],
+  "externalState": {
+    "applicationDeploymentPerformed": false,
+    "databaseMutationsPerformed": false,
+    "paidInferenceCalls": 0,
+    "realWhatsAppMessagesSent": 0
+  },
+  "rollbackBoundary": "Revert this work-unit commit; independently committed phase 0 remains.",
+  "remainingRetirementWork": [
+    "Inventory remaining V1 callers and capability parity.",
+    "Replace legacy productivity executors with direct typed domain-service ports.",
+    "Complete non-productivity V2 ingress and durable history compatibility.",
+    "Gate GitHub-only rollout with live quality evidence before removing V1 dispatch and legacy-only files."
+  ],
+  "limits": [
+    "Offline provider behavior is simulated and is not a live model-quality certificate.",
+    "Free conversation is not a certified factual channel.",
+    "V1 domain adapters and router fallback still exist."
+  ]
+}

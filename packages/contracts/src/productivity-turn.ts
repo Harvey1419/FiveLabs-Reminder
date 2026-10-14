@@ -38,8 +38,14 @@ export const productivityConversationSchema = z.strictObject({
   reminders: z.array(reminderRecordSchema).max(50), tasks: z.array(taskRecordSchema).max(50),
   events: z.array(calendarEventSchema).max(50), handledRequestIds: z.array(z.string().min(1)).max(100),
 });
+/** Free dialogue is separate from execution narration, whose facts belong to the presenter. */
+export const productivityDialogueSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('conversation'), content: z.string().min(1).max(4000) }),
+  z.strictObject({ kind: z.literal('execution'), tone: z.enum(['neutral', 'supportive']) }),
+]);
 export const productivityUiPayloadSchema = z.strictObject({
   language: z.enum(['es', 'en']), timezone: z.string().min(1), conversationReply: z.string().max(4000).nullable().optional(), items: z.array(productivityItemSchema).max(10),
+  dialogue: productivityDialogueSchema.optional(),
   notices: z.array(z.enum(['provider_unavailable', 'invalid_response', 'unavailable_tool', 'limit_reached'])).max(10),
 });
 export type ProductivityItem = z.infer<typeof productivityItemSchema>;

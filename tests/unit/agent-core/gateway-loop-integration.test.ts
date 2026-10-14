@@ -21,7 +21,7 @@ function runner(provider: AIProvider, execute: ReturnType<typeof setup>['execute
   }, execute))), { continuation: 'observation_driven', authorizeWrite: async () => true, now: () => 100 });
 }
 describe('native gateway through the shared loop and durable boundary', () => {
-  it('fails over once, reads/completes the observed task and sends public dialogue with verified cards', async () => {
+  it('fails over once, reads/completes the observed task and narrates only verified outcomes', async () => {
     const s = setup();
     const responses = [
       { error: {}, usage: { prompt_tokens: 5, completion_tokens: 2 } },
@@ -44,7 +44,9 @@ describe('native gateway through the shared loop and durable boundary', () => {
     expect(result.usage).toMatchObject({ modelSteps: 3, inputTokens: 95, outputTokens: 32, accountingComplete: true });
     expect(fetch.mock.calls.map(call => JSON.parse(String(call[1]?.body)).model))
       .toEqual(['fixture/primary', 'fixture/secondary', 'fixture/secondary', 'fixture/secondary']);
-    expect(result.reply.text).toContain('Listo, quedó completada.');
+    expect(result.reply.text).toContain('Listo.');
+    expect(result.reply.text).not.toContain('Listo, quedó completada.');
+    expect(result.conversation.history.at(-1)?.content).toBe('Listo, quedó completada.');
     expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).phase).toBe('completed');
   });
   it('preserves a completed effect when the next provider step loses usage, without another write or resend', async () => {

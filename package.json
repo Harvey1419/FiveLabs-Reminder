@@ -30,7 +30,8 @@
     "check:runtime": "tsx scripts/checks/compiled-runtime-graph.ts",
     "chat:validate": "pnpm run build:packages && node --import tsx scripts/dev/run-chat-validation.ts",
     "lint": "node --import tsx scripts/checks/lint.ts",
-    "test:conversation": "pnpm run build:packages && vitest run --config tests/config/vitest.conversation-integration.ts"
+    "test:conversation": "pnpm run build:packages && vitest run --config tests/config/vitest.conversation-integration.ts",
+    "smoke:container": "tsx scripts/checks/container-smoke.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
