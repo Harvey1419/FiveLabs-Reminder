@@ -118,6 +118,17 @@ describe('canary configuration and authenticated admission', () => {
     await expect(route('Next', user, [], options)).rejects.toThrow('storage unavailable');
     expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
   });
+  it('admits transcribed audio into an existing V2 conversation', async () => {
+    const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());
+    await f.route('Cancela el recordatorio', user, [], { ...options, inputModality: 'audio', attachmentOnly: false });
+    expect(f.v2).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+  });
+  it('durably certifies unsupported input before engine dispatch without downgrading an existing V2 conversation', async () => {
+    const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());
+    await expect(f.route('', user, [], { ...options, inputModality: 'audio', attachmentOnly: true })).rejects.toMatchObject({ code: 'V2_UNSUPPORTED_INPUT' });
+    expect(f.lease.checkpoint).toHaveBeenCalledWith({ agentCoreAdmissionRejected: expect.objectContaining({ phase: 'rejected_before_engine', effects: 'none', userId: 'owner' }) });
+    expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
+  });
   it('continues a completed V2 checkpoint and allows a subsequent disabled rollback without replaying it', async () => {
     const f = fixture(); f.readPrior.mockResolvedValue(await completedV2());
     await f.route('Continue', user, [], options); expect(f.v2).toHaveBeenCalledOnce();
@@ -129,7 +140,7 @@ describe('canary configuration and authenticated admission', () => {
     const f = fixture({ enabled, userAllowlist: ['owner'] });
     f.readPrior.mockRejectedValue(Object.assign(new Error('unknown'), { code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' }));
     await expect(f.route('Turn', user, [], options)).rejects.toMatchObject({ code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });
-    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled(); expect(f.lease.checkpoint).not.toHaveBeenCalled();
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled(); expect(f.lease.checkpoint).toHaveBeenCalledOnce();
   });
   it('rollback rejects a corrupt completed V2 checkpoint rather than dispatching baseline', async () => {
     const f = fixture({ enabled: false, userAllowlist: [] });

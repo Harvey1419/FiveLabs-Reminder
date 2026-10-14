@@ -1,3 +1,4 @@
+import { rejectBeforeEngine } from '../../../src/agent/core/admission-rejection.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createInboundTurnWorker, type ClaimedInboundTurn } from '../../../src/jobs/inbound-turn-worker.js';
 import type { JsonObject } from '@templelabs/contracts';
@@ -72,6 +73,20 @@ describe('durable inbound worker boundaries', () => {
     await restarted.tick();
     await restarted.stop();
     expect(started).toEqual(['a1', 'b1', 'a2']);
+  });
+  it('closes a privately certified pre-engine rejection as terminal without quarantining the thread', async () => {
+    const rows = [{ id: 'a1', message_id: 'message-a1', thread_id: 'a', status: 'queued', response: {} }];
+    const storage = store(rows);
+    const worker = createInboundTurnWorker({ storage, logger, processTurn: async () => rejectBeforeEngine(requireInboundTurnLease(), 'owner', 'V2_UNSUPPORTED_INPUT') });
+    await worker.tick(); await worker.stop();
+    expect(rows[0]!.status).toBe('completed');
+    expect(storage.finish).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }), 'completed', 'V2_UNSUPPORTED_INPUT');
+    expect(storage.checkpoint).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }), { agentCoreAdmissionRejected: expect.objectContaining({ effects: 'none' }) });
+  });
+  it('an error code alone cannot claim a no-effects rejection', async () => {
+    const rows = [{ id: 'a1', thread_id: 'a', status: 'queued' }], storage = store(rows);
+    const worker = createInboundTurnWorker({ storage, logger, processTurn: async () => { throw Object.assign(new Error('unsafe'), { code: 'V2_UNSUPPORTED_INPUT' }); } });
+    await worker.tick(); await worker.stop(); expect(rows[0]!.status).toBe('unknown');
   });
   it('records an interrupted handler as unknown and never calls it again', async () => {
     const rows = [{ id: 'a1', thread_id: 'a', status: 'queued' }];

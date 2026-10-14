@@ -1,6 +1,7 @@
 import type { ProductivityConversation, TurnContext } from '@templelabs/contracts';
 import type { InboundTurnLease } from '../core/turn-lease.js';
 import type { InboundStoredTurn } from '../../adapters/agent-core/inbound-checkpoint-reader.js';
+import { rejectBeforeEngine } from '../core/admission-rejection.js';
 import { selectCanaryEngine, type CanaryPolicy } from './canary-selector.js';
 
 export type CanaryRoute<Result> = (text: unknown, user: unknown, history?: readonly unknown[], options?: Record<string, unknown>) => Promise<Result>;
@@ -9,7 +10,7 @@ function blocked(): never {
   throw Object.assign(new Error('Turn requires reconciliation before engine admission'), { code: 'PRIOR_TURN_RECONCILIATION_REQUIRED' });
 }
 const managed = ['agentCore', 'agentCoreProductivity', 'agentCoreActiveRun', 'agentCoreActiveResolution',
-  'agentCoreActiveCompletion', 'agentCoreDeliveryManifest', 'agentCoreBaseline'];
+  'agentCoreActiveCompletion', 'agentCoreDeliveryManifest', 'agentCoreBaseline', 'agentCoreAdmissionRejected'];
 
 export function createCanaryRouter<Result>(deps: {
   baseline: CanaryRoute<Result>;
@@ -33,7 +34,14 @@ export function createCanaryRouter<Result>(deps: {
     const context: TurnContext = { userId: user.id, runId: lease.inboundTurn.id, requestId: lease.inboundTurn.messageId,
       timezone, language, referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: lease.signal };
     // Search ALL older unknown turns even during rollback; do not replay in another engine.
-    const prior = await deps.readPrior(context, lease.inboundTurn.threadId);
+    let prior: InboundStoredTurn | null;
+    try { prior = await deps.readPrior(context, lease.inboundTurn.threadId); }
+    catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'PRIOR_TURN_RECONCILIATION_REQUIRED' && !Object.keys(lease.inboundTurn.response).length) {
+        return rejectBeforeEngine(lease, context.userId, 'PRIOR_TURN_RECONCILIATION_REQUIRED');
+      }
+      throw error;
+    }
     if (prior?.status !== undefined && prior.status !== 'completed') blocked();
     const priorV2 = prior?.response && Object.hasOwn(prior.response, 'agentCoreProductivity');
     if (priorV2) {
@@ -43,10 +51,10 @@ export function createCanaryRouter<Result>(deps: {
     } else if (prior && managed.some(key => Object.hasOwn(prior.response ?? {}, key))) blocked();
     const delivery = options.agentCoreDelivery;
     const supported = typeof text === 'string' && text.trim().length > 0 && text.length <= 8000
-      && (!options.inputModality || options.inputModality === 'text') && !options.attachmentOnly
+      && (!options.inputModality || options.inputModality === 'text' || options.inputModality === 'audio') && !options.attachmentOnly
       && delivery !== null && typeof delivery === 'object' && 'send' in delivery && typeof delivery.send === 'function';
     // Unsupported input remains on its existing engine before admission.
-    if (selected === 'v2' && priorV2 && !supported) blocked();
+    if (selected === 'v2' && priorV2 && !supported) return rejectBeforeEngine(lease, context.userId, 'V2_UNSUPPORTED_INPUT');
     if (selected !== 'v2' || !supported) return deps.baseline(text, user, history, options);
     let handoff: ProductivityConversation | undefined;
     if (prior && !priorV2) {

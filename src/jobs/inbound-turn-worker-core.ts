@@ -1,4 +1,5 @@
 import type { JsonObject } from '@templelabs/contracts';
+import { isAdmissionRejection } from '../agent/core/admission-rejection.js';
 import { withTurnLease } from '../agent/core/turn-lease.js';
 
 export interface ClaimedInboundTurn {
@@ -105,6 +106,14 @@ export function createInboundTurnWorker({ processTurn, processOwnedTurn, storage
         return;
       }
       if (current() === 'uncertain' && await observedCompletion()) return;
+      if (current() === 'leased' && isAdmissionRejection(error)) {
+        await assertActive();
+        const code = errorCode(error, 'ADMISSION_REJECTED');
+        if (!await bounded(() => storage.finish(turn, 'completed', code))) { state = 'lost'; controller.abort(); return; }
+        state = 'completed';
+        logger.error(`[inbound] turn=${turn.id} outcome=admission_rejected code=${code}`);
+        return;
+      }
       const code = errorCode(error,'PROCESSING_INTERRUPTED');
       logger.error(`[inbound] turn=${turn.id} outcome=unknown code=${code}`);
       // An uncertain publication never permits renewal, legacy downgrade or handler replay.
