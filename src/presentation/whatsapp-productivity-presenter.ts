@@ -20,6 +20,8 @@ function errorText(item: ProductivityItem, en: boolean): string {
   if (item.status === 'indeterminate' || item.code === 'EFFECT_RECONCILIATION_REQUIRED') return en
     ? '⚠️ *Outcome not confirmed*\nThis action needs checking before trying again.'
     : '⚠️ *Resultado sin confirmar*\nHay que verificar esta acción antes de volver a intentarla.';
+  if (item.domain === 'memories' && ['MEMORY_NOT_ADMITTED', 'MEMORY_EVIDENCE_MISMATCH'].includes(item.code ?? '')) return en ? 'I did not save that detail. What exactly would you like me to remember?' : 'No guardé ese dato. ¿Qué quieres que recuerde exactamente?';
+  if (item.domain === 'memories' && item.status === 'clarification_required') return en ? 'Which memory would you like me to forget?' : '¿Qué recuerdo quieres que olvide?';
   if (item.status === 'clarification_required') return item.result?.presentation.questions.join('\n')
     || (en ? 'Which item or time did you mean?' : '¿A qué elemento u horario te refieres?');
   if (item.status === 'approval_required') return en ? 'Please confirm this change.' : 'Confírmame este cambio.';
@@ -41,6 +43,7 @@ function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null 
   if (payload.dialogue?.kind !== 'execution' || payload.notices.length
     || payload.items.some(item => item.status !== 'success' || !item.result?.complete)) return null;
   const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect');
+  if (writes.some(item => item.toolName === 'memory_forget')) return null; // Atomic deletion receipts do not certify whole-profile erasure.
   if (!writes.length || writes.some(item => !item.result
     || (item.domain === 'calendar' ? !item.result.events.length : !item.result.records.length))) return null;
   const en = payload.language === 'en';
@@ -73,13 +76,14 @@ export class WhatsAppProductivityPresenter {
     const ctas = new Map<string, WhatsAppPresentation['ctas'][number]>();
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();
     const groups = new Map<string, ProductivityItem[]>();
-    for (const item of payload.items) {
+    for (let item of payload.items) {
       if (item.toolName.endsWith('_read') && item.status === 'success' && item.result) {
         const ids = item.domain === 'calendar' ? item.result.events.map(event => event.id) : item.result.records.map(record => record.id);
         const written = new Set(payload.items.filter(other => other.domain === item.domain && !other.toolName.endsWith('_read')
           && other.status === 'success' && other.result?.complete).flatMap(other => !other.result ? []
             : other.domain === 'calendar' ? other.result.events.map(event => event.id) : other.result.records.map(record => record.id)));
         if (ids.length && ids.every(id => written.has(id))) continue;
+        if (item.domain === 'memories') item = { ...item, result: { ...item.result, records: item.result.records.filter(record => !written.has(record.id)) } };
       }
       const cta = item.result?.presentation.cta;
       if (cta?.url && /^https:\/\//i.test(cta.url)) {
@@ -105,6 +109,9 @@ export class WhatsAppProductivityPresenter {
       const key = `${item.toolName}:${JSON.stringify(item.readScope ?? {})}`;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     }
+    if (payload.items.some(item => item.toolName === 'memory_read' && item.result?.coverage === 'bounded_list')
+      && ![...groups.values()].some(items => items[0]?.toolName === 'memory_read')) sections.push(en
+      ? 'The memory lookup returned a limited set of results.' : 'La consulta de recuerdos devolvió una lista limitada de resultados.');
     for (const items of groups.values()) {
       const first = items[0]!;
       if (first.domain === 'reminders') {
@@ -118,7 +125,13 @@ export class WhatsAppProductivityPresenter {
           ? 'This is a limited list of returned results.' : 'Esta es una lista limitada de los resultados devueltos.');
         continue;
       }
-      if (first.domain === 'tasks') {
+      if (first.domain === 'memories') {
+        const records = new Map<string, string>();
+        for (const item of items) if (item.domain === 'memories') for (const memory of item.result?.records ?? []) records.set(memory.id, memory.content);
+        const heading = first.toolName === 'memory_save' ? (en ? '🧠 *Saved to memory*' : '🧠 *Guardado en mi memoria*')
+          : first.toolName === 'memory_forget' ? (records.size > 1 ? (en ? '🗑️ *Memories deleted*' : '🗑️ *Recuerdos eliminados*') : (en ? '🗑️ *Memory deleted*' : '🗑️ *Memoria eliminada*')) : (en ? '🧠 *Your memories*' : '🧠 *Tus recuerdos*');
+        sections.push(heading + '\n\n' + ([...records.values()].map(content => `• ${content}`).join('\n') || (en ? 'No matching memories returned.' : 'No se devolvieron recuerdos que coincidan.')));
+      } else if (first.domain === 'tasks') {
         const records = new Map<string, TaskRecord>();
         for (const item of items) if (item.domain === 'tasks') {
           for (const task of item.result?.records ?? []) records.set(task.id, task);

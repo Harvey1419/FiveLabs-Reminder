@@ -1,3 +1,5 @@
+import { projectForgottenMemoryHistory } from './forgotten-memory-context.js';
+import { memoryResultSchema, memoryReadInputSchema } from '@templelabs/contracts';
 import {
   aiTranscriptSchema, productivityConversationSchema, productivityItemSchema, productivityToolNameSchema,
   productivityUiPayloadSchema, reminderResultSchema, taskResultSchema, calendarResultSchema,
@@ -41,7 +43,7 @@ function priorUnverifiedCompanion(history: ProductivityConversation['history']):
 function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<unknown> {
   if (!('data' in outcome)) return outcome;
   const result = call.name.startsWith('task_') ? taskResultSchema.parse(outcome.data)
-    : call.name.startsWith('calendar_') ? calendarResultSchema.parse(outcome.data) : reminderResultSchema.parse(outcome.data);
+    : call.name.startsWith('calendar_') ? calendarResultSchema.parse(outcome.data) : call.name.startsWith('memory_') ? memoryResultSchema.parse(outcome.data) : reminderResultSchema.parse(outcome.data);
   if (call.name !== `${call.name.split('_')[0]}_${result.operation}`) throw new Error('Result operation mismatch');
   if ((outcome.status === 'success' || outcome.status === 'partial')) {
     if (outcome.status === 'success' && !result.complete) throw new Error('Incomplete success');
@@ -50,7 +52,7 @@ function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<u
       || ids.some(id => !outcome.receipt.resourceIds.includes(id))) throw new Error('Resource receipt mismatch');
     if (!call.name.endsWith('_read') && call.name !== 'calendar_connect'
       && (ids.length < 1 || (!call.name.startsWith('reminder_') && ids.length !== 1))) throw new Error('Missing atomic resource evidence');
-    const target = call.arguments.taskId ?? call.arguments.reminderId;
+    const target = call.arguments.taskId ?? call.arguments.reminderId ?? call.arguments.memoryId;
     if (target !== undefined && (!ids.includes(String(target)) || (call.name.startsWith('task_') && ids.length !== 1))) throw new Error('Target identity mismatch');
   }
   return { ...outcome, data: result };
@@ -58,9 +60,9 @@ function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<u
 function itemFor(call: ToolCall, outcome: ToolOutcome<unknown>): ProductivityItem {
   const read = call.name === 'task_read' ? taskReadInputSchema.safeParse(call.arguments)
     : call.name === 'calendar_read' ? calendarReadInputSchema.safeParse(call.arguments)
-    : call.name === 'reminder_read' ? reminderReadInputSchema.safeParse(call.arguments) : null;
+    : call.name === 'reminder_read' ? reminderReadInputSchema.safeParse(call.arguments) : call.name === 'memory_read' ? memoryReadInputSchema.safeParse(call.arguments) : null;
   return productivityItemSchema.parse({ callId: call.id, toolName: call.name,
-    domain: call.name.startsWith('task_') ? 'tasks' : call.name.startsWith('calendar_') ? 'calendar' : 'reminders',
+    domain: call.name.startsWith('task_') ? 'tasks' : call.name.startsWith('calendar_') ? 'calendar' : call.name.startsWith('memory_') ? 'memories' : 'reminders',
     status: outcome.status, code: 'code' in outcome ? outcome.code : null,
     result: 'data' in outcome ? outcome.data : null, readScope: read?.success ? read.data : null });
 }
@@ -72,12 +74,14 @@ export class ProductivityTurnRunner {
   private readonly loop: AgentLoop;
   private readonly maxPromptReferences: number;
   private readonly compactObservations: boolean;
+  private readonly memorySourceText: string | undefined;
   private readonly mediaInput: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean } | undefined;
   private readonly personalContext: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } | undefined;
-  constructor(provider: AIProvider, registry: ToolRegistry, options: AgentLoopOptions & { readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
+  constructor(provider: AIProvider, registry: ToolRegistry, options: AgentLoopOptions & { readonly memorySourceText?: string; readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
     this.compactObservations = options.compactObservations === true;
     this.personalContext = options.personalContext;
     this.mediaInput = options.mediaInput;
+    this.memorySourceText = options.memorySourceText;
     this.maxPromptReferences = options.maxPromptReferences ?? 50;
     if (!Number.isSafeInteger(this.maxPromptReferences) || this.maxPromptReferences < 1 || this.maxPromptReferences > 50) throw new Error('Invalid reference limit');
     this.loop = new AgentLoop(provider, registry, options);
@@ -98,13 +102,19 @@ export class ProductivityTurnRunner {
       || priorUnverifiedCompanion(state.history)) {
       throw Object.assign(new Error('Prior effect requires reconciliation'), { code: 'EFFECT_RECONCILIATION_REQUIRED' });
     }
+    const memories = new Map((state.memories ?? []).map(record => [record.id, record]));
     const reminders = new Map(state.reminders.map(record => [record.id, record]));
     const tasks = new Map(state.tasks.map(record => [record.id, record]));
     const events = new Map(state.events.map(event => [event.id, event]));
     const items: ProductivityItem[] = [];
     let referenceOrder = state.referenceOrder;
-    const promptRecords = <T extends { id: string }>(domain: 'tasks' | 'reminders' | 'calendar', records: T[]): T[] => {
-      const ordered = referenceOrder?.filter(reference => reference.domain === domain)
+    let memoryReferenceOrder = state.memoryReferenceOrder;
+    const currentReferenceOrder = () => memoryReferenceOrder ? [
+      ...(referenceOrder ?? []).filter(reference => reference.domain !== 'memories'),
+      ...memoryReferenceOrder.map((id, index) => ({ domain: 'memories' as const, id, position: index + 1 })),
+    ] : referenceOrder;
+    const promptRecords = <T extends { id: string }>(domain: 'tasks' | 'reminders' | 'calendar' | 'memories', records: T[]): T[] => {
+      const ordered = currentReferenceOrder()?.filter(reference => reference.domain === domain)
         .flatMap(reference => records.filter(record => record.id === reference.id)) ?? [];
       const seen = new Set(ordered.map(record => record.id));
       return [...ordered, ...records.filter(record => !seen.has(record.id))].slice(0, this.maxPromptReferences);
@@ -118,12 +128,14 @@ export class ProductivityTurnRunner {
           const task = typeof call.arguments.taskId === 'string' ? tasks.get(call.arguments.taskId) : undefined;
           return !task || task.status === 'deleted';
         }
+        if (call.name === 'memory_forget') return typeof call.arguments.memoryId !== 'string' || !memories.has(call.arguments.memoryId) || memories.get(call.arguments.memoryId)?.status === 'forgotten';
         if (['calendar_update', 'calendar_delete'].includes(call.name)) return typeof call.arguments.eventId !== 'string' || !events.has(call.arguments.eventId);
         return false;
       },
       writeJournalAvailable: journal !== undefined,
       prepareContext: (history, maxMessages, fitsBudget, tools) => {
-        const projected = this.compactObservations ? projectProductivityHistory(history) : [...history];
+        const redacted = projectForgottenMemoryHistory(history, state.history.length, [...memories.values()]);
+        const projected = this.compactObservations ? projectProductivityHistory(redacted) : [...redacted];
         const starts = projected.flatMap((message, index) => message.role === 'user' ? [index] : []);
         const recent = projected.slice(starts[Math.max(0, starts.length - (this.compactObservations ? 1 : 3))] ?? 0);
         const visible = new Set<string>();
@@ -135,8 +147,8 @@ export class ProductivityTurnRunner {
             if (record && typeof record === 'object' && !Array.isArray(record) && typeof record.id === 'string') visible.add(record.id);
         }
         const domains = tools?.filter(tool => tool.name !== 'tools_select').map(tool => tool.name.split('_')[0]) ?? [];
-        const refs = (domain: 'tasks' | 'reminders' | 'calendar', records: { id: string }[]) => {
-          if (this.compactObservations && !domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : 'calendar')) return [];
+        const refs = (domain: 'tasks' | 'reminders' | 'calendar' | 'memories', records: { id: string }[]) => {
+          if (this.compactObservations && !domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : domain === 'memories' ? 'memory' : 'calendar')) return [];
           return promptRecords(domain, records).filter(record => !visible.has(record.id)).map(record => this.compactObservations
             ? Object.fromEntries(Object.entries(compactModelRecord(record)).map(([key, value]) =>
               [key, ['content', 'title', 'summary'].includes(key) && typeof value === 'string' && value.length > 160 ? value.slice(0, 160) + '…' : value]))
@@ -162,14 +174,14 @@ export class ProductivityTurnRunner {
           + '\n' + JSON.stringify({ displayName: this.personalContext.displayName ?? null }) : '';
         const systemContent =
         persona + mediaGuidance + '\n'
-        + JSON.stringify({ language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
-          references: { reminders: refs('reminders', [...reminders.values()]),
+        + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
+          references: { ...(memories.size ? { memories: refs('memories', [...memories.values()].filter(record => record.status === 'active')) } : {}), reminders: refs('reminders', [...reminders.values()]),
             tasks: refs('tasks', [...tasks.values()]), events: refs('calendar', [...events.values()]) },
-          referenceOrder: referenceOrder?.filter(reference => !visible.has(reference.id)
-            && (!this.compactObservations || domains.includes(reference.domain === 'tasks' ? 'task' : reference.domain === 'reminders' ? 'reminder' : 'calendar'))).slice(0, this.maxPromptReferences) ?? [],
+          referenceOrder: currentReferenceOrder()?.filter(reference => !visible.has(reference.id) && (reference.domain !== 'memories' || memories.get(reference.id)?.status === 'active')
+            && (!this.compactObservations || domains.includes(reference.domain === 'tasks' ? 'task' : reference.domain === 'reminders' ? 'reminder' : reference.domain === 'memories' ? 'memory' : 'calendar'))).slice(0, this.maxPromptReferences) ?? [],
           referenceCoverage: 'bounded_historical_references_read_to_resolve_other_resources', referenceFreshness: 'historical_or_current_tool_observation' });
         const gaps = state.legacyHandoff?.referenceGaps
-          .filter(gap => !visible.has(gap.id) && !tasks.has(gap.id) && !reminders.has(gap.id) && !events.has(gap.id))
+          .filter(gap => !visible.has(gap.id) && !tasks.has(gap.id) && !reminders.has(gap.id) && !events.has(gap.id) && !memories.has(gap.id))
           .slice(0, this.maxPromptReferences).map(gap => ({ ...gap, title: gap.title?.slice(0, 80) ?? null })) ?? [];
         const historical = gaps.length ? '\n' + JSON.stringify({ historicalReferenceGaps: gaps,
           historicalGapsAreNotMutationReferences: true }) : '';
@@ -189,12 +201,21 @@ export class ProductivityTurnRunner {
         items.push(item);
         await journal?.afterOutcome(structuredClone(call), structuredClone(item), outcome.observation);
         if ((item.status === 'success' || item.status === 'partial') && item.result) {
-          if (item.toolName.endsWith('_read')) {
+          if (item.toolName.endsWith('_read') || item.toolName === 'memory_save') {
             const records = item.domain === 'calendar' ? item.result.events : item.result.records;
             referenceOrder = records.map((record, index) => ({ domain: item.domain, id: record.id, position: index + 1 }));
           }
           if (item.domain === 'tasks') for (const record of item.result.records) tasks.set(record.id, record);
           else if (item.domain === 'reminders') for (const record of item.result.records) reminders.set(record.id, record);
+          else if (item.domain === 'memories') {
+            for (const record of item.result.records) memories.set(record.id, record);
+            if (item.toolName === 'memory_read' || item.toolName === 'memory_save') memoryReferenceOrder = item.result.records.map(record => record.id);
+            // A read followed by a write publishes only remaining read rows. Its
+            // next ordinal references must match that new, verified display.
+            if (item.toolName === 'memory_forget' && items.some(value => value.toolName === 'memory_read')) {
+              memoryReferenceOrder = (memoryReferenceOrder ?? []).filter(id => memories.get(id)?.status === 'active');
+            }
+          }
           else for (const event of item.result.events) {
             if (item.toolName === 'calendar_delete') events.delete(event.id); else events.set(event.id, event);
           }
@@ -206,6 +227,8 @@ export class ProductivityTurnRunner {
       : conversationReply ? { kind: 'conversation' as const, content: conversationReply } : null;
     return { conversationReply, usage: result.usage, requiresReconciliation: result.requiresReconciliation,
       conversation: productivityConversationSchema.parse({ userId: context.userId, history: result.history,
+        ...(memoryReferenceOrder ? { memoryReferenceOrder } : {}),
+        ...(state.memories !== undefined || items.some(item => item.domain === 'memories') ? { memories: [...memories.values()].slice(-50) } : {}),
         reminders: [...reminders.values()].slice(-50), tasks: [...tasks.values()].slice(-50),
         events: [...events.values()].slice(-50), ...(referenceOrder ? { referenceOrder } : {}),
         ...(state.legacyHandoff ? { legacyHandoff: state.legacyHandoff } : {}), handledRequestIds: [...state.handledRequestIds, context.requestId] }),

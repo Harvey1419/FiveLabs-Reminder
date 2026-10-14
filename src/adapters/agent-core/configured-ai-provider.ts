@@ -87,7 +87,7 @@ export function createConfiguredBackgroundAIProvider(purpose: BackgroundPurpose,
     ];
   }
   return new OpenRouterProvider({ apiKey: options.apiKey ?? getOpenRouterApiKey() ?? '', routes,
-    ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
+    ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}), ...(options.estimateInputTokens ? { estimateInputTokens: options.estimateInputTokens } : {}), ...(options.onAttempt ? { onAttempt: options.onAttempt } : {}) });
 }
 
 /** Explicit route declarations; native PDF capability must be evaluated before activation. */

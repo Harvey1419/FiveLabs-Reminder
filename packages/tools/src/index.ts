@@ -33,3 +33,4 @@ export * from './registry.js';
 export * from './reminders.js';
 export * from './tasks.js';
 export * from './calendar.js';
+export * from './memories.js';

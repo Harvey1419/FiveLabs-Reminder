@@ -1,3 +1,5 @@
+import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
+import { createMemoryDomainPort } from './memories-domain.js';
 import { readTurnMediaInput, mediaAllowedTools } from '../../shared/turn-media-input.js';
 import { readPersonalContext } from './personal-context.js';
 import { retrieveRelevantMemories, retrieveStandingPreferences } from '../../features/memory/service.js';
@@ -5,7 +7,7 @@ import { z } from 'zod';
 import { estimateBoundedInput, type OpenRouterAttempt } from '@templelabs/ai';
 import { aiTranscriptSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { ProductivityTurnRunner, type AgentLoopOptions } from '@templelabs/agent-core';
-import { createTaskTools, createCalendarTools, createReminderTools, ToolRegistry } from '@templelabs/tools';
+import { createTaskTools, createCalendarTools, createReminderTools, createMemoryTools, ToolRegistry } from '@templelabs/tools';
 import type { ProductivityConversation } from '@templelabs/contracts';
 import { DurableProductivityAssistant, type ProductivityDeliveryPort } from './durable-productivity-assistant.js';
 import { recoverProductivityStoredTurn } from './productivity-state-recovery.js';
@@ -42,24 +44,29 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   const delivery = options.agentCoreDelivery as ProductivityDeliveryPort;
   const media = readTurnMediaInput(options.agentCoreMedia, admission.context, options.inputModality);
   if (options.agentCoreMedia !== undefined && !media) throw new Error('V2_INVALID_MEDIA_INPUT');
-  const authoredText = media?.userText ?? text;
+  const authoredText = media?.userText ?? (typeof options.currentUserText === 'string' ? options.currentUserText : text);
   const detected = detectLanguageFromText(authoredText);
   const language = detected === 'en' || detected === 'es' ? detected : admission.context.language;
   const [subscription, personalContext] = await Promise.all([getUserSubscription(user.id),
     readPersonalContext(user.id, authoredText, parsed.display_name ?? undefined, { memories: media && !authoredText.trim() ? async () => [] : retrieveRelevantMemories, preferences: retrieveStandingPreferences })]);
   const capabilities = new Set(['tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete',
-    'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge', 'reminders.cancel']);
+    'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge', 'reminders.cancel', 'memories.read', 'memories.save', 'memories.forget']);
   if (hasProAccess(subscription)) capabilities.add('reminders.pro');
+  const previous: ProductivityConversation | undefined = admission.handoff ?? (admission.prior
+    ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined);
+  const memoryOrder = previous?.memoryReferenceOrder ?? previous?.referenceOrder?.filter(reference => reference.domain === 'memories').map(reference => reference.id);
+  const observedMemories = memoryOrder?.flatMap(id => previous?.memories?.filter(record => record.id === id) ?? []) ?? previous?.memories ?? [];
   const definitions = [
     ...createTaskTools(createTaskDomainPort(user)), ...createCalendarTools(createCalendarDomainPort(user)),
     ...createReminderTools(createReminderDomainPort(user)),
+    ...createMemoryTools(createMemoryDomainPort(user, authoredText, { previousRecords: observedMemories })),
   ];
-  const allowed = media ? mediaAllowedTools(media) : null;
+  const allowed = media ? new Set(mediaAllowedTools(media)) : null;
+  if (allowed && explicitMemoryIntent(authoredText, 'save')) allowed.add('memory_save');
+  if (allowed && explicitMemoryIntent(authoredText, 'forget')) { allowed.add('memory_read'); allowed.add('memory_forget'); }
   if (allowed) for (const tool of definitions) if (!allowed.has(tool.specification.name)) capabilities.delete(tool.requiredCapability);
   const context = { ...admission.context, capabilities, language };
   const registry = new ToolRegistry(definitions);
-  const previous: ProductivityConversation | undefined = admission.handoff ?? (admission.prior
-    ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined);
   const writePolicy = z.custom<NonNullable<AgentLoopOptions['authorizeWrite']>>(value => typeof value === 'function')
     .safeParse(options.agentCoreAuthorizeWrite);
   const attempts: OpenRouterAttempt[] = [];
@@ -70,14 +77,14 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
-    personalContext, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
-    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'] }, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, ...(media ? { maxWriteOperations: 1 } : {}), maxOutputTokens: 768,
+    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
+    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, maxInputTokens: 1800, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, ...(media ? { maxWriteOperations: 1 } : {}), maxOutputTokens: 768,
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
-    authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete'].includes(call.name) && registry.effect(call.name) === 'destructive')
+    authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete', 'memory_forget'].includes(call.name) && registry.effect(call.name) === 'destructive')
       && (!allowed || allowed.has(call.name)) && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,
-    inputTarget: 1800, ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
+    inputTarget: 1800, accountingScope: 'reasoning_loop; memory_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
   const result: Result = { confirmation: handled.reply.text, intent: handled.uiPayload.items.length ? 'query' : 'chat', language,
     entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: 1800, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
   recordV2Delivery(result, handled.messageIds);

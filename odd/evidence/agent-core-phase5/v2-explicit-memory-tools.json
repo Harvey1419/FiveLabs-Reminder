@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "scope": "Native explicit personal memory read/save/forget through durable V2",
+  "branch": "feat/v2-explicit-memory-tools",
+  "baseCommit": "200a5073b57b4227d1df433e0f0ecbd09bb8d1c6",
+  "productionDeployment": false,
+  "contract": {
+    "tools": [
+      "memory_read",
+      "memory_save",
+      "memory_forget"
+    ],
+    "backwardCompatibleOptionalState": [
+      "memories",
+      "memoryReferenceOrder"
+    ],
+    "source": "current authored text only; exact source span plus semantic durability admission",
+    "forget": "observed owned UUID, fresh whole-fact semantic scope verification, owner/content/category filtered delete"
+  },
+  "authorization": {
+    "durableLease": true,
+    "hostWritePolicy": true,
+    "receiptAndJournal": true,
+    "unknownWrite": "quarantine for reconciliation; no automatic retry",
+    "quotedAndAttachmentText": "cannot grant memory mutations",
+    "ordinalReferences": "frozen previous displayed snapshot; current lookup positions do not redefine user ordinals"
+  },
+  "context": {
+    "reasoningInputTokens": 1800,
+    "semanticAdmissionInputTokens": 1800,
+    "semanticAdmissionTotalTokens": 3000,
+    "semanticAdmissionOutputTokens": 1024,
+    "auxiliaryTelemetry": "semantic admission and embeddings reported separately from reasoning loop",
+    "forgetProjection": "redact forgotten facts from old model-visible history; keep immutable audit evidence",
+    "presentation": "certified cards; omit stale read rows after writes; do not certify whole-profile erasure"
+  },
+  "persistence": {
+    "readLimit": 5,
+    "ownerAndActiveFilters": true,
+    "literalQueryEscaping": true,
+    "saveIdentity": "sha256(category, exact content); sequential active-row reuse",
+    "embedding": "optional configured provider, compatible 768-dimensional legacy memory space",
+    "implicitReminderPolicyMutations": false,
+    "schemaMigrations": 0
+  },
+  "productionReadOnlyVerification": {
+    "existingSchemaConfirmed": true,
+    "explain": "idx_memories_user_active index scan followed by bounded ordered result",
+    "syntheticNilUserReadRows": 0,
+    "writes": 0
+  },
+  "validation": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unit": {
+      "files": 299,
+      "passed": 3814
+    },
+    "conversationIntegration": {
+      "files": 4,
+      "passed": 36,
+      "newMemoryJourneys": 7
+    },
+    "maintainedJavaScript": 0,
+    "typeScriptSources": 787,
+    "compiledRuntime": {
+      "modules": 308,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "v2Boundary": {
+      "modules": 168,
+      "forbiddenV1Imports": 0
+    },
+    "v1CallerInventory": {
+      "runtimeEdges": 13,
+      "driftGate": "passed"
+    },
+    "container": {
+      "tag": "five-labs-reminder-api:v2-explicit-memory",
+      "imageId": "sha256:8b5a7d81110e774e5c36380d2dc21ea49b282665fa280e913f1f4871789edb76",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 45,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "limits": [
+    "No semantic/paraphrase or cross-process save idempotence",
+    "Correction, canonical topic versioning and implicit clarification continuation remain pending",
+    "No automatic background learning or bulk/inactive-history erasure",
+    "Scripted provider tests certify protocol and fail-closed scope boundaries; live semantic quality is not measured",
+    "V1 retirement is not complete"
+  ],
+  "externalEffects": {
+    "paidInferenceCalls": 0,
+    "productionDatabaseWrites": 0,
+    "realWhatsAppSends": 0,
+    "deployments": 0
+  },
+  "rollback": "Revert the coupled memory work unit: contracts/tools, native memory store/admission/domain, core memory state/projection, composition, presenter, tests and documentation. Previous productivity/media/continuity blocks remain independent.",
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm run lint",
+    "pnpm run test:unit",
+    "pnpm run test:conversation",
+    "pnpm run migration:check",
+    "pnpm run check:v2-boundary",
+    "pnpm run inventory:v1",
+    "docker build -t five-labs-reminder-api:v2-explicit-memory .",
+    "pnpm run smoke:container five-labs-reminder-api:v2-explicit-memory"
+  ]
+}
