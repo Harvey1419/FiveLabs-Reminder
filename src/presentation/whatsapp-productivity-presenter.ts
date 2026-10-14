@@ -148,7 +148,11 @@ export class WhatsAppProductivityPresenter {
       }
       sections.push(...items.flatMap(item => item.result?.presentation.questions ?? []));
     }
-    if (payload.notices.includes('provider_unavailable')) sections.push(en ? 'I could not finish the response right now. Confirmed results are shown above.' : 'No pude terminar la respuesta en este momento. Los resultados confirmados están arriba.');
+    if (payload.notices.includes('provider_unavailable')) sections.push(payload.items.some(item => item.status === 'success')
+      ? (en ? 'I could not finish the response right now. Confirmed results are shown above.' : 'No pude terminar la respuesta en este momento. Los resultados confirmados están arriba.')
+      : !payload.items.length
+        ? (en ? 'I could not process your request right now. I have not made any changes. Please try again in a moment.' : 'No pude procesar tu solicitud en este momento. No hice cambios. Inténtalo de nuevo en un momento.')
+        : (en ? 'I could not finish the response. Please check the operation status shown above.' : 'No pude terminar la respuesta. Revisa el estado de las operaciones indicado arriba.'));
     else if (payload.notices.length) sections.push(en ? 'I could not finish all of this request. Confirmed results are shown above.' : 'No pude completar toda la solicitud. Los resultados confirmados están arriba.');
     return { text: boundWhatsAppText([...new Set(sections.filter(Boolean))].join('\n\n')
       || (en ? 'I could not prepare a useful response. Could you tell me a little more?' : 'No pude preparar una respuesta útil. ¿Me cuentas un poco más?')),

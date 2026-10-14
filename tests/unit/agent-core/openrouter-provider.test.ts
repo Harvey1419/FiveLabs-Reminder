@@ -70,6 +70,20 @@ describe('native OpenRouter wire protocol', () => {
 });
 
 describe('bounded provider fallback and safe accounting', () => {
+  it('falls back after an explicit pre-generation 429 without replaying the rejected route', async () => {
+    const fetch = transport([json({ error: { code: 429, message: 'Provider returned error' } }, 429), json(wire()), json(wire())]);
+    const attempts: OpenRouterAttempt[] = [];
+    const provider = new OpenRouterProvider({ apiKey: 'fixture-key', routes, fetch, onAttempt: a => attempts.push(a) });
+    expect((await provider.complete(request())).usage).toEqual({ inputTokens: 20, outputTokens: 10 });
+    await provider.complete(request());
+    expect(fetch.mock.calls.map((_, index) => body(fetch, index).model)).toEqual(['fixture/primary', 'fixture/secondary', 'fixture/secondary']);
+    expect(attempts[0]).toMatchObject({ status: 429, usage: { inputTokens: 0, outputTokens: 0 }, generationId: null });
+  });
+  it.each([{ error: { code: 429 }, id: 'generated' }, { error: { code: 429 }, choices: [] }, { error: {} }])('never treats an ambiguous 429 as a certified rejection: %j', async raw => {
+    const fetch = transport([json(raw, 429), json(wire())]);
+    await expect(new OpenRouterProvider({ apiKey: 'fixture-key', routes, fetch }).complete(request())).rejects.toMatchObject({ code: 'UNVERIFIED_USAGE' });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it('uses a single explicit native route and leaves caller output cap unchanged', async () => {
     const fetch = transport([json(wire())]);
     const provider = new OpenRouterProvider({ apiKey: 'fixture-key', routes, fetch });

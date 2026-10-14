@@ -23,6 +23,14 @@ async function completedV2(): Promise<InboundStoredTurn> {
 }
 
 describe('canary configuration and authenticated admission', () => {
+  it('certifies a failed read-only handoff before leaving admission and does not dispatch either engine', async () => {
+    const f = fixture();
+    f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'old', thread_id: 'thread', sequence_id: 1, status: 'completed', response: {} });
+    const route = createCanaryRouter({ ...f.deps, handoff: vi.fn(async () => { throw new Error('Invalid baseline handoff anchor'); }) });
+    await expect(route('Recuérdame', user, [], options)).rejects.toMatchObject({ code: 'BASELINE_HANDOFF_FAILED' });
+    expect(f.lease.checkpoint).toHaveBeenCalledWith({ agentCoreAdmissionRejected: expect.objectContaining({ effects: 'none', reason: 'BASELINE_HANDOFF_FAILED' }) });
+    expect(f.baseline).not.toHaveBeenCalled(); expect(f.v2).not.toHaveBeenCalled();
+  });
   it.each([undefined, 'false', 'TRUE', '1', ' true '])('switch %s disables all traffic without reading config', value => {
     const read = vi.fn(() => manifest);
     expect(readCanaryPolicy(value === undefined ? {} : { AGENT_CORE_V2: value }, read)).toEqual({ enabled: false, userAllowlist: [] });
@@ -115,7 +123,7 @@ describe('canary configuration and authenticated admission', () => {
   it('does not admit V2 or fall back after a failed handoff read', async () => {
     const f = fixture(); f.readPrior.mockResolvedValue({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed', response: {} });
     const route = createCanaryRouter({ ...f.deps, handoff: async () => { throw new Error('storage unavailable'); } });
-    await expect(route('Next', user, [], options)).rejects.toThrow('storage unavailable');
+    await expect(route('Next', user, [], options)).rejects.toMatchObject({ code: 'BASELINE_HANDOFF_FAILED' });
     expect(f.v2).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
   });
   it('admits transcribed audio into an existing V2 conversation', async () => {

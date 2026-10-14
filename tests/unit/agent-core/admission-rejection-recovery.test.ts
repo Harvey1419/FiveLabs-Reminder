@@ -25,6 +25,11 @@ function fixture(prior: InboundStoredTurn[]) {
   return { onUnknown, run: () => withTurnLease(lease, () => readPriorInboundTurn(client, context, 'thread', onUnknown)) };
 }
 describe('admission failures do not quarantine effect-free future turns', () => {
+  it('skips completed legacy gate closures with no checkpoint instead of using them as handoff anchors', async () => {
+    const closure = { ...row('805f2116', 95, 'completed', null), last_error: 'PRIOR_TURN_RECONCILIATION_REQUIRED' };
+    const actual = row('actual', 80, 'completed', { confirmation: 'Actual conversation' });
+    expect(await fixture([closure, actual]).run()).toEqual(actual);
+  });
   it('skips a lease-resolved rejected delivery while preserving the last actual conversation', async () => {
     const rejected = row('rejected', 95, 'completed', { delivery: { status: 'attempted' }, agentCoreTransportRejected: {
       version: 1, userId: 'owner', runId: 'rejected', requestId: 'rejected-message', threadId: 'thread', effects: 'read_only', delivery: 'rejected',

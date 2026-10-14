@@ -14,6 +14,11 @@ function fixture() {
   return { prior, source, run: () => handoffBaselineProductivity(prior, context, 'thread', [{ role: 'user', content: 'Lista mis tareas' }], source) };
 }
 describe('completed baseline productivity handoff', () => {
+  it('leaves a legacy administrative closure without a response on baseline without throwing', async () => {
+    const f = fixture(); f.prior.response = null;
+    expect(await f.run()).toBeNull();
+    expect(f.source.hasActiveRun).not.toHaveBeenCalled();
+  });
   it('preserves dialogue, observed owner-bound IDs and ordinal references without fabricating tool receipts', async () => {
     const f = fixture(), state = await f.run();
     expect(state).toMatchObject({ userId: 'owner', handledRequestIds: ['prior-msg'], tasks: [{ id, status: 'pending' }],

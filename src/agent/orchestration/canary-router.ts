@@ -58,7 +58,13 @@ export function createCanaryRouter<Result>(deps: {
     if (selected !== 'v2' || !supported) return deps.baseline(text, user, history, options);
     let handoff: ProductivityConversation | undefined;
     if (prior && !priorV2) {
-      const transferred = await deps.handoff?.(prior, context, lease.inboundTurn.threadId, history);
+      let transferred: ProductivityConversation | null | undefined;
+      try { transferred = await deps.handoff?.(prior, context, lease.inboundTurn.threadId, history); }
+      catch {
+        // Handoff only reads. Persist proof before leaving admission so a failed read
+        // cannot turn into an unknown execution and quarantine the next message.
+        return rejectBeforeEngine(lease, context.userId, 'BASELINE_HANDOFF_FAILED');
+      }
       if (!transferred) return deps.baseline(text, user, history, options);
       if (transferred.userId !== context.userId) blocked();
       handoff = transferred;

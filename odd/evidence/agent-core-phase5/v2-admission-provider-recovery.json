@@ -1,0 +1,47 @@
+{
+  "recordedAtUtc": "2026-10-14T15:57:30.047111+00:00",
+  "scope": "V2 production admission and provider rejection recovery",
+  "incidents": [
+    {
+      "runId": "bd0466fc-0110-4845-920c-1137f8e4fd19",
+      "observedAtUtc": "2026-10-14T15:51:00Z",
+      "rootCause": "HTTP 429 without usage stopped native provider before the configured secondary route",
+      "fix": "Only an explicit HTTP/error-code 429 envelope with no generation ID, choices or usage is treated as pre-generation rejection; other missing usage remains terminal."
+    },
+    {
+      "runId": "2eae2167-9e25-45fe-ac21-a62f8d319833",
+      "observedAtUtc": "2026-10-14T15:47:59Z",
+      "rootCause": "Legacy completed gate closure 805f2116 with null response selected as baseline handoff anchor",
+      "fix": "Skip effect-free legacy gate closures in unknown and completed states; null baseline response is non-transferable; handoff failures persist lease-fenced admission rejection."
+    }
+  ],
+  "productionQueueInspection": {
+    "threadSuffix": "2199",
+    "unsafeUnknowns": 0,
+    "recentTurnStatus": "completed",
+    "recentTurnCertificate": "agentCoreAdmissionRejected",
+    "databaseMutationsPerformedThisFix": false,
+    "note": "Recent turn changed from unknown to certified completed between read-only inspections; this fix did not perform that recovery."
+  },
+  "verification": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unitTestsPassed": 3723,
+    "unitFilesPassed": 293,
+    "conversationIntegrationTestsPassed": 8,
+    "maintainedJavaScript": 0,
+    "paidInferenceCalls": 0,
+    "whatsAppMessagesSent": 0
+  },
+  "rollbackBoundary": [
+    "packages/ai/src/openrouter-provider.ts and associated fallback tests",
+    "inbound checkpoint reader, baseline handoff and router with admission tests",
+    "WhatsApp presenter and unavailable-response test"
+  ],
+  "limitations": [
+    "Offline provider rejection test certifies dispatch and verified mutation exactly once, not live model quality.",
+    "No expired user request was replayed.",
+    "Last-resort model minimum-output policy remains unchanged."
+  ]
+}

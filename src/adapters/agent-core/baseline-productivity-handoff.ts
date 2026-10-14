@@ -15,7 +15,9 @@ export interface BaselineHandoffSource {
  * A null result leaves pending/unsupported references with the baseline before V2 admission. */
 export async function handoffBaselineProductivity(prior: InboundStoredTurn, context: TurnContext,
   threadId: string, history: readonly unknown[], source: BaselineHandoffSource): Promise<ProductivityConversation | null> {
-  if (prior.status !== 'completed' || prior.thread_id !== threadId || !prior.response) throw new Error('Invalid baseline handoff anchor');
+  if (prior.status !== 'completed' || prior.thread_id !== threadId) throw new Error('Invalid baseline handoff anchor');
+  // Legacy administrative closures have no transferable conversation checkpoint.
+  if (!prior.response) return null;
   context.signal.throwIfAborted();
   if (prior.response.intent === 'action_unconfirmed') return null;
   if (Array.isArray(prior.response.executionFacts) && prior.response.executionFacts.some(value => {

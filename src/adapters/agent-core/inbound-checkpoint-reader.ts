@@ -74,7 +74,7 @@ export async function readPriorInboundTurn(client: InboundCheckpointClient, cont
     // The old router emitted this particular gate error only BEFORE invoking either engine.
     // A started V2 run always checkpoints its namespace before any domain dispatch or delivery.
     // Never generalize this to empty-response timeouts, lease expiry, or arbitrary unknown errors.
-    if (row.status === 'unknown' && row.last_error === 'PRIOR_TURN_RECONCILIATION_REQUIRED'
+    if (['unknown', 'completed'].includes(row.status) && row.last_error === 'PRIOR_TURN_RECONCILIATION_REQUIRED'
       && (response === null || Object.keys(response).length === 0)) return true;
     if (!response || Object.keys(response).length !== 1) return false;
     const parsed = admissionRejectionSchema.safeParse(response.agentCoreAdmissionRejected);

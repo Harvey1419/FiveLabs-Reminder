@@ -5,6 +5,11 @@ import { formatCanonicalTaskCreate } from '../../../src/shared/task-presentation
 import { context, setup, taskCreate, response, taskId } from './productivity-fixtures.js';
 
 describe('verified mixed WhatsApp presentation', () => {
+  it('does not claim there are confirmed results above when the provider failed before any tool', () => {
+    const reply = new WhatsAppProductivityPresenter().render({ language: 'es', timezone: context.timezone, items: [], notices: ['provider_unavailable'] });
+    expect(reply.text).toContain('No hice cambios');
+    expect(reply.text).not.toContain('están arriba');
+  });
   it('renders all three domains with one task flow and no model prose or flow-token leakage', async () => {
     const s = setup();
     const result = await s.run();

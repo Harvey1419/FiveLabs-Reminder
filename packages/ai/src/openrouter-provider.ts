@@ -160,8 +160,17 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
         // Unknown inference spend must not be silently represented by zero or retried.
         fail('UNVERIFIED_USAGE', false);
       } finally { clearTimeout(timer); }
-      const attemptUsage = reportedOpenRouterUsage(raw);
       const metadata = raw !== null && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+      const rejection = metadata.error !== null && typeof metadata.error === 'object'
+        ? metadata.error as Record<string, unknown> : null;
+      // A pre-generation 429 error envelope is an explicit rejected request, not
+      // an interrupted completion. Never extend this exception to missing usage
+      // on success, a generated ID/choices, transport errors, or generic 5xx.
+      const rejectedBeforeGeneration = response.status === 429 && rejection?.code === 429
+        && !Object.hasOwn(metadata, 'id') && !Object.hasOwn(metadata, 'choices')
+        && (metadata.usage === undefined || metadata.usage === null);
+      const attemptUsage = reportedOpenRouterUsage(raw)
+        ?? (rejectedBeforeGeneration ? { inputTokens: 0, outputTokens: 0 } : null);
       const safeLabel = (value: unknown): string | null => typeof value === 'string' && /^[\w./:-]{1,200}$/.test(value) ? value : null;
       this.report({ route: route.id, model: safeLabel(metadata.model) ?? route.model, requestedProviders: route.providers,
         provider: typeof metadata.provider === 'string' && /^[\w ./:()-]{1,200}$/.test(metadata.provider) && metadata.provider.trim()

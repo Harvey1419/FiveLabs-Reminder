@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { OpenRouterProvider } from '@templelabs/ai';
 import { type AIResponse, productivityCheckpointSchema } from '@templelabs/contracts';
 import { setup, context, reminderCreate, response } from '../../unit/agent-core/productivity-fixtures.js';
 import { withTurnLease } from '../../../src/agent/core/turn-lease.js';
@@ -8,6 +9,26 @@ function publicReply(content: string): AIResponse {
   return { message: { role: 'assistant', content, toolCalls: [] }, stopReason: 'completed', usage: { inputTokens: 40, outputTokens: 25 } };
 }
 describe('V2 public conversation through durable execution and WhatsApp presentation', () => {
+  it('continues from a pre-generation rate limit to a verified reminder mutation and final dialogue', async () => {
+    const s = setup([]);
+    const replies = [
+      new Response(JSON.stringify({ error: { code: 429, message: 'Provider returned error' } }), { status: 429 }),
+      new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 'create', type: 'function', function: { name: reminderCreate.name, arguments: JSON.stringify(reminderCreate.arguments) } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 200, completion_tokens: 40 } })),
+      new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Listo, te lo recordaré.', tool_calls: [] }, finish_reason: 'stop' }], usage: { prompt_tokens: 250, completion_tokens: 20 } })),
+    ];
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => { const next = replies.shift(); if (!next) throw new Error('Unexpected request'); return next; });
+    const provider = new OpenRouterProvider({ apiKey: 'fixture', fetch, now: () => 100, routes: [
+      { id: 'primary', model: 'fixture/primary', providers: ['fixture-primary'], timeoutMs: 1000 },
+      { id: 'secondary', model: 'fixture/secondary', providers: ['fixture-secondary'], timeoutMs: 1000 },
+    ] });
+    vi.spyOn(s.provider, 'complete').mockImplementation(request => provider.complete(request));
+    const result = await s.run();
+    expect(result.uiPayload.notices).toEqual([]);
+    expect(result.reply.text).toContain('Listo, te lo recordaré.');
+    expect(result.reply.text).toContain('Preparar reunión');
+    expect(s.execute).toHaveBeenCalledOnce(); expect(s.send).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls.map(call => JSON.parse(String(call[1]?.body)).model)).toEqual(['fixture/primary', 'fixture/secondary', 'fixture/secondary']);
+  });
   it.each([
     ['Buenos días', '¡Buenos días, Juan! ¿Cómo arrancó tu mañana?'],
     ['Gracias, amigo', 'Con gusto, Juan. Aquí estoy.'],
