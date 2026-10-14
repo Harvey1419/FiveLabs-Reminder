@@ -1,0 +1,127 @@
+{
+  "increment": "current-protocol-behavioral-continuity-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      12,
+      14,
+      15,
+      16
+    ],
+    "unchangedCaseAuditedOffline": 13,
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "cumulativeAdaptedCases": 15,
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 21,
+    "newOfflineCases": 10,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Multi-turn agenda/current reminder read/observed interpretation/position-bound cancellation",
+    "Observation response cites actual read call identity and passes real observed-answer validation callback",
+    "Canonical compound actions retain reminder and task; typed schedule resolves 17:00 Bogota to 22:00 UTC",
+    "Clarification chat retains saved reminder identity and null acknowledgement",
+    "Current sanitizer retains original identity-redaction checks",
+    "Missing-target case checks actual error field and current message instead of retired confirmation expectation"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "8c2ae2faa73cf592dbecf897ad67e451b53ed1f19f9a2507ea2c48c557789821"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-read-fixtures.ts",
+      "sha256": "3944c008fb22193d1655b8208bbc19ce96c13e0fdb76169abea35107480fa89e"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-continuity-fixtures.ts",
+      "sha256": "476cede4bbae520117bfad341c6fca5a488c714538fb548ad962282387abb9df"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-continuity-fixtures.test.ts",
+      "sha256": "7009137b712f89406e9ed89215e25a006a2b81b26f6e7c21fe98e4ffacfc5011"
+    },
+    {
+      "path": "tests/unit/agent/reminder-cancel.test.ts",
+      "sha256": "b389dd68cbce381211a56948df93f8fc5c6964bbc1be84f97650821a92289759"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "finalNoEmitRecheckPassed": true
+    },
+    "focused": {
+      "files": 4,
+      "tests": 32,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 281,
+      "tests": 3521,
+      "durationSeconds": 57.83,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 694
+      }
+    },
+    "runtime": {
+      "compiledModules": 259,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 562
+    },
+    "boundaries": [
+      "Five actual strict provider/foreground contracts",
+      "Real router three-turn execution with injected domain observations and real observation-phase validation",
+      "Cancellation call targets first displayed reminder ID",
+      "Both ordered compound tool calls and exact timezone resolution",
+      "Clarification-only route executes no domain tool",
+      "Original identity markers redacted with visible titles retained",
+      "Actual cancellation service with empty injected reads returns NOT_FOUND and performs no update"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "database": false,
+    "provider": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Recorded model decisions and injected tool observations do not certify live language understanding or interpretation accuracy",
+    "Offline checks do not certify database persistence; external assertions remain unexecuted",
+    "21 remaining behavioral cases plus other integration/acceptance suites still require audit",
+    "Dedicated database execution, live quality/cost/latency measurements and V2 activation remain open"
+  ],
+  "rollback": "Restore only this increment edits to behavioral integration/shared-wire/cancellation unit test; remove new continuity fixture/regression suite and appended documentation/evidence, preserving prior work."
+}

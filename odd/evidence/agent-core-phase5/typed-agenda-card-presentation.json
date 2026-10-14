@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript canonical unified agenda and task-list rendering with injected existing date/scope and typed task helpers; original entry wires two complete formatters",
+  "candidate": {
+    "filesPassed": 214,
+    "testsPassed": 2858,
+    "durationSeconds": 50.15
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 191,
+    "durationSeconds": 3.57
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "completeEmptyVersusDisconnectedErrorAndIncompleteSources": "passed",
+    "availableRowsWithSourceSpecificFailureNotices": "passed",
+    "allDayAndPreformattedCalendarTimePrecedence": "passed",
+    "completedStatusOnlyAndPendingExactFieldCallbacks": "passed",
+    "globalNumberingProjectScopesAndSummaryCounts": "passed",
+    "emptyQueryProjectAndCompletedResponseDistinction": "passed",
+    "callerTimezoneForReminderEventDates": "passed",
+    "existingProductivityPresenterTypedIntegration": "passed",
+    "offlineEvaluatorReadOnlyActualAgendaRendererProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1880,
+    "realScopeDateAndTypedTaskCollectionHelpers": true,
+    "esEnBogotaLosAngelesFormatting": true,
+    "completedPendingScopedSearchAndNumberingParity": true,
+    "connectedDisconnectedErrorAndPartialSourceParity": true,
+    "exactRawRowCoverageCallbacks": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realAgendaTaskListFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnPendingNumberingAndRawCoverageCallbacks": true,
+    "completedStatusOnlyCoverage": true,
+    "partialAvailableCardsAndSourceFailureNotices": true,
+    "connectedAndDisconnectedEmptySourceSemantics": true,
+    "scopedEmptySearchPreserved": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:c2bf7f53576dbe2b8c4cc208e7db5b16193ae48a4ecbc562b285455334861f2b"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 240
+  },
+  "transitionalDeclarations": 44,
+  "sourceHashes": {
+    "src/shared/agenda-card-presentation.ts": "999d21dc270b7406465f00d4ed9f0d901cbcb3dd1096a4db881951c2aceea452",
+    "src/shared/agenda-presentation.js": "1aa6502641ec588ed50c13b5c1d85d1a958d12c2716847e3e694a3e70c1d8800",
+    "src/shared/agenda-presentation.d.ts": "c931c53f238432689c593bf9f83dcf05261da61dd8a2d2c4be409e00dd553149",
+    "tests/unit/agenda/typed-agenda-card-presentation.test.ts": "725eef80c0660153edcba2a65e401798c1dc7d621f93a4beb4be70e95468ac23",
+    "scripts/evals/groq-contract/baseline.js": "9e911651d1216d6d5cf5df98c4e43e2e37c7e98b29b279f1994eba736ee5115f",
+    "tsconfig.runtime.json": "b6018010d728da116c28a35cb42389294e9666cf055206f3202460a6c47b596e"
+  },
+  "limits": [
+    "View row data/source completeness are trusted host projections; rendering does not perform DB filtering or independently certify provider availability, ownership or durable effects.",
+    "Completed task cards report displayed status only; pending rows delegate exact unchanged field reporting to typed task helpers.",
+    "Scope normalization and human-friendly date formatting remain existing injected implementations.",
+    "Calendar all-day/preformatted display and prior empty-source semantics remain compatible; no new query policy is introduced.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual presentation paths offline; not a full server boot, live calendar/task mutation or WhatsApp delivery.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

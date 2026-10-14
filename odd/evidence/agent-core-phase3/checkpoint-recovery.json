@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 3 owned checkpoint recovery, thread admission fence and reconciliation inspection",
+  "candidate": { "filesPassed": 165, "testsPassed": 2017, "durationSeconds": 63.00 },
+  "focused": { "filesPassed": 11, "testsPassed": 150, "durationSeconds": 4.97 },
+  "newCases": 20,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "compiledEsmExports": "passed",
+    "diffWhitespace": "passed",
+    "crossTurnStoredReferenceUpdate": "passed",
+    "foreignCorruptUnsupportedAndLegacyStateBlock": "passed",
+    "olderUnknownTurnFence": "passed",
+    "recoveryBeforeProviderAndEffects": "passed",
+    "callerCheckpointOverrideBlock": "passed"
+  },
+  "storageVerification": {
+    "unitBoundary": "Simulated typed query responses and worker lease",
+    "installedSdk": "3 scoped GET queries using installed Supabase SDK and intercepted fetch; zero network calls",
+    "queryLimits": "Current running identity; earliest older unknown turn; latest older terminal turn; all thread-scoped and LIMIT 1",
+    "schemaChanges": 0,
+    "actualDatabaseCertification": false
+  },
+  "reconciliation": {
+    "implemented": "Inspection of pending effect and uncertain delivery IDs; conservative admission block",
+    "scope": "All prior unknown turns in the same leased thread",
+    "automaticReplay": false,
+    "automaticResolution": false
+  },
+  "inventory": { "javascript": 313, "typescript": 41, "transitionalDeclarations": 4, "legacyJavaScriptRetired": 0 },
+  "productionRouting": "V2 remains disconnected; recovery injected into isolated durable assistant",
+  "liveCalls": { "provider": 0, "database": 0, "whatsapp": 0 },
+  "limitations": [
+    "Authoritative reconciliation closure and explicit legacy handoff remain.",
+    "Fence covers the leased thread, not arbitrary other user threads/accounts.",
+    "Unknown deliveries also block admission conservatively; they are never automatically resent.",
+    "Engine pinning, authenticated router and real transport integration remain.",
+    "Multi-hop reasoning, token/spend budgets and compaction remain Phase 4.",
+    "Real storage/query-plan/latency and model semantic gates remain before canary."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase3-recovery-focused.log",
+    "fullSuite": "/private/tmp/hermes-phase3-recovery-unit.log",
+    "inventory": "/private/tmp/hermes-phase3-recovery-inventory.json",
+    "sdkHarness": "/private/tmp/hermes-recovery-sdk.mjs"
+  }
+}

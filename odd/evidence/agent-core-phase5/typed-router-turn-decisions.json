@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript router decision collection/projection/validation, attachment/profile/history guards, conversational reply and acknowledgement target binding",
+  "candidate": {
+    "filesPassed": 231,
+    "testsPassed": 3004,
+    "durationSeconds": 49.61
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 234,
+    "durationSeconds": 6.69
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "legacyUnknownMixedCapabilitiesAndAggregateActionCap": "passed",
+    "unavailableAndStrictForegroundToolRejection": "passed",
+    "sharedCanonicalValidatorsAndHistoryReferenceSanitization": "passed",
+    "attachmentOnlyOperationalBlock": "passed",
+    "staleProfileReadStripVsMutationReject": "passed",
+    "memoryOrSoleFollowupHintNoUnrelatedActionMutation": "passed",
+    "conversationalPrivateIdSanitization": "passed",
+    "readOnlyActualDecisionSourceProvenance": "passed",
+    "productionCompilerFreeActualRouterGraph": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 468,
+    "legacyCapabilityCollectionAggregateLimits": true,
+    "strictDecisionProjectionValidatorsHistoryAndAttachmentGuards": true,
+    "profileSourceAndAcknowledgementTargetHintParity": true,
+    "conversationSanitizationAndLegacyExceptionParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedRouterDecisionContextGatewayAndRouterImports": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:42f8348f3c228da84f41937cfc6abd8311f88e6811e25f5dea52f7f9c4d8abeb"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 291
+  },
+  "transitionalDeclarations": 53,
+  "sourceHashes": {
+    "src/agent/orchestration/router-turn-decisions.ts": "5d79a502013f2b7abe8ad871ac171151e5be1b46e42ca8313c46289d65d36ee4",
+    "src/agent/orchestration/router-core.js": "4fa6f693b6a2378b7c11ad2f5b50d4408292d0e9aac7a22398a89745220a691b",
+    "tests/unit/agent/typed-router-turn-decisions.test.ts": "f5513cdf42c6c066375a2cf2454963619d47f96ad4770068d3edcfffaae804ee",
+    "tests/unit/agent/core-learning-candidates.test.js": "ad8c5d3b0dc74f8e5f85331adade755d24abc2c5dc3d464503d98172badb676c",
+    "scripts/evals/groq-contract/baseline.js": "9bca80b0eab0a4e8e36ab2b264991aef73207cd14be5dd66e445d8e6e3546191",
+    "tsconfig.runtime.json": "16664a1f17e02f518525ba1d371f32e9b7b6711fdce2c09753406fa717f8be56"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "Shared existing intent/foreground validators remain authoritative; this unit does not duplicate contracts or loosen action admission.",
+    "Legacy collectIntent remains available as a helper but is not reintroduced into the strict foreground path.",
+    "Acknowledgement ID binding is a contextual hint with existing memory/sole-notice priority, not a receipt or independent ownership/effect certification; domain tools validate live state.",
+    "Working-memory priority and target matching policies are preserved, not redesigned as a new freshness/confirmation algorithm.",
+    "Evidence-reference sanitization preserves existing owned-history availability rules, not arbitrary prose trust.",
+    "Profile mutations/effects and live host router orchestration remain later migration units.",
+    "Evaluator reads the decision source as provenance without executing effect-owning router code or broadening imports.",
+    "Node 22 smoke runs real imports and decision helpers offline with synthetic gateway responses, not live domain writes or full server boot.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

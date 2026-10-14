@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript transport attempt and bounded route chain with injected fetch, wall/monotonic clocks, logger and host trace adapter",
+  "candidate": {
+    "filesPassed": 228,
+    "testsPassed": 2974,
+    "durationSeconds": 48.79
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 266,
+    "durationSeconds": 5.85
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "strictJsonContentUnchangedAndTraceCapture": "passed",
+    "truncationRefusalEnvelopeAndValidatorGuards": "passed",
+    "transportAbortAndRequiredToolFailures": "passed",
+    "boundedRetryOnlyEmptyAndRequiredToolMisses": "passed",
+    "upstreamFailureAdvancesRouteAndTerminalRefusalStops": "passed",
+    "strictCapabilitySkipAndAutoToolFallbackValidation": "passed",
+    "namedToolMinTokenUnsupportedTemperaturePolicy": "passed",
+    "actualPayloadCompactionSeamAndReadOnlyProvenance": "passed",
+    "productionCompilerFreeSyntheticGateway": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 768,
+    "attemptResultWireDiagnosticsTraceAndLogParity": true,
+    "strictEnvelopeTruncationRefusalValidationAndTransportFailures": true,
+    "boundedRetriesRequiredToolFallbackStrictSkipAndTerminalChainParity": true,
+    "syntheticOnly": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedAttemptChainWireRoutingClientAndExecutorImports": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:6effa30e3b655320effdea26dda8c2918aa30f865cf393d81243091517052bd8"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 282
+  },
+  "transitionalDeclarations": 52,
+  "sourceHashes": {
+    "src/agent/providers/gateway-attempt.ts": "c45c62b508ee2a8a5255da5ca221d230fc2a9e7bb9a83f960b3851fa1cb00dd6",
+    "src/agent/providers/gateway-chain.ts": "af2da6579bd00c0f4a9de41312f91425e0a77461635c6bf14ec54c9f6dd42f25",
+    "src/agent/providers/client.js": "7be339650b57628e0337f16454d45fad625b60e2f83dc7b54be651191062964b",
+    "tests/unit/agent/typed-gateway-attempt-chain.test.ts": "c1223e38bd7b737635eda67f83460f7b59ff68690606c62672c1e10a8b4b3712",
+    "tests/unit/agent/provider-description-compaction.test.js": "7feefe45f37a5d7577802b8f3554d0511d84741f485c7df14c2b2cf32d2dc23c",
+    "scripts/evals/groq-contract/baseline.js": "e58c5b0718cb16961bab1f9d868886f3a1b6050865b242621e7d934d032324ad",
+    "tsconfig.runtime.json": "54144f7d824609ebf4c0175247d95326b516ac3e638a12b4d8d8d9c64a1c2880"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "Injected transport and clocks do not alter production fetch URLs, headers, AbortSignal timeout or trace ownership.",
+    "Strict acceptance guards remain in the typed attempt; wire projections do not replace validation.",
+    "Trace initialization, filesystem permissions, bounded event storage and finalization remain the host JS adapter and are not newly activated.",
+    "Retries remain bounded by existing profiles and only empty/required-tool misses; upstream failures advance and terminal refusals stop without model evasion.",
+    "Provider telemetry/trace capture are not domain effects or receipt certification.",
+    "Ordinary client entry dispatch, purpose budgets, credential routing and unused compact diagnostics remain later migration units.",
+    "Node 22 smoke uses three synthetic gateway fetch responses plus injected refusal/truncation fixtures with network disabled, not live provider calls or full server boot.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

@@ -1,0 +1,19 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createBackgroundMemoryExtraction } from '../../../src/jobs/memory-extraction-queue.js';
+import { createEmbeddingService } from '../../../src/integrations/ai/embedding-service.js';
+import type { ExtractMemoryOptions } from '../../../src/features/memory/memory-service.js';
+describe('typed background memory extraction', () => {
+  it('filters attachment-only and missing-identity turns before scheduling any work', () => {
+    const scheduled = vi.fn(); const extract = vi.fn(async () => {}); const eligible = vi.fn((text: string) => text.trim()); const f = createBackgroundMemoryExtraction({ extractAndSaveMemories: extract, getMemoryEligibleText: eligible, captureQueryEmbeddingScope: work => work, setImmediate: scheduled, logger: { log: vi.fn(), error: vi.fn() } });
+    expect(scheduled).not.toHaveBeenCalled(); f.extractMemoryInBackground({ userId: null, userText: 'Text' }); f.extractMemoryInBackground({ userId: 'owner', userText: '<untrusted_attachment_content>private attachment</untrusted_attachment_content>' }); expect(scheduled).not.toHaveBeenCalled(); expect(extract).not.toHaveBeenCalled(); expect(eligible).toHaveBeenCalledWith('', []);
+  });
+  it('captures actual embedding scope per owner at enqueue and serializes the shared queue', async () => {
+    const embed = vi.fn(async () => [Array<number>(768).fill(1)]); const service = createEmbeddingService({ model: 'synthetic', embed }); const scheduled: (() => void | Promise<void>)[] = []; const completed: string[] = []; const inputs: ExtractMemoryOptions[] = [];
+    const f = createBackgroundMemoryExtraction({ extractAndSaveMemories: async input => { inputs.push(input); await service.generateEmbedding('shared', { queryOwner: input.userId }); await service.generateEmbedding('shared', { queryOwner: input.userId }); completed.push(input.userId); }, getMemoryEligibleText: text => text.trim(), captureQueryEmbeddingScope: service.captureQueryEmbeddingScope, setImmediate: callback => { scheduled.push(callback); }, logger: { log: () => {}, error: () => {} } });
+    service.withQueryEmbeddingScope('one', () => f.extractMemoryInBackground({ userId: 'one', userText: 'First', learningCandidates: [], learningCandidatesProvided: true })); service.withQueryEmbeddingScope('two', () => f.extractMemoryInBackground({ userId: 'two', userText: 'Second', memoryDisposition: 'processed' })); expect(embed).not.toHaveBeenCalled();
+    await service.withQueryEmbeddingScope('other', async () => { for (const callback of scheduled) await callback(); }); await vi.waitFor(() => expect(completed).toEqual(['one', 'two'])); expect(embed).toHaveBeenCalledTimes(2); expect(inputs[0]).toMatchObject({ userText: 'First', learningCandidatesProvided: true, learningCandidates: [] }); expect(inputs[0]).toHaveProperty('assistantReply', undefined); expect(inputs[1]).toMatchObject({ memoryDisposition: 'processed' });
+  });
+  it('logs one failed job and allows the next queued job without replay', async () => {
+    const scheduled: (() => void | Promise<void>)[] = []; const error = Error('failed'); const extract = vi.fn(async (_input: ExtractMemoryOptions) => {}).mockRejectedValueOnce(error); const logger = { log: vi.fn(), error: vi.fn() }; const f = createBackgroundMemoryExtraction({ extractAndSaveMemories: extract, getMemoryEligibleText: text => text, captureQueryEmbeddingScope: work => work, setImmediate: callback => { scheduled.push(callback); }, logger }); f.extractMemoryInBackground({ userId: 'one', userText: 'First' }); f.extractMemoryInBackground({ userId: 'two', userText: 'Second' }); for (const callback of scheduled) await callback(); await vi.waitFor(() => expect(extract).toHaveBeenCalledTimes(2)); expect(logger.error).toHaveBeenCalledExactlyOnceWith('[memoryExtractor] background extraction failed:', error);
+  });
+});

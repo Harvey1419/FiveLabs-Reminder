@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`isolated normalized input → provider → current executor → persistence → WhatsApp reply > preserves created identity through reference update and completion across three turns 1`] = `
+[
+  {
+    "ctas": [],
+    "text": "✅ *Recordatorio programado*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:00 PM",
+  },
+  {
+    "ctas": [],
+    "text": "🔄 *Recordatorio actualizado*
+
+⏰ *Llamar a Ana*
+🗓️ Hoy a las 4:30 PM",
+  },
+  {
+    "ctas": [],
+    "text": "✅ *Reminder confirmed*
+
+🔔 *Llamar a Ana*
+Recorded as completed and pending follow-ups were stopped.",
+  },
+]
+`;

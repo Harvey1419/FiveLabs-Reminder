@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 5 complete project persistence and entity creation/read/preflight/pure-resolution migration; remaining destructive entity workflows stay in JS",
+  "candidate": {
+    "filesPassed": 195,
+    "testsPassed": 2668,
+    "durationSeconds": 46.69
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 50,
+    "durationSeconds": 1.58
+  },
+  "newCases": 9,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "existingEntityMatchingListAndProjectDeletionRegression": "passed",
+    "metadataUndefinedVariableFixedWithNonAggressiveMerge": "passed",
+    "ownerPredicateAddedToProjectUpdateRenameAndMirror": "passed",
+    "ownedEntityPreflightErrorNeverSuccessfulEmptySnapshot": "passed",
+    "exactNameAmbiguityAndRowOrderRules": "passed",
+    "legacyMirrorIdentityAndPendingCounts": "passed",
+    "dryRunAndForeignOwnerNoWrites": "passed",
+    "completedTaskHistoryPreserved": "passed",
+    "observedPartialCascadeStopsBeforeMirror": "passed",
+    "productionImportCycleAndCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "node": "v24.15.0",
+    "compiledEntityProjectAdapters": true,
+    "sqlBackedStructuralClient": true,
+    "reads": 25,
+    "writes": 16,
+    "entityRefinementKeepsUuid": true,
+    "projectMirrorKeepsUuid": true,
+    "metadataMergedAndPersisted": true,
+    "ownedReferencePreflight": true,
+    "foreignOwnerDenied": true,
+    "renameMirrorRetained": true,
+    "pendingCountsAndMirrorDeduplication": true,
+    "dryRunHasNoWrites": true,
+    "completedHistoryPreserved": true,
+    "partialReceiptsStopMirrorDeletion": true,
+    "liveHttpCalls": 0,
+    "independentAtomicCertificateCreated": false,
+    "temporaryDatabaseRemoved": true
+  },
+  "node22": {
+    "node": "v22.23.3",
+    "productionRunnerImage": true,
+    "compilerOrTsLoaderAtExecution": false,
+    "devWorkspaceDependenciesAbsent": true,
+    "realIndexEntityProjectFacades": true,
+    "emittedResolutionAndPersistenceUsed": true,
+    "legacyDestructiveEntityExportsRetained": true,
+    "metadataBugRegression": true,
+    "ownerScopedUpdate": true,
+    "liveHttpCalls": 0
+  },
+  "productionImage": "sha256:3191317102333e1a8819807b9498c12ba88b160019fe3898c28540fce9a92f15",
+  "inventory": {
+    "javascript": 312,
+    "typescript": 157,
+    "transitionalDeclarations": 17
+  },
+  "limits": [
+    "Entity deletion/rename/merge/deduplication implementations remain maintained JS using the migrated pure helpers",
+    "Legacy fuzzy creation/list/metadata/mirror fallback semantics retained; best-effort mirrors are not authoritative evidence",
+    "Project deletion remains sequential with partial receipts, not a new atomic independent effect certificate",
+    "SQL fixture covers consumed columns, unique and foreign-key constraints; not deployed RLS or live Supabase/PostgREST transport",
+    "Production Node 22 smoke imports real index/facades with injected query replies; not full server boot/live provider/WhatsApp/canary",
+    "SDK client/dependencies/configuration, scheduler, V2 routing and all existing SQL/evidence producers unchanged"
+  ],
+  "noDeployment": true,
+  "noCommit": true,
+  "sourceSha256": {
+    "src/infrastructure/database/entity-resolution.ts": "88e97ba431f747dcaf029b3f6d556e661f040e69aa440747879d063f58bad49a",
+    "src/infrastructure/database/entity-persistence.ts": "7d2c6fb829e6f246f774d3a32e5d1f8489ce3b36cd3e6c2535ce39c0a213553d",
+    "src/infrastructure/database/project-persistence.ts": "11b9f26416e89eb6fa5eef92d6c2ccc532c39c3ba16dddfe0e9202f9dbb2a6bc",
+    "src/infrastructure/database/entities.js": "fb42d39fd98446f4390822a5839da4026789f56eb170d31f74eeaa9826d8d7ad",
+    "src/infrastructure/database/projects.js": "9b59fcc28c9b2243173403b016c38382e972f0d2ef6848a1e1cda2da5a93eaa1",
+    "src/infrastructure/database/projects.d.ts": "8fa77d3a3b06dc00bf02ce985b1b901b46853caf2a72fb589f9d4e3fe3277786",
+    "src/infrastructure/database/domain-persistence-client.ts": "b155b9300d9366c46330087860c93d570c3b2deb16e3908c2934f3cfead881d4",
+    "tests/unit/infrastructure/typed-domain-persistence.test.ts": "c90976ba6f97d9654ec27ddfda9e1964b48e18275cd8333a0cfb0e2f116a2314",
+    "tests/unit/infrastructure/typed-container-persistence.test.ts": "619bca086ec3d11628ff8f1be1f62d1aea2977fd479ae60821674edcbe56cafc",
+    "tsconfig.runtime.json": "be4d02fae40c27dffbad1d969d25e2cb6f7a5426369037ed770b4c90fa5bea32"
+  }
+}

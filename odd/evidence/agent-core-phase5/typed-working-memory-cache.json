@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript short-lived working-memory cache, normalization, snapshots, history restoration, reference prompt and sanitization with injected host run cleanup",
+  "candidate": {
+    "filesPassed": 223,
+    "testsPassed": 2932,
+    "durationSeconds": 51.48
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 148,
+    "durationSeconds": 4.61
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "identityAliasesAndIsolatedFactoryInstances": "passed",
+    "positivePositionsExplicitNullTimeAndOpaqueMetadata": "passed",
+    "originalRestoredTimestampExactTtlFutureTolerance": "passed",
+    "recentNotificationRetainsInteractiveReferencesAndTimestamp": "passed",
+    "latestHistoryTombstoneAndCurrentCachePriority": "passed",
+    "snapshotCloneCycleGuardAndTenReferencePromptNoIds": "passed",
+    "hostRunCleanupAndSanitization": "passed",
+    "readOnlyTypedCacheSourceProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1368,
+    "normalizationAliasesTtlNotificationsSnapshotsTombstonesAndPrompt": true,
+    "hostClearBoundaryCallParity": true,
+    "sanitizerParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualStoreWrapperContextExecutionAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "aliasesReferencePositionsNotificationProtection": true,
+    "snapshotsTombstonesOriginalTtlAndAcknowledgement": true,
+    "isolatedTypedCacheAndHostCleanupBoundary": true,
+    "sanitizerPrivateIdGuard": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:9f0c3eaf5e1aed286a99fe30d94f7cafc9bcbc71a0528a3829e8355acc4c5153"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 264
+  },
+  "transitionalDeclarations": 48,
+  "sourceHashes": {
+    "src/agent/core/working-memory-cache.ts": "cfac0ba94670632f0c1a9797a100b950cd4aec020f00ba21aec3a16acefc7545",
+    "src/agent/core/working-memory-store.js": "a94a95eda37682f42b804fa7d755a02068f09af7e7ddad234260357a396f922c",
+    "src/agent/core/working-memory-store.d.ts": "fcbf575c00cbaec6daaa8ca293a56cbbf361e377e3449d862197d3846e94130f",
+    "tests/unit/agent/typed-working-memory-cache.test.ts": "784740cdc6adca9b0e96b091dc3ff218c6388ae268f37c8043e6c4ce7f11b5cb",
+    "scripts/evals/groq-contract/baseline.js": "3e5b79798037c2cfe388954cc44ce96e8a6d2fae523b6690dc0f7502ca108a9f",
+    "tsconfig.runtime.json": "9cacb904fb1fc261f56c0b12471220e16365b99d84828da2a460b8e0c1b67e58"
+  },
+  "limits": [
+    "No intentional runtime behavior changes in this extraction.",
+    "Working memory provides references, not live inventory, tenant ownership or effect/receipt certification; domain tools remain authoritative.",
+    "Legacy raw metadata, ID coercion, positional defaults and permissive object snapshot acceptance are preserved, not a new strict history schema.",
+    "Snapshot serialization clones persistable data and catches cycles; raw metadata and current cached state retain original sharing/mutability semantics.",
+    "User ID/phone lookup alias policy remains unchanged; this increment does not redesign alias collisions or cache scaling/eviction.",
+    "Run cleanup remains an injected host boundary; production singleton delegates to the existing in-memory run cleanup without adding SQL.",
+    "working-memory.js acknowledgement prompt and working-memory-execution.js mutation/fact application remain subsequent migration units.",
+    "No scheduler, SQL/storage/provider/model or transport effect boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual cache/wrapper/context/execution graph offline, not a full server boot or live provider request.",
+    "No deployment, V2 activation, live WhatsApp effect or real provider latency/quality/cost measurement."
+  ]
+}

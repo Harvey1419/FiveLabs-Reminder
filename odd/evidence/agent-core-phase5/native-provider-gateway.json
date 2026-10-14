@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 isolated native OpenRouter provider/configuration adapter, scoped fallback and safe failure accounting",
+  "candidate": {
+    "filesPassed": 174,
+    "testsPassed": 2165,
+    "durationSeconds": 39.93
+  },
+  "focused": {
+    "filesPassed": 19,
+    "testsPassed": 291,
+    "durationSeconds": 5.21
+  },
+  "newCases": 37,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "compiledApplicationEsmFixture": "passed",
+    "nativeWireBuilderParity": "passed",
+    "hostToWireToolPairIds": "passed",
+    "failedRouteNotRevisitedDuringTurn": "passed",
+    "freshRouteScopeBetweenTurns": "passed",
+    "failedAttemptUsageAggregation": "passed",
+    "inputOutputTotalAndPricedFallbackReservation": "passed",
+    "cancelBeforeTransportAndDuringBodyRead": "passed",
+    "ignoringTransportBoundedWait": "passed",
+    "refusalAndTruncatedDecisionSafety": "passed",
+    "knownEffectsPreservedAfterProviderFailure": "passed",
+    "safeErrorsAndPrivateCredentialStorage": "passed"
+  },
+  "compiledRuntime": {
+    "mode": "compiled ESM native gateway/configuration + durable coordinator with simulated fetch/domain/storage/transport",
+    "scenario": "metered primary failure -> secondary task read -> complete -> final -> text/flow acceptance -> owned recovery",
+    "events": [
+      "prepared:read",
+      "executed:read",
+      "observed:read",
+      "prepared:complete",
+      "executed:complete",
+      "observed:complete"
+    ],
+    "nativeRoutes": [
+      "fixture/primary",
+      "fixture/secondary",
+      "fixture/secondary",
+      "fixture/secondary"
+    ],
+    "providerAttempts": 4,
+    "inputTokens": 95,
+    "outputTokens": 32,
+    "accountingComplete": true,
+    "legacyWireParity": true,
+    "steps": 3,
+    "resultStatus": "completed",
+    "checkpointVersion": 1,
+    "deliveryKinds": [
+      "text",
+      "flow"
+    ],
+    "recovered": true,
+    "requiresReconciliation": false,
+    "actualProviderTokens": null,
+    "realStorage": false,
+    "realTransport": false
+  },
+  "adapter": {
+    "nativeToolCalling": true,
+    "strictStructuredOutput": false,
+    "implicitProviderFallbacks": false,
+    "routeSource": "current production MODEL_CONFIG native-tool primary/secondary/last-resort values plus timeout/reasoning environment settings",
+    "unmeteredFallback": "fail closed, no additional route or effects",
+    "usage": "aggregate all verified attempts; AIProviderError retains known failed usage and marks incomplete accounting",
+    "remoteCancellationBillingCertified": false,
+    "pricedCeiling": "explicit host rate ceiling must cover every active route; no price lookup/hardcoded model costs"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 74,
+    "transitionalDeclarations": 7,
+    "legacyJavaScriptRetired": 0
+  },
+  "productionRouting": "Existing JS gateway remains active; no v2 router/sender admission",
+  "liveCalls": {
+    "provider": 0,
+    "productionDatabase": 0,
+    "whatsapp": 0
+  },
+  "limitations": [
+    "Native tool protocol only; legacy strict execute_turn schema, background extraction/synthesis and multimodal parity remain outstanding.",
+    "Missing usage/network/unreadable body/timeout abort fallback conservatively; full legacy outage-availability parity is not claimed.",
+    "Conservative byte reservation is not provider-aware input tokenization; reported native-token counts in fixtures are scripted.",
+    "Host-priced ceilings are estimates; actual provider billing and cancellation behavior require independent evidence/evaluation.",
+    "Configured model/provider capabilities, real semantic quality, TTFT/p95 latency and cost remain unverified.",
+    "No legacy JS implementation retired; full strictTS maintained source/runtime migration still pending.",
+    "Mixed unknown effect/delivery reconciliation and authenticated engine handoff remain beforecanary prerequisites."
+  ],
+  "rollback": "Remove isolated native provider/config bridge and optional scoped-provider/budget/error integration; preserve preceding productivity checkpoints, version fences and durable flow.",
+  "references": {
+    "api": "https://openrouter.ai/docs/api_reference/overview",
+    "toolCalling": "https://openrouter.ai/docs/guides/features/tool-calling",
+    "routing": "https://openrouter.ai/docs/guides/routing/provider-selection"
+  },
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-gateway-typecheck.log",
+    "focused": "/private/tmp/hermes-gateway-focused.log",
+    "fullSuite": "/private/tmp/hermes-gateway-unit.log",
+    "inventory": "/private/tmp/hermes-gateway-inventory.json",
+    "compiledRuntime": "/private/tmp/hermes-gateway-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-gateway-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-gateway-runtime.mjs"
+  }
+}

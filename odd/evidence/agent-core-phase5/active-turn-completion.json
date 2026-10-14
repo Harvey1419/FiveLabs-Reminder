@@ -1,0 +1,191 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 isolated atomic inbound completion, authenticated input and exact accepted exchange history",
+  "candidate": {
+    "filesPassed": 186,
+    "testsPassed": 2496,
+    "durationSeconds": 43.94
+  },
+  "focused": {
+    "filesPassed": 31,
+    "testsPassed": 622,
+    "durationSeconds": 7.49
+  },
+  "newCases": 20,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "isolatedStrictHostEmit": "passed",
+    "preMutationInputCaptureAndFingerprint": "passed",
+    "actualAcceptedManifestBaselineAndJournalRead": "passed",
+    "orderedClaimActionTargetOperationReceiptBinding": "passed",
+    "deterministicAcceptedReplyHistoryReconstruction": "passed",
+    "oldAndCurrentExchangeAndHandledLedgerPreservation": "passed",
+    "alteredInputHistoryRecordsAndOwnershipRejected": "passed",
+    "completeSourceAndPersistedReceiptCAS": "passed",
+    "atomicCompletionRequestCleanupAndLeaseRetirement": "passed",
+    "expiredPostUpdateRollsBackAllClosureChanges": "passed",
+    "noLeaseRenewalAfterAcknowledgedClosure": "passed",
+    "lostAcceptanceReplyVerifiedInLedgerWithoutResend": "passed",
+    "lostFinalizationReplyHistoryRecoverable": "passed",
+    "nextActualBaselineImportsCompletion": "passed",
+    "uncooperativeFinalizationCancellation": "passed",
+    "oldReconcilerCannotDropNewInputHistory": "passed",
+    "privateInvokerRPCAndFrontendExecuteDenial": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "runtime": {
+    "mode": "actual strict-checked TS through tsx, actual legacy JS execution bridge, actual local SQL history/queue closure; HTTP responses simulated",
+    "hostEmit": "strict without skipLibCheck; full emitted production runtime not certified",
+    "scenarios": [
+      {
+        "scenario": "success",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 0,
+          "httpCalls": 1,
+          "rpcCalls": 12,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_acceptance",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 19,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_finalization",
+        "applied": {
+          "status": "ACTIVE_COMPLETION_STORAGE_UNCERTAIN",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "applied": {
+          "status": "ACTIVE_RUN_RECONCILIATION_REQUIRED",
+          "domainCalls": 1,
+          "httpCalls": 0,
+          "rpcCalls": 13,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": null
+      }
+    ],
+    "localTaskMutations": 4,
+    "simulatedProviderHttpRequests": 4,
+    "replayedTaskMutations": 0,
+    "replayedSends": 0,
+    "completedScenarios": 4,
+    "unresolvedLostTaskReplyScenarios": 1,
+    "nextBaselineImportsCurrentAndPriorHistory": true,
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "productionDatabaseCalls": 0
+  },
+  "postgres": {
+    "previousCombinedAssertions": 205,
+    "completionAssertions": 20,
+    "totalAssertions": 225,
+    "transactionRolledBack": true,
+    "precedingFunctionsUpdatedBeforeFixtures": true,
+    "lateExpiredWriteRolledBack": true,
+    "migrationDeployed": false,
+    "sqlFile": "supabase/migrations/20261012052153_agent_core_active_turn_completion.sql",
+    "concurrentFirstFinalizationTested": false
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 123,
+    "transitionalDeclarations": 12,
+    "legacyJavaScriptRetired": 0
+  },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Disconnected typed finalization; legacy worker renewal/finish handshake requires adaptation before activation; existing router/scheduler remain active",
+  "limitations": [
+    "Exact-UUID task complete/delete approvals and task-run cancellations only; text delivery remains bounded to its existing transport limit.",
+    "Completed certificates are trusted backend records, not independently signed evidence or proof of handset delivery. Host semantic validation is required alongside SQL guards.",
+    "Baseline-only/failed-acquisition/new-format unknown-turn recovery under a later lease remains pending; older reconciliation is fenced to avoid losing current input history.",
+    "Lost task replies before a manifest exists still require independent interruption handling and do not trigger a success send.",
+    "Prior reminder references preserve historical fields; current acknowledgment timestamps are not invented from companion IDs.",
+    "Production legacy worker must recognize retired completion before activation; no routing or production migration occurred.",
+    "Actual boundary fixture uses tsx and existing JS execution code; full emitted builds and broader SDK compatibility remain open.",
+    "Initial checkpoint history and HTTP responses are fixture-simulated; no Supabase SDK service-role/provider/WhatsApp production round trip.",
+    "Concurrent first SQL finalization is not separately tested; duplicate denial and late-expiry rollback are.",
+    "Full maintained JS conversion/declaration retirement, legacy baseline handoff, live provider evaluation and rollout gates remain open.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Disable typed finalization admission/composition; retain input/baselines, original checkpoints, journal/delivery receipts and completed certificates with namespace fences.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-completion-typecheck.log",
+    "focused": "/private/tmp/hermes-completion-focused.log",
+    "fullSuite": "/private/tmp/hermes-completion-unit.log",
+    "inventory": "/private/tmp/hermes-completion-inventory.json",
+    "postgres": "/private/tmp/hermes-completion-postgres.log",
+    "postgresHarness": "/private/tmp/hermes-completion-postgres.sql",
+    "hostEmit": "/private/tmp/hermes-completion-runtime-compile.log",
+    "hostEmitConfig": "/private/tmp/hermes-completion-runtime-tsconfig.json",
+    "runtime": "/private/tmp/hermes-completion-roundtrip.json",
+    "runtimeLog": "/private/tmp/hermes-completion-roundtrip.log",
+    "runtimeHarness": "/private/tmp/hermes-completion-runtime.mjs",
+    "roundTripHarness": "/private/tmp/hermes-completion-roundtrip.py"
+  }
+}

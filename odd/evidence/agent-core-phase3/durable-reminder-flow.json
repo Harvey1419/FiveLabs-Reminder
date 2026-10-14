@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 3 isolated durable reminder execution and outbound boundaries",
+  "candidate": { "filesPassed": 164, "testsPassed": 1997, "durationSeconds": 60.06 },
+  "focused": { "filesPassed": 10, "testsPassed": 130, "durationSeconds": 5.00 },
+  "newCases": 21,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "compiledEsmExports": "passed",
+    "diffWhitespace": "passed",
+    "leaseIdentityAndConcurrentAdmission": "passed",
+    "checkpointBeforeDispatchAndDelivery": "passed",
+    "persistedUnknownEffectAndBatchWriteFence": "passed",
+    "uncertainTransportNoAutomaticReplay": "passed",
+    "individualCardAndCtaReceipts": "passed"
+  },
+  "persistence": {
+    "integration": "Existing inbound worker lease and checkpoint RPC; no schema changes",
+    "testedBoundary": "Simulated checkpoint/renewal callbacks; actual worker lease exposure tested separately",
+    "recovery": "Unknown/interrupted turns require reconciliation; no automatic replay",
+    "journal": "Complete agentCore object per checkpoint because SQL merges top-level keys only"
+  },
+  "transport": "Injected simulated delivery port; accepted provider identity is not handset delivery",
+  "inventory": { "javascript": 313, "typescript": 38, "transitionalDeclarations": 4, "legacyJavaScriptRetired": 0 },
+  "productionRouting": "V2 remains disconnected; inbound worker gains lease metadata; reminder scheduler unchanged",
+  "liveCalls": { "provider": 0, "database": 0, "whatsapp": 0 },
+  "limitations": [
+    "No new exactly-once external delivery guarantee; uncertain attempts are quarantined.",
+    "Owned cross-turn checkpoint retrieval, engine pinning and authenticated router/real transport integration remain.",
+    "Reconciliation workflow and account-wide unresolved-effect fencing remain.",
+    "Single model decision per turn; Phase 4 multi-hop loop and compaction remain.",
+    "Mock tests do not certify live model semantics, database behavior, latency or cost."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase3-durable-focused.log",
+    "fullSuite": "/private/tmp/hermes-phase3-durable-unit.log",
+    "inventory": "/private/tmp/hermes-phase3-durable-inventory.json"
+  }
+}

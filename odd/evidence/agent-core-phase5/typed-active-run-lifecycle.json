@@ -1,0 +1,210 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 maintained strict TS suspended-run lifecycle and pure prompt, with compiled legacy host wiring and offline evaluator compatibility",
+  "candidate": {
+    "filesPassed": 188,
+    "testsPassed": 2534,
+    "durationSeconds": 47.16
+  },
+  "focused": {
+    "filesPassed": 40,
+    "testsPassed": 818,
+    "durationSeconds": 12.16
+  },
+  "newCases": 21,
+  "checks": {
+    "strictProjectPackageRuntimeTypecheck": "passed",
+    "compiledLegacyDomainAndStorageParity": "passed",
+    "inertCandidateBeforeStagingAndRetirement": "passed",
+    "stagingFailurePreservesOriginal": "passed",
+    "primaryFrozenOrPrimitiveErrorPreserved": "passed",
+    "lostRetirementNeverActivates": "passed",
+    "uncertainActivationRetainsDraft": "passed",
+    "exactCancellationAndOwnerAcquisition": "passed",
+    "originalPromptByteParity": "passed",
+    "invocationTimeHostBinding": "passed",
+    "offlineOriginalTsSourceProvenance": "passed",
+    "offlineEffectImportStillDenied": "passed",
+    "productionImageBuild": "passed",
+    "compilerFreeNode22LegacyLifecycleBoundary": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "runtime": {
+    "scenarios": [
+      {
+        "scenario": "success",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 0,
+          "httpCalls": 1,
+          "rpcCalls": 12,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_acceptance",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 19,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_finalization",
+        "applied": {
+          "status": "ACTIVE_COMPLETION_STORAGE_UNCERTAIN",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 1,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "applied": {
+          "status": "ACTIVE_RUN_RECONCILIATION_REQUIRED",
+          "domainCalls": 1,
+          "httpCalls": 0,
+          "rpcCalls": 13,
+          "legacyFinishes": 1,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": null
+      }
+    ],
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "mode": "compiled TS worker and shared lease -> actual TS source composition through tsx -> actual SQL claim/renew/receipt/close -> simulated HTTP"
+  },
+  "docker": {
+    "image": "hermes-lifecycle-runtime:local",
+    "node": "22.23.3",
+    "network": "none",
+    "actualLegacyModule": true,
+    "actualLegacyOfflineStorage": true,
+    "inputCreation": true,
+    "failedStagingPreservesOriginal": true,
+    "approvalReplacement": true,
+    "staleCancellationBlocked": true,
+    "actualAcquisition": true,
+    "fenceBeforeDispatch": true,
+    "actualExecutionFactPresenter": true,
+    "compilerOrTypeScriptLoaderRequiredAtBoot": false,
+    "nativePureTsPromptEvaluation": true,
+    "runtimeSourcePromptParity": true,
+    "nativeStripWarning": "Node22 experimental API warning, offline tooling only",
+    "liveHttpCalls": 0
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 130,
+    "transitionalDeclarations": 11,
+    "agentRunJsLinesBefore": 361,
+    "agentRunJsLinesAfter": 49,
+    "compatibilityDeclarationRetained": true
+  },
+  "sqlChanges": false,
+  "previous235AssertionFixtureRerun": false,
+  "creationSupersessionSqlRoundtrip": "not executed; typed ports and actual legacy offline storage exercised",
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent-core tests/unit/agent/agent-run-invariants.test.js tests/unit/agent/agent-run-domain-parity.test.js tests/unit/agent/agent-run-incomplete-reminders.test.js tests/unit/agent/agent-run-destructive-batch.test.js tests/unit/infrastructure/agent-runs-storage.test.js tests/unit/agent/groq-contract-evaluation.test.js tests/unit/messaging/inbound-turn-worker.test.ts",
+    "pnpm run test:unit",
+    "pnpm run migration:inventory",
+    "python3 /private/tmp/hermes-worker-roundtrip.py",
+    "docker build -t hermes-lifecycle-runtime:local .",
+    "docker run --rm -i --network none -e SUPABASE_URL=https://placeholder.supabase.co -e SUPABASE_SECRET=fixture-only hermes-lifecycle-runtime:local node --input-type=module < /private/tmp/hermes-lifecycle-node22.mjs",
+    "git diff --check"
+  ],
+  "sourceSha256": {
+    "src/agent/core/active-run-lifecycle.ts": "66632c321c106217fe3dd8b8ca99138424de0cc2d43cbf24cd5e3ce245919068",
+    "src/agent/core/active-run-prompt.ts": "49fbea6805dfbefe0d52910b179a3fa3d99ea7e444b3676d1f83ca91f20305eb",
+    "src/agent/core/agent-run.js": "6eac5fab968c8a72bc3c2fd82c3b1107778f0268816a144bcd943017b63de16e",
+    "src/agent/core/agent-run.d.ts": "2e26b1fbda786503e997dc0e4251e2020730d0b854c7bceebfc843fb123a6209",
+    "tests/unit/agent-core/legacy-run-lifecycle.test.ts": "991164fb26e37dddb8cbd19c8f0991b3861414afa0d47043e1ce786f5236a8b7",
+    "tests/fixtures/agent-core/active-run-prompt-before-typescript.json": "61000669a63c30d36d1723b0c67b186689f6ffe3004db375cdd81bae3b3d2b22",
+    "scripts/evals/groq-contract/baseline.js": "7d503549de6b1dd88626bfb08aa822321cf5118df2f92c4340189e3a6859306f",
+    "tests/unit/agent/groq-contract-evaluation.test.js": "da0625214b082ea87fbda0757d2ec2ad11f6da600cec3b5887969b11e7513243",
+    "tsconfig.runtime.json": "0ce6c7bcd8f5babd2d9e278a24def019f392a13532d22e85a35868c6ce1ffe55",
+    ".github/workflows/ci.yml": "c22e59d958d4e18c9df45f8c7cec5656b3b1626027bb76df0964b790d73c3210"
+  },
+  "regressionFoundAndResolved": "Groq offline evaluator depended on extracting the prompt function from agent-run.js. Updated to allowlisted pure TS presenter, preserving source hashes and denial of effect-owning imports; complete suite passes.",
+  "limits": [
+    "JS import shims and eleven compatibility declarations remain",
+    "Legacy database and remaining application/scripts/tests still need TS conversion",
+    "No new storage call timeout added by this extraction",
+    "Broader SDK full-application emit issue remains open",
+    "Interrupted new-format unknown turns still need authoritative reconciliation; never replayed",
+    "No schema permission fixture rerun in this unit",
+    "Full Node22 suite not executed",
+    "Node22 type stripping is experimental and used only by offline tooling",
+    "No live provider, WhatsApp, production Supabase, deployment, commit or V2 routing activation"
+  ],
+  "rollback": "Restore preceding lifecycle/prompt bodies and declaration/evaluator/build wiring together; retain existing fences and persisted receipts/certificates."
+}

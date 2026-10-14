@@ -1,0 +1,21 @@
+import { describe,expect,it } from 'vitest';
+import { validLearningCandidates } from '../../../src/agent/contracts/learning-candidates-contract.js';
+import { matchesSchema } from '../../../src/agent/contracts/schema-value-contract.js';
+import { validateTurnContext } from '../../../src/agent/contracts/turn-context-contract.js';
+import { responseVoice } from '../../../src/agent/contracts/response-policy-contract.js';
+import { TOOL_NAMES } from '../../../src/agent/contracts/tool-names-contract.js';
+const candidate={topicKey:'profile/residence',category:'fact',content:'Lives in Cali',evidence:'Vivo en Cali.'};
+describe('typed contract boundaries',()=>{
+  it('candidate proposals cannot supply a model-selected owner',()=>{expect(validLearningCandidates([{...candidate,userId:'foreign'}])).toBe(false);});
+  it('a proposal requires source evidence as well as content',()=>{const {evidence,...without}=candidate;expect(evidence).toBeTruthy();expect(validLearningCandidates([without])).toBe(false);});
+  it('nullable optional entity hints remain metadata and pet remains a valid topic hint',()=>{expect(validLearningCandidates([{...candidate,entityName:null,entityCategory:null}])).toBe(true);expect(validLearningCandidates([{...candidate,entityName:'Ada',entityCategory:'pet'}])).toBe(true);});
+  it('an inherited property cannot satisfy a required action field',()=>{expect(matchesSchema(Object.create({target:'foreign'}),{type:'object',required:['target'],properties:{target:{type:'string'}}})).toBe(false);});
+  it('schema arrays validate every nested candidate and require unique values',()=>{expect(matchesSchema([{id:'one'},{id:'one'}],{type:'array',uniqueItems:true,items:{type:'object',required:['id'],properties:{id:{type:'string'}},additionalProperties:false}})).toBe(false);});
+  it('extra action fields are rejected when the schema closes its properties',()=>{expect(matchesSchema({operation:'task.list',owner:'foreign'},{type:'object',properties:{operation:{type:'string'}},additionalProperties:false})).toBe(false);});
+  it('finite numeric deltas stay distinct from numeric strings and infinity',()=>{for(const invalid of ['1',Infinity,NaN])expect(matchesSchema(invalid,{type:'number',minimum:0,maximum:10})).toBe(false);expect(matchesSchema(1,{type:'number',minimum:0,maximum:10})).toBe(true);});
+  it('a response-language change alone never creates a profile update',()=>{expect(validateTurnContext({responseLanguage:'en'})).toEqual({valid:true,context:{responseLanguage:'en'}});});
+  it('profile changes require a nonempty source quote and real timezone',()=>{expect(validateTurnContext({profileUpdate:{language:'en',sourceQuote:''}}).valid).toBe(false);expect(validateTurnContext({profileUpdate:{sourceQuote:'I moved',timezone:'Unknown/City'}}).valid).toBe(false);});
+  it('profile authority cannot contain a user ID supplied by the model',()=>{expect(validateTurnContext({profileUpdate:{sourceQuote:'I moved',timezone:'America/Bogota',userId:'foreign'}}).valid).toBe(false);});
+  it('explicit optional null fields remain compatible with existing context output',()=>{expect(validateTurnContext({responseLanguage:null,profileUpdate:{sourceQuote:'Do not change it',timezone:null,language:null}})).toEqual({valid:true,context:{profileUpdate:{sourceQuote:'Do not change it',timezone:null,language:null}}});});
+  it('response voice and tool identities retain the deployed contract',()=>{expect(responseVoice('es')).toContain('Colombian');expect(responseVoice('en')).toBe('English');expect(TOOL_NAMES.EXECUTE_TURN).toBe('execute_turn');expect(Object.isFrozen(TOOL_NAMES)).toBe(true);});
+});

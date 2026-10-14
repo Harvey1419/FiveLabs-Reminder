@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "preexistingChanges": ["package.json dependency additions", "pnpm-lock.yaml dependency additions"],
+  "baseline": { "filesPassed": 155, "testsPassed": 1872, "durationSeconds": 39.61 },
+  "candidate": { "filesPassed": 156, "testsPassed": 1883, "durationSeconds": 68.53 },
+  "focused": { "filesPassed": 1, "testsPassed": 11, "testExecutionMs": 7 },
+  "offlineSmoke": { "passed": 50, "total": 50, "networkBlocked": true },
+  "inventory": { "javascript": 313, "typescript": 7, "roots": ["src", "scripts", "tests", "test", "packages"] },
+  "checks": { "strictTypecheck": "passed", "esmImports": "passed", "frozenWorkspaceInstall": "passed", "productionManifestInstall": "passed" },
+  "liveProviderBaseline": "not measured in this unit",
+  "productionRouting": "unchanged; v2 foundations disconnected",
+  "phaseStatus": "foundation implemented; live metrics and symptom reproduction remain before canary",
+  "localLogs": {
+    "baseline": "/private/tmp/hermes-ts-phase1-baseline.log",
+    "candidate": "/private/tmp/hermes-ts-phase1-verified.log",
+    "smoke": "/private/tmp/hermes-ts-phase1-smoke.json"
+  }
+}

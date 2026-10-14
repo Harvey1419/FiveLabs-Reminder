@@ -1,0 +1,309 @@
+{
+  "increment": "strict-final-integration-and-acceptance-suites",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": false,
+  "scope": {
+    "migratedJavaScriptFiles": 5,
+    "integrationTestFilesMigrated": 4,
+    "acceptanceTestFilesMigrated": 1,
+    "newTests": 0,
+    "productionSourceChanges": false,
+    "compilerOrConfigurationChanges": false,
+    "fixtureContractRepairs": true
+  },
+  "migration": [
+    {
+      "before": "tests/integration/agent/agent-behavior.integration.test.js",
+      "after": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "beforeSha256": "924f3cc9aa31b777da8cd906d9b222e58fe7e1e8ea540d18417f5ac25a3d5680",
+      "afterSha256": "e493680fc0693aee914596192eae696691d145d7446603b79448e690eab9ad95",
+      "retainedDeclarations": 37,
+      "expandedDeclaredCases": 37
+    },
+    {
+      "before": "tests/integration/agent/hardening.integration.test.js",
+      "after": "tests/integration/agent/hardening.integration.test.ts",
+      "beforeSha256": "a1efbf4c7922170184639bc96fb0953d11a4fcdbea7134e3eeb52c04f6736684",
+      "afterSha256": "2f0530b46b764077dd3f389b4095a4b9c52626b85c7e19621261cbbad8c2d7be",
+      "retainedDeclarations": 17,
+      "expandedDeclaredCases": 17
+    },
+    {
+      "before": "tests/integration/agent/orchestration.integration.test.js",
+      "after": "tests/integration/agent/orchestration.integration.test.ts",
+      "beforeSha256": "c837ac99236c109c374818d3adfa9e62f6e241b45892f07d92d9f7820bb94d66",
+      "afterSha256": "c35b29acf369e71b371abf4f4a8df86d856976e2b34ff0f9cc0973002361a653",
+      "retainedDeclarations": 12,
+      "expandedDeclaredCases": 12
+    },
+    {
+      "before": "tests/integration/agent/production-contracts.integration.test.js",
+      "after": "tests/integration/agent/production-contracts.integration.test.ts",
+      "beforeSha256": "73916d5d1c3b46455e837680bafc79f1ce0414ec448a6fb0f30b35e10f0a95ea",
+      "afterSha256": "eae12988d253b1dc92914196672bd8d11660e08c60d12f3ca28c819b645fcb1f",
+      "retainedDeclarations": 25,
+      "expandedDeclaredCases": 25
+    },
+    {
+      "before": "tests/acceptance/foreground-live.integration.test.js",
+      "after": "tests/acceptance/foreground-live.integration.test.ts",
+      "beforeSha256": "8f2580a33420bd74ba69249617b1ab05e073e941d321d420cb865e3c2b8ac002",
+      "afterSha256": "5e4fd56d91616f12d493ead0ec402828a538df54ac0502634d45e290a91066ff",
+      "retainedDeclarations": 24,
+      "expandedDeclaredCases": 28
+    }
+  ],
+  "behavior": {
+    "preservedDeclarations": "115 original declarations / 119 expanded declared cases remain: behavior 37, hardening 17, orchestration 12, production contracts 25 and acceptance 24 declarations / 28 cases. Original titles, assertion goals, hooks, timeouts, fake/live opt-in behavior, route allowlist and request accounting remain.",
+    "entrypointRepairs": "Replace missing task/reminder domain executor modules with current executeTaskCreate/executeReminderCreate and remove obsolete outer action selectors. Reminder create params become items retaining original values. Direct task update and missing reminder cancellation selectors become target; named-container task completion supplies target. Semantic memory extraction uses current object input; the original legacy language value remains an unconsumed fixture field.",
+    "failureMockRepairs": "Current task creation performs owned entity inventory preflight and batch INSERT.select. The two original SQL failure fixtures now provide an empty inventory and directly awaited batch error reply. Original 23514/PGRST000 payloads and error assertions remain. Original from is bound before spying to avoid recursive fallback. The test-local SDK view describes actual runtime operations omitted from the narrower production port.",
+    "consumedTypes": "Test-local SDK/profile/row/route, mock sandbox, provider envelope and validation views preserve raw partial or historical fixtures; no field filling, production widening or compiler relaxation. Existing untrustedResultMock identity helper keeps real spy inputs while preserving malformed/partial outputs. Non-null assertions preserve original direct reads.",
+    "acceptance": "Actual provider remains real, domain side effects/DB reads stay mocked. Known stage/key prerequisite, explicit route-compatible fallback allowlist, request count limit, semantic expectations and default skipped domain-action group remain unchanged. This suite is not run live."
+  },
+  "verification": {
+    "strictPackageRuntimeProjectTypecheck": "passed; strict flags unchanged; no suppressions or explicit any",
+    "unitSuite": {
+      "files": 278,
+      "tests": 3496,
+      "durationSeconds": 60.91,
+      "allPreviousTestsRetained": 3496,
+      "newCases": 0
+    },
+    "extractedOfflineProbe": {
+      "file": "tests/unit/.final-integration-probe.test.ts",
+      "sha256": "fbb2e67feda91e22644d1e36e725dbf293d39166705554fe87bcceed2080e87d",
+      "selected": {
+        "tests/integration/agent/hardening.integration.test.ts": [
+          "serializes concurrent messages from the same user in strict sequential order",
+          "strictly prevents destructive merges of short unrelated words",
+          "matches valid plural and project name inflections",
+          "correctly computes exact UTC timestamps across DST transitions in zonedTimeToUtc",
+          "parses relative natural expressions deterministically"
+        ],
+        "tests/integration/agent/production-contracts.integration.test.ts": [
+          "detects timezone from international phone prefixes and Meta BSUIDs",
+          "detects timezone from natural location and travel text",
+          "detects timezone from GPS coordinates",
+          "normalizes entity names and computes similarity scores correctly"
+        ],
+        "tests/integration/agent/agent-behavior.integration.test.ts": [
+          "TEST 13: Internal IDs, [id: ...] tags and UUIDs are NEVER exposed in user-facing confirmation"
+        ],
+        "tests/integration/agent/orchestration.integration.test.ts": [
+          "TEST 3: preserves PostgreSQL 23514 check constraint error as DATABASE_CONSTRAINT_ERROR, never MISSING_TITLE",
+          "TEST 4: preserves DB connection/internal failure as DATABASE_ERROR"
+        ]
+      },
+      "cases": 12,
+      "repairs": "Current batch insert result and owned entity preflight mock; original SQL error payloads/assertions unchanged",
+      "passedCases": 12,
+      "durationSeconds": 1.37,
+      "removedBeforeFullUnitSuite": true,
+      "initialDiagnostic": "Ten cases passed; two write-failure cases stopped at unmocked entity preflight under NETWORK_BLOCKED. Current preflight/batch mocks were repaired and all twelve then passed.",
+      "environment": "Actual selected migrated case bodies with synthetic user; original DB-creating hooks skipped; existing unit global fetch/native http/https ban."
+    },
+    "compiledRuntimeGraph": {
+      "modules": 259,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "unchangedRuntimeGeneratedDeclarationHashes": 562,
+    "runtimeReference": "Current strict chat-adapter Node 24 build; prior single trusted CLI path delta remains, no new Node 22 image certification.",
+    "hostNode": "24.15.0",
+    "whitespaceCheck": "passed; includes untracked migrated files",
+    "normalizedExecutableLogicParity": {
+      "files": [
+        {
+          "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+          "retainedDeclarations": 37,
+          "expandedDeclaredCases": 37,
+          "normalizedJavaScriptSha256": "a53ecd11cfbfbf4fa8a3767d63d40c736032ff7048eda1d04c795b4ad034f2d8"
+        },
+        {
+          "path": "tests/integration/agent/hardening.integration.test.ts",
+          "retainedDeclarations": 17,
+          "expandedDeclaredCases": 17,
+          "normalizedJavaScriptSha256": "45450809d15ea40bb55c1807c059c55adf65dac06502009d08bee40af3d8aa9d"
+        },
+        {
+          "path": "tests/integration/agent/orchestration.integration.test.ts",
+          "retainedDeclarations": 12,
+          "expandedDeclaredCases": 12,
+          "normalizedJavaScriptSha256": "be1f646c116922d98acb1590142dbc7ce0aa89c5b5e9598e7d1bbe5528c89af0"
+        },
+        {
+          "path": "tests/integration/agent/production-contracts.integration.test.ts",
+          "retainedDeclarations": 25,
+          "expandedDeclaredCases": 25,
+          "normalizedJavaScriptSha256": "91efe59402d6064814d6102de1ef3b4464596645906d567d74c544a6239f593e"
+        },
+        {
+          "path": "tests/acceptance/foreground-live.integration.test.ts",
+          "retainedDeclarations": 24,
+          "expandedDeclaredCases": 28,
+          "normalizedJavaScriptSha256": "27eb8773595836f55711f97df7fdd7ef3351b503e82177f185eb2f245dc862e0"
+        }
+      ],
+      "normalization": "Both JS-subset references and TS candidates use the same TS parser, verbatimModuleSyntax:true and ES2022 syntax/whitespace normalization; no identifier minification.",
+      "allowedChanges": [
+        "Retired task/reminder executor imports replaced with atomic handlers; obsolete outer action selectors removed",
+        "Reminder creation params use items without changing content/time/recurrence values",
+        "Direct task update and missing-reminder cancellation selectors use target; named-container completion supplies target",
+        "Memory extraction uses current object input; raw unused legacy language remains fixture-only",
+        "Failure mocks cover owned entity inventory and batch insert result, retain original SQL errors/assertions and bind original from to prevent recursive fallback",
+        "Existing raw provider/calendar spy output goes through the test-only untrustedResultMock identity view"
+      ]
+    },
+    "migratedExternalSuites": {
+      "files": 5,
+      "retainedDeclarations": 115,
+      "expandedDeclaredCases": 119,
+      "fullSuitesExecuted": false,
+      "verification": "strict typecheck, retained declarations, bounded executable parity and twelve extracted offline cases",
+      "reason": "Four original suites have DB-creating hooks and external cases; acceptance invokes a real provider. No live hooks/provider scenario is run in this migration."
+    },
+    "liveDatabaseProviderBillingOrWhatsAppEffects": false,
+    "dockerRebuild": false,
+    "productionDeployment": false
+  },
+  "inventory": {
+    "counts": {
+      "javascript": 114,
+      "typescript": 688
+    },
+    "remainingByRoot": {
+      "src": 114,
+      "scripts": 0,
+      "tests": 0
+    },
+    "remainingJavaScript": [
+      "src/agent/contracts/agent-run-contracts.js",
+      "src/agent/contracts/foreground-turn-schema.js",
+      "src/agent/contracts/foreground-turn-validation.js",
+      "src/agent/contracts/intent-contracts.js",
+      "src/agent/contracts/learning-candidates.js",
+      "src/agent/contracts/reminder-query.js",
+      "src/agent/contracts/response-policy.js",
+      "src/agent/contracts/schema-value.js",
+      "src/agent/contracts/tool-names.js",
+      "src/agent/contracts/turn-context.js",
+      "src/agent/core/agent-core.js",
+      "src/agent/core/agent-run.js",
+      "src/agent/core/context-reference.js",
+      "src/agent/core/execution-facts.js",
+      "src/agent/core/presentation-policy.js",
+      "src/agent/core/turn-lease.js",
+      "src/agent/core/working-memory-execution.js",
+      "src/agent/core/working-memory-store.js",
+      "src/agent/core/working-memory.js",
+      "src/agent/orchestration/clarification-flow.js",
+      "src/agent/orchestration/clarification-presentation.js",
+      "src/agent/orchestration/context-target-pinner.js",
+      "src/agent/orchestration/domain-call.js",
+      "src/agent/orchestration/intent-executor.js",
+      "src/agent/orchestration/intent-normalizer.js",
+      "src/agent/orchestration/next-best-action.js",
+      "src/agent/orchestration/observed-answer.js",
+      "src/agent/orchestration/personal-knowledge.js",
+      "src/agent/orchestration/resolve-observed-target.js",
+      "src/agent/orchestration/router-context.js",
+      "src/agent/orchestration/router-core.js",
+      "src/agent/orchestration/router.js",
+      "src/agent/orchestration/select-memory-forgetting.js",
+      "src/agent/orchestration/typed-schedule.js",
+      "src/agent/providers/attempt-diagnostics.js",
+      "src/agent/providers/client.js",
+      "src/agent/providers/request-payload.js",
+      "src/agent/tools/admin.js",
+      "src/agent/tools/calendar.js",
+      "src/agent/tools/entities.js",
+      "src/agent/tools/formatters.js",
+      "src/agent/tools/index.js",
+      "src/agent/tools/memory.js",
+      "src/agent/tools/projects.js",
+      "src/agent/tools/reminder-acknowledge.js",
+      "src/agent/tools/reminder-advance.js",
+      "src/agent/tools/reminder-bulk-cancel.js",
+      "src/agent/tools/reminder-cancel.js",
+      "src/agent/tools/reminder-create.js",
+      "src/agent/tools/reminder-owner.js",
+      "src/agent/tools/reminder-pro.js",
+      "src/agent/tools/reminder-read.js",
+      "src/agent/tools/reminder-reference.js",
+      "src/agent/tools/reminder-update.js",
+      "src/agent/tools/subscriptions.js",
+      "src/agent/tools/task-complete.js",
+      "src/agent/tools/task-create.js",
+      "src/agent/tools/task-delete.js",
+      "src/agent/tools/task-read.js",
+      "src/agent/tools/task-reference.js",
+      "src/agent/tools/task-update.js",
+      "src/agent/tools/unified-agenda.js",
+      "src/app/server.js",
+      "src/features/agenda/service.js",
+      "src/features/calendar/index.js",
+      "src/features/calendar/reconciliation.js",
+      "src/features/memory/service.js",
+      "src/features/memory/validate-candidates.js",
+      "src/features/reminders/dispatch-policy.js",
+      "src/features/tasks/service.js",
+      "src/features/users/onboarding.js",
+      "src/http/routes/google-auth.js",
+      "src/http/views/home.js",
+      "src/http/views/landing.js",
+      "src/http/views/legal.js",
+      "src/http/webhooks/google-calendar.js",
+      "src/http/webhooks/stripe.js",
+      "src/http/webhooks/whatsapp.js",
+      "src/infrastructure/database/agent-runs.js",
+      "src/infrastructure/database/entities.js",
+      "src/infrastructure/database/inbound-turns.js",
+      "src/infrastructure/database/index.js",
+      "src/infrastructure/database/integrations.js",
+      "src/infrastructure/database/memories.js",
+      "src/infrastructure/database/messages.js",
+      "src/infrastructure/database/projects.js",
+      "src/infrastructure/database/subscriptions.js",
+      "src/infrastructure/database/tasks.js",
+      "src/infrastructure/database/users.js",
+      "src/integrations/ai/embeddings.js",
+      "src/integrations/google/auth.js",
+      "src/integrations/google/calendar.js",
+      "src/integrations/media/document-processor.js",
+      "src/integrations/media/transcription.js",
+      "src/integrations/stripe/client.js",
+      "src/integrations/whatsapp/kapso-client.js",
+      "src/jobs/calendar-watch-renewal.js",
+      "src/jobs/inbound-turn-worker.js",
+      "src/jobs/memory-extractor.js",
+      "src/jobs/morning-briefing.js",
+      "src/jobs/reminder-scheduler.js",
+      "src/shared/agenda-presentation.js",
+      "src/shared/agenda-scopes.js",
+      "src/shared/auth.js",
+      "src/shared/current-user-input.js",
+      "src/shared/entity-categories.js",
+      "src/shared/entity-presentation.js",
+      "src/shared/entity-resolution.js",
+      "src/shared/language-detection.js",
+      "src/shared/presentation-tokens.js",
+      "src/shared/reminder-presentation.js",
+      "src/shared/reminder-recurrence.js",
+      "src/shared/task-presentation.js",
+      "src/shared/time.js"
+    ],
+    "transitionalSourceDeclarations": 0,
+    "remainingUnitJavaScript": 0,
+    "remainingTestJavaScript": 0,
+    "remainingScriptJavaScript": 0
+  },
+  "limits": [
+    "The 119 external cases are retained, not all executed/passing. Twelve extracted checks do not certify live provider inference, persisted ownership/cleanup, scheduler leases, calendar delivery or full integration behavior after fixture repairs. Existing isolated DB integration gate and acceptance live opt-ins remain unchanged.",
+    "Behavior suite retains historical type:tool_call/chat mock JSON, fixed September clock assumptions and a historical getUnifiedAgenda.formattedCard read; the current read model does not expose that field. Consumed type views preserve these fixtures rather than restoring retired response/presentation APIs. They require separate current-protocol integration auditing before live behavioral pass claims.",
+    "Production hourly recurrence fixture lacks a full scheduling input; original intermittent-provider branches and low-strength defined/array assertions remain. Metadata/row/profile views are consumed assumptions, not runtime validation or filled records.",
+    "Scheduler claim tests exercise globally due rows and must use the dedicated isolated database, not merely a chosen user. Their external execution is not authorized by offline migration checks.",
+    "All maintained tests and scripts are TS. Full repository completion still requires retirement of 114 source compatibility JS entries together with SDK mocking/CLI/provenance checks; live V2 metrics and rollout remain open.",
+    "No new compiler-free Node 22 image smoke/build; runtime hashes match the current Node 24 chat-adapter reference, which already contains the one documented trusted CLI path change."
+  ],
+  "rollback": "Restore only these five original JS tests, remove their TS counterparts and this increment documentation/evidence, preserving preceding work. This restores retired executor references and stale fixture calls/mocks too."
+}

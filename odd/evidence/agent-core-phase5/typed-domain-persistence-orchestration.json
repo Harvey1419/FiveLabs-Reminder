@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 5 strict TypeScript task/message persistence and injected observation-bound target resolution; original domain/orchestration entry modules delegate to emitted implementations",
+  "candidate": {
+    "filesPassed": 194,
+    "testsPassed": 2659,
+    "durationSeconds": 189.78
+  },
+  "focused": {
+    "filesPassed": 6,
+    "testsPassed": 42,
+    "durationSeconds": 1.42
+  },
+  "newCases": 25,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "taskBatchIdentityAndFailureRegression": "passed",
+    "ownedReadAndNamedContainerDoesNotBroaden": "passed",
+    "updateLeaseFencePreserved": "passed",
+    "bilingualPriorityAndDueDateAnchor": "passed",
+    "chronologicalHistoryAndDuplicateInputPreserved": "passed",
+    "assistantOnlyPrivateCorrelation": "passed",
+    "observationPositionOnlyNoOperationChange": "passed",
+    "asynchronousOperationAndCandidateSnapshot": "passed",
+    "invalidCandidateIdsAndModelFabricationRejected": "passed",
+    "injectedProviderIndependentOfLegacyGateway": "passed",
+    "productionImportCycleAndColdEmit": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "node": "v24.15.0",
+    "compiledDomainAdaptersAndResolver": true,
+    "sqlBackedStructuralClient": true,
+    "reads": 18,
+    "writes": 10,
+    "duplicateTaskAndMessagePreserved": true,
+    "batchIdentityPreserved": true,
+    "namedScopeDoesNotBroaden": true,
+    "observedIdentityBound": true,
+    "foreignOwnerRejected": true,
+    "updateLeaseFence": true,
+    "historyAndChannelRetained": true,
+    "assistantOnlyCorrelation": true,
+    "liveHttpCalls": 0,
+    "independentAtomicCertificateCreated": false,
+    "temporaryDatabaseRemoved": true
+  },
+  "node22": {
+    "node": "v22.23.3",
+    "productionRunnerImage": true,
+    "compilerOrTsLoaderAtExecution": false,
+    "devWorkspaceDependenciesAbsent": true,
+    "realLegacyIndexAndOrchestrationFacades": true,
+    "emittedDomainPersistenceAndResolverUsed": true,
+    "ownedBoundedRead": true,
+    "historyOrderPreserved": true,
+    "asynchronousOperationAndIdentitySnapshot": true,
+    "liveHttpCalls": 0
+  },
+  "productionImage": "sha256:4a0732e007eb9c05c402a31171dfd4235a19b4bbd8d44d42af65ceba19bc31a9",
+  "inventory": {
+    "javascript": 312,
+    "typescript": 152,
+    "transitionalDeclarations": 16
+  },
+  "limits": [
+    "Remaining entity/project/memory/user/integration/reminder persistence and orchestration callers are still maintained JS",
+    "Legacy task result/error/cascade/query behavior preserved; this migration does not make legacy completion/delete and companion writes transactional",
+    "Independent atomic task producer, accepted manifests and completion certificates remain separate and unchanged",
+    "Best-effort message history is not an authority for inbound admission or execution evidence",
+    "PostgreSQL uses a disposable consumed-column fixture and SQL-backed structural query client, not live Supabase/PostgREST or deployed RLS validation",
+    "Node 22 production smoke imports real compatibility/orchestration facades and uses injected query/completion replies; no full server boot/live provider/WhatsApp/canary",
+    "Shared client/configuration/SDK retry behavior, V2 routing and scheduler remain unchanged"
+  ],
+  "noDeployment": true,
+  "noCommit": true,
+  "sourceSha256": {
+    "src/infrastructure/database/domain-persistence-client.ts": "25976018f5357713e807af886ce9325ed1cc479d7d8551a4803d87876e639170",
+    "src/infrastructure/database/task-persistence.ts": "7329b37090ec96c0633253b7b624a54c8f8fa27e062420d5c196c7a0349c480c",
+    "src/infrastructure/database/message-persistence.ts": "664de0bb48daeefdc673d781c7d53a001b2c8d1b37c7a99645a552637e0d03ef",
+    "src/infrastructure/database/tasks.js": "0e1a15ac6f0145b502c29061a2bff5ef6ec498b49f03fe5c120d3c04281ddc2e",
+    "src/infrastructure/database/messages.js": "c6dcb56306f3e20b6820854c39a4a4be8c3cb991a801a420cce5c10775c8fe23",
+    "src/infrastructure/database/tasks.d.ts": "eb72ffca03f16e1d504a061d4235612cfb435ee88bf89e8c1d87ca7226eeb095",
+    "src/infrastructure/database/messages.d.ts": "a1d509207dd49a2f2409e8d5bf09caf0e264143351c6563ae778e5175c2f725f",
+    "src/agent/orchestration/observed-target-resolution.ts": "5dcebdedc12249ecd8cc09411579f499979010a8128d7e76e992c8601ea52dbc",
+    "src/agent/orchestration/resolve-observed-target.js": "3899c2356c61654890509111d3f254d35553831ad21d85d7147d1806e30ec8e6",
+    "src/agent/orchestration/resolve-observed-target.d.ts": "9e674e3c085b422605c66d88e76b80f65867c9e9c338cae9f424ccf66659d153",
+    "tsconfig.runtime.json": "1e45de3e4d671035ae628335c027a3ae272199ce572ba4244448c7c6c5b4852d",
+    "tests/unit/infrastructure/typed-domain-persistence.test.ts": "131ceb50de024382056f00b64ef15ae65935d2c392be87e5195406db89b9ce91",
+    "tests/unit/agent/typed-observed-target-resolution.test.ts": "315fad0873bb7b37f6d306c046b5553f6c5e814d073091f3d59c6e2dbd2569ae"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript target-time parsing and all nine date/time presentation helpers; calendar-local tomorrow advances and labels across DST, plus own month lookup",
+  "candidate": {
+    "filesPassed": 221,
+    "testsPassed": 2916,
+    "durationSeconds": 50.14
+  },
+  "focused": {
+    "filesPassed": 10,
+    "testsPassed": 176,
+    "durationSeconds": 3.41
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "canonicalElapsedIsoDurationsAndExplicitOffsets": "passed",
+    "offsetFreeIsoUserZoneAndLegacyRelativeMeridianOptions": "passed",
+    "tomorrowClockAndExpiredTimeOnlyCalendarDayAcrossDst": "passed",
+    "tomorrowDisplayLateSpringNightAndEarlyFallMorning": "passed",
+    "yearAwareReminderOptInAndInvalidDisplayFallback": "passed",
+    "localNowRelativeLabelsAndLegacyStringShortcutParity": "passed",
+    "ownLegacyMonthDictionaryEntry": "passed",
+    "readOnlyActualTypedTemporalSourceProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1672,
+    "intentionalGuards": 9,
+    "allTenParsingPresentationAndStringClockHelpers": true,
+    "frozenClockFourZonesAndLanguageVariants": true,
+    "canonicalElapsedDurationIsoOffsetAndLegacyOptionParity": true,
+    "localTomorrowAcrossDstAndOwnMonthCorrection": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realParserPresentationReminderFactsPolicyAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "canonicalElapsedDurationsOffsetsAndLegacyOptions": true,
+    "calendarTomorrowAndClockAcrossDst": true,
+    "tomorrowDisplayAcrossDstAndYearAwareCards": true,
+    "wholeTurnGroupingUnknownGuardAndLegacyFallback": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:449e56cdfc6ad87c1b7a76058ae77756bad886d5407e3509b1b2f8f717a6c8a5"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 258
+  },
+  "transitionalDeclarations": 47,
+  "sourceHashes": {
+    "src/shared/target-time-parser.ts": "9fabe27428074fda3109c3a47b8a30f989de697fc036efaaf0ad1630185b37fa",
+    "src/shared/date-time-presentation.ts": "81941753dd60cd3946e3486a37715e9b4c94cd1687087a6eb3be6443d7405f83",
+    "src/shared/time.js": "e297febcedcfe77a55f642497667460079567d144b3edab1ca3deeec99827b23",
+    "src/shared/time.d.ts": "869137c1034e28630995e66af5948efe4ef510bebec7b3e771330194497b4d8f",
+    "tests/unit/time/typed-date-parser-presentation.test.ts": "deb8dd54abeb0c6c1eee61e254ff80a20bc632d8a946b2476cf8793688b8a1b4",
+    "scripts/evals/groq-contract/baseline.js": "dfa3c40e58dfae361bc966e90306b5f072fcceca0552d521ba47f6bcf6829bb3",
+    "tsconfig.runtime.json": "ba4641b90b90000e843fe02f7e638e4a81ece5c7d07f75ab7c7bd87876b8adb3"
+  },
+  "limits": [
+    "Legacy parsing remains permissive, including native Date fallback, calendar rollover and unknown-month current-month fallback; this extraction does not add strict date admission.",
+    "ISO P1D/P1W and legacy relative durations remain elapsed 24h/7d, unlike the corrected calendar-local tomorrow clock policy.",
+    "Existing addMinutes/todayAt use current-offset and process-local Date setters; these shortcut semantics are preserved rather than redesigned.",
+    "Presentation keeps current global clock, invalid-zone behavior, rounding, year opt-in and existing ES/EN/PT support per helper.",
+    "time.js retains getDayBounds and locale/phone/location helpers; the repository is not yet full TypeScript.",
+    "No scheduler, SQL/storage, provider/model or transport effect boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke validates real imports, dates and reminder/fact/policy grouping offline, not a full server boot or live provider request.",
+    "No deployment, V2 activation, live WhatsApp effect or real provider latency/quality/cost measurement."
+  ]
+}

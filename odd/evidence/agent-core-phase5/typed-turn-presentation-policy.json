@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript central turn presentation classification/grouping/composition with injected canonical batches, sanitation and date formatting; shared visual tokens and observed object/collection payload types",
+  "candidate": {
+    "filesPassed": 212,
+    "testsPassed": 2842,
+    "durationSeconds": 49.13
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 196,
+    "durationSeconds": 3.45
+  },
+  "newCases": 9,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "readMutationEmptyReadAndPartialCardSemantics": "passed",
+    "confirmedPartialClarificationFailureUnknownOrdering": "passed",
+    "stableGroupOrderAndAffectedRecordCounting": "passed",
+    "advanceNoticeLogicalItemsAndCanonicalDelegation": "passed",
+    "confirmationRequestAndSingleCardPreservation": "passed",
+    "typedObjectAndCollectionObservedPayloads": "passed",
+    "offlineEvaluatorReadOnlyPolicyAndVisualSourceProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 1777,
+    "realCanonicalBatchRenderersAndHumanDateFormatting": true,
+    "esEnSingleHomogeneousMixedReadMutationAndFailureParity": true,
+    "partialClarificationUnknownOrderingParity": true,
+    "visualTokensParity": true,
+    "liveCalls": 0
+  },
+  "factBoundaryParity": {
+    "passed": true,
+    "checks": 848,
+    "realCanonicalRenderersAndCentralComposition": true,
+    "esEnAllDomainsAndUnknownPartialFailureParity": true,
+    "localCoverageAndFreezeParity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realPolicyFactsBatchRenderersAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnTaskProjectAndReminderAdvanceNoticeAggregation": true,
+    "emptyReadsSuppressedForMixedMutations": true,
+    "partialUnknownOrderingPreserved": true,
+    "sharedVisualTokenFacade": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:ce2decebb469cf0d47edc712c8c2db798ea218076112bda0bf22b4d2397565e7"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 236
+  },
+  "transitionalDeclarations": 44,
+  "sourceHashes": {
+    "src/agent/core/turn-presentation-policy.ts": "6e28d741f003b2c1123fd5483e5ffdae7a0b842340af129a860bda9ff64fa1fa",
+    "src/agent/core/presentation-policy.js": "de082eae829ce1726f3c5e60c59cfa95602507c266a655e5a94e5e7ea87c9316",
+    "src/agent/core/presentation-policy.d.ts": "8f996d309784b09395f7a765431b09fdbd496b12bf5816f6b7c5f7a83a36def6",
+    "src/shared/presentation-design-tokens.ts": "acefd98f58051becc6255524dec0d97b2b898195c1b6566de4fa9a883279556c",
+    "src/shared/presentation-tokens.js": "b987a7ffcc028fddd9bda0bf71d749c32dcc8c6e569bf453e3c7460765a295a1",
+    "src/shared/presentation-tokens.d.ts": "a7da42a0e2373b9b44abb74d212071157b0b0cb98b5f56a752b89ce79b3fd43a",
+    "src/agent/core/execution-presentation.ts": "a47aba34fbb9b2b9e416034fbcc99f23e2def4d4f035c0afc35ffd2f59e7af76",
+    "tests/unit/agent/typed-turn-presentation-policy.test.ts": "f556e723a59b49c9ad21e8a8415c86347555b5f09af106cfd556b233803c80b6",
+    "scripts/evals/groq-contract/baseline.js": "9f19b9db70b693fdf2d36930647d25a35c93f861940b1d89df3965418130efe0",
+    "tsconfig.runtime.json": "bba9550ce4b11b2d5a0162461efb0134b267f79e10749cc95335ba45da177476"
+  },
+  "limits": [
+    "Incoming facts and row projections are trusted host view data, not provider admission or independent execution certificates.",
+    "Canonical task/reminder batch row rendering and deduplication, human date formatting and text sanitizer remain injected existing implementations.",
+    "Fact payload declaration now includes object and row collection inputs; named metadata projection retains existing reads without coercing rows.",
+    "Read and group ordering follows existing presentation policy, including single-card passthrough and incomplete read semantics.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual presentation paths offline; not a full server boot, live tool mutation or WhatsApp delivery.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Initial Phase 2 task and calendar contracts/tools/adapters",
+  "newTools": ["task_create", "task_read", "task_update", "task_complete", "task_delete", "calendar_read", "calendar_create", "calendar_connect"],
+  "totalInitialDomainTools": 12,
+  "candidate": { "filesPassed": 160, "testsPassed": 1952, "durationSeconds": 37.00 },
+  "focused": { "filesPassed": 5, "testsPassed": 80, "includesPreviousMigrationTests": true },
+  "newCases": 42,
+  "newRealExecutorMockIntegrationCases": 11,
+  "inventory": { "javascript": 313, "typescript": 26, "transitionalDeclarations": 2, "legacyJavaScriptRetired": 0 },
+  "checks": { "strictTypecheck": "passed", "packageCompilation": "passed", "diffWhitespace": "passed" },
+  "runtimeCorrection": "Task reads propagate referenceTime through router/tool/service; calendar reads use the provided reference in the existing temporal resolver. Existing remaining-today semantics preserved.",
+  "productionRouting": "V2 tools remain disconnected; background worker unchanged.",
+  "liveCalls": { "provider": 0, "database": 0, "google": 0 },
+  "phaseStatus": "Offline contract/domain checks passed for initial Phase 2 tool scope; Phase 3 presentation/routing and live/integration gates remain.",
+  "limitations": [
+    "Task-create linked reminders lack returned evidence and are reported unverified/partial when requested for a future due date.",
+    "Calendar update/delete/disconnect and bulk operations are not exposed; broader coverage remains expansion work.",
+    "Capabilities and correlation receipts do not provide durable idempotency, conversation approval tracking or reconciliation.",
+    "No live database/API/provider, latency or cost certification; no legacy JavaScript implementation retired."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase2-domains-focused.log",
+    "fullSuite": "/private/tmp/hermes-phase2-domains-unit.log",
+    "inventory": "/private/tmp/hermes-phase2-domains-inventory.json"
+  }
+}

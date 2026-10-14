@@ -1,0 +1,254 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 transactional later-owner historical completion publication and exact lost-reply observation, without execution/delivery replay",
+  "candidate": {
+    "filesPassed": 190,
+    "testsPassed": 2587,
+    "durationSeconds": 69.35
+  },
+  "focused": {
+    "filesPassed": 36,
+    "testsPassed": 718,
+    "durationSeconds": 8.82
+  },
+  "newCases": 23,
+  "checks": {
+    "strictProjectPackageRuntimeTypecheck": "passed",
+    "actualEvidenceFullCas": "passed",
+    "exactHistoricalConversationMerge": "passed",
+    "oldOnlyCleanupAndCurrentLeasePreserved": "passed",
+    "lateLeaseExpiryRollsBackPublication": "passed",
+    "noPrivateNonceCopiedToPrior": "passed",
+    "singleAndConcurrentAdmission": "passed",
+    "capabilityOwnerAndCurrentNamespaceFences": "passed",
+    "lostReplyObservedOnceWithoutWriteRetry": "passed",
+    "unavailableObservationNeverAdmitsHistory": "passed",
+    "continuityReloadAcrossAllUnknownTurns": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "newAssertions": 25,
+    "staticAssertions": 269,
+    "executedAssertions": 285,
+    "countMethod": "269 static minus 20 static complete/delete loop statements plus two operations times 18 branch-selected statements",
+    "transactionRolledBack": true,
+    "migrationDeployed": false,
+    "oldFinalizerUnchanged": true
+  },
+  "runtime": {
+    "scenarios": [
+      {
+        "scenario": "success",
+        "recovery": {
+          "status": "completed",
+          "publication": "acknowledged",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": false,
+          "baselineImported": true,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 4,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "recovery": {
+          "status": "completed",
+          "publication": "acknowledged",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": false,
+          "baselineImported": true,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 4,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "lost_close",
+        "recovery": {
+          "status": "completed",
+          "publication": "observed",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": false,
+          "baselineImported": true,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 5,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "changed_source",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_CONFLICT",
+          "publication": null,
+          "priorClosed": false,
+          "currentOwnerStillRunning": true,
+          "historyMessages": null,
+          "requiresHistoryReload": null,
+          "reloadBlocked": false,
+          "baselineImported": false,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 2,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "later_unknown",
+        "recovery": {
+          "status": "completed",
+          "publication": "acknowledged",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": true,
+          "baselineImported": false,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 2,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "existing_reference",
+        "recovery": {
+          "status": "completed",
+          "publication": "acknowledged",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": false,
+          "baselineImported": true,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 4,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "two_actions",
+        "recovery": {
+          "status": "completed",
+          "publication": "acknowledged",
+          "priorClosed": true,
+          "currentOwnerStillRunning": true,
+          "historyMessages": 4,
+          "requiresHistoryReload": true,
+          "reloadBlocked": false,
+          "baselineImported": true,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 4,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "attempted",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_RECONCILIATION_REQUIRED",
+          "publication": null,
+          "priorClosed": false,
+          "currentOwnerStillRunning": true,
+          "historyMessages": null,
+          "requiresHistoryReload": null,
+          "reloadBlocked": false,
+          "baselineImported": false,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 1,
+          "noReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "recovery": {
+          "status": "INTERRUPTED_COMPLETION_RECONCILIATION_REQUIRED",
+          "publication": null,
+          "priorClosed": false,
+          "currentOwnerStillRunning": true,
+          "historyMessages": null,
+          "requiresHistoryReload": null,
+          "reloadBlocked": false,
+          "baselineImported": false,
+          "domainCalls": 0,
+          "httpCalls": 0,
+          "rpcCalls": 1,
+          "noReplay": true
+        }
+      }
+    ],
+    "temporaryDatabasesRemoved": true,
+    "recoveryDomainCalls": 0,
+    "recoveryHttpCalls": 0,
+    "fixtureSeedLocalTaskMutations": 9,
+    "fixtureSeedSimulatedHttpCalls": 8,
+    "liveHttpCalls": 0,
+    "sdkTransport": "simulated chaining over actual SQL; no live Supabase SDK request",
+    "normalMixedLoaderAndNextOwnedBaseline": "actual existing TS loader with SQL-backed query double, then actual private SQL baseline candidate/capture"
+  },
+  "node22": {
+    "node": "22.23.3",
+    "image": "hermes-close-builder:local",
+    "network": "none",
+    "strictEmittedRecovery": true,
+    "legacyJsPresentationHelpersSupplied": true,
+    "actualSqlFixture": true,
+    "rpcResponsesSimulated": true,
+    "compilerOrTypeScriptLoaderAtExecution": false,
+    "acknowledgedAndObservedClosure": true,
+    "currentLeaseUntouched": true,
+    "requiresHistoryReload": true,
+    "noRetry": true,
+    "productionRuntimeBuildChanged": false
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 135,
+    "transitionalDeclarations": 11
+  },
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent-core tests/unit/messaging/inbound-turn-worker.test.ts",
+    "pnpm run test:unit",
+    "pnpm run migration:inventory",
+    "docker exec -i port-logistic-postgres-test-1 sh -c 'psql -X -v ON_ERROR_STOP=1 -U \"$POSTGRES_USER\" -d hermes_agent_core_resolution_20261011' < /private/tmp/hermes-close-postgres.sql",
+    "python3 /private/tmp/hermes-close-roundtrip.py",
+    "docker build --target builder -t hermes-close-builder:local .",
+    "docker run --rm -i --network none hermes-close-builder:local node --input-type=module < /private/tmp/hermes-close-node22.mjs",
+    "git diff --check"
+  ],
+  "sourceSha256": {
+    "src/adapters/agent-core/interrupted-completion-recovery-runtime.ts": "d1c0bb59c430bc5937f85af20a19c4b4b4c2ee105cc07dff61837ed4fbc343bb",
+    "supabase/migrations/20261012165501_agent_core_interrupted_completion_publication.sql": "14379e7bda351e07c4fb682199670781eff079450d8db0a2f0becf9f92042230",
+    "tests/database/agent-core-interrupted-completion-publication.sql": "a9b8832f9fa0fec38a776b99d1ebe5b60c9eb4ff6b48f43df9e64d1407178a98",
+    "tests/unit/agent-core/interrupted-completion-recovery-runtime.test.ts": "e4ca8a530ca118b710c6d93a48ad26b94b74b2db7f10727e7e140473486a3446"
+  },
+  "limits": [
+    "Isolated historical closure runtime; namespace-aware turn-entry integration remains pending",
+    "Closing one old turn does not skip other unresolved turns; ordinary history must be reloaded",
+    "Only existing verifiable completed/cancelled atomic task approvals with accepted text are closed",
+    "Baseline-only, lost domain output and missing/unknown delivery remain blocked",
+    "Direct service-role SQL remains trusted; semantic fingerprints checked by backend TS",
+    "Standalone compiled artifact still uses JS helpers/workspace packages; not full production application emit",
+    "Full Node22 unit suite not executed",
+    "No live provider, WhatsApp, production Supabase, deployment, commit or V2 routing activation"
+  ],
+  "rollback": "Remove new historical recovery runtime and prepared publication/observation RPCs; retain earlier reader, durable receipts, accepted manifests and all completed certificates."
+}

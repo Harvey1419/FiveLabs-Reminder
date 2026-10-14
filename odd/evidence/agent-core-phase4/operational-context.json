@@ -1,0 +1,60 @@
+{
+  "phase": 4,
+  "scope": "deterministic reminder operational summaries and input-route budgets",
+  "date": "2026-10-11",
+  "validation": {
+    "strictTypecheck": "passed",
+    "compiledEsmContextFixture": {
+      "mode": "compiled ESM, deterministic fixture",
+      "beforeEstimate": 19436,
+      "afterEstimate": 8368,
+      "omittedMessages": 18,
+      "pendingPreserved": 1,
+      "actualProviderTokens": null
+    },
+    "diffCheck": "passed",
+    "focused": {
+      "files": 13,
+      "tests": 192,
+      "seconds": 3.43
+    },
+    "regression": {
+      "files": 168,
+      "tests": 2066,
+      "seconds": 40.0
+    },
+    "inventory": {
+      "javascript": 313,
+      "typescript": 51,
+      "transitionalDeclarations": 4,
+      "legacyImplementationsRetiredThisIncrement": 0
+    }
+  },
+  "implemented": [
+    "strict version1 historical summary contract",
+    "pending approval/clarification/indeterminate call identities and arguments",
+    "bounded clarification questions for incomplete effects",
+    "descriptive full-success supersession without unknown-effect inference",
+    "longest fitting complete-turn window with minimum3turns",
+    "summary and verified references included in input estimate",
+    "per-route estimated/reported input ceiling",
+    "guard against prior unknown effects before model admission",
+    "graceful paired-receipt completion when continuation fills context"
+  ],
+  "limitations": [
+    "host-owned reminder transcript only; no general memory extraction",
+    "summary never grants authorization or fresh-read evidence",
+    "provider tokenizer and1800ordinarysofttarget still unverified",
+    "task/calendar multihop integration pending",
+    "real model semantics/cost/latency and routing gates pending",
+    "full remaining JS migration pending"
+  ],
+  "productionChanged": false,
+  "extraSummaryInference": false,
+  "logs": {
+    "focused": "/private/tmp/hermes-phase4-summary-focused.log",
+    "regression": "/private/tmp/hermes-phase4-summary-unit.log",
+    "runtime": "/private/tmp/hermes-phase4-summary-runtime.json",
+    "inventory": "/private/tmp/hermes-phase4-inventory.json"
+  }
+}

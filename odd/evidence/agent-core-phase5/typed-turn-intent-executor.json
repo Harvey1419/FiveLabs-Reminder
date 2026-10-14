@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Complete strict TypeScript ordered turn intent execution orchestration with injected tool/fact/context/pinning/run-transition services; remaining helper implementations/provider/router remain subsequent units",
+  "candidate": {
+    "filesPassed": 208,
+    "testsPassed": 2809,
+    "durationSeconds": 48.57
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 233,
+    "durationSeconds": 5.97
+  },
+  "newCases": 10,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "orderedActionsBatchingAndExpandedCap": "passed",
+    "unknownMissingOrLostToolOutcomeStopsRemainingActions": "passed",
+    "preMutationTargetSnapshotAndPinnedIds": "passed",
+    "pendingReplacementCancellationAndActivationGates": "passed",
+    "sharedCurrentSourceMemoryPipeline": "passed",
+    "oneObservedTargetCorrectionAttempt": "passed",
+    "approvalStagingFailureRetainsObservedResults": "passed",
+    "lazyModelIndependentHostPorts": "passed",
+    "offlineEvaluatorActualTypedExecutorProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 35,
+    "esEnOrderedResultsAndHostEffectsParity": true,
+    "unknownMissingPinOrdinalLimitAndStagingParity": true,
+    "toolIntentClassificationParity": true,
+    "liveHttpCalls": 0
+  },
+  "postgres": {
+    "passed": true,
+    "reads": 2,
+    "writes": 3,
+    "toolCalls": 2,
+    "eventActions": [
+      "create",
+      "complete"
+    ],
+    "compiledExecutorMapperAndTaskPersistence": true,
+    "earlierObservedResultRetained": true,
+    "committedLostReplyUnknownStopsDelete": true,
+    "completedTaskAndLinkedReminderPersisted": true,
+    "foreignTaskRetained": true,
+    "noWriteReplay": true,
+    "liveHttpCalls": 0,
+    "temporaryDatabaseRemoved": true
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realExecutorMapperFactsWorkingMemoryAndRunFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "orderedConfirmedThenUnknownResults": true,
+    "unknownStopsThirdActionAndReplay": true,
+    "sharedMemoryTurnContext": true,
+    "defaultHostDependencyImports": true,
+    "stubToolCalls": 2,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:e873b74b4d2e44c3e835204cdb17ead2bed040e98d5bf0083d01f611bd62440f"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 218
+  },
+  "transitionalDeclarations": 37,
+  "sourceHashes": {
+    "src/agent/orchestration/turn-intent-executor.ts": "2e2d1332ff205f2dd31b7aae115314cad0f0e3a784e634f817c230270dcab0c0",
+    "src/agent/orchestration/intent-executor.js": "0ab69582a9c1a602da53a64a623ba1407c8aebf5dca0ca6b82fe2600c765248d",
+    "src/agent/orchestration/intent-executor.d.ts": "170b064757b7637de0ebf8916242f97f00d7259c756cebc92fa8fef4df785f83",
+    "src/agent/orchestration/domain-call-builder.ts": "69f6ae9a1f6a5b3552afb2ce8a6771acd07a5bce9ab18d70777aedd4efe4e582",
+    "tests/unit/agent/typed-turn-intent-executor.test.ts": "03dcff79553f6b737570a1501a73f82760310e91de40def319bf1bedb4ac1e14",
+    "scripts/evals/groq-contract/baseline.js": "c0cc5e4a4f9e0b25ca7c5ed70ad9397c42f75f7b4394267cff14afef8326ac21",
+    "tsconfig.runtime.json": "5e1e1722169ac08ceb886cececc2849e53f80272aa8261199e29afb7f1e52f6a"
+  },
+  "limits": [
+    "Tool results/pinning/fact/run services are trusted host ports; actor/live-target/lease/domain authority remains enforced by existing backend/runtime",
+    "Existing typed task persistence with a SQL structural adapter and synthetic fact/lease callbacks, not deployed RLS/live PostgREST or independent effect certification",
+    "Sequential legacy companion task/reminder writes remain non-atomic; unknown reply is never replayed",
+    "Production network-disabled runtime smoke uses injected tool replies, not full server boot or real external-domain mutation",
+    "No schema/dependency/provider/configured model/scheduler/V2 activation/deployment or live HTTP/WhatsApp effects",
+    "Fact presentation, working-memory/context/pinning helper bodies, provider gateway/router and remaining maintained JS still require migration"
+  ]
+}

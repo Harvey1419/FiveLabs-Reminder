@@ -1,0 +1,630 @@
+{
+  "snapshot": {
+    "anchor": {
+      "id": "147db4b3-89aa-432e-b087-b44047a2dece",
+      "message_id": "current",
+      "thread_id": "race",
+      "sequence_id": 3
+    },
+    "prior": {
+      "id": "ccd5ae54-de5a-40d2-b7ab-376f73e41200",
+      "message_id": "prior",
+      "thread_id": "race",
+      "sequence_id": 2,
+      "status": "unknown",
+      "response": {
+        "agentCoreBaseline": {
+          "version": 1,
+          "baselineId": "840988ad-2e2f-42d8-bbdd-7c0fa3a02cde",
+          "inputRecorded": true,
+          "inputFingerprint": "68481d1735f11719d79ec65341f5b8eb4923690d2e6d0590ec11c70a5e16a90c",
+          "candidateFingerprint": "a7ea002ec05bfaf4746409584db97eddaadfd383133d538d513df18abcf34c14"
+        },
+        "agentCoreActiveRun": {
+          "runId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+          "stage": "final",
+          "result": {
+            "facts": [
+              {
+                "card": "\ud83d\uddd1\ufe0f *Tarea eliminada*\n\n\u2022 Actually deleted",
+                "flow": null,
+                "tool": "manage_task",
+                "action": "deleted_task",
+                "callId": "a",
+                "ctaUrl": null,
+                "outcome": "success",
+                "success": true,
+                "summary": "La operaci\u00f3n se complet\u00f3 correctamente.",
+                "complete": true,
+                "ctaHeader": null,
+                "errorCode": null,
+                "ctaButtonText": null,
+                "requestedAction": "delete",
+                "presentationData": {
+                  "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                  "title": "Actually deleted",
+                  "status": "pending",
+                  "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                  "due_date": null,
+                  "priority": "medium",
+                  "entity_id": null,
+                  "created_at": "2026-10-12T16:42:22.796709+00:00",
+                  "entityName": null,
+                  "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                  "description": null,
+                  "completed_at": null
+                },
+                "presentationParams": {
+                  "action": "delete",
+                  "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                },
+                "presentationContext": {
+                  "locale": "es-CO",
+                  "language": "es",
+                  "timezone": "America/Bogota"
+                },
+                "requiresClarification": false
+              }
+            ],
+            "status": "completed",
+            "results": [
+              {
+                "callId": "a",
+                "result": {
+                  "data": {
+                    "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                    "title": "Actually deleted",
+                    "status": "pending",
+                    "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                    "due_date": null,
+                    "priority": "medium",
+                    "entity_id": null,
+                    "created_at": "2026-10-12T16:42:22.796709+00:00",
+                    "entityName": null,
+                    "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                    "description": null,
+                    "completed_at": null
+                  },
+                  "action": "deleted_task",
+                  "outcome": "success",
+                  "success": true,
+                  "complete": true,
+                  "_domainCall": {
+                    "params": {
+                      "action": "delete",
+                      "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                    },
+                    "toolName": "manage_task"
+                  }
+                }
+              }
+            ],
+            "success": true,
+            "executed": true,
+            "executedCount": 1
+          },
+          "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+          "actions": {
+            "a": {
+              "id": "47268f4b-2267-4749-aa13-5743717e3473",
+              "action": "delete",
+              "domain": "task",
+              "run_id": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+              "status": "executed",
+              "call_id": "a",
+              "payload": {
+                "action": "delete",
+                "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+              },
+              "target_id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+              "created_at": "2026-10-12T16:42:22.796709+00:00",
+              "executed_at": "2026-10-12T16:42:26.086849+00:00",
+              "target_name": null,
+              "execution_fact": {
+                "data": {
+                  "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                  "title": "Actually deleted",
+                  "status": "pending",
+                  "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                  "due_date": null,
+                  "priority": "medium",
+                  "entity_id": null,
+                  "created_at": "2026-10-12T16:42:22.796709+00:00",
+                  "entityName": null,
+                  "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                  "description": null,
+                  "completed_at": null
+                },
+                "action": "deleted_task",
+                "outcome": "success",
+                "success": true,
+                "complete": true,
+                "_domainCall": {
+                  "params": {
+                    "action": "delete",
+                    "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                  },
+                  "toolName": "manage_task"
+                }
+              }
+            }
+          },
+          "claimId": "93f7b8d6-bdaf-45a0-996c-81bc3fb28633",
+          "version": 1,
+          "decision": {
+            "reply": "Internal fake model prose must not reach UI",
+            "decision": "approve_all",
+            "relation": "approval",
+            "selectedCallIds": []
+          },
+          "snapshot": {
+            "runId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+            "status": "waiting_for_approval",
+            "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+            "actions": [
+              {
+                "action": "delete",
+                "callId": "a",
+                "domain": "task",
+                "status": "prepared",
+                "payload": {
+                  "action": "delete",
+                  "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                },
+                "targetId": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                "targetName": null,
+                "executionFact": null
+              }
+            ],
+            "threadId": "race",
+            "expiresAtIso": "2026-10-12T17:42:22.798041Z",
+            "executionState": {
+              "kind": "generic_operation",
+              "context": {},
+              "waitingFor": null
+            }
+          },
+          "requestId": "prior",
+          "inboundRunId": "ccd5ae54-de5a-40d2-b7ab-376f73e41200"
+        },
+        "agentCoreDeliveryManifest": {
+          "version": 1,
+          "manifestId": "a940190a-69bc-4945-98a1-b07b323e59c4",
+          "sourceFingerprint": "769d8523612c2069b1f55c62a5371d01af3b493e1b7d62943fd3bfdbe30f643b"
+        }
+      }
+    },
+    "run": {
+      "id": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+      "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+      "thread_id": "race",
+      "status": "completed",
+      "kind": "generic_operation",
+      "context": {},
+      "waiting_for": null,
+      "expires_at": "2026-10-12T17:42:22.798041+00:00"
+    },
+    "actions": [
+      {
+        "callId": "a",
+        "domain": "task",
+        "action": "delete",
+        "targetId": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+        "targetName": null,
+        "payload": {
+          "action": "delete",
+          "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+        },
+        "status": "executed",
+        "executionFact": {
+          "data": {
+            "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+            "title": "Actually deleted",
+            "status": "pending",
+            "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+            "due_date": null,
+            "priority": "medium",
+            "entity_id": null,
+            "created_at": "2026-10-12T16:42:22.796709+00:00",
+            "entityName": null,
+            "updated_at": "2026-10-12T16:42:22.796709+00:00",
+            "description": null,
+            "completed_at": null
+          },
+          "action": "deleted_task",
+          "outcome": "success",
+          "success": true,
+          "complete": true,
+          "_domainCall": {
+            "params": {
+              "action": "delete",
+              "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+            },
+            "toolName": "manage_task"
+          }
+        }
+      }
+    ]
+  },
+  "baseline": {
+    "version": 1,
+    "id": "840988ad-2e2f-42d8-bbdd-7c0fa3a02cde",
+    "candidate": {
+      "version": 1,
+      "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+      "inboundRunId": "ccd5ae54-de5a-40d2-b7ab-376f73e41200",
+      "activeRunId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+      "requestId": "prior",
+      "threadId": "race",
+      "sequenceId": 2,
+      "prior": {
+        "id": "a9aa90d0-ca89-4936-ba0e-f7e389a512c8",
+        "message_id": "older",
+        "thread_id": "race",
+        "sequence_id": 1,
+        "status": "completed",
+        "response": {
+          "agentCoreProductivity": {
+            "phase": "completed",
+            "runId": "a9aa90d0-ca89-4936-ba0e-f7e389a512c8",
+            "start": {
+              "text": "Historia conservada",
+              "conversation": {
+                "tasks": [],
+                "events": [],
+                "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                "history": [],
+                "reminders": [],
+                "handledRequestIds": []
+              }
+            },
+            "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+            "effects": [],
+            "version": 1,
+            "completed": {
+              "reply": {
+                "ctas": [],
+                "text": "Respuesta conservada",
+                "flows": []
+              },
+              "uiPayload": {
+                "items": [],
+                "notices": [],
+                "language": "es",
+                "timezone": "America/Bogota"
+              },
+              "conversation": {
+                "tasks": [],
+                "events": [],
+                "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                "history": [
+                  {
+                    "role": "user",
+                    "content": "Historia conservada"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "Respuesta conservada",
+                    "toolCalls": []
+                  }
+                ],
+                "reminders": [],
+                "handledRequestIds": [
+                  "older"
+                ]
+              },
+              "requiresReconciliation": false
+            },
+            "requestId": "older",
+            "deliveries": [
+              {
+                "status": "accepted",
+                "message": {
+                  "id": "older:reply:0",
+                  "kind": "text",
+                  "text": "Respuesta conservada"
+                },
+                "messageId": "old-provider"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "conversation": {
+      "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+      "history": [
+        {
+          "role": "user",
+          "content": "Historia conservada"
+        },
+        {
+          "role": "assistant",
+          "content": "Respuesta conservada",
+          "toolCalls": []
+        }
+      ],
+      "reminders": [],
+      "tasks": [],
+      "events": [],
+      "handledRequestIds": [
+        "older"
+      ]
+    },
+    "input": {
+      "userText": "S\u00ed, elimina esa tarea",
+      "language": "es",
+      "timezone": "America/Bogota"
+    }
+  },
+  "manifest": {
+    "version": 1,
+    "id": "a940190a-69bc-4945-98a1-b07b323e59c4",
+    "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+    "inboundRunId": "ccd5ae54-de5a-40d2-b7ab-376f73e41200",
+    "activeRunId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+    "requestId": "prior",
+    "threadId": "race",
+    "sourceResponse": {
+      "agentCoreBaseline": {
+        "version": 1,
+        "baselineId": "840988ad-2e2f-42d8-bbdd-7c0fa3a02cde",
+        "inputRecorded": true,
+        "inputFingerprint": "68481d1735f11719d79ec65341f5b8eb4923690d2e6d0590ec11c70a5e16a90c",
+        "candidateFingerprint": "a7ea002ec05bfaf4746409584db97eddaadfd383133d538d513df18abcf34c14"
+      },
+      "agentCoreActiveRun": {
+        "runId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+        "stage": "final",
+        "result": {
+          "facts": [
+            {
+              "card": "\ud83d\uddd1\ufe0f *Tarea eliminada*\n\n\u2022 Actually deleted",
+              "flow": null,
+              "tool": "manage_task",
+              "action": "deleted_task",
+              "callId": "a",
+              "ctaUrl": null,
+              "outcome": "success",
+              "success": true,
+              "summary": "La operaci\u00f3n se complet\u00f3 correctamente.",
+              "complete": true,
+              "ctaHeader": null,
+              "errorCode": null,
+              "ctaButtonText": null,
+              "requestedAction": "delete",
+              "presentationData": {
+                "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                "title": "Actually deleted",
+                "status": "pending",
+                "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                "due_date": null,
+                "priority": "medium",
+                "entity_id": null,
+                "created_at": "2026-10-12T16:42:22.796709+00:00",
+                "entityName": null,
+                "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                "description": null,
+                "completed_at": null
+              },
+              "presentationParams": {
+                "action": "delete",
+                "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+              },
+              "presentationContext": {
+                "locale": "es-CO",
+                "language": "es",
+                "timezone": "America/Bogota"
+              },
+              "requiresClarification": false
+            }
+          ],
+          "status": "completed",
+          "results": [
+            {
+              "callId": "a",
+              "result": {
+                "data": {
+                  "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                  "title": "Actually deleted",
+                  "status": "pending",
+                  "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                  "due_date": null,
+                  "priority": "medium",
+                  "entity_id": null,
+                  "created_at": "2026-10-12T16:42:22.796709+00:00",
+                  "entityName": null,
+                  "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                  "description": null,
+                  "completed_at": null
+                },
+                "action": "deleted_task",
+                "outcome": "success",
+                "success": true,
+                "complete": true,
+                "_domainCall": {
+                  "params": {
+                    "action": "delete",
+                    "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                  },
+                  "toolName": "manage_task"
+                }
+              }
+            }
+          ],
+          "success": true,
+          "executed": true,
+          "executedCount": 1
+        },
+        "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+        "actions": {
+          "a": {
+            "id": "47268f4b-2267-4749-aa13-5743717e3473",
+            "action": "delete",
+            "domain": "task",
+            "run_id": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+            "status": "executed",
+            "call_id": "a",
+            "payload": {
+              "action": "delete",
+              "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+            },
+            "target_id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+            "created_at": "2026-10-12T16:42:22.796709+00:00",
+            "executed_at": "2026-10-12T16:42:26.086849+00:00",
+            "target_name": null,
+            "execution_fact": {
+              "data": {
+                "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+                "title": "Actually deleted",
+                "status": "pending",
+                "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+                "due_date": null,
+                "priority": "medium",
+                "entity_id": null,
+                "created_at": "2026-10-12T16:42:22.796709+00:00",
+                "entityName": null,
+                "updated_at": "2026-10-12T16:42:22.796709+00:00",
+                "description": null,
+                "completed_at": null
+              },
+              "action": "deleted_task",
+              "outcome": "success",
+              "success": true,
+              "complete": true,
+              "_domainCall": {
+                "params": {
+                  "action": "delete",
+                  "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+                },
+                "toolName": "manage_task"
+              }
+            }
+          }
+        },
+        "claimId": "93f7b8d6-bdaf-45a0-996c-81bc3fb28633",
+        "version": 1,
+        "decision": {
+          "reply": "Internal fake model prose must not reach UI",
+          "decision": "approve_all",
+          "relation": "approval",
+          "selectedCallIds": []
+        },
+        "snapshot": {
+          "runId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+          "status": "waiting_for_approval",
+          "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+          "actions": [
+            {
+              "action": "delete",
+              "callId": "a",
+              "domain": "task",
+              "status": "prepared",
+              "payload": {
+                "action": "delete",
+                "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+              },
+              "targetId": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+              "targetName": null,
+              "executionFact": null
+            }
+          ],
+          "threadId": "race",
+          "expiresAtIso": "2026-10-12T17:42:22.798041Z",
+          "executionState": {
+            "kind": "generic_operation",
+            "context": {},
+            "waitingFor": null
+          }
+        },
+        "requestId": "prior",
+        "inboundRunId": "ccd5ae54-de5a-40d2-b7ab-376f73e41200"
+      }
+    },
+    "entries": [
+      {
+        "message": {
+          "id": "prior:reply:0",
+          "kind": "text",
+          "text": "\ud83d\uddd1\ufe0f *Tarea eliminada*\n\n\u2022 Actually deleted"
+        },
+        "state": "accepted",
+        "providerMessageId": "provider-composed"
+      }
+    ]
+  },
+  "receipts": [
+    {
+      "version": 1,
+      "receiptId": "aaaea23d-336e-4f5a-8382-57092c92ecb7",
+      "userId": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+      "activeRunId": "54cfea59-e7fb-4ccd-9a0c-4ce6d67e9864",
+      "inboundRunId": "ccd5ae54-de5a-40d2-b7ab-376f73e41200",
+      "claimId": "93f7b8d6-bdaf-45a0-996c-81bc3fb28633",
+      "threadId": "race",
+      "callId": "a",
+      "targetId": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+      "domainCall": {
+        "toolName": "manage_task",
+        "params": {
+          "action": "delete",
+          "target": "30b2a343-2a0f-44e9-80ae-b423e087409c"
+        }
+      },
+      "item": {
+        "callId": "a",
+        "status": "success",
+        "code": null,
+        "domain": "tasks",
+        "toolName": "task_delete",
+        "result": {
+          "operation": "delete",
+          "records": [
+            {
+              "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+              "title": "Actually deleted",
+              "description": null,
+              "priority": "medium",
+              "status": "deleted",
+              "dueDateIso": null,
+              "entityId": null,
+              "entityName": null
+            }
+          ],
+          "complete": true,
+          "coverage": "operation",
+          "issues": [],
+          "presentation": {
+            "canonicalCard": null,
+            "questions": [],
+            "cta": null
+          },
+          "flow": null
+        }
+      },
+      "legacyResult": {
+        "data": {
+          "id": "30b2a343-2a0f-44e9-80ae-b423e087409c",
+          "title": "Actually deleted",
+          "status": "pending",
+          "user_id": "68cce974-ba26-46ee-8ff0-9c6dcf15df93",
+          "due_date": null,
+          "priority": "medium",
+          "entity_id": null,
+          "created_at": "2026-10-12T16:42:22.796709+00:00",
+          "entityName": null,
+          "updated_at": "2026-10-12T16:42:22.796709+00:00",
+          "description": null,
+          "completed_at": null
+        },
+        "action": "deleted_task",
+        "outcome": "success",
+        "success": true,
+        "complete": true
+      },
+      "companionReminderIds": [
+        "7d353b71-bf1c-4e22-bc42-0eeb1c84a261"
+      ]
+    }
+  ]
+}

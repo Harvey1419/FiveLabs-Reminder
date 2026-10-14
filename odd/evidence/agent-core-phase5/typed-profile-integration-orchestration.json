@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript user/integration persistence and personal-memory rendering/forgetting selection orchestration; memory storage and main router remain subsequent units",
+  "candidate": {
+    "filesPassed": 199,
+    "testsPassed": 2714,
+    "durationSeconds": 46.3
+  },
+  "focused": {
+    "filesPassed": 4,
+    "testsPassed": 118,
+    "durationSeconds": 2.4
+  },
+  "newCases": 22,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "profileCacheAndFreshBypass": "passed",
+    "refreshTokenOmissionPreserved": "passed",
+    "userProviderScopedIntegrationAccess": "passed",
+    "exactCurrentTurnPersonalReferences": "passed",
+    "optionalMemoryTopicCompatibility": "passed",
+    "forgettingCandidateSnapshotAndStrictPositions": "passed",
+    "offlineEvaluatorTypedConstantProvenance": "passed",
+    "productionBuildAndCompilerFreeImportSmoke": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "passed": true,
+    "reads": 13,
+    "writes": 12,
+    "checks": [
+      "profile normalization and BSUID",
+      "cache and fresh database reads",
+      "preferences and last-active persistence",
+      "bound cache deletion and isolation",
+      "OAuth refresh-token omission and replacement",
+      "metadata retention",
+      "provider channel scope",
+      "foreign-user isolation",
+      "active token filter",
+      "scoped disconnect"
+    ],
+    "temporaryDatabaseRemoved": true
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realDatabaseAndOrchestrationFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "exactOwnedReferences": true,
+    "optionalMemoryTopicCompatible": true,
+    "observedIdsSnapshot": true,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:87bcf66c0f5507a0aad60d1d99fc5a657e4cdf892cd9e8271b34c55e0fbdb978"
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 173
+  },
+  "transitionalDeclarations": 23,
+  "sourceHashes": {
+    "src/infrastructure/database/profile-integration-client.ts": "296fd4fcfb8773280e3ee4824600a43c1042c628ae2395271c4b62ef2ed95f87",
+    "src/infrastructure/database/user-profile-persistence.ts": "53b84c43ca369d0429dc373afbbba8527a98a779aef50b97ecfd5b5577bc1467",
+    "src/infrastructure/database/integration-persistence.ts": "91da6dcb6ffcfba990a803d52a7c8d1ea156675d69d9e321bd54da0561ab5ae0",
+    "src/infrastructure/database/users.js": "53b6302df31553b369bee5291566de48511266dcf4ec142c18186bcbf227c2fb",
+    "src/infrastructure/database/users.d.ts": "020f85d51240531919f7b89a5c79acca51fd9b2c6bf47f2ce792d4e94bf4a22f",
+    "src/infrastructure/database/integrations.js": "7a3aef15f89630f712b5f63aa7e3ed5669183ca368b2de52fe3a18417af6fd07",
+    "src/infrastructure/database/integrations.d.ts": "6c95775951483ebc92ba622c6858d53e96b3e1459e3c6e00d9919d5fab917ec4",
+    "src/agent/orchestration/personal-knowledge-core.ts": "f6f247de9f5ba8ec5ecd43f88ab656261150b0ee6bbb58ce024f7e6a48ee848a",
+    "src/agent/orchestration/personal-knowledge.js": "bcef49d55ddc6167fe3c5f29f5fff47e492a35229afe3b576c7a86852cf976f5",
+    "src/agent/orchestration/personal-knowledge.d.ts": "fba4e019c409aadec646e76f91a1a1606f2c3cdb67b471b05f8324b98dd6dc9c",
+    "src/agent/orchestration/memory-forgetting-selection.ts": "1a09e182e6a5c32be040c4b42dc527681de67fec5cd53d42b59fdca9cdd296b3",
+    "src/agent/orchestration/select-memory-forgetting.js": "dc0f75b0505cf17aee25b70f8596da7981fc4ce9a717d5ec5287e35a6bbc0fde",
+    "src/agent/orchestration/select-memory-forgetting.d.ts": "d66efd6acddf351eb4015d3ab154e1c69e83559865f0e5d0a0f0c7790af4aa07",
+    "tests/unit/agent/typed-personal-knowledge.test.ts": "ebea33b7d3b5416c704b8dc57d1e26c47e22a698a63324a2ff501396e231991d",
+    "tests/unit/infrastructure/profile-integration-persistence.test.ts": "6170419dec095f5b3d21df7efb84dcdf6e7eee8ab33fe7f02ef8eaa9d20f0370",
+    "scripts/evals/groq-contract/baseline.js": "95f1d14d2ecdffdba3ebeec73dd0be16db50c2d80b584d2b1c8738fc6d0e95e5",
+    "tsconfig.runtime.json": "9c3500e8ba7632a7944206f16018a7cd725843ebbac84eee0713bf61e83d4953"
+  },
+  "limits": [
+    "Consumed-column disposable PostgreSQL schema and structural query client, not deployed RLS or live Supabase/PostgREST validation",
+    "Network-disabled production import smoke, not full server boot or canary",
+    "No SQL/SDK dependency/scheduler/V2 flag/deployment changes or live provider/WhatsApp effects",
+    "Legacy sequential metadata merging and profile background writes retain best-effort behavior",
+    "Selection of observed memory IDs grants no deletion authority or independent effect certificate",
+    "Memory persistence, embeddings, router and remaining compatibility JS still require migration"
+  ]
+}

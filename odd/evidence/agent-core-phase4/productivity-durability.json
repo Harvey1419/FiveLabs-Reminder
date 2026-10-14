@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase4 deterministic mixed presentation, durable checkpoint/delivery and owned completed-state recovery",
+  "candidate": {
+    "filesPassed": 172,
+    "testsPassed": 2128,
+    "durationSeconds": 54.46
+  },
+  "focused": {
+    "filesPassed": 17,
+    "testsPassed": 254,
+    "durationSeconds": 5.94
+  },
+  "newCases": 38,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "compiledEsmApplicationRuntime": "passed",
+    "diffWhitespace": "passed",
+    "mixedCardFactsWithoutModelProse": "passed",
+    "readScopeAndBoundedCoverage": "passed",
+    "taskFlowsAndHttpsCtas": "passed",
+    "dispatchObservationAndDeliveryIntentOrdering": "passed",
+    "unknownCompanionQuarantine": "passed",
+    "noInterruptedEffectOrDeliveryReplay": "passed",
+    "crossEngineLeaseAdmission": "passed",
+    "ownedMixedRecoveryAndOlderUnknownGuard": "passed",
+    "reminderResolutionVersionIsolation": "passed"
+  },
+  "compiledRuntime": {
+    "mode": "compiled ESM with scripted provider and simulated domain/journal ports",
+    "scenario": "task read -> complete -> final -> text/flow acceptance -> owned recovery",
+    "events": [
+      "prepared:read",
+      "executed:read",
+      "observed:read",
+      "prepared:complete",
+      "executed:complete",
+      "observed:complete"
+    ],
+    "steps": 3,
+    "resultStatus": "completed",
+    "checkpointVersion": 1,
+    "deliveryKinds": [
+      "text",
+      "flow"
+    ],
+    "recovered": true,
+    "requiresReconciliation": false,
+    "actualProviderTokens": null,
+    "realStorage": false,
+    "realTransport": false
+  },
+  "databaseVerification": {
+    "engine": "Local PostgreSQL test container, dedicated hermes_agent_core_resolution_20261011 database",
+    "assertionsPassed": 17,
+    "fixture": "tests/database/agent-core-turn-resolution.sql",
+    "migration": "supabase/migrations/20261011173445_agent_core_turn_resolution.sql",
+    "transaction": "Schema, functions, role fixtures and writes rolled back",
+    "concurrentConnectionsTested": false,
+    "productionMigrationApplied": false
+  },
+  "checkpoint": {
+    "namespace": "agentCoreProductivity",
+    "version": 1,
+    "deliveryKinds": [
+      "text",
+      "cta",
+      "flow"
+    ],
+    "acceptanceMeans": "provider acceptance, not handset delivery",
+    "mixedUnknownResolutionImplemented": false,
+    "reminderResolutionAdmitsMixedState": false
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 67,
+    "transitionalDeclarations": 6,
+    "legacyJavaScriptRetired": 0
+  },
+  "productionRouting": "Disconnected; host must wire authenticated thread ownership, engine pinning, recovery and real recipient binding before admission",
+  "liveCalls": {
+    "provider": 0,
+    "productionDatabase": 0,
+    "whatsapp": 0
+  },
+  "limitations": [
+    "Scripted provider and simulated domain/storage/transport ports do not establish real-model semantics, token usage, latency or cost.",
+    "Completed mixed recovery implemented; mixed unknown-state evidence reconciliation and authenticated engine handoff remain outstanding.",
+    "Prepared reminder resolution migration tested locally, not deployed.",
+    "Read scopes and bounded lists do not establish complete calendar slot availability.",
+    "Full strictTS migration remains unfinished; no legacy JS implementation retired in this unit.",
+    "Node24 verification; configured Node22 CI not executed locally."
+  ],
+  "next": "Phase5 gateway adapters preserving existing provider protocol/cancellation/usage/fallback, enabling remaining Phase4 model/token/latency/cost gates and then full maintained JS migration.",
+  "rollback": "Disable mixed admission; retain shared namespace/unknown-state fences if any mixed checkpoint exists. Never treat interrupted mixed state as legacy reminder-only state.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-mixed-typecheck.log",
+    "focused": "/private/tmp/hermes-mixed-focused.log",
+    "fullSuite": "/private/tmp/hermes-mixed-unit.log",
+    "inventory": "/private/tmp/hermes-mixed-inventory.json",
+    "compiledRuntime": "/private/tmp/hermes-mixed-runtime.json",
+    "runtimeBuild": "/private/tmp/hermes-mixed-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-mixed-runtime.mjs",
+    "postgresHarness": "/private/tmp/hermes-mixed-postgres.sql",
+    "postgresLog": "/private/tmp/hermes-mixed-postgres.log"
+  }
+}

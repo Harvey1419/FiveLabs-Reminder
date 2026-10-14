@@ -6,10 +6,10 @@ This change strengthens source-backed assistant responses and memory persistence
 
 | Area | Main implementation | Invariants |
 |---|---|---|
-| Memory writes | `src/features/memory/`, `src/agent/tools/memory.js`, `intent-executor.js` | Explicit and automatic extraction share one source-attributed path. Confirm only persisted facts; avoid duplicate raw writes. |
-| Retrieval | `src/infrastructure/database/memories.js`, `personal-knowledge.js` | Verify owner, active version and validity before citation. Unavailable is not an empty memory. Display labels do not replace semantic categories. |
+| Memory writes | `src/features/memory/`, `src/agent/tools/memory.ts`, `intent-executor.ts` | Explicit and automatic extraction share one source-attributed path. Confirm only persisted facts; avoid duplicate raw writes. |
+| Retrieval | `src/infrastructure/database/memories.ts`, `personal-knowledge.ts` | Verify owner, active version and validity before citation. Unavailable is not an empty memory. Display labels do not replace semantic categories. |
 | Mixed assistance | `intent-contracts.js`, `router-core.js`, `observed-answer.js` | Personal sources can accompany live read cards and requested fields without adding a model phase. Sources do not grant mutation permissions. |
-| Reference continuity | `working-memory-store.js`, `intent-executor.js` | Field-only answers do not renumber a visible list. Provider failures preserve reference age and context; invalid references do not create impossible pending drafts. |
+| Reference continuity | `working-memory-store.js`, `intent-executor.ts` | Field-only answers do not renumber a visible list. Provider failures preserve reference age and context; invalid references do not create impossible pending drafts. |
 | Profile and language | `turn-context.js`, `response-policy.js` | Current authorization controls persistence; old optional updates cannot block valid reads/conversation. Quotes are not language-change instructions. |
 | Historical evidence | `observed-answer.js` | Successful operations and queries remain historical proof. Selecting historical sources does not perform a fresh read or certify arbitrary model prose. |
 
@@ -24,7 +24,7 @@ Behavior tests accompany these areas in `tests/unit/agent/` and `tests/unit/memo
 - Synthetic shutdown and cleanup were verified. No real customer records were cleaned or migrated.
 - Provider error envelopes were intentionally omitted from private traces when they might contain headers. Evidence gaps were retained rather than represented as complete capture. These are not proof of complete end-to-end coverage.
 
-Run the normal unit suite with `pnpm run test:unit`. Live validation is opt-in and requires separate credentials, request budgets and approval. The owned runner is `scripts/dev/run-chat-validation.js`; scenario fixtures live in `chat-validation-scenarios.js`. Do not run it merely to verify syntax: it creates synthetic database records and sends provider requests.
+Run the normal unit suite with `pnpm run test:unit`. Live validation is opt-in and requires separate credentials, request budgets and approval. The owned runner is `scripts/dev/run-chat-validation.ts`; scenario fixtures live in `chat-validation-scenarios.ts`. Launch the runner through `pnpm run chat:validate <arguments>` so its imports use the TypeScript loader. Do not run it merely to verify syntax: it creates synthetic database records and sends provider requests.
 
 ## Rollout gate
 

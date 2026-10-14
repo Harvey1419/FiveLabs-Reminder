@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Complete strict TypeScript semantic memory service and position-bound admission; legacy JS modules retain lazy model/database/contract wiring",
+  "candidate": {
+    "filesPassed": 203,
+    "testsPassed": 2753,
+    "durationSeconds": 51.23
+  },
+  "focused": {
+    "filesPassed": 19,
+    "testsPassed": 230,
+    "durationSeconds": 3.91
+  },
+  "newCases": 12,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "exactExtractionPromptPreserved": {
+      "exactExtractionPromptPreserved": true,
+      "sourceSha256": "292a8d4d015753c56514598410bb2a7af882e8f9dd82d0e00e0e273d71a3fe29"
+    },
+    "providerAndStorageInjection": "passed",
+    "currentUserSourceAndAttachmentIsolation": "passed",
+    "processedTurnNoReplay": "passed",
+    "validatedProposalExtractionBypass": "passed",
+    "copiedAdmissionCandidatesAcrossAwait": "passed",
+    "noEntityOrMemoryWritesBeforeAdmission": "passed",
+    "strictUnavailableApprovalAndUnconfirmedSave": "passed",
+    "standingAspectsAcceptExistingSetIterable": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "passed": true,
+    "reads": 21,
+    "writes": 16,
+    "policyCalls": 1,
+    "admissionCalls": 3,
+    "extractionCalls": 1,
+    "compiledServiceWritesAndRetrievesActualRows": true,
+    "deniedAdmissionAndAssistantSourceNoDurableMemoryWrites": true,
+    "compiledPolicyReadsActualPreferences": true,
+    "checks": [
+      "idempotent version skips embedding",
+      "history superseded by exact new identity",
+      "authoritative hydration excludes expired/foreign/stale rows",
+      "actual Spanish FTS",
+      "standing profile query",
+      "invalid selection refuses delete",
+      "supersede failure compensates new version",
+      "pending recurring and one-off policy healing",
+      "foreign/completed reminders retained",
+      "committed lost delete reply unknown without replay",
+      "exact-topic deletion receipt"
+    ],
+    "temporaryDatabaseRemoved": true
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realServiceAdmissionDatabaseToolFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "typedServiceThroughEmittedPersistence": true,
+    "admittedProposalWriteAndRead": true,
+    "deniedAdmissionNoWrites": true,
+    "processedTurnNoReplay": true,
+    "stubAdmissionCalls": 2,
+    "backgroundAccessUpdates": 1,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:1ecb5cfb1c6495b3615046da88b66454a13aac5e161637f1a644b143eedc0153"
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 191
+  },
+  "transitionalDeclarations": 29,
+  "sourceHashes": {
+    "src/features/memory/memory-service.ts": "68131490f3b40feb7769ca84b0b0cd7a6ccc0874dcfc458d185128dd44c5adc3",
+    "src/features/memory/memory-admission.ts": "0475402fff3f00aed76e729b636c51abad725bd3d05e837503d60e2352868c14",
+    "src/features/memory/service.js": "1779d7bc264d1336edacd7cdf3a408c387ff768c0570fdfd4d5191fb2622411c",
+    "src/features/memory/service.d.ts": "9ba38ffd2ed62fe2d267c589296b72a30f7aa40f1fcb5195b756f9d5d6dc4870",
+    "src/features/memory/validate-candidates.js": "8653e95cb9e0a3eb52e0c02a17c1c74330b7bd77d0da9a5c9db4e4a5516bb53b",
+    "src/features/memory/validate-candidates.d.ts": "487f88a5b764cb5a7734fc6976d2ad6952362b65326a32a8d99d01997576fca9",
+    "src/infrastructure/database/memory-persistence.ts": "0d3e69f37d42dc98f5107207f3f4b6d177272d37c78a535eccc990627bee1e5a",
+    "tests/unit/memory/typed-memory-service.test.ts": "4796c59b7812f6b5a8d0ca7770fe84682477141560e5ff11d9c4d7d52e65690f",
+    "tsconfig.runtime.json": "9a91b41b45068d5cd87f6591c0667d19fca199913519dfdf25da1047a9a15280"
+  },
+  "limits": [
+    "Semantic provider approvals and extraction are injected fixtures, not live model quality/attribution verification",
+    "Consumed-column SQL structural client, not deployed RLS/live Supabase/PostgREST transport or pgvector quality validation",
+    "Related retrieval retains normal background last-access timestamp updates even when no durable memory is admitted",
+    "Memory/entity writes remain legacy sequential APIs rather than independent atomic effect certificates",
+    "Production network-disabled import/runtime smoke, not full server boot or canary",
+    "No SQL/dependency/scheduler/configured model/V2 activation/deployment or live HTTP/WhatsApp changes",
+    "Learning-candidate contracts, provider gateway, central dispatcher/router and remaining maintained JS still need migration"
+  ]
+}

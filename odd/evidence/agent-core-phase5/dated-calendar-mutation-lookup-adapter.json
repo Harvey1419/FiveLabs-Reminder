@@ -1,0 +1,405 @@
+{
+  "increment": "dated-calendar-mutation-lookup-adapter",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCase": 19,
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 17,
+    "newOfflineCases": 14,
+    "productionSourceChanges": true,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "behavior": [
+    "scope=YYYY-MM-DD is a lookup-only local civil date for calendar.update; schedule remains a reschedule",
+    "Actual foreground validator and domain builder reject invalid dates; conflicting contextRef is rejected",
+    "Internal lookupDate reaches Calendar adapter without a schedule patch",
+    "Dated query uses exact local-day bounds and only matching start-day candidates; no old working-memory fallback",
+    "Empty/out-of-date/ambiguous reads do not mutate; provider failure reports SERVICE_UNAVAILABLE without mutation",
+    "Unscoped mutation lookup is retained; explicit schedule rescheduling remains supported"
+  ],
+  "schema": {
+    "structuralFingerprintsChanged": false,
+    "currentCanonicalDescriptionHash": "d306889ef8f2ea3d6d5f6aebda0aded590cb220748a2735581480b8f20fa1456",
+    "previousCanonicalDescriptionHashIndependentlyReconstructed": "40c6cd8f9ba705137012e006127a34ef8edd0da8f929a57874cd705056a9b905",
+    "providerScopeDescriptorCompacted": true,
+    "historicalHashesPreserved": true,
+    "comparisonArmsUseCurrentRuntimeContracts": true,
+    "baselineProjectionRef": "1290e81",
+    "pureImportAllowlistAddition": "src/shared/calendar-lookup-date.ts",
+    "effectOwningModulesEvaluated": false
+  },
+  "files": [
+    {
+      "path": "src/shared/calendar-lookup-date.ts",
+      "sha256": "bd5fd50d6b613b727dccf7a44efcea0d84e5676e8c7cfa48aacb53491a3f64d5"
+    },
+    {
+      "path": "src/agent/contracts/intent-validator.ts",
+      "sha256": "cc44cd71892d9ef1f52619dce14131a4e097287c1ea736418548a69e4c299e14"
+    },
+    {
+      "path": "src/agent/contracts/foreground-turn-projection.ts",
+      "sha256": "d9ece0b5456efd3ec52c80cd995e6e59b239f426a887adcf587dec892015fa31"
+    },
+    {
+      "path": "src/agent/orchestration/domain-call-builder.ts",
+      "sha256": "08a55f9483a43d1a99de6121ea93e11238c004c0e21c065d3db60530cb427792"
+    },
+    {
+      "path": "src/agent/tools/calendar-tool.ts",
+      "sha256": "c16f0ddb27f7ba3706fb6434a863897bbf4c5d67da2d65d817f4435a3b9b3729"
+    },
+    {
+      "path": "scripts/evals/groq-contract/baseline.ts",
+      "sha256": "c535c6809cdb84d8817e3f62ebd1875b242ace99a70e8e10b02229b9a9b492be"
+    },
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "5cf09ceba2fd68a7043a5b831a704de3da4b3eabc6933226d91e331815c75480"
+    },
+    {
+      "path": "tests/unit/agent/provider-description-compaction.test.ts",
+      "sha256": "5782d59679901f4663f1037fc020bda7832ac202e5ee73e3b2cce1af44c0bf3b"
+    },
+    {
+      "path": "tests/unit/agent/intent-contracts.test.ts",
+      "sha256": "7d22183811afec1d990f016044525af4093f99907103c46d2ea709742ce8b123"
+    },
+    {
+      "path": "tests/unit/agent/agent-core-overview.test.ts",
+      "sha256": "1587253e8e1200b92bc4a4220725e4d333b6557af0ea0a6269b5860130ebd6c8"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-calendar-lookup-fixture.ts",
+      "sha256": "d415c7a55600565270134d12fd7aa1174fe960aabd6cfb81020430ec8220d624"
+    },
+    {
+      "path": "tests/unit/agent/calendar-dated-mutation-lookup.test.ts",
+      "sha256": "74fcfdc21e1716ec9dd1d962f7a8058f858c51f7e185f9e5170ca68696f748bc"
+    },
+    {
+      "path": "docs/agent/groq-contract-evaluation.md",
+      "sha256": "e5707c7996529aa9835c1c368a747440b4391d5160e36d5f4c91eac9dad7cd9f"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "finalNoEmitRecheckPassed": true
+    },
+    "focused": {
+      "files": 5,
+      "tests": 225,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 283,
+      "tests": 3543,
+      "durationSeconds": 63.49,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 699
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "executableFilesChanged": 4,
+      "declarationsChanged": 38,
+      "delta": {
+        "changed": [
+          {
+            "path": "dist/runtime/infrastructure/database/tasks.d.ts",
+            "before": "284b1e46eeed29636ab4fcbb4e82517a7bb2f0ede4b35bec3dc59ec4f2ac8d57",
+            "after": "95cd8fb8fd2603e93e95fda0406a7905d567b8b56c703986687fe3f8ab65722f"
+          },
+          {
+            "path": "dist/runtime/agent/tools/project-tool.d.ts",
+            "before": "569d059cf66fe2d25425d1ea0e16c24c5fb24f8aaa6dad671a1f063e03f9e50a",
+            "after": "4d29f4b83845690b7c5403dae1cb844125abd0779f0dd21d85d46625124bf461"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-update-tool.d.ts",
+            "before": "55a4e81d429454c6dc0ec61357fd9918ead5dc775a49447120afa46b07c0736f",
+            "after": "cb8ed079bead08ae1b82577287988283cea72ca612864c50e953fec506bac5fe"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-read.d.ts",
+            "before": "29b7a11dd438fe3a41e8b8486d0dfd298137df91d68306f2568fb9a30edc5bce",
+            "after": "3a42c0c3d5213719e014aecf97ee154c3da69f15f9a0c635d6e5af8012a0c877"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-create.d.ts",
+            "before": "c96361650d7a6dc26bf376a2afacf6c622d74917165ea16a4eca343b65fb7486",
+            "after": "53de6c9c6ec650f3305c9e046cacbd204675c7095732bda6d9be385556cbf088"
+          },
+          {
+            "path": "dist/runtime/agent/tools/calendar-tool.d.ts",
+            "before": "06935e22cabbdf8bfedcdca744c1d4ce63a073c67b7e44d766b22fcefb27ffb3",
+            "after": "477d2822b320b8aaa6aca1adcf6caf9e40d8b75545ba5da3663312a49a68c768"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-create-tool.d.ts",
+            "before": "89951cf4050546f8dec1fa4ed9e788d45d61cf289b0d180ff3cbecb9c6f4cc64",
+            "after": "4fc39567047d4ac885658fae2d8ebac873ebe0b639fddf344292921626bf9efd"
+          },
+          {
+            "path": "dist/runtime/agent/tools/entity-tool.d.ts",
+            "before": "38de795e0fa0e5863fd7615ba6378669da7efbc8c2c8c1ace5cde6c274b905e3",
+            "after": "4a4bbedb368823a8efc10fad8180403574a44c26d498d2b906362ec9e3f2010c"
+          },
+          {
+            "path": "dist/runtime/agent/tools/memory.d.ts",
+            "before": "e00b737aebfacb76fe362b54ef96ba478688c6be775cfb47d6d92364384ad04d",
+            "after": "d4407ea979d7ffcdde101f0e25279af513d0bf960077f26d650e7befac129fd7"
+          },
+          {
+            "path": "dist/runtime/agent/tools/unified-agenda-tool.d.ts",
+            "before": "3c85ca13e700cac09b0c70ad642ddc2fe91c0a929c48a1dca57237095ae4655f",
+            "after": "7e60df44a3d0c4318992fb01053f1b401b9400d6c494e9add75974d43394e421"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-cancel-tools.d.ts",
+            "before": "db7419cdfd93154229bbe64dd734efdbe76995d8e2ec8261e749941445cfa587",
+            "after": "3457d35cb69caf9fbcfbaf9eff5c07fc3771e8203314a0419944e25b249bf8db"
+          },
+          {
+            "path": "dist/runtime/agent/tools/unified-agenda.d.ts",
+            "before": "ec75594dad44dadac629df7de7a5e8ad29ac95a33cad533a558cad1933542655",
+            "after": "730e23eb150471cfdcf0ff1b973366e0e9b820c0c8d85929768bc146dfb87a72"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-update.d.ts",
+            "before": "114a645f290f416be7bb235c291070675ac24de33e6670218f608a797c381d5b",
+            "after": "bb97a149ffc7a7f48b0893cda66ba590203f28f2140ce208cf2be4b8d61c2cc3"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-create.d.ts",
+            "before": "bec5b9bd9aef7aa42254a1452ca6692768300749fbbd3fc7f274ed898bba4039",
+            "after": "fc619236a5eccbb874b529455185c54ce5568ea751a5f5dd081844d8525892d8"
+          },
+          {
+            "path": "dist/runtime/agent/tools/projects.d.ts",
+            "before": "3dd60aeffe3012e177eea7d30e1734c1579002ebeb94fc44f8d3d800303689b4",
+            "after": "952fcdbd7c76c521cc95702d37ca3d94767787c26c7983162e804614fea8eb66"
+          },
+          {
+            "path": "dist/runtime/agent/tools/admin-tool.d.ts",
+            "before": "9f8077695960fd22b05275575bd6de37220ed7fa37c7ae01f3f40c404406c8e8",
+            "after": "6baa1b29e3581889cac47b1235e8416009f9b0c4d3a2ab58631e406939ebb0f3"
+          },
+          {
+            "path": "dist/runtime/agent/tools/entities.d.ts",
+            "before": "8667b194d4bfc29685e9e27140b96b26a58b5e335467f59dd31d6348684874b4",
+            "after": "ad99e4315f8b9fa0212328dfae5d656613e294d3a089baf722a0f974b9a45ebf"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-complete.d.ts",
+            "before": "a1ffc13b20a5b1429d181c7a278d31d02efebb0e5486803d065e9b8ab9efef53",
+            "after": "08499ca37b1634c490ae0955dae4218c47f4feb4d09a8d5676f2bceaa7f26b33"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-create-tools.d.ts",
+            "before": "e73220994d000ec146c894cbead669e854b21d98582e044ef1b1b7e76841b4b1",
+            "after": "f10330d23aa134d51d0ace53e7d1740a31b0d529969ea5afcab4b2a0e06f64ab"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-read.d.ts",
+            "before": "b65d14bd35c43aacb2c20cb4dbf67968550562a79f1b89273d6512b94468620c",
+            "after": "c7d87fecf1eea08c48b2b4917f9f8da66702783cb2b703517e2844f9edcf0f7b"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-delete-tool.d.ts",
+            "before": "3239c3377fc2bfa288828ff9f4d488f523968b0e03e020d460760961421168f7",
+            "after": "9bc0191347d587580004a5982bd0a7a0756c5b38c5e35a7c8b7227d36008e258"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-update-tools.d.ts",
+            "before": "44967f28e89074f8424c9aed16e0eb2f21bdb5a1dd2fcab179cc847f9dc3500c",
+            "after": "a29a132c6b72b0f3e246ae139b89ba04a118578e8b8fa65d063d9dd3ea5808c9"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-delete.d.ts",
+            "before": "95d7cd5f254c8137191d6bef3e537f07822b8005d1090645e0ffaa10aca7c92e",
+            "after": "47b02fd5ddc1cfa529a629040b4af5782fae20a3516a6c61f80d9c5915c28c0c"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-complete-tool.d.ts",
+            "before": "48ff08aeaee731196c5e2d82cc304603e3e8ea18239fad28ddcf7a6d89193b87",
+            "after": "d8fe8013fbb044568fdbe4053091ad86de2683c3c85985cb871bd10bdb6f786f"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-update.d.ts",
+            "before": "da7beaaf4fb1ad9f4289d44c5dff313e0a9f596a08afedb820aa481695c1b219",
+            "after": "a3fc252b0ae3c1e8b4c52c775f2c78debcae3ba5dee6453c986059aaa8fc0ccd"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-read-tools.d.ts",
+            "before": "d6ddeb6b1303c72e46ced02278298afcdbc020d26abb4a82bea6eb62887ff682",
+            "after": "4249b4fe4af02469cb1b4e718b838258d04712054ce994df5580c7d5eda8e7c2"
+          },
+          {
+            "path": "dist/runtime/agent/tools/admin.d.ts",
+            "before": "11af2dd26dfc7e32216f98a36314d7c337aa286ad29bd7d546752ca7aa24fb89",
+            "after": "3650e5abdb9ea9bd78a20d04650b9bffd38b607df835162accb1e9a8ae924c57"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-acknowledge.d.ts",
+            "before": "de6be2594fc0c1c18b233f970c83142a8590f9105135d912ccd2d0133c236479",
+            "after": "fa4628cd1ecc92737742187556167a0e6aa97a4b3d54cd981ae57364558fee0c"
+          },
+          {
+            "path": "dist/runtime/agent/tools/calendar.d.ts",
+            "before": "47fcdb8359c38fa78e52729c8210f2a058b60bd3d781c4219de6923812a7f9d9",
+            "after": "e1122a20c483b008d417974c04c17316bfb6827ce75baadd9a06fde681c2d030"
+          },
+          {
+            "path": "dist/runtime/agent/tools/index.d.ts",
+            "before": "c0ee749b42bcca72567c9ae64b4433aecb7a3e316590504949a59116446a9e75",
+            "after": "df55c82333d48bc61ecf35c8a62822253d88912cc3dbff41731ce47bce5284a3"
+          },
+          {
+            "path": "dist/runtime/agent/tools/tool-dispatch.d.ts",
+            "before": "d093b96637814ea8f317b5d7ba562618f2774aa15fe9168fb371047143b07a23",
+            "after": "d7a367dfccb3566a42b6a330588ff7ac2e6eb5e359dc2f5ab35d73a0f1d7d233"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-cancel.d.ts",
+            "before": "507edeb416578505fdb9a60b7f7b75f17757a48548e2f534042ba2264cc97afc",
+            "after": "e70d1a6395965cd2781e4693fe5d37f8a7ac227c03d1a7496e33c8815fce7b9e"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-bulk-cancel.d.ts",
+            "before": "6d06c22dc6a35ac90de4fea8bdbd0ae34ab1e80e87b362260e4c8878d32eeea7",
+            "after": "25d8f7a30205a74bee9f783dd2bd785c207d4aeda6072a90a5939b3cc3b1a340"
+          },
+          {
+            "path": "dist/runtime/agent/tools/calendar-tool.js",
+            "before": "1440528e40b17b94393fd1e52731c7b9ba5654f03ea0e84cfd6b216f0d8fa037",
+            "after": "078b54127149e1e8bd74b0995eb65e8dca58b548490e1d69eb2812a7cec4b8ba"
+          },
+          {
+            "path": "dist/runtime/agent/tools/task-read-tool.d.ts",
+            "before": "b379141b2feff8d3f2691d674500fa249b290d0d8cf30ce9a770fdf57a1663e1",
+            "after": "8599edf2eafaab393539a49e104dcb19937fe07583d1477c4db087f1f3e8161f"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-bulk-cancel-tools.d.ts",
+            "before": "ec7a2b1819a863c0c95e6d96f6ec7d85e718ab66486049e371c568d99ddfd18b",
+            "after": "88e05ed7a0ec1e5d51db714f079dbe6f3f19eb3d4d20a7956ba276e3331eeb9f"
+          },
+          {
+            "path": "dist/runtime/agent/tools/reminder-acknowledgement-tool.d.ts",
+            "before": "187719088dad392523f8743f10ee0ab7a531a00822d28549ed1600a7a3a32a9e",
+            "after": "aafd4c9a4c878932596f07e666580f720e55cb2886ec631d00b7104d2258491d"
+          },
+          {
+            "path": "dist/runtime/agent/contracts/intent-validator.js",
+            "before": "9de9a2efe36c2a55599f818e01363068d97d7c81a13aa79de24dcbda44fd8202",
+            "after": "9e1fb713e344781db1f1deb8de0c538bdae3b3606874f8ef1b417b6ab469ed96"
+          },
+          {
+            "path": "dist/runtime/agent/contracts/foreground-turn-projection.js",
+            "before": "9ad6336f313d69a1d5816e1dbf696501705dfe23e9d02031c2d4a782f6663559",
+            "after": "cb9b51228eb6208bd360fc79b5e51917478236d70e8918293846bb034b92089f"
+          },
+          {
+            "path": "dist/runtime/agent/contracts/reminder-query-contract.d.ts",
+            "before": "a90c5fdf02f4db8d4209e5c28401960edb9628c3c0339c245692deee9f4627dd",
+            "after": "d62fbdf0f70a89227f4e31a11529ef9710fb55e159f4ed8e633f4bb9ecfab34a"
+          },
+          {
+            "path": "dist/runtime/agent/orchestration/domain-call-builder.js",
+            "before": "57e7567fe9c0164eb269330e7a3b520825cf5bebf280aead763abfc3f3b017b1",
+            "after": "74e4145c1b669b649cad07690325ac1f9598732e295af942e165d87a8a406db4"
+          },
+          {
+            "path": "dist/runtime/features/tasks/service.d.ts",
+            "before": "3b0efca14066ea6a8ed74633f15ccbf127ad3ba6bad36d18a63e792a4325b3e5",
+            "after": "d700ee60e945a04c936f066e76bd16d61347ead4b6ec73d7be23913c4ed3bc3f"
+          }
+        ],
+        "added": [
+          {
+            "path": "dist/runtime/shared/calendar-lookup-date.d.ts",
+            "sha256": "877947d78fc436bd856aa8e22b4879e08af5b53726cf35495483fa2663cc3bb9"
+          },
+          {
+            "path": "dist/runtime/shared/calendar-lookup-date.js",
+            "sha256": "42a360a72320ab64ddff0bfde1bae224d8a9d015cfcc8520cacb74dd79365a1b"
+          }
+        ],
+        "unchanged": 520,
+        "total": 564
+      }
+    },
+    "node22": {
+      "image": "hermes-compiled-runtime:local",
+      "currentDistMountedReadonly": true,
+      "network": "none",
+      "report": {
+        "node": "22.23.3",
+        "sdkMockRequests": 1,
+        "calendarSdkLoaded": true,
+        "healthStatus": 200,
+        "shutdownExitCode": 0,
+        "realNetwork": false
+      },
+      "additionalChecks": [
+        "Current compiled date helper accepts exact valid date and rejects rollover"
+      ],
+      "newImageRebuild": false
+    },
+    "diagnosticCorrections": [
+      "Current canonical hash and provider-local descriptor allowlist explicitly updated; historical schema constraints independently retained",
+      "First full unit run found two historical overview schema reconstruction checks still including the new sentence; exact historical descriptor restored for those comparisons only; original size/savings thresholds unchanged; final complete run passed"
+    ]
+  },
+  "externalExecution": {
+    "integrationCaseExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "realGoogleApi": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Offline SDK/storage injection and mounted compiled smoke do not certify real Google or database persistence",
+    "Date selector selects events starting in the local civil day; earlier-starting overlapping events are excluded",
+    "17 behavioral cases plus other integration/acceptance audits, isolated persistence, live model measurements and V2 rollout remain open"
+  ],
+  "rollback": "Restore only backed-up files for this increment; remove new date helper/fixture/regression suite and appended migration/evaluator documentation/evidence; rebuild runtime; preserve prior migration and unrelated workspace changes."
+}

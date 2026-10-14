@@ -1,0 +1,46 @@
+import { z } from 'zod';
+import { aiMessageSchema } from './provider.js';
+import { reminderRecordSchema, reminderResultSchema, reminderReadInputSchema } from './reminders.js';
+import { reminderToolNameSchema } from './reminder-turn.js';
+import { taskRecordSchema, taskResultSchema, taskReadInputSchema } from './tasks.js';
+import { calendarEventSchema, calendarResultSchema, calendarReadInputSchema } from './calendar.js';
+
+export const taskToolNameSchema = z.enum(['task_create', 'task_read', 'task_update', 'task_complete', 'task_delete']);
+export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect']);
+export const productivityToolNameSchema = z.enum([...reminderToolNameSchema.options,
+  ...taskToolNameSchema.options, ...calendarToolNameSchema.options]);
+const common = {
+  callId: z.string().min(1),
+  status: z.enum(['success', 'partial', 'validation_failed', 'denied', 'approval_required', 'clarification_required', 'failed', 'indeterminate']),
+  code: z.string().max(80).nullable(),
+};
+export const productivityItemSchema = z.discriminatedUnion('domain', [
+  z.strictObject({ ...common, domain: z.literal('reminders'), toolName: reminderToolNameSchema, result: reminderResultSchema.nullable(), readScope: reminderReadInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('tasks'), toolName: taskToolNameSchema, result: taskResultSchema.nullable(), readScope: taskReadInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('calendar'), toolName: calendarToolNameSchema, result: calendarResultSchema.nullable(), readScope: calendarReadInputSchema.nullable().optional() }),
+]).superRefine((item, ctx) => {
+  if (item.result && item.toolName !== `${item.domain === 'reminders' ? 'reminder' : item.domain === 'tasks' ? 'task' : 'calendar'}_${item.result.operation}`) {
+    ctx.addIssue({ code: 'custom', message: 'Tool and result operation must match' });
+  }
+  if ((item.status === 'success' || item.status === 'partial') && !item.result) {
+    ctx.addIssue({ code: 'custom', message: 'Confirmed outcome requires domain evidence' });
+  }
+  if (item.status === 'success' && item.result && !item.result.complete) {
+    ctx.addIssue({ code: 'custom', message: 'Successful outcome requires complete evidence' });
+  }
+  if (item.readScope && !item.toolName.endsWith('_read')) {
+    ctx.addIssue({ code: 'custom', message: 'Read scope belongs only to read operations' });
+  }
+});
+export const productivityConversationSchema = z.strictObject({
+  userId: z.string().min(1), history: z.array(aiMessageSchema),
+  reminders: z.array(reminderRecordSchema).max(50), tasks: z.array(taskRecordSchema).max(50),
+  events: z.array(calendarEventSchema).max(50), handledRequestIds: z.array(z.string().min(1)).max(100),
+});
+export const productivityUiPayloadSchema = z.strictObject({
+  language: z.enum(['es', 'en']), timezone: z.string().min(1), items: z.array(productivityItemSchema).max(10),
+  notices: z.array(z.enum(['provider_unavailable', 'invalid_response', 'unavailable_tool', 'limit_reached'])).max(10),
+});
+export type ProductivityItem = z.infer<typeof productivityItemSchema>;
+export type ProductivityConversation = z.infer<typeof productivityConversationSchema>;
+export type ProductivityUiPayload = z.infer<typeof productivityUiPayloadSchema>;

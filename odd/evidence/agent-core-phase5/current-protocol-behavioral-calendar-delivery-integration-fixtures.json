@@ -1,0 +1,130 @@
+{
+  "increment": "current-protocol-behavioral-calendar-delivery-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      17,
+      18,
+      20
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      20
+    ],
+    "cumulativeAdaptedCases": 18,
+    "unchangedCaseAuditedOffline": 13,
+    "originalDeclarationsRetained": 37,
+    "otherCasesPending": 18,
+    "newOfflineCases": 8,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Calendar creation fixture explicitly requests 15-minute notice and uses consistent 09:00 Bogota event timestamps",
+    "Companion assertions check exact 08:45 local time, gcal_companion source and event delivery identity",
+    "Reminder desired deliveryPolicy binds primary through working-memory contextRef; new advance notice must carry parent identity and source while primary remains unchanged",
+    "Upcoming agenda pins reference clock, checks insertion and isolates Calendar as disconnected"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "154d21c30fefaeefa5c656d5576f00ed497871dd9e037246bb3cf24179221b00"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-calendar-delivery-fixtures.ts",
+      "sha256": "e45572e69eee678a5e5e1f8a6a6b997bb26215c10c6b13040d5993f675288432"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-calendar-delivery-fixtures.test.ts",
+      "sha256": "308aaf36b5eaf0183a666a773f60f360193594455e82d8cf76327e3763f9806f"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true
+    },
+    "focused": {
+      "files": 1,
+      "tests": 8,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 282,
+      "tests": 3529,
+      "durationSeconds": 58.8,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 696
+      }
+    },
+    "runtime": {
+      "compiledModules": 259,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 562
+    },
+    "boundaries": [
+      "Four strict provider wire/actual foreground validator/domain-call mappings",
+      "Actual Calendar tool creates one companion at exact explicit offset with event identity",
+      "Actual Calendar tool without requested notice creates no companion",
+      "Actual desired-state update preserves primary and reuses linked notice on repeat",
+      "Actual upcoming aggregate passes lower date bound and owner predicate to injected storage and renders future-only card"
+    ]
+  },
+  "pendingProductionGap": {
+    "case": 19,
+    "status": "not counted ready; original fixture retained",
+    "evidenceKind": "source audit, no external execution or live reproduction",
+    "contract": "actionSchema lacks a lookup-only date selector; calendar.update schedule mutates event start/all-day state",
+    "execution": "resolveCalendarMutationTarget searches natural targets from getNow with timeMax null and does not consume legacy params.date",
+    "requiredBehavior": "Bound September 9 lookup and ignore stale September 3 references while preserving event time/type in a rename-only update",
+    "paths": [
+      "src/agent/contracts/intent-validator.ts",
+      "src/agent/orchestration/domain-call-builder.ts",
+      "src/agent/tools/calendar-tool.ts"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "database": false,
+    "provider": false,
+    "calendar": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Injected storage and SDK ports do not certify persistence or real Google execution",
+    "Recorded decisions do not measure live model quality",
+    "Dated lookup gap remains unresolved and case 19 remains pending",
+    "18 behavioral cases plus remaining integration/acceptance audits, isolated database execution, live provider measurements and V2 activation remain open"
+  ],
+  "rollback": "Restore only this increment integration edits; remove its new calendar/delivery fixture and unit regression file plus appended documentation/evidence, preserving earlier work."
+}

@@ -1,0 +1,189 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 strict TS maintained approval/continuation executor with legacy host compatibility",
+  "candidate": {
+    "filesPassed": 187,
+    "testsPassed": 2513,
+    "durationSeconds": 46.84
+  },
+  "focused": {
+    "filesPassed": 37,
+    "testsPassed": 687,
+    "durationSeconds": 8.95
+  },
+  "newCases": 6,
+  "checks": {
+    "strictProjectPackageRuntimeTypecheck": "passed",
+    "legacyCompiledDomainParity": "passed",
+    "lostClaimUsesScopedStorage": "passed",
+    "fenceBeforeDispatch": "passed",
+    "storageFailureBlocksDispatch": "passed",
+    "storedExecutionsNotRepeated": "passed",
+    "invalidDraftNoWrite": "passed",
+    "coldProductionImage": "passed after correcting builder source copy",
+    "compilerFreeNode22LegacyBoundary": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "runtime": {
+    "scenarios": [
+      {
+        "scenario": "success",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 0,
+          "httpCalls": 1,
+          "rpcCalls": 12,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_acceptance",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 19,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_finalization",
+        "applied": {
+          "status": "ACTIVE_COMPLETION_STORAGE_UNCERTAIN",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 1,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "applied": {
+          "status": "ACTIVE_RUN_RECONCILIATION_REQUIRED",
+          "domainCalls": 1,
+          "httpCalls": 0,
+          "rpcCalls": 13,
+          "legacyFinishes": 1,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": null
+      }
+    ],
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "mode": "compiled TS worker and shared lease -> actual TS source composition through tsx -> actual SQL claim/renew/receipt/close -> simulated HTTP"
+  },
+  "docker": {
+    "image": "hermes-executor-runtime:local",
+    "node": "22.23.3",
+    "network": "none",
+    "actualLegacyModule": true,
+    "actualExecutionFactPresenter": true,
+    "typeScriptLoader": false,
+    "compilerRequiredAtBoot": false,
+    "successfulApproval": true,
+    "incompleteReminderWithoutDispatch": true,
+    "liveHttpCalls": 0
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 127,
+    "transitionalDeclarations": 11,
+    "javascriptLifecycleModuleRetained": true
+  },
+  "sqlChanges": false,
+  "previous235AssertionFixtureRerun": false,
+  "commands": [
+    "pnpm run typecheck",
+    "pnpm exec vitest run --config tests/config/vitest.unit.js tests/unit/agent-core tests/unit/agent/agent-run-invariants.test.js tests/unit/agent/agent-run-domain-parity.test.js tests/unit/agent/agent-run-incomplete-reminders.test.js tests/unit/agent/agent-run-destructive-batch.test.js tests/unit/messaging/inbound-turn-worker.test.ts",
+    "pnpm run test:unit",
+    "pnpm run migration:inventory",
+    "python3 /private/tmp/hermes-worker-roundtrip.py",
+    "docker build -t hermes-executor-runtime:local .",
+    "docker run --rm -i --network none -e SUPABASE_URL=https://placeholder.supabase.co -e SUPABASE_SECRET=fixture-only hermes-executor-runtime:local node --input-type=module < /private/tmp/hermes-executor-node22.mjs",
+    "git diff --check"
+  ],
+  "sourceSha256": {
+    "src/agent/core/active-run-executor.ts": "621b908e5a8710f4c0f139e2752fa94ff13652954d78da1d510880ccded18482",
+    "src/agent/core/agent-run.js": "e84028addb9036c74d19fa2602f178ac7e80054846ad607dc339dcf7bed08003",
+    "src/agent/core/agent-run.d.ts": "b57c6c4e7e5ffd3ce9cedcc418593cbf9fd90ee33a5485bfbeea268041963ecb",
+    "tests/unit/agent-core/legacy-run-executor.test.ts": "c63a7aae80eb3fc31a815f736fb708ae3593fbf477e76ff5ade47b232b06a2a1",
+    "tsconfig.runtime.json": "b27165ee64ef2f4ff1579e7c0724583a77e979ad3e1a80dee3ab0f8b3cabaf86",
+    "Dockerfile": "48d78200d67ff429b0b379f10fedb26f852ad7d32c748f61fb9237b15aecc10a",
+    ".github/workflows/ci.yml": "4477eb29c70db4599e6bd937408fb1929a79fb9698326223d6c83bc8a227d0af"
+  },
+  "limits": [
+    "Run creation/supersession/prompt lifecycle remains JS",
+    "Compatibility declaration remains; executor types derive from TS implementation",
+    "Broader SDK full-application emit issue remains open",
+    "Interrupted new-format unknown turns still require authoritative reconciliation; never replayed",
+    "No SQL permission fixture rerun in this no-schema-change unit",
+    "Full Node22 suite not executed",
+    "No live provider, WhatsApp, production Supabase, deployment, commit or V2 routing activation"
+  ],
+  "rollback": "Restore preceding execution bodies and host declaration/build wiring together; retain existing fences and persisted receipts/certificates."
+}

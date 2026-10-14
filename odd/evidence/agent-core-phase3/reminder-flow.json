@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase 3 isolated reminder turn and deterministic WhatsApp presenter",
+  "candidate": { "filesPassed": 163, "testsPassed": 1976, "durationSeconds": 37.38 },
+  "focused": { "filesPassed": 8, "testsPassed": 104, "durationSeconds": 2.73 },
+  "newCases": 24,
+  "reviewedSnapshots": 8,
+  "journey": {
+    "turns": ["create", "reference_update", "acknowledge_in_English"],
+    "provider": "Scripted MockAIProvider; no semantic certification",
+    "domain": "Current reminder executor",
+    "persistence": "Stateful simulated database functions and queries",
+    "observedPrincipalWrites": { "create": 1, "update": 1, "acknowledge": 1 },
+    "transport": "Rendered reply returned to host; no real WhatsApp send"
+  },
+  "checks": {
+    "strictTypecheck": "passed", "packageCompilation": "passed",
+    "compiledEsmExports": "passed", "diffWhitespace": "passed",
+    "shadowWriteBlock": "passed", "hostAuthorizationDefaultDeny": "passed",
+    "sameTitleAdvanceParentAssociation": "passed"
+  },
+  "inventory": { "javascript": 313, "typescript": 35, "transitionalDeclarations": 3, "legacyJavaScriptRetired": 0 },
+  "productionRouting": "V2 remains disconnected; background worker unchanged",
+  "liveCalls": { "provider": 0, "database": 0, "whatsapp": 0 },
+  "limitations": [
+    "Phase 3 is not rollout-ready: durable effect identity, uncertain-write reconciliation, state serialization and outbound idempotency remain.",
+    "Checkpoint replay guard is sequential only and depends on host-supplied saved state.",
+    "Single provider decision per turn; multi-hop reasoning, token/spend budgets and compaction remain Phase 4.",
+    "Open-ended chat, voice transcription and real provider/persistence/transport parity are not certified by this unit."
+  ],
+  "localLogs": {
+    "focused": "/private/tmp/hermes-phase3-focused.log",
+    "fullSuite": "/private/tmp/hermes-phase3-unit.log",
+    "inventory": "/private/tmp/hermes-phase3-inventory.json"
+  }
+}

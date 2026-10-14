@@ -1,0 +1,129 @@
+{
+  "increment": "current-protocol-behavioral-task-calendar-mutation-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "adaptedIntegrationCases": [
+      31,
+      32,
+      33
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33
+    ],
+    "originalDeclarationsRetained": 37,
+    "otherCasesPendingAudit": 4,
+    "newOfflineCases": 10,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Replace five legacy responses with strict current foreground fixtures",
+    "Pin Date and check task insert errors/identities",
+    "Assert displayed working-memory order before contextRef position 2 mutations",
+    "Give Calendar fixture its own integration; empty SDK search for opaque IDs and boolean deletion result",
+    "Check exactly one selected event deletion and exclude neighbor title"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "3371b96709a09b7b5d9341b0e2be2470a47e497be0d781f11196ebe6190adf1b"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-task-calendar-mutation-fixtures.ts",
+      "sha256": "a6b57cd1ea758e0276e0207cd7462748f3c734fa33d110df68e1f9cb33cd9044"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-task-calendar-mutation-fixtures.test.ts",
+      "sha256": "de0ddbfd3319f55c025a33cda5d5ef3cbdfd9819bc7417670116029a9f519672"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true,
+      "finalAdditionalCheck": "pnpm exec tsc -p tsconfig.typecheck.json --noEmit"
+    },
+    "focused": {
+      "files": 1,
+      "tests": 10,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 286,
+      "tests": 3584,
+      "durationSeconds": 91.66,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 706
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 564
+    },
+    "boundaries": [
+      "Five strict current wire fixtures",
+      "Actual router/task resolver/completion tool with owned named and ordinal targets; one update and task-linked acknowledgement",
+      "Missing displayed context and changed-owner controls prohibit mutation",
+      "Actual router/Calendar tool with Friday bounds, empty opaque-ID search, one selected deletion and companion cleanup; no event creation/update"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "google": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Recorded semantic decisions do not certify live model classification",
+    "Task inventory observations and persistence/SDK ports are injected; actual task-list query and external database execution are not certified",
+    "Four behavioral cases (34\u201337), remaining integration/acceptance audits, live provider measurements and V2 rollout remain open"
+  ],
+  "rollback": "Restore only this increment integration edits; remove shared fixture, new regression suite and appended documentation/evidence; preserve prior work."
+}

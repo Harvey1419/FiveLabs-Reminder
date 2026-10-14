@@ -1,0 +1,51 @@
+{
+  "phase": 4,
+  "scope": "first offline reminder multihop and deterministic context-window increment",
+  "date": "2026-10-11",
+  "validation": {
+    "strictTypecheck": "passed",
+    "compiledEsmImports": "passed",
+    "diffCheck": "passed",
+    "focused": {
+      "files": 12,
+      "tests": 178,
+      "seconds": 2.86
+    },
+    "regression": {
+      "files": 167,
+      "tests": 2052,
+      "seconds": 37.43
+    },
+    "inventory": {
+      "javascript": 313,
+      "typescript": 48,
+      "legacyImplementationsRetiredThisIncrement": 0
+    }
+  },
+  "implemented": [
+    "opt-in observation-driven reminder loop",
+    "paired step-scoped tool transcripts",
+    "cumulative steps/calls/deadline/token/spend checks",
+    "reported usage and explicit pricing estimate",
+    "canonical-arguments duplicate write guard",
+    "stop continuation after indeterminate writes",
+    "whole-turn prompt window preserving durable history and verified references",
+    "durable two-batch checkpoint and single-delivery fixture"
+  ],
+  "remaining": [
+    "real provider tokenizer and framing verification",
+    "1800-token ordinary-input soft target measurement",
+    "semantic operational summaries for broader pending state",
+    "task/calendar observation-driven integration",
+    "real-provider semantic cost and latency gates",
+    "full maintained-source TypeScript migration",
+    "production routing and real receipts integration"
+  ],
+  "productionChanged": false,
+  "liveInferenceConsumed": false,
+  "logs": {
+    "focused": "/private/tmp/hermes-phase4-focused.log",
+    "regression": "/private/tmp/hermes-phase4-unit.log",
+    "inventory": "/private/tmp/hermes-phase4-inventory.json"
+  }
+}

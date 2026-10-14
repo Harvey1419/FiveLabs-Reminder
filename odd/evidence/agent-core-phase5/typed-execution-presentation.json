@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript tool-observation view facts, canonical-card selection, local rendered task coverage and turn reply framing with injected legacy rendering/composition/sanitization ports",
+  "candidate": {
+    "filesPassed": 211,
+    "testsPassed": 2833,
+    "durationSeconds": 49.26
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 107,
+    "durationSeconds": 1.25
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "unknownResultOverridesOptimisticCards": "passed",
+    "partialDuplicateAndOversizedCoverageGuards": "passed",
+    "coverageFrozenNonEnumerableAndSharedSymbol": "passed",
+    "contextPrecedenceParametersSnapshotAndOpaquePayload": "passed",
+    "oneCompositionWithSanitizedFraming": "passed",
+    "subscriptionUnknownPaymentPresentation": "passed",
+    "offlineEvaluatorReadOnlyActualPresentationProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 848,
+    "realCanonicalRenderersAndCentralComposition": true,
+    "esEnAllDomainsAndUnknownPartialFailureParity": true,
+    "localCoverageAndFreezeParity": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realPresentationCanonicalRenderersAndComposition": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "esEnCardsAndPartialUnknownOutcomes": true,
+    "localCoverageFrozenNonEnumerableAndSharedSymbol": true,
+    "realExecutorUnknownStopsFollowingAction": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:a5092f0b410372596b9fd49b0a9be55197bd254a91e57ca795f2f6ea85af8fa7"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 231
+  },
+  "transitionalDeclarations": 42,
+  "sourceHashes": {
+    "src/agent/core/execution-presentation.ts": "ef2635cfc8a42e675a86c94298c1d02f0240c80d2f3dc8cc4ea254d6e9791ebe",
+    "src/agent/core/execution-facts.js": "c4e86e2c4e3c06f23bfc1139c8e95e571a8a1c041b0c943088681c25b7cffc05",
+    "src/agent/core/execution-facts.d.ts": "7295df52c07bd9e333a0014d7bc6c3b456ac0455570365b9db7b6dce4a225a5f",
+    "tests/unit/agent/typed-execution-presentation.test.ts": "369ddcad0e0ba09055985b763a9d476a481f76f993ea2a2d90ce1a5c857e8028",
+    "scripts/evals/groq-contract/baseline.js": "837c8d9a9be6feecb4e3712948158ecd81ca85a0a90edb796aff961b5b0bf978",
+    "tsconfig.runtime.json": "16c57798bad222eba0f89b11808a4498608c1b4462ce842cd1d3d7a9ca284773"
+  },
+  "limits": [
+    "Tool observations are trusted host inputs; view facts do not independently certify execution, ownership or durable effects.",
+    "Canonical renderers, text sanitizer and central grouping policy remain injected existing implementations, pending later migration.",
+    "Local task coverage concerns displayed fields only; it is non-enumerable symbol metadata, absent from JSON/history/provider payloads.",
+    "Payload metadata remains opaque and shared; only params and coverage fields snapshot as before.",
+    "No SQL/read/write boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke uses real presentation and stubbed tool failures with HTTP/storage disabled, not a full server boot or domain mutation.",
+    "No model/provider cost, latency or quality measurement; no deployment or V2 activation."
+  ]
+}

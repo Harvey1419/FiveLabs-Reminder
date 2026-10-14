@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript current-turn profile context and observed preference application with injected language, lease, persistence and execution-fact ports",
+  "candidate": {
+    "filesPassed": 232,
+    "testsPassed": 3012,
+    "durationSeconds": 50.35
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 232,
+    "durationSeconds": 6.68
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "sharedUserPhoneDefaultsAndInitialLanguageContinuity": "passed",
+    "existingLanguageOverwriteAndRawDirectivePolicy": "passed",
+    "currentQuoteAndIdentityRequiredForWrite": "passed",
+    "leaseBeforeWriteAndFailurePropagation": "passed",
+    "matchedReadbackBeforeSharedUserTimezoneLocaleUpdate": "passed",
+    "mismatchedOrThrowingWriteFailureFact": "passed",
+    "sameTurnMatchingProfileEffectDedup": "passed",
+    "currentEvidenceLanguageCandidatePromotion": "passed",
+    "readOnlyActualProfileSourceProvenance": "passed",
+    "productionCompilerFreeSyntheticProfileActualFact": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 5763,
+    "profileLanguageTimezoneAndIdentityParity": true,
+    "currentEvidenceCandidateMutationAndObservedWriteMatchingParity": true,
+    "leaseBeforeWriteFailurePropagationAndEffectOrderParity": true,
+    "rawDirectiveAndHistoryLanguagePolicyPreserved": true,
+    "intentionalBehaviorChanges": 0,
+    "syntheticPersistenceOnly": true,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedProfileDecisionContextGatewayAndRouterImports": true,
+    "syntheticProfileLeaseBeforeWriteAndActualFactIntegration": true,
+    "matchedProfileUserUpdateAndSameTurnDedup": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:84cff2055fda04a6efe89e1518b6234ba0d18d0d818bbf51a476cccd9203033d"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 293
+  },
+  "transitionalDeclarations": 53,
+  "sourceHashes": {
+    "src/agent/orchestration/router-profile-context.ts": "53ca4aacfb7015c005cdba2b46cbd2055dd5445f399aa99e44e332dbc1cd5d4c",
+    "src/agent/orchestration/router-core.js": "c47e2ec4ed57bcbfd27d8e69843913f7b0d992edb8fa0c25e51f244d33cde092",
+    "tests/unit/agent/typed-router-profile-context.test.ts": "fd95b8cd00e0af9eb74845414c2f8f92ed30bc98f5d3deb6ae5232dd26fb863a",
+    "scripts/evals/groq-contract/baseline.js": "1325e4a054dce9cd5217f05ecde68c518a5ec57725e7d740997e023e71d3633b",
+    "tsconfig.runtime.json": "9ca56a78fcb07a538a6b769fac5c57e01ef57177e46a4c65a2f9db6debce5d55"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "Initial English-profile and history-language policies plus raw-message directive exceptions remain compatible; no new language detector or global language lock is introduced.",
+    "Profile decisions are supplied by preceding validators; this host context does not replace current-profile source admission.",
+    "Persistence acceptance uses the existing returned-field match, not an atomic receipt or independent durable effect certification.",
+    "Write exceptions retain legacy failure presentation and never trigger an automatic retry in this unit.",
+    "Lease rejection propagates before persistence; shared user fields change only after matching returned fields.",
+    "Matching prior profile facts prevent repeat writes within the same supplied host effect list; no cross-turn idempotency claim is added.",
+    "Learning-candidate promotion preserves existing English-preference policy and mutates the consumed decision as before.",
+    "Memory/agenda/subscription/integration reads and entitlement preparation remain later router units; no SQL or query shape changed.",
+    "Node 22 smoke uses injected synthetic lease/persistence and actual fact/presentation imports, not live profile writes or full server boot.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

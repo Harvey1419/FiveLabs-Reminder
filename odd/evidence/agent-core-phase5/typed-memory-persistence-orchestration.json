@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript complete legacy memory persistence, injected reminder-policy reconciliation, and memory tool orchestration; semantic extraction/embedding/policy compiler implementations remain subsequent JS units",
+  "candidate": {
+    "filesPassed": 201,
+    "testsPassed": 2726,
+    "durationSeconds": 51.12
+  },
+  "focused": {
+    "filesPassed": 21,
+    "testsPassed": 230,
+    "durationSeconds": 3.74
+  },
+  "callerRegression": {
+    "filesPassed": 3,
+    "testsPassed": 89,
+    "durationSeconds": 2.15
+  },
+  "newCases": 12,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "lazyBackendAndInjectedSemanticServices": "passed",
+    "authoritativeOwnerScopedHydration": "passed",
+    "strictReadStatusAndAvailability": "passed",
+    "idempotentContentAndPreservedVersionHistory": "passed",
+    "unknownDeletionNoReplay": "passed",
+    "pendingOwnerScopedReminderPolicyReconciliation": "passed",
+    "originalUserTextAdmissionAndSharedPromise": "passed",
+    "nullableTopicSelectionCompatibility": "passed",
+    "lazyToolWiringPreservesCallerImportBoundary": "passed",
+    "productionBuildAndCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "postgres": {
+    "passed": true,
+    "reads": 14,
+    "writes": 13,
+    "checks": [
+      "idempotent version skips embedding",
+      "history superseded by exact new identity",
+      "authoritative hydration excludes expired/foreign/stale rows",
+      "actual Spanish FTS",
+      "standing profile query",
+      "invalid selection refuses delete",
+      "supersede failure compensates new version",
+      "pending recurring and one-off policy healing",
+      "foreign/completed reminders retained",
+      "committed lost delete reply unknown without replay",
+      "exact-topic deletion receipt"
+    ],
+    "temporaryDatabaseRemoved": true
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realDatabaseAndMemoryToolFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "ownedActiveRead": true,
+    "idempotentSaveWithoutEmbedding": true,
+    "unknownDeleteNoReplay": true,
+    "sharedAdmissionPromise": true,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:737621907967d3f70f7b14a4c18aac5df57b79570e7abc8b755bd89ac7f31c95"
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 180
+  },
+  "transitionalDeclarations": 25,
+  "sourceHashes": {
+    "src/infrastructure/database/memory-persistence-client.ts": "f27b7be254b8ac35ed7d63c71270d93cf0412740d2e302f8752b6c561ae755a5",
+    "src/infrastructure/database/memory-persistence.ts": "acee4e67e64f3af240a736c64d84ea014a54aa552171b925bd8b4024a0a2e6d3",
+    "src/infrastructure/database/memories.js": "d1c535b090f43f7ba24060033818639df37739bfa160cbfa31f472185196cd23",
+    "src/infrastructure/database/memories.d.ts": "5d2cacd59c90d0de5bf1f5cdf74dbad4b440f78bcd0ff165d7bf823d663ad69f",
+    "src/agent/tools/memory-tool.ts": "01cac7d885c7e30b80848b02c36a97ed6fab08da5cc6e81c2e6237231a0e7d89",
+    "src/agent/tools/memory.js": "eb9072ce13f10cb32aa94881029d05a4c46e12ed0bffcda54b4c00a3d674f525",
+    "src/agent/tools/memory.d.ts": "be9e59545725b1503f916e5e8343fa7f80edd6386a9ad3d826b35389d10c8593",
+    "tests/unit/infrastructure/typed-memory-persistence.test.ts": "6356d009e8b2e65578acd273ac6861f6fe092d1a5dbd3f998e24db08fa983b3d",
+    "tests/unit/agent/typed-memory-tool.test.ts": "88fe19e6e09a7b35664f51ee7a68a4b8718ddddb873fd7cb851444f1b10dfd11",
+    "tsconfig.runtime.json": "4e5db93440d8c0fddbbaff8bb9c83771329bcb6d3e1d4699665fa985db285f48"
+  },
+  "limits": [
+    "Disposable consumed-column PostgreSQL fixture and structural query adapter, not live Supabase/PostgREST or deployed RLS validation",
+    "Actual Spanish FTS and SQL hydration; vector RPC rank is injected, no pgvector provider quality or live embeddings validation",
+    "Production image import/runtime smoke, not full server boot or canary",
+    "Version supersession/compensation and policy reconciliation retain legacy sequential best-effort semantics rather than new atomic certificates",
+    "No SQL/SDK dependency/scheduler/provider config/V2 activation/deployment or live HTTP/WhatsApp effects",
+    "Semantic memory service, embedding host, policy compiler, central dispatcher/router and remaining JS still need migration"
+  ]
+}

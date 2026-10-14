@@ -1,0 +1,93 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript parallel router context reads, memory availability, entitlement freshness, proactive fallback and personal knowledge hints through host ports",
+  "candidate": {
+    "filesPassed": 233,
+    "testsPassed": 3020,
+    "durationSeconds": 49.34
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 236,
+    "durationSeconds": 6.19
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "sixParallelReadsBeforePendingMemoryResolution": "passed",
+    "detailedVsLegacyRetrievalExactScopeLimits": "passed",
+    "availablePartialUnavailableStatusPreserved": "passed",
+    "subscriptionFailureDeletesStaleEntitlementAndPro": "passed",
+    "knownNullSubscriptionSeparateFromFailure": "passed",
+    "threeAnchorFallbackOnlyForEmptyRelevantMatches": "passed",
+    "knowledgeMapHintsAndSharedArrayIdentity": "passed",
+    "anonymousIdentityScopesAndOtherReadErrorPropagation": "passed",
+    "actualTypedReadLimitAssertionAndReadOnlyProvenance": "passed",
+    "productionCompilerFreeSyntheticReadsActualKnowledge": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 960,
+    "detailedLegacyOptionalGetterStatusAndConcurrentReadParity": true,
+    "unknownEntitlementStaleProRemovalAndAnonymousScopes": true,
+    "proactiveFallbackArraysKnowledgeHintsAndSharedUserParity": true,
+    "rejectionAndReadArgumentOrderParity": true,
+    "syntheticKnowledgeIndexAndReadPorts": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedContextReadsProfileGatewayAndRouterImports": true,
+    "partialMemoryAndUnknownEntitlementDropsStalePro": true,
+    "actualOwnedKnowledgeReferencesAndSharedContextArrays": true,
+    "syntheticProfileLeaseBeforeWriteAndActualFactIntegration": true,
+    "matchedProfileUserUpdateAndSameTurnDedup": true,
+    "strictDecisionAttachmentAndProfileSourceGuards": true,
+    "acknowledgementTargetHintsAndCapabilityReplyPolicy": true,
+    "boundedProjectedHistoryAndCurrentInstructionBoundary": true,
+    "toolNormalizationAndUsagePresenceIdentity": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:37280c30a2ae03048be18edac9a16a19b8181928410f90cb8f5435e9249c7893"
+  },
+  "inventory": {
+    "javascript": 314,
+    "typescript": 295
+  },
+  "transitionalDeclarations": 53,
+  "sourceHashes": {
+    "src/agent/orchestration/router-context-reads.ts": "dc5a62f6bf24d577c3ae5d2cdbc8734e5223444345a9ec6bcd320237a2d2e7f8",
+    "src/agent/orchestration/router-core.js": "afda577b81b84fcdc3682223d518f24c6aaf54d75598b23e5342c0e7a3035609",
+    "tests/unit/agent/typed-router-context-reads.test.ts": "a1a34a90727b69da6480d9f1cb7fbae74c7724266404c9c2ad4e42d1ac019411",
+    "tests/unit/agent/runtime-model-contract.test.js": "6f67f1cec6f1330c753a2b1d8b9af734df3056065fe158ca3fabaeb930a1d1f7",
+    "scripts/evals/groq-contract/baseline.js": "682c79d779ee8d5904a9ec0298777fe817350624d7dfaf6ef175d4217a84db5f",
+    "tsconfig.runtime.json": "e254ec341ccf7ed7e7620f72fc231848614bab6aaf2ade459172a0dc0b5c2cd4"
+  },
+  "limits": [
+    "No intentional runtime behavior changes.",
+    "All reads remain injected host capabilities; this module does not rewrite SQL, RLS, query shapes or service retrieval policies.",
+    "Legacy retrieval fallback still labels successful returned arrays available; detailed result statuses preserve partial/unavailable distinctions.",
+    "Only subscription lookup failure is caught locally; other read failures retain existing propagation and shared-state timing.",
+    "Undefined subscription makes entitlement unknown and removes stale Pro state; null remains known absence and still consults the existing access policy.",
+    "Proactive fallback keeps at most three anchors only for empty relevant matches; it is not a new memory summarization policy.",
+    "Knowledge references remain minted/owned by the preceding builder; hint rendering is not effect, receipt or ownership certification.",
+    "Input arrays/user state and memory record reference identity remain shared; no cloning or lifetime changes are introduced.",
+    "Parity uses synthetic knowledge indexes and read ports; production Node 22 smoke uses actual owned knowledge builder with injected reads.",
+    "Prompt/billing preparation and remaining router host orchestration are subsequent migration units.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no live queries or new PostgreSQL fixture required."
+  ]
+}

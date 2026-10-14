@@ -1,0 +1,809 @@
+{
+  "increment": "strict-tests-and-tooling-bootstrap",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": false,
+  "scope": {
+    "migratedJavaScriptFiles": 79,
+    "unitTestFilesMigrated": 68,
+    "vitestConfigurationsMigrated": 6,
+    "supportModulesMigrated": 3,
+    "scriptsMigrated": 2,
+    "newTypedModules": [
+      "tests/support/unit/contract-boundary.ts",
+      "tests/unit/infrastructure/source-migration-inventory.test.ts"
+    ]
+  },
+  "migration": [
+    {
+      "before": "scripts/checks/integration-environment.js",
+      "after": "scripts/checks/integration-environment.ts",
+      "beforeSha256": "7173fea89c011c01a0112c1a9e825ae277cd594d1ac894bd85d1f23235dac7a6",
+      "afterSha256": "328f14f2f6f2cfe35807f2a7a1be6e5156e4ecec95684b22e18ead4c585cd57c"
+    },
+    {
+      "before": "scripts/dev/chat-validation-scenarios.js",
+      "after": "scripts/dev/chat-validation-scenarios.ts",
+      "beforeSha256": "98007410a85a14439be818d1cfde430cd506cfb353d8f2fa396ece0d52f72479",
+      "afterSha256": "4b85ef0ecc13cf25ceccf66737e345add9d2c024f58b5e2d26f5965e251eca0a"
+    },
+    {
+      "before": "tests/acceptance/vitest.config.js",
+      "after": "tests/acceptance/vitest.config.ts",
+      "beforeSha256": "354696ad4de15d92a42d9e10cc73f507dcb83b2fd71cedb78ee0abe00a6d21ff",
+      "afterSha256": "d9675972eda6448d02b149d829f7b75f9f3574839c27919fd686a11b44dcb1e1"
+    },
+    {
+      "before": "tests/config/vitest.component.js",
+      "after": "tests/config/vitest.component.ts",
+      "beforeSha256": "19b4a32a10a624c2c0164f834ac0eb29cce48651a4a9cf5e56e02b9edc175b44",
+      "afterSha256": "1cf6fd87e1555fd191f48b16865dbd45272c3552feafd601dc58b38e1d5e1438"
+    },
+    {
+      "before": "tests/config/vitest.integration.js",
+      "after": "tests/config/vitest.integration.ts",
+      "beforeSha256": "00b7d2039f06a01a478e16a94a3e115b8f33ee7ce56b0901e7284a0515729416",
+      "afterSha256": "af56da5b9af83100364406cf9bf22cfc34e1deecdd3d9bf0e52e4f42ed0a0adf"
+    },
+    {
+      "before": "tests/config/vitest.pure.js",
+      "after": "tests/config/vitest.pure.ts",
+      "beforeSha256": "d9d1d40892aa49de992b340bb6553d9f63a416b0f7e68ffb483fc05b29473286",
+      "afterSha256": "bcb3fc9a44522677e4dc33291ef179e3130d2844152db6ff0f6b519474157164"
+    },
+    {
+      "before": "tests/config/vitest.unit.js",
+      "after": "tests/config/vitest.unit.ts",
+      "beforeSha256": "893bba6ba5a99b410077e00e06590f9c302995133db4579d6d22e309b7cdf183",
+      "afterSha256": "0a41fd82178d3ed1922a2f3eea1544c2f163017889af4043a85fc1113dc9c5c6"
+    },
+    {
+      "before": "tests/support/integration/configure-environment.js",
+      "after": "tests/support/integration/configure-environment.ts",
+      "beforeSha256": "693930b945a4710291a01a4bfd36786b406f3dcb6e8dae17ed1f3be55ee6f9ea",
+      "afterSha256": "693930b945a4710291a01a4bfd36786b406f3dcb6e8dae17ed1f3be55ee6f9ea"
+    },
+    {
+      "before": "tests/support/integration/environment.js",
+      "after": "tests/support/integration/environment.ts",
+      "beforeSha256": "3a836ef52b8e39ff26cf8c64c90ce757bcdec04c25b226674efb98f95a2db446",
+      "afterSha256": "3a836ef52b8e39ff26cf8c64c90ce757bcdec04c25b226674efb98f95a2db446"
+    },
+    {
+      "before": "tests/support/unit/environment.js",
+      "after": "tests/support/unit/environment.ts",
+      "beforeSha256": "6bb5dd05d235d9c18969f5ade9152b101324544b666944d73be5e972eaa62a7d",
+      "afterSha256": "b24cc088940c4dd3c28665052401ffcc756e68500a6ec9e557b272ff9bfb7fed"
+    },
+    {
+      "before": "tests/unit/agenda/agenda-card-grouping.test.js",
+      "after": "tests/unit/agenda/agenda-card-grouping.test.ts",
+      "beforeSha256": "b0976f15a7f94828eae9034c051d8399ff09ba4cc3f7c974414ee072fd84d869",
+      "afterSha256": "b0976f15a7f94828eae9034c051d8399ff09ba4cc3f7c974414ee072fd84d869"
+    },
+    {
+      "before": "tests/unit/agenda/agenda-presentation.test.js",
+      "after": "tests/unit/agenda/agenda-presentation.test.ts",
+      "beforeSha256": "aa7ebcb6de6f5eed804f8f712095ecf18ac06fe92545e76b7cfe5f4cc870d5de",
+      "afterSha256": "aa7ebcb6de6f5eed804f8f712095ecf18ac06fe92545e76b7cfe5f4cc870d5de"
+    },
+    {
+      "before": "tests/unit/agent/agent-core-overview.test.js",
+      "after": "tests/unit/agent/agent-core-overview.test.ts",
+      "beforeSha256": "349a004f1e9d9dc75d160ed0b40e25ec8ef0d2dd6801f32b76c553913a458ec5",
+      "afterSha256": "1cf9ec811979c70c022a03e5bd810d6c8d8ec4aa9ba485e15a8115d8a7dbd257"
+    },
+    {
+      "before": "tests/unit/agent/agent-product-quality.test.js",
+      "after": "tests/unit/agent/agent-product-quality.test.ts",
+      "beforeSha256": "04742d098be467865667556ccaa6ca0ba4667502fa47424bbf8282d2ba65103e",
+      "afterSha256": "3434d1002e3b70c1784c8a80c406f7c023ae6cbc55060cffe289ba70c4a5bd94"
+    },
+    {
+      "before": "tests/unit/agent/architecture-hardening.test.js",
+      "after": "tests/unit/agent/architecture-hardening.test.ts",
+      "beforeSha256": "c99d9b62ebed562e5150a0cee66ae7a25b7a1fe3cf633b301f4a866f9ccce1ee",
+      "afterSha256": "702b0b6659ff1fa54223d1561d967db17638428906be0f1b1fe908c6a0d2a9c3"
+    },
+    {
+      "before": "tests/unit/agent/attachment-routing.test.js",
+      "after": "tests/unit/agent/attachment-routing.test.ts",
+      "beforeSha256": "81ca7516c649ef72a1d99605513aecdfbe77bea37feacc3c7acf45aa9e3b275a",
+      "afterSha256": "c80152eb3afd85df1bb2d64e68528dfc938e5b3e022016da547f01d90bc43029"
+    },
+    {
+      "before": "tests/unit/agent/attempt-diagnostics.test.js",
+      "after": "tests/unit/agent/attempt-diagnostics.test.ts",
+      "beforeSha256": "cdf01ad61f237077ec4c841b917b9f953cd8d5d25ad2e24bfde7eba9262584b3",
+      "afterSha256": "b5b1e01e38592592f72ccce82c85ac0a91c2e45ce462d82decd9714b1775234f"
+    },
+    {
+      "before": "tests/unit/agent/audio-and-task-notes.test.js",
+      "after": "tests/unit/agent/audio-and-task-notes.test.ts",
+      "beforeSha256": "f54e41833a67b676af944a5646d4f20fdbe96bca41efab7ca362fb2f14bacb43",
+      "afterSha256": "dc3fc2385e73a52ba99f7a8af14b408fc30cd017dddc3e354c0668ee28fd1588"
+    },
+    {
+      "before": "tests/unit/agent/canonical-entity-ux.test.js",
+      "after": "tests/unit/agent/canonical-entity-ux.test.ts",
+      "beforeSha256": "e5dfcef340c4c17a5ca3aeaaf051728747df74319bdca61bca429136c700598c",
+      "afterSha256": "e5dfcef340c4c17a5ca3aeaaf051728747df74319bdca61bca429136c700598c"
+    },
+    {
+      "before": "tests/unit/agent/canonical-task-ux.test.js",
+      "after": "tests/unit/agent/canonical-task-ux.test.ts",
+      "beforeSha256": "84dcb8d3260014cd36dfe239cdb4a6fa7f6d60597dc39aaba2e62474e495c14e",
+      "afterSha256": "0dd37398d99c2b88fdff30d2a4bc1f8e883cf82652d361e5a409bf44c8aba0e9"
+    },
+    {
+      "before": "tests/unit/agent/chat-validation-scenarios.test.js",
+      "after": "tests/unit/agent/chat-validation-scenarios.test.ts",
+      "beforeSha256": "44c1e4841382f6a5deb42b0af5f9f2e3bb35b26f26c6b68ea55b72e30fdbfed5",
+      "afterSha256": "44c1e4841382f6a5deb42b0af5f9f2e3bb35b26f26c6b68ea55b72e30fdbfed5"
+    },
+    {
+      "before": "tests/unit/agent/context-target-pinner-equivalent-references.test.js",
+      "after": "tests/unit/agent/context-target-pinner-equivalent-references.test.ts",
+      "beforeSha256": "467f37652e1dfe8cda8b790619ef54ae6f4c4b7ee07989fec4d7448c51eb9c05",
+      "afterSha256": "467f37652e1dfe8cda8b790619ef54ae6f4c4b7ee07989fec4d7448c51eb9c05"
+    },
+    {
+      "before": "tests/unit/agent/context-target-pinner.test.js",
+      "after": "tests/unit/agent/context-target-pinner.test.ts",
+      "beforeSha256": "6faa3a62b0eb4885fe3174e7be5e106f1c5ab1fec9ea54722db929a00826d4e1",
+      "afterSha256": "6e29193292dc15ecdd7a6e825eb2aaab643d63cc3631205c82589558fd45a94a"
+    },
+    {
+      "before": "tests/unit/agent/core-consistency-hardening.test.js",
+      "after": "tests/unit/agent/core-consistency-hardening.test.ts",
+      "beforeSha256": "994e46fcef4346fc58973696e452ecc63b3892cb0cd196da90a1b359838e770c",
+      "afterSha256": "e0e76628c1e5f140b6348f23dbc3b5ea3a72568d676bae7fcc7e30576509c73c"
+    },
+    {
+      "before": "tests/unit/agent/epistemic-state-authority.test.js",
+      "after": "tests/unit/agent/epistemic-state-authority.test.ts",
+      "beforeSha256": "7006a17282831b8ed4c8052f81de0d50579ebe30a56165bcbeb4c4f0e6ac880e",
+      "afterSha256": "7bb011131282fbdb549b9bf5918250de9a171d3dfe45cc34f8e45a525450e345"
+    },
+    {
+      "before": "tests/unit/agent/followup-binding.test.js",
+      "after": "tests/unit/agent/followup-binding.test.ts",
+      "beforeSha256": "0a56c20143a72a0ace3043448237519124d6c035b37b9f67ad38c3c5cd121610",
+      "afterSha256": "79f9783d544e19bc6b336edfe7da2926ab0c60aeb9eb28f2a98031abb0fdb4e3"
+    },
+    {
+      "before": "tests/unit/agent/intent-normalizer-reminders.test.js",
+      "after": "tests/unit/agent/intent-normalizer-reminders.test.ts",
+      "beforeSha256": "45c2541fcd45f486039445c3e13431b3f5b8b552f1fed42bf82d19ea46298901",
+      "afterSha256": "8e6d481d13d1ee18be90270263b4f31926a4137550673c5015d3a560a1eaf301"
+    },
+    {
+      "before": "tests/unit/agent/memory-forgetting-outcomes.test.js",
+      "after": "tests/unit/agent/memory-forgetting-outcomes.test.ts",
+      "beforeSha256": "34aec77fde507ec3bf107741a947900c5b98acd7328bfa7657dcbce87878e3a2",
+      "afterSha256": "a7495f8372fd7ac0f5a3a2f526e1e47204bec983e0f1fef89b0c722c24130c02"
+    },
+    {
+      "before": "tests/unit/agent/memory-forgetting-scope.test.js",
+      "after": "tests/unit/agent/memory-forgetting-scope.test.ts",
+      "beforeSha256": "95f99a9431ecba7947714fa8478b808ef685b5683ac401fd14773451dd146b38",
+      "afterSha256": "d530e99947c881d3f3851086da9946ec9b4626ca0615d4d3dc5d2c488f93961c"
+    },
+    {
+      "before": "tests/unit/agent/observed-target-resolution.test.js",
+      "after": "tests/unit/agent/observed-target-resolution.test.ts",
+      "beforeSha256": "4b7a8e275689232a0965ebbcd54641ee261e80864176d805d185202f2f117829",
+      "afterSha256": "f228c704f76aeb8993f90a19f833f34a1459a5a09604510db3c1db63893d6489"
+    },
+    {
+      "before": "tests/unit/agent/pending-provider-shape.test.js",
+      "after": "tests/unit/agent/pending-provider-shape.test.ts",
+      "beforeSha256": "be45b382e3c74c00b44a52687ee6f113fbf355a84b19ee935df78a9e12f4e8b0",
+      "afterSha256": "e32c322e7dd92a1e243f5a92f5c81c356e90b6dcca5ff74ab202e6db3c2e217d"
+    },
+    {
+      "before": "tests/unit/agent/pinned-reminder-target-resolution.test.js",
+      "after": "tests/unit/agent/pinned-reminder-target-resolution.test.ts",
+      "beforeSha256": "ac26742b1764239c48b67d07ae7f03d26d83a9ab7c024e695d76044231a31101",
+      "afterSha256": "bb5a92e1d4298e5579ba0f709f66ea099390b2ee6b4f6ee28031804d8627be9a"
+    },
+    {
+      "before": "tests/unit/agent/provider-and-continuity-ux.test.js",
+      "after": "tests/unit/agent/provider-and-continuity-ux.test.ts",
+      "beforeSha256": "98cf3e279599bd73460fa9e22834f8963fd8975885f80b61dc2d0f14bf7ddf89",
+      "afterSha256": "5f00eee5dec660248539a117e7bb68bcc0b10951d8ea042f17aa9aa7cbdd8eaa"
+    },
+    {
+      "before": "tests/unit/agent/provider-boundary-policy.test.js",
+      "after": "tests/unit/agent/provider-boundary-policy.test.ts",
+      "beforeSha256": "52dd8db1d23ea269be527480151f178c514c5486a80eb7bed9b688de7b16cbe3",
+      "afterSha256": "0553a8f738017c938f3d3390219ea48f8d7c2fb0ada52a58244a16e56c40dc2c"
+    },
+    {
+      "before": "tests/unit/agent/provider-reference-recovery.test.js",
+      "after": "tests/unit/agent/provider-reference-recovery.test.ts",
+      "beforeSha256": "064471904a15d911a75892c74e23fa44dd23fd74101d8af47bc4f7ef5f948b7d",
+      "afterSha256": "064471904a15d911a75892c74e23fa44dd23fd74101d8af47bc4f7ef5f948b7d"
+    },
+    {
+      "before": "tests/unit/agent/reference-framing-recovery.test.js",
+      "after": "tests/unit/agent/reference-framing-recovery.test.ts",
+      "beforeSha256": "bfc882b1c27e92900235291e8e36f629fbdad5fd9818da5eb3eeb04f36242640",
+      "afterSha256": "ed577685318cd55d23d084477139079725202b340028ef37c43a417c6a80c761"
+    },
+    {
+      "before": "tests/unit/agent/reminder-acknowledgement-context.test.js",
+      "after": "tests/unit/agent/reminder-acknowledgement-context.test.ts",
+      "beforeSha256": "3cb1a08c564981dd138121c54e033b4c957d803ce58dcc4733d4b5971f51a365",
+      "afterSha256": "d2d9490336dd48a7d653598e068fb63741bded069f46009a686f83643a59284e"
+    },
+    {
+      "before": "tests/unit/agent/reminder-batch-presentation.test.js",
+      "after": "tests/unit/agent/reminder-batch-presentation.test.ts",
+      "beforeSha256": "7af731709df98cf8d1710fe6cd149f0e3b67ba66d48ed3728fd223d6bc3be56c",
+      "afterSha256": "2ae4c96de338d6b2ea3ec371be5e15a69fe965397a4394a99058f987661640fb"
+    },
+    {
+      "before": "tests/unit/agent/reminder-cancel-alias.test.js",
+      "after": "tests/unit/agent/reminder-cancel-alias.test.ts",
+      "beforeSha256": "8184aada365c07ae6a6e7ebcf5bd95cb2c8a479387433a43e384cb3af805e8e0",
+      "afterSha256": "90a141709a3dee1003b11511816dd5b964a2f5fc5e62b99d8226c35abe6d5061"
+    },
+    {
+      "before": "tests/unit/agent/reminder-sibling-continuity.test.js",
+      "after": "tests/unit/agent/reminder-sibling-continuity.test.ts",
+      "beforeSha256": "1d33bfbda656f3c4f96fc37e8d6da2b1c0c1ccaf73f0da68ca47ff9b82be3aad",
+      "afterSha256": "69c25ba3625e5f3a5cd4bfe7980926d631596270881bd7b1386160758eb4bd2f"
+    },
+    {
+      "before": "tests/unit/agent/runtime-context-budget.test.js",
+      "after": "tests/unit/agent/runtime-context-budget.test.ts",
+      "beforeSha256": "a4ae692940c65c48729a40391895578baaa7c4072d76641fd419cdf09e1c636d",
+      "afterSha256": "b3025913e92dde3110cda717f9a1ce21cbacd0f3047e307360e687d1d63c2a44"
+    },
+    {
+      "before": "tests/unit/agent/source-authority-normalization.test.js",
+      "after": "tests/unit/agent/source-authority-normalization.test.ts",
+      "beforeSha256": "9a11fdcdf7322d27c7f5df678cd7140892b75b414e87ee5fef8c3c2543903ee3",
+      "afterSha256": "e30246900420c0a2afcc676248e530843a6668184e0a7883d4bc97672486c588"
+    },
+    {
+      "before": "tests/unit/agent/task-list-status-contract.test.js",
+      "after": "tests/unit/agent/task-list-status-contract.test.ts",
+      "beforeSha256": "a79ae8816ca1bb37dc4691c50d4e0efb1d4973363595c33aebe64e51e95d415c",
+      "afterSha256": "c5192ebaf1f1a34f8cf5c862f4062a3cc50a0ecb228401a9717e0eb91318e57a"
+    },
+    {
+      "before": "tests/unit/agent/tool-outcome-boundary.test.js",
+      "after": "tests/unit/agent/tool-outcome-boundary.test.ts",
+      "beforeSha256": "cfe72bdce711dcce031eb4732cc0bacf359d86a38a43803af02d97db407a9a0e",
+      "afterSha256": "8bb6dfbb8bc515ae9d3a9d9cfd2327b0f096a7fa38805d9d58eab52319bc5cb7"
+    },
+    {
+      "before": "tests/unit/calendar/google-calendar-update-patches.test.js",
+      "after": "tests/unit/calendar/google-calendar-update-patches.test.ts",
+      "beforeSha256": "9c0a7c61934c0216b2f2dda2d086b75f2515a2135a3e29053e4c2ab4568ddade",
+      "afterSha256": "fe1dec7f9f690a90936bc5febf78905c25096de33dc34dca02522f721b2a4b82"
+    },
+    {
+      "before": "tests/unit/entities/entity-matching.test.js",
+      "after": "tests/unit/entities/entity-matching.test.ts",
+      "beforeSha256": "f8fa7f7953d13a292d31ba0cb133079b3596ee4dffb730af07c18c4a3f103e9d",
+      "afterSha256": "f8fa7f7953d13a292d31ba0cb133079b3596ee4dffb730af07c18c4a3f103e9d"
+    },
+    {
+      "before": "tests/unit/infrastructure/delivery-persistence.test.js",
+      "after": "tests/unit/infrastructure/delivery-persistence.test.ts",
+      "beforeSha256": "c8d0983de55a1570b5d8bd8f47d2c87713daaa5c1e2fadc1afcb9578f823eb44",
+      "afterSha256": "8e17319455546710544ff6168e364d0a9b8fcf12287b7e5106ceb4d2543bc75e"
+    },
+    {
+      "before": "tests/unit/infrastructure/foreground-storage-ownership.test.js",
+      "after": "tests/unit/infrastructure/foreground-storage-ownership.test.ts",
+      "beforeSha256": "c4d2456141ccc9c5d25ae1498aa4a7029104cd0e4365e09262b88c1be32e52e6",
+      "afterSha256": "f274cb74fd0a752c42d22b666c228efbd744b9afa8fba2730a952cc3bcd0c6a1"
+    },
+    {
+      "before": "tests/unit/infrastructure/integration-environment-guard.test.js",
+      "after": "tests/unit/infrastructure/integration-environment-guard.test.ts",
+      "beforeSha256": "c5c610c595eb1bb5b9a22d83103c4a7d7d0c3789d42ab205796654cb36bb870e",
+      "afterSha256": "111c868055022728f5761422e4c9066e26867ef6e1d65bd74b75b46141f50058"
+    },
+    {
+      "before": "tests/unit/infrastructure/task-batch-persistence.test.js",
+      "after": "tests/unit/infrastructure/task-batch-persistence.test.ts",
+      "beforeSha256": "d06a600208db52c27c212f5dbea7cce078b66971f8512b0795d8f6a364d19bf1",
+      "afterSha256": "12e1fcf9f2f97966b18becdbd6546d7779687004ac25931a9318e657bc776bf4"
+    },
+    {
+      "before": "tests/unit/integrations/stripe-client.test.js",
+      "after": "tests/unit/integrations/stripe-client.test.ts",
+      "beforeSha256": "654e8e96c75ab4bb65c141981723c4b3f3094a8b7f657bbdb9435e8e68914d0d",
+      "afterSha256": "4267d5c91eb86de24a51b7360456779b2735354d0568d909f99359e55972bd06"
+    },
+    {
+      "before": "tests/unit/memory/core-profile.test.js",
+      "after": "tests/unit/memory/core-profile.test.ts",
+      "beforeSha256": "d9317be5ac6c415d236daa15d94c50bb9fd2ccbf662efbbd539ecc1055067dba",
+      "afterSha256": "676ab0f9c68edaa04705f2b18773eb246dc876db1ba469bc4269833156b25744"
+    },
+    {
+      "before": "tests/unit/memory/memory-read-availability.test.js",
+      "after": "tests/unit/memory/memory-read-availability.test.ts",
+      "beforeSha256": "e574697fd6e4fc4c402e40848c2a91df67f1cbabe9c52c831f404ff5151c1b58",
+      "afterSha256": "1b7dc4ef84defc0ec930b3b30aa2841996804c19500ea0b89155756f711ff918"
+    },
+    {
+      "before": "tests/unit/memory/memory-retrieval-ranking.test.js",
+      "after": "tests/unit/memory/memory-retrieval-ranking.test.ts",
+      "beforeSha256": "5ad15c8b9ae366aa19f0f579af3a0530874a3ac5b7134aee49998601d68ee8c2",
+      "afterSha256": "f5a8355d4480fbaefa799cfc0f835c36832ce32c318df7ae647d2d9bcbe0ad50"
+    },
+    {
+      "before": "tests/unit/memory/proactive-anchors.test.js",
+      "after": "tests/unit/memory/proactive-anchors.test.ts",
+      "beforeSha256": "0dd895c2e94e34b2c26e3f50e9a96f0278690d32ccf868ab5c8df7bc0e52a23d",
+      "afterSha256": "c2272b72ed9b84262394be73f6204676f4ca6aca664b9d2cb6cbabc333c3e70b"
+    },
+    {
+      "before": "tests/unit/memory/retrieval-budget.test.js",
+      "after": "tests/unit/memory/retrieval-budget.test.ts",
+      "beforeSha256": "e6361d2b7c5ff74ec746ba7525486e359851e4277210e389f5cb5f858c4eccb6",
+      "afterSha256": "40a1b951ebc1a641ad7e8dcb066b9da0a84b0824a555be56bc115dcec6bd3be5"
+    },
+    {
+      "before": "tests/unit/memory/save-memory-idempotency.test.js",
+      "after": "tests/unit/memory/save-memory-idempotency.test.ts",
+      "beforeSha256": "671f65638ea22ac8a47a851859b6a2e0c025369820e11325c56635e0b19b7d38",
+      "afterSha256": "ac08007ac0073d8b38d68ad3a6911fa9c211d8c587e912bea50603dab9ad73a1"
+    },
+    {
+      "before": "tests/unit/memory/semantic-admission.test.js",
+      "after": "tests/unit/memory/semantic-admission.test.ts",
+      "beforeSha256": "a5ee31d5ba9c972f65ac9cda8e322490db1a9bd87ef5036273b5fb5b65fbc79e",
+      "afterSha256": "a917637f5c8f356c830d19806d7883615223c4c16973d9d24e74e901bdc9817d"
+    },
+    {
+      "before": "tests/unit/messaging/24h-window.test.js",
+      "after": "tests/unit/messaging/24h-window.test.ts",
+      "beforeSha256": "a1057140aba365681d8c74953e035bf1492ac2cf440e22b1c768ba945fe6490f",
+      "afterSha256": "65ba4f78e4a274ce1f4c2a2253624fde8e65cde71146882230bd2792392aea36"
+    },
+    {
+      "before": "tests/unit/messaging/inbound-durability.test.js",
+      "after": "tests/unit/messaging/inbound-durability.test.ts",
+      "beforeSha256": "2b835bf19d60636873db2f6616a33bfeba370f16c1c116288e391bcc3e0a7073",
+      "afterSha256": "5acdaceadda7fd8a7e6604f6626a39c917f21f0755d2b13a2ccfe8c021a43a19"
+    },
+    {
+      "before": "tests/unit/messaging/message-channel-routing.test.js",
+      "after": "tests/unit/messaging/message-channel-routing.test.ts",
+      "beforeSha256": "adfdf95267fd58ee70f14ce101a5af734eb3c938ce9dfdeb9591a9f1e6aefb69",
+      "afterSha256": "aeda17c957d89706eaddd1e5e88427d7c6bd3c8d34cb50563c92df823ca95b8e"
+    },
+    {
+      "before": "tests/unit/reminders/hierarchical-reminder-dispatch.test.js",
+      "after": "tests/unit/reminders/hierarchical-reminder-dispatch.test.ts",
+      "beforeSha256": "5bb4bf122dd134a01ad254f043c94b4a918b78b85a01ecaccdb5d0c9122a357f",
+      "afterSha256": "cc89d8635c7010d8a3b44e842da9ca7f47a34ecb0ef79e878c3496e5016d0c16"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-acknowledgement-lifecycle.test.js",
+      "after": "tests/unit/reminders/reminder-acknowledgement-lifecycle.test.ts",
+      "beforeSha256": "a57ef290d280e693339bf5d6dff40c349b74358482fb27a4861416f972335fd2",
+      "afterSha256": "2fa016a8642a416f42f4a1d1243887a52234f1bb5aff2fe8191c26e5df633935"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-advance-protocol.test.js",
+      "after": "tests/unit/reminders/reminder-advance-protocol.test.ts",
+      "beforeSha256": "b32904715123b6b4710e7765d45e881a4351ec0865e541e0efa743e0528e50bb",
+      "afterSha256": "c7aefd9527ffffd6079735c8aafed73b2da386d1220ed6ff9f2fe0d7ff64da7a"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-canonical-presentation.test.js",
+      "after": "tests/unit/reminders/reminder-canonical-presentation.test.ts",
+      "beforeSha256": "4c8f8a857440cca8b27745bf477548c57394a85510c7dd54ac6da345099e34a2",
+      "afterSha256": "5bdb7c24b74756b7fd418e15ae55eaa2e29536008c0d4db659e5b464650aad67"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-formatter-ux.test.js",
+      "after": "tests/unit/reminders/reminder-formatter-ux.test.ts",
+      "beforeSha256": "e3d3264ed5c4b26ded842ae9852da8d1ac58940d9b8cb41d634dd2a4f3fecb5d",
+      "afterSha256": "490e2b9425a274f5e9a06ec3fdf35c67e7fb2ec204c22d9b5a5e1260879e06b5"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-pro-context.test.js",
+      "after": "tests/unit/reminders/reminder-pro-context.test.ts",
+      "beforeSha256": "b88fe7a3dce8cc09403ae422e4e771a85da3642ab1edf84f9a485ee3ea0683fc",
+      "afterSha256": "b88fe7a3dce8cc09403ae422e4e771a85da3642ab1edf84f9a485ee3ea0683fc"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-recurrence-presentation.test.js",
+      "after": "tests/unit/reminders/reminder-recurrence-presentation.test.ts",
+      "beforeSha256": "a4ce3d0589f11d15e3a5bf456ddfb2787601a8629ead31ecea91d29a4546858e",
+      "afterSha256": "a4ce3d0589f11d15e3a5bf456ddfb2787601a8629ead31ecea91d29a4546858e"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-reference.test.js",
+      "after": "tests/unit/reminders/reminder-reference.test.ts",
+      "beforeSha256": "7f7301ff4d0cb46bc92addc32ee1774edea3f0c1c241996b35a0ef47f9ecfcfa",
+      "afterSha256": "192b1347a0629066bc033918cac7a00de0d1829a761c2c1d7c7f287950716318"
+    },
+    {
+      "before": "tests/unit/reminders/reminder-runtime-convergence.test.js",
+      "after": "tests/unit/reminders/reminder-runtime-convergence.test.ts",
+      "beforeSha256": "99b8051287c45ef30206bc611914068edb7ace6c77ec1e5bd60afd4b367995a9",
+      "afterSha256": "99b8051287c45ef30206bc611914068edb7ace6c77ec1e5bd60afd4b367995a9"
+    },
+    {
+      "before": "tests/unit/scheduling/morning-briefing.test.js",
+      "after": "tests/unit/scheduling/morning-briefing.test.ts",
+      "beforeSha256": "de68f13fdd5e21bb01a2c2225475b05865fbdec06710ddc27014fdd8c039acd8",
+      "afterSha256": "f02645af14fef90ce256bca9beab24ec622edaadc3cf089bc01466c3655038e4"
+    },
+    {
+      "before": "tests/unit/subscriptions/pay-redirect.test.js",
+      "after": "tests/unit/subscriptions/pay-redirect.test.ts",
+      "beforeSha256": "6f4537adc0bf42dc745ca37c704b884dc3c792086a8e89a694d500efc60aa21a",
+      "afterSha256": "6f4537adc0bf42dc745ca37c704b884dc3c792086a8e89a694d500efc60aa21a"
+    },
+    {
+      "before": "tests/unit/subscriptions/whatsapp-return-navigation.test.js",
+      "after": "tests/unit/subscriptions/whatsapp-return-navigation.test.ts",
+      "beforeSha256": "00567d9b9701230dd077471cafe23859f1bb6bc0d50ce48987ae049aab9b79f7",
+      "afterSha256": "00567d9b9701230dd077471cafe23859f1bb6bc0d50ce48987ae049aab9b79f7"
+    },
+    {
+      "before": "tests/unit/time/current-user-input-provenance.test.js",
+      "after": "tests/unit/time/current-user-input-provenance.test.ts",
+      "beforeSha256": "a12f6cdf7762a9aa8f65b2bab9f9ecfaac3e9432357d3af38c3639147a006c9f",
+      "afterSha256": "a12f6cdf7762a9aa8f65b2bab9f9ecfaac3e9432357d3af38c3639147a006c9f"
+    },
+    {
+      "before": "tests/unit/time/language-detection.test.js",
+      "after": "tests/unit/time/language-detection.test.ts",
+      "beforeSha256": "4f6fefe6fed081f069122ffb27d865f7dff8a6bd93f160f5dc278d1ef97711ec",
+      "afterSha256": "4f6fefe6fed081f069122ffb27d865f7dff8a6bd93f160f5dc278d1ef97711ec"
+    },
+    {
+      "before": "tests/unit/time/locale-detection.test.js",
+      "after": "tests/unit/time/locale-detection.test.ts",
+      "beforeSha256": "9cc1f71317ca4c9dab48b43df1c12ebecf3f94f0e2644cd86807c5cd6cc0512f",
+      "afterSha256": "e8850d03adffbd624a7e484ad150cffa0fff9677981102f63543a07ba9d01812"
+    },
+    {
+      "before": "tests/unit/time/time-parsing.test.js",
+      "after": "tests/unit/time/time-parsing.test.ts",
+      "beforeSha256": "020b1bada0e14c01e5e79cee2f01aaa67e990ce63dc5d884717048d9a9d7c9e4",
+      "afterSha256": "020b1bada0e14c01e5e79cee2f01aaa67e990ce63dc5d884717048d9a9d7c9e4"
+    },
+    {
+      "before": "tests/unit/users/onboarding.test.js",
+      "after": "tests/unit/users/onboarding.test.ts",
+      "beforeSha256": "bce51fa8238285b687f919404d751d23e54ea50da939745c55522bb817858136",
+      "afterSha256": "bce51fa8238285b687f919404d751d23e54ea50da939745c55522bb817858136"
+    },
+    {
+      "before": "vitest.config.js",
+      "after": "vitest.config.ts",
+      "beforeSha256": "893bba6ba5a99b410077e00e06590f9c302995133db4579d6d22e309b7cdf183",
+      "afterSha256": "185937a46464a756abd8266866dc531fd92a6c2c699dcea29e069927ef3b3b40"
+    }
+  ],
+  "behavior": [
+    "Test names and scenario selections are preserved. Fixture identities and required scheduler fields are supplied where they are incidental to the behavior under test.",
+    "Discriminated successful/failed validations are narrowed through assertions. Intentional malformed SDK/tool results use a typed mock boundary retaining real parameter types and exposing unknown returns.",
+    "Historical extra-argument and missing-field Pro formatter regression inputs are retained through explicit Reflect.apply calls, without changing production contracts.",
+    "All Vitest configurations include both test extensions during migration; offline configurations exclude both integration extensions. The root config delegates to the same offline config.",
+    "Test imports still consume compatibility compositions and their typed algorithms. Canonical compiled application startup certification remains in compiled-application-startup.json.",
+    "The standalone integration preflight uses node --import tsx; chat:validate provides the loader for the maintained runner and typed scenario fixtures. The live chat runner itself remains JavaScript."
+  ],
+  "verification": {
+    "packageRuntimeAndProjectTypecheck": "passed; strict flags unchanged; root-level TypeScript is now included",
+    "finalProjectTypecheck": "passed",
+    "unitSuite": {
+      "files": 276,
+      "tests": 3480,
+      "durationSeconds": 61.28,
+      "previousTestsRetained": 3477,
+      "newInventoryGateTests": 3,
+      "networkPolicy": "offline; synthetic credentials and network ban"
+    },
+    "inventoryGateFocused": {
+      "files": 1,
+      "tests": 3,
+      "durationSeconds": 0.731
+    },
+    "testTierDiscovery": {
+      "default": 276,
+      "pure": 113,
+      "component": 127,
+      "integration": 16,
+      "acceptance": 1
+    },
+    "standaloneScriptChecks": {
+      "typedScenarioLoader": true,
+      "scenarios": 7,
+      "integrationGuardCases": 3,
+      "cases": [
+        "missing isolated credentials rejected",
+        "isolated synthetic configuration accepted without network access",
+        "runtime-project credential reuse rejected"
+      ]
+    },
+    "completionGate": {
+      "command": "pnpm run migration:check",
+      "expectedExitCode": 1,
+      "remainingJavaScript": 230,
+      "syntheticNoJavaScriptCheckoutAccepted": true,
+      "missingRootRejected": true,
+      "rootConfigurationIncluded": true
+    },
+    "compiledRuntimeGraph": {
+      "modules": 259,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "compiledRuntimeHashesUnchangedFromPreviousImage": 562,
+    "diffWhitespaceCheck": "passed, including untracked migrated files",
+    "suppressionOrExplicitAnyAdded": false,
+    "productionDeployment": false,
+    "liveDatabaseProviderBillingOrWhatsAppEffects": false
+  },
+  "inventory": {
+    "counts": {
+      "javascript": 230,
+      "typescript": 570
+    },
+    "remainingByRoot": {
+      "scripts": 14,
+      "src": 114,
+      "tests": 102
+    },
+    "remainingJavaScript": [
+      "scripts/dev/chat-request-preload.js",
+      "scripts/dev/chat-validation-session.js",
+      "scripts/dev/interactive-chat.js",
+      "scripts/dev/live-convergence-bench.js",
+      "scripts/dev/run-chat-validation.js",
+      "scripts/evals/agent-production.js",
+      "scripts/evals/core-conversation-live.js",
+      "scripts/evals/groq-contract/baseline.js",
+      "scripts/evals/groq-contract/fixtures.js",
+      "scripts/evals/groq-contract/grader.js",
+      "scripts/evals/groq-contract/runner.js",
+      "scripts/evals/llm-eval.js",
+      "scripts/evals/semantic-policy-boundaries.js",
+      "scripts/maintenance/reindex-memory-embeddings.js",
+      "src/agent/contracts/agent-run-contracts.js",
+      "src/agent/contracts/foreground-turn-schema.js",
+      "src/agent/contracts/foreground-turn-validation.js",
+      "src/agent/contracts/intent-contracts.js",
+      "src/agent/contracts/learning-candidates.js",
+      "src/agent/contracts/reminder-query.js",
+      "src/agent/contracts/response-policy.js",
+      "src/agent/contracts/schema-value.js",
+      "src/agent/contracts/tool-names.js",
+      "src/agent/contracts/turn-context.js",
+      "src/agent/core/agent-core.js",
+      "src/agent/core/agent-run.js",
+      "src/agent/core/context-reference.js",
+      "src/agent/core/execution-facts.js",
+      "src/agent/core/presentation-policy.js",
+      "src/agent/core/turn-lease.js",
+      "src/agent/core/working-memory-execution.js",
+      "src/agent/core/working-memory-store.js",
+      "src/agent/core/working-memory.js",
+      "src/agent/orchestration/clarification-flow.js",
+      "src/agent/orchestration/clarification-presentation.js",
+      "src/agent/orchestration/context-target-pinner.js",
+      "src/agent/orchestration/domain-call.js",
+      "src/agent/orchestration/intent-executor.js",
+      "src/agent/orchestration/intent-normalizer.js",
+      "src/agent/orchestration/next-best-action.js",
+      "src/agent/orchestration/observed-answer.js",
+      "src/agent/orchestration/personal-knowledge.js",
+      "src/agent/orchestration/resolve-observed-target.js",
+      "src/agent/orchestration/router-context.js",
+      "src/agent/orchestration/router-core.js",
+      "src/agent/orchestration/router.js",
+      "src/agent/orchestration/select-memory-forgetting.js",
+      "src/agent/orchestration/typed-schedule.js",
+      "src/agent/providers/attempt-diagnostics.js",
+      "src/agent/providers/client.js",
+      "src/agent/providers/request-payload.js",
+      "src/agent/tools/admin.js",
+      "src/agent/tools/calendar.js",
+      "src/agent/tools/entities.js",
+      "src/agent/tools/formatters.js",
+      "src/agent/tools/index.js",
+      "src/agent/tools/memory.js",
+      "src/agent/tools/projects.js",
+      "src/agent/tools/reminder-acknowledge.js",
+      "src/agent/tools/reminder-advance.js",
+      "src/agent/tools/reminder-bulk-cancel.js",
+      "src/agent/tools/reminder-cancel.js",
+      "src/agent/tools/reminder-create.js",
+      "src/agent/tools/reminder-owner.js",
+      "src/agent/tools/reminder-pro.js",
+      "src/agent/tools/reminder-read.js",
+      "src/agent/tools/reminder-reference.js",
+      "src/agent/tools/reminder-update.js",
+      "src/agent/tools/subscriptions.js",
+      "src/agent/tools/task-complete.js",
+      "src/agent/tools/task-create.js",
+      "src/agent/tools/task-delete.js",
+      "src/agent/tools/task-read.js",
+      "src/agent/tools/task-reference.js",
+      "src/agent/tools/task-update.js",
+      "src/agent/tools/unified-agenda.js",
+      "src/app/server.js",
+      "src/features/agenda/service.js",
+      "src/features/calendar/index.js",
+      "src/features/calendar/reconciliation.js",
+      "src/features/memory/service.js",
+      "src/features/memory/validate-candidates.js",
+      "src/features/reminders/dispatch-policy.js",
+      "src/features/tasks/service.js",
+      "src/features/users/onboarding.js",
+      "src/http/routes/google-auth.js",
+      "src/http/views/home.js",
+      "src/http/views/landing.js",
+      "src/http/views/legal.js",
+      "src/http/webhooks/google-calendar.js",
+      "src/http/webhooks/stripe.js",
+      "src/http/webhooks/whatsapp.js",
+      "src/infrastructure/database/agent-runs.js",
+      "src/infrastructure/database/entities.js",
+      "src/infrastructure/database/inbound-turns.js",
+      "src/infrastructure/database/index.js",
+      "src/infrastructure/database/integrations.js",
+      "src/infrastructure/database/memories.js",
+      "src/infrastructure/database/messages.js",
+      "src/infrastructure/database/projects.js",
+      "src/infrastructure/database/subscriptions.js",
+      "src/infrastructure/database/tasks.js",
+      "src/infrastructure/database/users.js",
+      "src/integrations/ai/embeddings.js",
+      "src/integrations/google/auth.js",
+      "src/integrations/google/calendar.js",
+      "src/integrations/media/document-processor.js",
+      "src/integrations/media/transcription.js",
+      "src/integrations/stripe/client.js",
+      "src/integrations/whatsapp/kapso-client.js",
+      "src/jobs/calendar-watch-renewal.js",
+      "src/jobs/inbound-turn-worker.js",
+      "src/jobs/memory-extractor.js",
+      "src/jobs/morning-briefing.js",
+      "src/jobs/reminder-scheduler.js",
+      "src/shared/agenda-presentation.js",
+      "src/shared/agenda-scopes.js",
+      "src/shared/auth.js",
+      "src/shared/current-user-input.js",
+      "src/shared/entity-categories.js",
+      "src/shared/entity-presentation.js",
+      "src/shared/entity-resolution.js",
+      "src/shared/language-detection.js",
+      "src/shared/presentation-tokens.js",
+      "src/shared/reminder-presentation.js",
+      "src/shared/reminder-recurrence.js",
+      "src/shared/task-presentation.js",
+      "src/shared/time.js",
+      "tests/acceptance/foreground-live.integration.test.js",
+      "tests/integration/agent/agent-behavior.integration.test.js",
+      "tests/integration/agent/coherence.integration.test.js",
+      "tests/integration/agent/hardening.integration.test.js",
+      "tests/integration/agent/natural-language-intent.integration.test.js",
+      "tests/integration/agent/orchestration.integration.test.js",
+      "tests/integration/agent/production-contracts.integration.test.js",
+      "tests/integration/agent/regression-generalization-harness.integration.test.js",
+      "tests/integration/agent/security.integration.test.js",
+      "tests/integration/calendar/google-calendar-grounding.integration.test.js",
+      "tests/integration/calendar/google-calendar-temporal-engine.integration.test.js",
+      "tests/integration/calendar/google-calendar.integration.test.js",
+      "tests/integration/entities/entity-resolution-audit.integration.test.js",
+      "tests/integration/reminders/latent-not-found-reproduction.integration.test.js",
+      "tests/integration/reminders/notification-context-identity.integration.test.js",
+      "tests/integration/reminders/reminder-acknowledge.integration.test.js",
+      "tests/integration/tasks/tasks.integration.test.js",
+      "tests/unit/agenda/unified-agenda-and-briefing.test.js",
+      "tests/unit/agent/agent-run-destructive-batch.test.js",
+      "tests/unit/agent/agent-run-domain-parity.test.js",
+      "tests/unit/agent/agent-run-incomplete-reminders.test.js",
+      "tests/unit/agent/agent-run-invariants.test.js",
+      "tests/unit/agent/ambiguous-reminder-working-memory.test.js",
+      "tests/unit/agent/chat-validation-session.test.js",
+      "tests/unit/agent/context-reference.test.js",
+      "tests/unit/agent/core-contract-reliability.test.js",
+      "tests/unit/agent/core-conversational-intelligence.test.js",
+      "tests/unit/agent/core-learning-candidates.test.js",
+      "tests/unit/agent/domain-call-field-semantics.test.js",
+      "tests/unit/agent/dynamic-language-resolution.test.js",
+      "tests/unit/agent/groq-contract-evaluation.test.js",
+      "tests/unit/agent/groq-strict-schema-regressions.test.js",
+      "tests/unit/agent/intent-contracts.test.js",
+      "tests/unit/agent/intent-normalizer.test.js",
+      "tests/unit/agent/literal-source-recovery.test.js",
+      "tests/unit/agent/live-contract-regressions.test.js",
+      "tests/unit/agent/memory-save-unification.test.js",
+      "tests/unit/agent/mixed-personal-response.test.js",
+      "tests/unit/agent/next-best-action.test.js",
+      "tests/unit/agent/observed-answer-boundary.test.js",
+      "tests/unit/agent/openrouter-multimodal.test.js",
+      "tests/unit/agent/operational-answer-evidence.test.js",
+      "tests/unit/agent/operational-answer-latency.test.js",
+      "tests/unit/agent/operational-collections.test.js",
+      "tests/unit/agent/presentation-policy.test.js",
+      "tests/unit/agent/pro-consultative-onboarding.test.js",
+      "tests/unit/agent/product-quality-audit-regressions.test.js",
+      "tests/unit/agent/project-deletion-receipts.test.js",
+      "tests/unit/agent/project-domain-boundary.test.js",
+      "tests/unit/agent/projects-task-count.test.js",
+      "tests/unit/agent/provider-description-compaction.test.js",
+      "tests/unit/agent/provider-latency-regressions.test.js",
+      "tests/unit/agent/recap-evidence-contract.test.js",
+      "tests/unit/agent/reference-view-recovery.test.js",
+      "tests/unit/agent/reminder-cancel.test.js",
+      "tests/unit/agent/response-knowledge-scope.test.js",
+      "tests/unit/agent/router-native-orchestration.test.js",
+      "tests/unit/agent/router-structured-boundary.test.js",
+      "tests/unit/agent/runtime-model-contract.test.js",
+      "tests/unit/agent/strict-route-capability.test.js",
+      "tests/unit/agent/structured-protocol-responses.test.js",
+      "tests/unit/agent/structured-provider-errors.test.js",
+      "tests/unit/agent/subscription-checkout.test.js",
+      "tests/unit/agent/task-context-reference-safety.test.js",
+      "tests/unit/agent/task-field-response.test.js",
+      "tests/unit/agent/task-numbered-and-ordinals.test.js",
+      "tests/unit/agent/task-scope-resolution.test.js",
+      "tests/unit/agent/working-memory-isolation.test.js",
+      "tests/unit/calendar/all-day-and-recurrence.test.js",
+      "tests/unit/calendar/calendar-watch-worker.test.js",
+      "tests/unit/calendar/google-calendar-v3.test.js",
+      "tests/unit/calendar/google-calendar-watch.test.js",
+      "tests/unit/calendar/jit-reconciliation.test.js",
+      "tests/unit/entities/entity-list-behavior.test.js",
+      "tests/unit/home.test.js",
+      "tests/unit/infrastructure/agent-runs-storage.test.js",
+      "tests/unit/memory/forget-memory-receipts.test.js",
+      "tests/unit/memory/memory-extraction-policy.test.js",
+      "tests/unit/memory/memory-retrieval-provenance.test.js",
+      "tests/unit/memory/memory-save-unification.test.js",
+      "tests/unit/memory/query-embedding-reuse.test.js",
+      "tests/unit/memory/retrieval-partial-availability.test.js",
+      "tests/unit/memory/standing-memory-query.test.js",
+      "tests/unit/messaging/delivery-ambiguity.test.js",
+      "tests/unit/messaging/delivery-status-reconciliation.test.js",
+      "tests/unit/messaging/google-calendar-webhook.test.js",
+      "tests/unit/messaging/kapso.test.js",
+      "tests/unit/messaging/media-provider-failure-ux.test.js",
+      "tests/unit/messaging/stripe-webhook.test.js",
+      "tests/unit/messaging/whatsapp-flow-task-completion.test.js",
+      "tests/unit/messaging/whatsapp-quick-reply-buttons.test.js",
+      "tests/unit/reminders/eager-memory-reconciliation.test.js",
+      "tests/unit/reminders/memory-driven-dispatch-policy.test.js",
+      "tests/unit/reminders/reminder-acknowledgement-identity.test.js",
+      "tests/unit/reminders/reminder-advance-invariant.test.js",
+      "tests/unit/reminders/reminder-list-semantics.test.js",
+      "tests/unit/reminders/reminder-owner.test.js",
+      "tests/unit/reminders/save-reminder-supersede-scope.test.js",
+      "tests/unit/reminders/task-reminder-synergy.test.js",
+      "tests/unit/scheduling/scheduler-delivery-truth.test.js",
+      "tests/unit/subscriptions/subscription-info.test.js",
+      "tests/unit/subscriptions/subscriptions.test.js"
+    ],
+    "transitionalDeclarations": 0,
+    "note": "The previous inventory omitted root configuration. This block migrates vitest.config.js and includes root-level executable configuration in the completion gate."
+  },
+  "remainingWork": [
+    "Migrate 102 remaining JavaScript test files with strict fixtures and mock ports.",
+    "Migrate the 14 remaining JavaScript scripts, preserving phase ownership, request budgets, provenance evaluation, child preloads and cleanup.",
+    "Retire 114 application compatibility JavaScript entries once remaining native script/source-provenance consumers are migrated.",
+    "Certify canonical test imports, complete repository inventory, offline evaluation scripts and compiler-free production startup after compatibility retirement."
+  ],
+  "limits": [
+    "This is the first tests/tooling migration increment; 100% repository conversion is not claimed.",
+    "No new Docker image is built for this increment; unchanged runtime artifacts match the previously certified compiler-free Node 22 image. Development tooling checks run on host Node 24.15.0.",
+    "V2/live semantics, token, cost and latency gates and production rollout remain separate."
+  ],
+  "rollback": "Restore this increment’s 79 original JS paths and package/config commands; remove the two new test support/gate modules and completion flag. Preserve preceding application, kernel, workspace and Docker migration work."
+}

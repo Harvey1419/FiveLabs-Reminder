@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Complete strict TypeScript main intent validator, foreground provider projection and source/history validation, with pure shared scope/category/UUID constants; continuation/approval contracts and orchestration callers remain subsequent units",
+  "candidate": {
+    "filesPassed": 205,
+    "testsPassed": 2779,
+    "durationSeconds": 66.16
+  },
+  "focused": {
+    "filesPassed": 10,
+    "testsPassed": 288,
+    "durationSeconds": 8.63
+  },
+  "newCases": 12,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "canonicalSchemasAndGuidancePreserved": "passed",
+    "adminBillingHistoryPersonalAndProfileAuthority": "passed",
+    "destructiveTargetsAndPartialSchedulePrerequisites": "passed",
+    "qualifiedOperationProjectionAndNullLearningRefusal": "passed",
+    "pureSharedScopeCategoryUuidBindings": "passed",
+    "adapterValidatesJsonSchemaBeforeProvider": "passed",
+    "offlineEvaluatorExplicitTypedGraphAndProvenance": "passed",
+    "runtimeContractSpyTargetsSharedEmittedValidator": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 153,
+    "canonicalSchemasAndDescriptionsExact": true,
+    "providerSchemaParityAdminAndAttachmentModes": true,
+    "validationResultsAndNormalizationParity": true,
+    "foregroundAuthorityAndProfileSourceParity": true,
+    "inputSanitizationParity": true,
+    "liveHttpCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realIntentForegroundProjectionSharedDatabaseToolAndServiceFacades": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "emittedValidatorIdentity": true,
+    "readTurnProjectionAndPendingSchedule": true,
+    "adminBillingAndProfileAuthorityRefusal": true,
+    "providerAdminScopePreserved": true,
+    "sharedScopeAndUuidCompatibility": true,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:3a79b9c7e2418254dcd01e20fe8e91f8bd981315eedfc3837a24f147232d1af8"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 210
+  },
+  "transitionalDeclarations": 35,
+  "sourceHashes": {
+    "src/agent/contracts/intent-validator.ts": "98883cb10c9017c57a88d50e2f0c3b291ae335075b6a7d47bb0d14f21a6cedf0",
+    "src/agent/contracts/intent-contracts.js": "0d68c78004fd8b28a04f46a60a8ce137772ccfe8f21bf29ccc45b821fc42a1b9",
+    "src/agent/contracts/intent-contracts.d.ts": "437a89962bf8b3e7aa1bff670e16d204d0b4c5ee23e68f7f2434f0cae608547f",
+    "src/agent/contracts/foreground-turn-projection.ts": "462f52f88cd8ca0244cd221f3b4017de4fe10b5f51bbaae4484678f1226a90bc",
+    "src/agent/contracts/foreground-turn-schema.js": "23c5c0605a286e939623d60be4a220598d6aa5299638fc8be0fb4c694bf21795",
+    "src/agent/contracts/foreground-turn-schema.d.ts": "cbc337338ea779afa3f0cde2302bf939cdb495bd7e8ce56328d8c9039e0f5128",
+    "src/agent/contracts/foreground-turn-validator.ts": "59730dcb0d8f4765bc9d1997f5167c397b85cff82608880670f4c0b6991dd255",
+    "src/agent/contracts/foreground-turn-validation.js": "9ded6b18903e8375bd5f51ed43e349fc44e6d12df7b30740010bc48d24dbd1dc",
+    "src/agent/contracts/foreground-turn-validation.d.ts": "4801ce340f2455da86ea1ef31e86cd33936f760780db53cdb616a4627d7bb840",
+    "src/shared/agenda-scope-contract.ts": "2449d7db0851265aa61e5b75b8543da457c46b02078ec189d02ec1e1f85e62d0",
+    "src/shared/agenda-scopes.js": "4ce793ab8947be91fbcbbab5104264687e07350fb06625a07d07c38b27e7e73e",
+    "src/shared/entity-categories-contract.ts": "f398ad2b0376284871bd8aa3bf9722a01caddb6066d12cb21577c911bdaec4ff",
+    "src/shared/entity-categories.js": "a0194366e329d3705ef303d3406ed3c8112c6316d42e43566551f37338d540b8",
+    "src/shared/entity-reference-contract.ts": "db1752aabb91e5ad1da640b3eef4f2abab3e4dd75c746d6d9d9701a79e586bd7",
+    "src/shared/entity-resolution.js": "66722e400a4d1901b194aaaa2c359ed20f8e5bf4f81145aaa138f7c30655cec1",
+    "src/adapters/agent-core/foreground-ai-decision.ts": "65abd11f421e49624dc7b9d972257f0453c9be6cc6bbddf6339c2b089a10b438",
+    "scripts/evals/groq-contract/baseline.js": "b2656aef22913ed185af509579f961e90b58eaef7e40b8c515032f712a63ad73",
+    "tests/unit/agent/typed-intent-validator.test.ts": "1bac5c3fb74661334eb3937890b9e543d05977e6076d6d24725797c21480238e",
+    "tests/unit/agent/runtime-model-contract.test.js": "f98bde83e035fb2a1664b05e0b58f4f13993f31c15029fb5d1b28219411f5cd7",
+    "tsconfig.runtime.json": "e5296910d67a3f5d1a3ab86c1a6ce7ace925d0d302062e84a2cfb5254a672ee0"
+  },
+  "limits": [
+    "Pure validation/projection migration, no new database boundary and no additional PostgreSQL fixture required",
+    "Validated actions retain unknown legacy metadata; downstream executors still enforce owner/live identity and storage outcomes",
+    "Provider JSON projection retains deployed vendor-compatible shape; no live semantic/provider quality or latency measurement",
+    "Scope aliases and other shared entity resolution helpers remain JS consuming typed constants",
+    "No SQL/dependency/scheduler/configured-model/V2 activation/deployment or live HTTP/WhatsApp effects",
+    "Production network-disabled import/runtime smoke, not full server boot or canary",
+    "Continuation/approval contracts, provider gateway, dispatcher/router and remaining maintained JS still need migration"
+  ]
+}

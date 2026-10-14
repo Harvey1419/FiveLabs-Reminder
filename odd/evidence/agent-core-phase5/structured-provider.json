@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 portable strict structured provider and initial foreground compatibility",
+  "candidate": {
+    "filesPassed": 175,
+    "testsPassed": 2196,
+    "durationSeconds": 109.4
+  },
+  "focused": {
+    "filesPassed": 20,
+    "testsPassed": 322,
+    "durationSeconds": 4.81
+  },
+  "newCases": 31,
+  "checks": {
+    "strictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "sharedNativeStrictBoundedGeneration": "passed",
+    "exactLegacyStructuredWireParity": "passed",
+    "pureHostValidatorMandatory": "passed",
+    "vendorIndependentProviderFixture": "passed",
+    "multipleModelSamePortableContract": "passed",
+    "unsupportedRouteFiltering": "passed",
+    "truncatedMalformedNativeCallDecisionRejection": "passed",
+    "terminalRefusal": "passed",
+    "schemaHistoryPolicySnapshot": "passed",
+    "postValidationDeadline": "passed",
+    "originalForegroundPrerequisites": "passed",
+    "adminAttachmentSourceQuoteAuthority": "passed",
+    "strictFallbackSharedTokenBudget": "passed",
+    "finalHostRejectsAdapterBypass": "passed",
+    "untrackedSourceWhitespace": "passed"
+  },
+  "compiledRuntime": {
+    "mode": "compiled ESM actual strict configuration/projection/domain-validator/wire-builder with simulated fetch",
+    "scenario": "invalid explicit task status -> strict fallback -> canonical task.list -> next strict decision stays on surviving route",
+    "legacyWireParity": true,
+    "models": [
+      "fixture/primary",
+      "fixture/strict-secondary",
+      "fixture/strict-secondary"
+    ],
+    "attempts": 3,
+    "firstUsage": {
+      "inputTokens": 60,
+      "outputTokens": 20
+    },
+    "canonicalAction": {
+      "status": "pending",
+      "domain": "task",
+      "action": "list"
+    },
+    "strictSchemaKeys": [
+      "responseLanguage",
+      "profileUpdate",
+      "responseCapability",
+      "answerFromResults",
+      "knowledgeRefs",
+      "learningCandidates",
+      "actions",
+      "excluded"
+    ],
+    "liveProviderCalls": 0,
+    "effectsExecuted": 0
+  },
+  "modelAgnosticism": {
+    "providerContract": "StructuredAIProvider schema + pure local validator + normalized JSON/refusal/usage",
+    "businessRules": "Existing canonical foreground/sourceQuote validator and schema-operation allowlist remain host-owned",
+    "replacement": "Same API-compatible route configuration or a new vendor adapter; capability and real semantic/cost eval gates still required",
+    "finalHostGuard": "Host revalidates returned canonical authority and usage even if a future adapter ignores request.validate."
+  },
+  "protocol": {
+    "nativeToolsInStrictRequest": false,
+    "toolChoiceInStrictRequest": false,
+    "streaming": false,
+    "jsonSchemaStrict": true,
+    "wholeJsonSchemaValidatorImplemented": false,
+    "localValidation": "Caller-supplied validator plus initial foreground allowlist/domain/sourceQuote/attachment guards",
+    "strictRouteSource": "Current primary/strictSecondary/strictLastResort settings; declared capability not live certification"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 78,
+    "transitionalDeclarations": 9,
+    "legacyJavaScriptRetired": 0
+  },
+  "productionRouting": "Existing JS gateway/router active; new strict compatibility helper isolated and executes no domain actions",
+  "liveCalls": {
+    "provider": 0,
+    "productionDatabase": 0,
+    "whatsapp": 0
+  },
+  "dependenciesChanged": false,
+  "schemaChanged": false,
+  "limitations": [
+    "Initial foreground wrapper only; approval/continuation wrappers, background/multimodal purposes and other provider adapters remain pending.",
+    "Fixtures prove protocol/authority/data flow, not actual model intelligence, availability, price or latency.",
+    "No general JSON Schema validator added; local validator must enforce the caller's required structure and semantics.",
+    "Declared endpoint structured capability requires live compatibility checks before activation.",
+    "Unknown provider accounting still stops fallback; full legacy outage-availability/billing parity not certified.",
+    "Entire remaining maintained JS inventory and temporary declarations/runtime build migration remain open.",
+    "Mixed unknown effect/delivery resolution and authenticated engine handoff remain beforecanary prerequisites."
+  ],
+  "rollback": "Remove structured port/codec/factory/foreground helper and revert shared generation to prior native mode; preserve preceding checkpoints and version fences.",
+  "reference": "https://openrouter.ai/docs/guides/features/structured-outputs",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-strict-typecheck.log",
+    "focused": "/private/tmp/hermes-strict-focused.log",
+    "fullSuite": "/private/tmp/hermes-strict-unit.log",
+    "inventory": "/private/tmp/hermes-strict-inventory.json",
+    "compiledRuntime": "/private/tmp/hermes-strict-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-strict-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-strict-runtime.mjs"
+  }
+}

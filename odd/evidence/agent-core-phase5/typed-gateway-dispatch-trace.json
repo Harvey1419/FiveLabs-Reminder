@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript public gateway dispatch and synthetic runner trace; client.js becomes runtime compatibility wiring",
+  "candidate": {
+    "filesPassed": 229,
+    "testsPassed": 2986,
+    "durationSeconds": 49.12
+  },
+  "focused": {
+    "filesPassed": 9,
+    "testsPassed": 297,
+    "durationSeconds": 5.85
+  },
+  "newCases": 12,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "missingCredentialEsEnNoRouteAttempt": "passed",
+    "startStageStrictVsNativeToolPolicy": "passed",
+    "boundedAdviceAdmissionPolicyAndMemoryRequests": "passed",
+    "exhaustionDiagnosticsAndSafeCorrelationLogs": "passed",
+    "synthesisNormalizationAndDirectAttemptOutcomes": "passed",
+    "syntheticEntrypointPrivateDirectoryGate": "passed",
+    "captureCompletenessIdempotentFinalization": "passed",
+    "credentialAndEventByteLimitMissingEvidence": "passed",
+    "unsafeInitializationRememberedWithoutIoRetry": "passed",
+    "actualPublicDeclarationsAndReadOnlyProvenance": "passed",
+    "productionCompilerFreeSyntheticGatewayTrace": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 525,
+    "publicMethodsPurposeBudgetsStagesUnavailableSynthesisAndMemoryParity": true,
+    "actualPrivateDirectoryTraceGateEventsCompletenessAndCredentialByteLimits": true,
+    "dispatchCallAndLogAndTraceListenerParity": true,
+    "intentionalBehaviorChanges": 0,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "actualTypedPublicDispatchTraceClientAndExecutorImports": true,
+    "purposeSpecificAdviceAndAdmissionBudgets": true,
+    "privateTraceFileModeCredentialGuardAndFinalization": true,
+    "injectedTruncatedOutputRejectionAndTerminalRefusal": true,
+    "explicitUndefinedWireOmission": true,
+    "nestedProtocolErrorRefusalAndUsageParity": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "syntheticStrict429FallbackAndIndependentMemoryRoute": true,
+    "modelProviderSnapshotAndLiveSettings": true,
+    "futureModelProviderConfigurationWithoutDomainChanges": true,
+    "storageCalls": 0,
+    "syntheticFetchCalls": 3,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:6cb78b617d8a124598aabfcd4814b8154d06a827631a44a44a3489903017d3cd"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 285
+  },
+  "transitionalDeclarations": 52,
+  "sourceHashes": {
+    "src/agent/providers/gateway-dispatch.ts": "0d6d6257fe9ec542347d1f017508f323aa1d28c7c2a02365c7c58bb64649c782",
+    "src/agent/providers/runner-provider-trace.ts": "349e7277de67fbd0636f127ce1df831d1896c864efb9fefbca3b49d18b4a3744",
+    "src/agent/providers/gateway-chain.ts": "35099fede24b79871065301412d0e0c98bdb168d18d6e8afd578ba4265bf7ea4",
+    "src/agent/providers/client.js": "9d954e0da9b5bcf437efe01807f18d36aaab19c9cae11591a0d8c473af521338",
+    "src/agent/providers/client.d.ts": "9f115eba400e2ef8526893cdf9964f142c12122839ac40b730fb610a8c1ebd80",
+    "tests/unit/agent/typed-gateway-dispatch-trace.test.ts": "62e4efa6e32dea27080daa2380a7a88a0f922b587add7a60f02bb9424c96067c",
+    "scripts/evals/groq-contract/baseline.js": "420506e01518ba706c82b8190773629e375d4d22ac28c82628f7398e0fd15c24",
+    "tsconfig.runtime.json": "5b46552a94e5e10c2d174eb4d394d2e3f4b2cd6a2aa733d67b6be29010bafbae"
+  },
+  "limits": [
+    "No intentional public runtime behavior changes.",
+    "client.js remains a compatibility facade; router and other legacy files still need migration toward full TS.",
+    "Trace filesystem IO preserves original synthetic-child identity, canonical temporary directory, owner/permissions, no-follow exclusive open and bounded evidence rules.",
+    "Typed trace constructor consumes host identity capabilities; the production facade fixes them to actual argv/environment/UID and original script path.",
+    "Trace capture remains unavailable to server/runner parent and is not domain effect or receipt certification.",
+    "Trace initialization failures are remembered; this unit does not redesign exceptional transport pending counters or flush semantics.",
+    "Unused private compact diagnostic functions with no call sites/exports were removed during facade conversion.",
+    "Node 22 smoke uses synthetic responses and owned temporary trace files, not live provider calls, full server boot or model performance measures.",
+    "No scheduler, SQL/storage/provider/model/deployment/V2 activation changes; no new PostgreSQL fixture required."
+  ]
+}

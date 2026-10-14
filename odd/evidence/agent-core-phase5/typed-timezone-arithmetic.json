@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "scope": "Strict TypeScript UTC offset strings, local-clock-to-UTC convergence, local date parts and calendar-day shifts; existing time entry imports/re-exports shared default and primitives",
+  "candidate": {
+    "filesPassed": 219,
+    "testsPassed": 2898,
+    "durationSeconds": 54.84
+  },
+  "focused": {
+    "filesPassed": 8,
+    "testsPassed": 160,
+    "durationSeconds": 6.79
+  },
+  "newCases": 8,
+  "checks": {
+    "strictPackageRuntimeProjectTypecheck": "passed",
+    "seasonalAndFractionalOffsetStrings": "passed",
+    "userLocalDateBoundaryAndDefaultTimezone": "passed",
+    "dstConvergentConversion": "passed",
+    "local23And25HourDayShiftsReverseAndYearRollover": "passed",
+    "rawDateIdentityInvalidInputAndSecondPrecisionSemantics": "passed",
+    "existingInvalidZoneFallbacksAndLocalPartExceptions": "passed",
+    "strictScheduleRoundTripGapRefusal": "passed",
+    "legacyBoundsParserAndCardsIntegration": "passed",
+    "offlineReadOnlyActualTimePrimitiveProvenance": "passed",
+    "productionCompilerFreeRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "parity": {
+    "passed": true,
+    "checks": 688,
+    "allFiveTimezoneExports": true,
+    "sevenIanaAndInvalidZones": true,
+    "seasonalFractionalOffsetsAndLocalDayRollover": true,
+    "dstGapFoldAndCalendarShiftParity": true,
+    "invalidInputsFallbacksAndLoggingParity": true,
+    "oldLogs": 23,
+    "newLogs": 23,
+    "liveCalls": 0
+  },
+  "production": {
+    "node": "v22.23.3",
+    "realTimezoneLegacyTimeTemporalNormalizerCardsAndExecutorImports": true,
+    "compilerAndDevWorkspacesAbsent": true,
+    "fractionalSeasonalOffsetsAndLocalDates": true,
+    "calendarDay23And25HourShifts": true,
+    "strictGapRejectionAndScopedDateArithmetic": true,
+    "legacyBoundsParserAndYearAwarePresentationIntegration": true,
+    "storageCalls": 0,
+    "liveHttpCalls": 0,
+    "imageId": "sha256:444b37a8d7bea20104b39c7082133ed4250d0031ad21173da71fd85479afa471"
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 253
+  },
+  "transitionalDeclarations": 47,
+  "sourceHashes": {
+    "src/shared/timezone-arithmetic.ts": "8dfc117448fe73f982fcab8ebd493c6e19981bf40304e055af99f59a0d2cf2f9",
+    "src/shared/time.js": "928c458fa6a864a88d390df4f18b535a9933be1d735a3c4f8289b0382448834a",
+    "src/shared/time.d.ts": "382931802561d7468b23e9afbe3afddc526537ea4b58ecfbc9cdcbf2d2a4295f",
+    "tests/unit/time/typed-timezone-arithmetic.test.ts": "b24d4edb6b6c70f6c8fb0281f51189ebe16fa695e179893da10c361e38777bd3",
+    "scripts/evals/groq-contract/baseline.js": "1f7e508e4018a542f570821e603c582e97ee9e615b56d375c4a4d0539d0fb911",
+    "tsconfig.runtime.json": "aedf8ce6fbdb8c2a70307620115d410febc5de6b27da62f898fca89d2e752a9c"
+  },
+  "limits": [
+    "The existing time module remains partly JS: scope bounds, relative/legacy time parsing, date presentation and locale/geographic inference are subsequent units.",
+    "computeOffsetMinutes retains its existing name and returns offset strings, not numeric minutes.",
+    "Primitive conversion keeps six-pass convergence and legacy invalid-zone UTC/offset fallbacks; strict timezone/calendar validity remains in callers using round-trips and validated context.",
+    "Calendar-day shifts preserve wall-clock seconds and retain existing millisecond truncation and invalid-input behavior.",
+    "No SQL/read/write/scheduler boundary changed; no new PostgreSQL fixture required.",
+    "Node 22 smoke exercises actual arithmetic/request/presentation paths offline; not a full server boot or live mutation.",
+    "No model/provider latency, price or quality measurement; no deployment or V2 activation."
+  ]
+}

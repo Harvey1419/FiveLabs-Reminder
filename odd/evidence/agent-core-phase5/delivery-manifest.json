@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 isolated whole-turn delivery manifests, fenced text sends and actual persisted acceptance proof",
+  "candidate": {
+    "filesPassed": 184,
+    "testsPassed": 2433,
+    "durationSeconds": 41.65
+  },
+  "focused": {
+    "filesPassed": 29,
+    "testsPassed": 559,
+    "durationSeconds": 6.51
+  },
+  "newCases": 12,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageCompilation": "passed",
+    "ownedFinalSourceCASAndAtomicPlanMarker": "passed",
+    "orderedWriteBeforeSendFence": "passed",
+    "explicitRecipientAndHostAuthorization": "passed",
+    "acceptedIdentityAndDuplicateBlocking": "passed",
+    "lostAcceptanceReplyDoesNotDowngradeOrReplay": "passed",
+    "uncertainOrPartialDeliveryBlocksWholeTurnProof": "passed",
+    "missingManifestDoesNotProveNoSend": "passed",
+    "fullSnapshotRecoveryAndSourceMarkerValidation": "passed",
+    "legacyNamespaceAdmissionProtection": "passed",
+    "privateInvokerRPCAndRLS": "passed",
+    "strictEmittedRuntime": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "compiledRuntime": {
+    "declarationChecking": "strict, no skipLibCheck",
+    "mode": "actual SQL task receipt -> actual sealed manifest -> simulated HTTP acceptance -> committed acceptance with lost RPC reply -> actual SQL recovery reads -> typed reconciliation -> actual SQL closure -> emitted handoff",
+    "actualManifestMutationRpcCalls": 7,
+    "actualManifestRecoveryReadCalls": 1,
+    "simulatedProviderRequests": 2,
+    "replayedSends": 0,
+    "localTaskMutations": 1,
+    "replayedTaskMutations": 0,
+    "baselineProducer": "fixture supplied owned checkpoint baseline persisted in verified registry",
+    "providerAcceptanceResponses": "simulated HTTP; no live delivery",
+    "acceptanceReceiptSurvivedLostReply": true,
+    "attemptStoredBeforeHttp": true,
+    "historyAndOriginalEvidencePreserved": true,
+    "liveProviderCalls": 0,
+    "whatsappCalls": 0,
+    "externalDomainApiCalls": 0
+  },
+  "postgres": {
+    "previousCombinedAssertions": 162,
+    "manifestAssertions": 21,
+    "totalAssertions": 183,
+    "transactionRolledBack": true,
+    "migrationDeployed": false,
+    "productionDatabaseCalls": 0,
+    "sqlFile": "supabase/migrations/20261012042929_agent_core_delivery_manifest.sql"
+  },
+  "concurrency": {
+    "mode": "two actual PostgreSQL sessions compete for closure after persisted domain and delivery proof",
+    "duplicateWaitedOnOwnerLock": true,
+    "winningClosures": 1,
+    "successfulDuplicates": 0,
+    "concurrentFirstDispatchTested": false,
+    "temporaryDatabaseRemoved": true
+  },
+  "inventory": {
+    "javascript": 313,
+    "typescript": 115,
+    "transitionalDeclarations": 12,
+    "legacyJavaScriptRetired": 0
+  },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Isolated sender remains disconnected; current JS transport/router/scheduler remain active",
+  "limitations": [
+    "Whole-turn proof requires every send to go through this exclusive manifest composition; legacy history and outside sends are not certified.",
+    "Text only, at most twelve plan entries and 4,000 characters per text. CTA/flow transport remains pending.",
+    "Provider acceptance does not prove handset delivery. Missing, partial or uncertain receipts remain blocked, without automatic retry.",
+    "HTTP responses and the owned conversation baseline producer are simulated; baseline producer and runtime composition remain pending.",
+    "No actual Supabase SDK service-role round trip or production activation/migration occurred.",
+    "Backend direct SQL remains trusted and the manifest table has UPDATE privileges for monotonic RPC transitions.",
+    "Full maintained JS conversion, transitional declaration retirement, broader legacy SDK WebAuthn/TS7 compatibility, supported builds and live provider gates remain open.",
+    "Node22 CI not executed locally."
+  ],
+  "rollback": "Disable isolated delivery admission; retain durable manifests/provider receipts, original response checkpoints and recovery namespace fences.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-delivery-typecheck.log",
+    "focused": "/private/tmp/hermes-delivery-focused.log",
+    "fullSuite": "/private/tmp/hermes-delivery-unit.log",
+    "inventory": "/private/tmp/hermes-delivery-inventory.json",
+    "postgres": "/private/tmp/hermes-delivery-postgres.log",
+    "postgresHarness": "/private/tmp/hermes-delivery-postgres.sql",
+    "runtimeCompile": "/private/tmp/hermes-delivery-runtime-compile.log",
+    "runtime": "/private/tmp/hermes-delivery-runtime.json",
+    "runtimeConfig": "/private/tmp/hermes-delivery-runtime-tsconfig.json",
+    "runtimeHarness": "/private/tmp/hermes-delivery-runtime.mjs",
+    "roundTrip": "/private/tmp/hermes-delivery-roundtrip.json",
+    "concurrencyHarness": "/private/tmp/hermes-delivery-roundtrip.py",
+    "sender": "/private/tmp/hermes-delivery-send-result.json"
+  }
+}

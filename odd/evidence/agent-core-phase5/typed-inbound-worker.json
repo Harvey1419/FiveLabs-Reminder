@@ -1,0 +1,214 @@
+{
+  "date": "2026-10-12",
+  "baselineCommit": "0a24b8d5bb3261063488cbe868419b8d9faa90f3",
+  "branch": "feat/templelabs-agent-core",
+  "node": "24.15.0",
+  "scope": "Phase5 strict TS inbound worker/ambient lease implementation and atomic publication acknowledgment protocol",
+  "candidate": {
+    "filesPassed": 186,
+    "testsPassed": 2507,
+    "durationSeconds": 42.61
+  },
+  "focused": {
+    "filesPassed": 32,
+    "testsPassed": 640,
+    "durationSeconds": 7.52
+  },
+  "newCases": 11,
+  "checks": {
+    "projectStrictTypecheck": "passed",
+    "packageAndRuntimeStrictCompilation": "passed",
+    "legacyWorkerParityAndIndependentThreadSerialization": "passed",
+    "privateOwnerHandlerWithoutMessageCredentialLeak": "passed",
+    "heartbeatDrainAndPauseBeforePublication": "passed",
+    "singleAndConcurrentPublicationAdmission": "passed",
+    "noRenewalOrLegacyFinishAfterKnownClosure": "passed",
+    "lostCommittedReplyObservedByExactRetiredNonce": "passed",
+    "unavailableObservationNeverDowngradesOrReplays": "passed",
+    "postClosureFailurePreservesCompletion": "passed",
+    "ownershipLossBlocksPublication": "passed",
+    "boundedUncooperativePublicationAndShutdown": "passed",
+    "sourceEmittedSingleAmbientContext": "passed",
+    "privateReceiptNeverRenewsRetiredLease": "passed",
+    "coldDockerBuildAndCompiledNode22Compatibility": "passed",
+    "sourceWhitespace": "passed"
+  },
+  "runtime": {
+    "mode": "actual compiled TS worker/shared lease -> source TS composition via tsx -> actual SQL queue claim/renew/journal/manifest/close/receipt observer; HTTP responses simulated",
+    "scenarios": [
+      {
+        "scenario": "success",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "cancel",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 0,
+          "httpCalls": 1,
+          "rpcCalls": 12,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_acceptance",
+        "applied": {
+          "status": "completed",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 19,
+          "legacyFinishes": 0,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_finalization",
+        "applied": {
+          "status": "ACTIVE_COMPLETION_STORAGE_UNCERTAIN",
+          "domainCalls": 1,
+          "httpCalls": 1,
+          "rpcCalls": 18,
+          "legacyFinishes": 0,
+          "observations": 1,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": {
+          "historyPreserved": true,
+          "currentExchangePreserved": true,
+          "nextBaselineFromCompletion": true,
+          "recoveryRpcCalls": 2,
+          "closureStatus": "completed",
+          "noSendOrMutationReplay": true
+        }
+      },
+      {
+        "scenario": "lost_domain",
+        "applied": {
+          "status": "ACTIVE_RUN_RECONCILIATION_REQUIRED",
+          "domainCalls": 1,
+          "httpCalls": 0,
+          "rpcCalls": 13,
+          "legacyFinishes": 1,
+          "observations": 0,
+          "renewalsAfterClose": 0,
+          "replayBlocked": true,
+          "modelProseExcluded": true
+        },
+        "recovered": null
+      }
+    ],
+    "localTaskMutations": 4,
+    "simulatedProviderHttpRequests": 4,
+    "replayedTaskMutations": 0,
+    "replayedSends": 0,
+    "renewalsAfterClose": 0,
+    "legacyFinishesInCompletedScenarios": 0,
+    "lostFinalizationCompletionObservations": 1,
+    "lostTaskReplyOwnedUnknownFinishes": 1,
+    "temporaryDatabasesRemoved": true,
+    "liveHttpCalls": 0,
+    "productionDatabaseCalls": 0
+  },
+  "postgres": {
+    "previousCombinedAssertions": 225,
+    "workerReceiptAssertions": 10,
+    "totalAssertions": 235,
+    "transactionRolledBack": true,
+    "newFinalizerInstalledBeforePreviousCompletionFixtures": true,
+    "migrationDeployed": false,
+    "sqlFile": "supabase/migrations/20261012150531_agent_core_worker_completion_receipt.sql",
+    "concurrentFirstSqlFinalizationTested": false
+  },
+  "container": {
+    "image": "hermes-worker-runtime:local",
+    "built": true,
+    "node": "22.23.3",
+    "network": "disabled for runtime smoke",
+    "compilerFreeCompiledImports": true,
+    "legacyAndOwnedCallbackSmoke": true,
+    "fullNode22UnitSuiteRun": false,
+    "deployed": false
+  },
+  "inventory": {
+    "javascript": 312,
+    "typescript": 125,
+    "transitionalDeclarations": 11,
+    "runtimeImplementationsConvertedToTS": 2,
+    "compatibilityJavaScriptShimsRemaining": 2,
+    "javascriptTestFilesConvertedToTS": 1,
+    "handwrittenDeclarationsRetired": 1
+  },
+  "dependenciesChangedInThisUnit": false,
+  "productionRouting": "Legacy handler API preserved through compiled worker; V2 inference/execution router remains disconnected and prepared SQL is not deployed",
+  "limitations": [
+    "Unknown/baseline-only new-format turns still require dedicated evidence-driven recovery; observation does not prove no effect/no send.",
+    "Handlers must supply their own inference/execution deadlines; the worker bounds its storage/publication operations.",
+    "Two compatibility JS shims remain until callers/entry points migrate. A clean source checkout needs pnpm run build before direct start.",
+    "TS worker development requires a separate runtime compiler watcher or rebuild; no combined watcher is introduced.",
+    "Initial history/provider responses are fixture data. No live provider/WhatsApp/Supabase SDK service-role round trip is certified.",
+    "Retired receipt key is backend-only; direct service-role SQL remains trusted. It grants observation, not active ownership.",
+    "Docker build/runtime smoke is verified on Node22.23.3; full Node22 unit/CI suite not executed locally.",
+    "Complete emitted application build, broader legacy SDK declaration compatibility, maintained JS conversion and remaining eleven transitional declarations stay open.",
+    "Concurrent first SQL publication is not separately certified; worker concurrency, duplicate rejection and prior expiry rollback are covered.",
+    "No production activation/deployment/migration or scheduler change occurred."
+  ],
+  "rollback": "Restore preceding worker/lease implementations and boot wiring as one unit; retain durable completion receipts/certificates, checkpoints and namespace fences.",
+  "localLogs": {
+    "typecheck": "/private/tmp/hermes-worker-typecheck.log",
+    "focused": "/private/tmp/hermes-worker-focused.log",
+    "fullSuite": "/private/tmp/hermes-worker-unit.log",
+    "inventory": "/private/tmp/hermes-worker-inventory.json",
+    "postgres": "/private/tmp/hermes-worker-postgres.log",
+    "postgresHarness": "/private/tmp/hermes-worker-postgres.sql",
+    "runtime": "/private/tmp/hermes-worker-roundtrip.json",
+    "runtimeLog": "/private/tmp/hermes-worker-roundtrip.log",
+    "runtimeHarness": "/private/tmp/hermes-worker-runtime.mjs",
+    "roundTripHarness": "/private/tmp/hermes-worker-roundtrip.py",
+    "dockerBuild": "/private/tmp/hermes-worker-docker-build.log",
+    "node22": "/private/tmp/hermes-worker-node22.log",
+    "node22Harness": "/private/tmp/hermes-worker-node22.mjs"
+  }
+}

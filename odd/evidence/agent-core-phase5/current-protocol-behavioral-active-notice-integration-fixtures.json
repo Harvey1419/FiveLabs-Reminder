@@ -1,0 +1,139 @@
+{
+  "increment": "current-protocol-behavioral-active-notice-integration-fixtures",
+  "date": "2026-10-13",
+  "fullRepositoryTypeScriptComplete": true,
+  "scope": {
+    "auditedIntegrationCases": [
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+    ],
+    "cumulativeCurrentProtocolCases": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+    ],
+    "originalNumericIdentitiesRetained": 37,
+    "otherCasesPendingAudit": 11,
+    "newOfflineCases": 15,
+    "productionSourceChanges": false,
+    "dependencyChanges": false,
+    "compilerFlagsRelaxed": false
+  },
+  "changes": [
+    "Semantic acknowledgement emits no fabricated target; trusted notification handoff or sole backend notice supplies identity",
+    "Case 21 and five original case-22 Spanish variations retain database acknowledgement checks with seed identity/error guards",
+    "Case 23 title and expectation now reflect MISSING_REQUIRED_CONTEXT before tool execution; owned reminders stay empty",
+    "Case 24 checks first acknowledgement timestamp is preserved",
+    "Case 25 retains global read-only nudge query with stable Date clock and seed checks",
+    "Case 26 uses canonical dated update, valid integration fields and target, checks NOT_FOUND and zero create/update calls",
+    "Shared strict-wire helper supports explicit ES/EN response metadata for fixtures"
+  ],
+  "files": [
+    {
+      "path": "tests/integration/agent/agent-behavior.integration.test.ts",
+      "sha256": "2fd724c2f38a180c1172826b047776a5c3e8b3e0fc6d992d338c9bd640a822a7"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-read-fixtures.ts",
+      "sha256": "458d8e2a554da0bd8a119424491c7fe84b8cf433bd58df9489ef60abf7a4ca91"
+    },
+    {
+      "path": "tests/fixtures/agent/behavioral-active-notice-fixtures.ts",
+      "sha256": "7bc2989a8a86d3396ebf019cc80fa7b309298212e94fdba7162a0d9f8e590d7e"
+    },
+    {
+      "path": "tests/unit/agent/current-integration-active-notice-fixtures.test.ts",
+      "sha256": "9c2e8bb09ab4143362eae545fa6c55746d208d10d2e16a90d974e1094812cf2c"
+    },
+    {
+      "path": "tests/unit/agent/calendar-dated-mutation-lookup.test.ts",
+      "sha256": "3c6cd79853fa2d0e55b6e620e58ff82201cb17a6a6eff4ea1b6c19a5800557c9"
+    }
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "passed": true
+    },
+    "focused": {
+      "files": 2,
+      "tests": 29,
+      "passed": true
+    },
+    "unit": {
+      "command": "pnpm run test:unit",
+      "files": 284,
+      "tests": 3558,
+      "durationSeconds": 62.84,
+      "passed": true
+    },
+    "inventory": {
+      "command": "pnpm run migration:check",
+      "passed": true,
+      "counts": {
+        "javascript": 0,
+        "typescript": 701
+      }
+    },
+    "runtime": {
+      "compiledModules": 260,
+      "sourceHostImports": 0,
+      "missingRuntimeModules": 0,
+      "sha256Parity": true,
+      "unchangedArtifacts": 564
+    },
+    "boundaries": [
+      "Three actual strict provider/foreground fixtures",
+      "Real router and acknowledgement tool bind six Spanish and one explicit-English recorded decisions to sole notice, leaving unrelated reminder unchanged",
+      "Missing and duplicate-title ambiguous notices perform no acknowledgement",
+      "Trusted notification distinguishes duplicate-title identities",
+      "Repeated named acknowledgement retains first timestamp with one write",
+      "Actual nudge persistence read excludes acknowledged and exhausted notices with an eligible control",
+      "Existing dated Calendar failures additionally assert no automatic event creation"
+    ]
+  },
+  "externalExecution": {
+    "integrationCasesExecuted": false,
+    "realDatabase": false,
+    "realProvider": false,
+    "realGoogle": false,
+    "whatsapp": false,
+    "billing": false,
+    "deployment": false
+  },
+  "limits": [
+    "Recorded model decisions do not certify live semantic classification",
+    "English fixture explicitly supplies English model metadata and does not certify language detection for bare completion phrases",
+    "Notification handoff is seeded; real scheduler/WhatsApp delivery was not executed",
+    "Injected storage does not certify persistence or nudge-query execution on the dedicated database",
+    "11 behavioral cases plus remaining integration/acceptance audits, isolated persistence, live model measurements and V2 rollout remain open"
+  ],
+  "rollback": "Restore only this increment integration/shared-wire/Calendar-negative-test edits; remove active-notice fixture and regression suite plus appended documentation/evidence; preserve prior work."
+}
