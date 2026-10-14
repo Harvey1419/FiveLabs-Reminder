@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "scope": "Runtime imports of V1 entry/dispatch/run modules in src and scripts; type-only imports excluded",
+  "edges": [
+    {
+      "file": "scripts/dev/interactive-chat.ts",
+      "line": 4,
+      "target": "src/agent/orchestration/router.ts",
+      "kind": "canary_entry"
+    },
+    {
+      "file": "scripts/dev/live-convergence-bench.ts",
+      "line": 3,
+      "target": "src/agent/orchestration/router.ts",
+      "kind": "canary_entry"
+    },
+    {
+      "file": "scripts/dev/live-convergence-bench.ts",
+      "line": 6,
+      "target": "src/agent/core/agent-run.ts",
+      "kind": "legacy_active_runs"
+    },
+    {
+      "file": "scripts/evals/core-conversation-live.ts",
+      "line": 56,
+      "target": "src/agent/orchestration/router.ts",
+      "kind": "canary_entry"
+    },
+    {
+      "file": "scripts/evals/llm-eval.ts",
+      "line": 33,
+      "target": "src/agent/core/agent-run.ts",
+      "kind": "legacy_active_runs"
+    },
+    {
+      "file": "src/adapters/agent-core/active-run-execution.ts",
+      "line": 5,
+      "target": "src/agent/core/agent-run.ts",
+      "kind": "legacy_active_runs"
+    },
+    {
+      "file": "src/adapters/agent-core/legacy-domain.ts",
+      "line": 54,
+      "target": "src/agent/tools/index.ts",
+      "kind": "generic_dispatch"
+    },
+    {
+      "file": "src/agent/core/agent-run.ts",
+      "line": 17,
+      "target": "src/agent/tools/index.ts",
+      "kind": "generic_dispatch"
+    },
+    {
+      "file": "src/agent/orchestration/intent-executor.ts",
+      "line": 2,
+      "target": "src/agent/tools/index.ts",
+      "kind": "generic_dispatch"
+    },
+    {
+      "file": "src/agent/orchestration/intent-executor.ts",
+      "line": 14,
+      "target": "src/agent/core/agent-run.ts",
+      "kind": "legacy_active_runs"
+    },
+    {
+      "file": "src/agent/orchestration/router-core.ts",
+      "line": 109,
+      "target": "src/agent/core/agent-run.ts",
+      "kind": "legacy_active_runs"
+    },
+    {
+      "file": "src/agent/orchestration/router.ts",
+      "line": 1,
+      "target": "src/agent/orchestration/router-core.ts",
+      "kind": "baseline_engine"
+    },
+    {
+      "file": "src/http/webhooks/whatsapp.ts",
+      "line": 5,
+      "target": "src/agent/orchestration/router.ts",
+      "kind": "canary_entry"
+    }
+  ]
+}

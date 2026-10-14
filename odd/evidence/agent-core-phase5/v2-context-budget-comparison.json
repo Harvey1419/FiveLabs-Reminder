@@ -1,0 +1,285 @@
+{
+  "version": 1,
+  "productionBudgetUnchanged": 1800,
+  "mode": "offline_deterministic_capacity_comparison",
+  "methodology": "Same scripted responses, core loop options and full atomic registry for each budget; no inference, storage, delivery or deployments. Input estimates include the OpenRouter wire envelope.",
+  "limits": "Measures context capacity and protocol completion only. Does not measure intelligence, live model quality, provider token usage, latency or actual cost. Long-input cases are synthetic stress fixtures.",
+  "results": [
+    {
+      "case": "greeting",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        793
+      ],
+      "maxInputEstimate": 793,
+      "totalInputEstimate": 793,
+      "historicalHintsProjected": false,
+      "originalHistoryMessages": 0,
+      "durableHistoryMessages": 2
+    },
+    {
+      "case": "greeting",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        793
+      ],
+      "maxInputEstimate": 793,
+      "totalInputEstimate": 793,
+      "historicalHintsProjected": false,
+      "originalHistoryMessages": 0,
+      "durableHistoryMessages": 2
+    },
+    {
+      "case": "greeting_with_legacy_history_and_gaps",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        1688
+      ],
+      "maxInputEstimate": 1688,
+      "totalInputEstimate": 1688,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "greeting_with_legacy_history_and_gaps",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        1688
+      ],
+      "maxInputEstimate": 1688,
+      "totalInputEstimate": 1688,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "read_then_cancel",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [
+        "read",
+        "cancel"
+      ],
+      "writes": 1,
+      "modelRequests": 4,
+      "inputEstimates": [
+        808,
+        1081,
+        1327,
+        1430
+      ],
+      "maxInputEstimate": 1430,
+      "totalInputEstimate": 4646,
+      "historicalHintsProjected": false,
+      "originalHistoryMessages": 0,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "read_then_cancel",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [
+        "read",
+        "cancel"
+      ],
+      "writes": 1,
+      "modelRequests": 4,
+      "inputEstimates": [
+        808,
+        1081,
+        1327,
+        1430
+      ],
+      "maxInputEstimate": 1430,
+      "totalInputEstimate": 4646,
+      "historicalHintsProjected": false,
+      "originalHistoryMessages": 0,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "read_then_cancel_with_legacy_history_and_gaps",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [
+        "read",
+        "cancel"
+      ],
+      "writes": 1,
+      "modelRequests": 4,
+      "inputEstimates": [
+        1693,
+        1410,
+        1656,
+        1759
+      ],
+      "maxInputEstimate": 1759,
+      "totalInputEstimate": 6518,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 14
+    },
+    {
+      "case": "read_then_cancel_with_legacy_history_and_gaps",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [
+        "read",
+        "cancel"
+      ],
+      "writes": 1,
+      "modelRequests": 4,
+      "inputEstimates": [
+        1693,
+        1965,
+        2211,
+        2314
+      ],
+      "maxInputEstimate": 2314,
+      "totalInputEstimate": 8183,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 14
+    },
+    {
+      "case": "long_current_input_1500_chars",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        1635
+      ],
+      "maxInputEstimate": 1635,
+      "totalInputEstimate": 1635,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "long_current_input_1500_chars",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        1984
+      ],
+      "maxInputEstimate": 1984,
+      "totalInputEstimate": 1984,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "long_current_input_3000_chars",
+      "budget": 1800,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        1736
+      ],
+      "maxInputEstimate": 1736,
+      "totalInputEstimate": 1736,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "long_current_input_3000_chars",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        2292
+      ],
+      "maxInputEstimate": 2292,
+      "totalInputEstimate": 2292,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    },
+    {
+      "case": "long_current_input_5000_chars",
+      "budget": 1800,
+      "complete": false,
+      "error": null,
+      "notices": [
+        "limit_reached"
+      ],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 0,
+      "inputEstimates": [],
+      "maxInputEstimate": 0,
+      "totalInputEstimate": 0,
+      "historicalHintsProjected": false,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 7
+    },
+    {
+      "case": "long_current_input_5000_chars",
+      "budget": 2500,
+      "complete": true,
+      "error": null,
+      "notices": [],
+      "domainCalls": [],
+      "writes": 0,
+      "modelRequests": 1,
+      "inputEstimates": [
+        2353
+      ],
+      "maxInputEstimate": 2353,
+      "totalInputEstimate": 2353,
+      "historicalHintsProjected": true,
+      "originalHistoryMessages": 6,
+      "durableHistoryMessages": 8
+    }
+  ]
+}

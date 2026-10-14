@@ -39,6 +39,9 @@ jobs:
       - name: Enforce zero maintained JavaScript
         run: pnpm run migration:check
 
+      - name: Review remaining V1 runtime caller inventory
+        run: pnpm run inventory:v1
+
       - name: Build and typecheck TypeScript packages and tests
         run: pnpm run typecheck
 
@@ -51,8 +54,11 @@ jobs:
       - name: Run unit tests
         run: pnpm run test:unit
 
-      - name: Verify durable conversation integration offline
+      - name: Verify durable conversation and legacy continuity offline
         run: pnpm run test:conversation
+
+      - name: Compare V2 context capacity offline without changing production budget
+        run: pnpm run eval:context-budgets > context-budget-comparison.log
 
       - name: Verify compiled ESM package imports
         run: node --input-type=module -e 'await import("./packages/agent-core/dist/index.js"); await import("./packages/ai/dist/index.js"); await import("./dist/runtime/jobs/inbound-turn-worker.js"); await import("./dist/runtime/agent/core/active-run-executor.js"); await import("./dist/runtime/agent/core/active-run-lifecycle.js")'

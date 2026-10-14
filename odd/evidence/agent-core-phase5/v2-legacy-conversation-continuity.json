@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "scope": "Reviewed V1 callers, bounded compatibility handoff, durable recovery and CI continuity gates",
+  "branch": "fix/v2-legacy-conversation-continuity",
+  "baseCommit": "7fcebc85d477adc89fce52eaab1c2cc4288f3c95",
+  "productionDeployment": false,
+  "productionBudgetUnchanged": 1800,
+  "callerInventory": {
+    "file": "config/v1-retirement-callers.json",
+    "runtimeEdges": 13,
+    "scope": "Direct TypeScript runtime imports/exports/literal lazy imports into reviewed V1 entry, dispatcher and active-run boundaries; excludes type-only declarations",
+    "ciDriftGate": true
+  },
+  "handoff": {
+    "source": "authenticated completed queue turn",
+    "reads": "owner-filtered task/reminder/calendar records; active run check",
+    "maxDialogueMessages": 6,
+    "maxDialogueCharacters": 2400,
+    "maxMessageCharacters": 800,
+    "currentInputExcludedBy": "messageId",
+    "missingAndUnsupportedReferences": "durable historical hints, never mutation authorization",
+    "preservesOriginalOrdinals": true,
+    "doesNotExecuteV1": true,
+    "doesNotRewriteHistoryOrQueueEvidence": true,
+    "nullCompletedResponse": "bounded dialogue only after pending/active effect checks"
+  },
+  "recovery": {
+    "completedProductivityAndActiveCompletionOrResolution": "semantic and receipt validation before admission",
+    "safeRejections": "skip certified no-effect admission and reconciled empty closure markers",
+    "unknownWritesAndAttemptedOrUnknownSends": "block continuity, including beneath newer completed turns",
+    "noReplay": true,
+    "unverifiableHandoff": "durable no-effect rejection; neither engine dispatched"
+  },
+  "validation": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unit": {
+      "files": 295,
+      "passed": 3770
+    },
+    "conversationIntegration": {
+      "files": 2,
+      "passed": 20,
+      "newContinuityJourneys": 8
+    },
+    "sourceInventory": {
+      "maintainedJavaScript": 0,
+      "typeScriptSources": 771
+    },
+    "v2CompiledBoundary": {
+      "modules": 160,
+      "forbiddenV1Imports": 0
+    },
+    "runtimeGraph": {
+      "modules": 301,
+      "sourceHostImports": 0,
+      "missingModules": 0
+    },
+    "container": {
+      "tag": "five-labs-reminder-api:v2-legacy-continuity",
+      "imageId": "sha256:418f0aa84ac978cba43fd2c0518e32a90e2c3c3b1a7373992c35da41453b6b7a",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 54,
+      "network": "none",
+      "syntheticDependencies": true
+    }
+  },
+  "budgetComparison": {
+    "file": "odd/evidence/agent-core-phase5/v2-context-budget-comparison.json",
+    "pairs": 7,
+    "budgets": [
+      1800,
+      2500
+    ],
+    "nativeInputEstimates": true,
+    "liveModelQualityMeasured": false,
+    "actualLatencyCostOrTokensMeasured": false,
+    "summary": "Both budgets finish greeting and read/cancel fixtures. Larger budget retains additional history and completes a synthetic 5000-character current input that reaches the 1800 limit."
+  },
+  "remainingBeforeV1Removal": [
+    "Structured image/document/location parity",
+    "Memory write/extraction parity",
+    "Subscription/project/entity/admin/unified-agenda tools",
+    "Explicit pending approval/clarification lifecycle migration",
+    "Leased V2 CLI/evaluation harness",
+    "Durable archive design beyond existing 100-request checkpoint ledger bound"
+  ],
+  "externalEffects": {
+    "productionDatabaseWrites": 0,
+    "paidInferenceCalls": 0,
+    "realWhatsAppSends": 0,
+    "deployments": 0
+  },
+  "commands": [
+    "pnpm run inventory:v1",
+    "pnpm run migration:check",
+    "pnpm run typecheck",
+    "pnpm run check:v2-boundary",
+    "pnpm run lint",
+    "pnpm run test:unit",
+    "pnpm run test:conversation",
+    "pnpm run eval:context-budgets odd/evidence/agent-core-phase5/v2-context-budget-comparison.json",
+    "docker build -t five-labs-reminder-api:v2-legacy-continuity .",
+    "pnpm run smoke:container five-labs-reminder-api:v2-legacy-continuity"
+  ]
+}
