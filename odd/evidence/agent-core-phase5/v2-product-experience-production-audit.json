@@ -1,0 +1,330 @@
+{
+  "artifact": "v2-product-experience-production-audit",
+  "auditedDeployment": {
+    "id": "30fa9ea6-2501-49ae-89e6-4f5ffbf87e83",
+    "commit": "3ddd94ecea0fadd2336cfff015b25ac11646c331",
+    "status": "SUCCESS",
+    "projectId": "19a32952-8b25-400e-afa0-9e659b78f6b3",
+    "serviceId": "f3fbb519-b7b8-4c43-8570-d17609363472"
+  },
+  "scope": "Read-only Railway logs, two legacy unknown checkpoints and current V2 greeting checkpoint, plus source review. No runtime change or deployment.",
+  "assessment": "TypeScript migration and mutation execution are working, but V2 production composition lacks conversation, personal memory and foreground proactivity parity. Infrastructure/test success does not certify assistant experience.",
+  "observations": [
+    {
+      "runId": "29e4e481-1bb8-457f-bd1f-2427c6bddcb9",
+      "atUtc": "2026-10-14T06:09:44Z",
+      "outcome": "Live reminder cancellation succeeded",
+      "model": "openai/gpt-oss-120b",
+      "provider": "Groq",
+      "modelSteps": 3,
+      "inputEstimates": [
+        1742,
+        1765,
+        1446
+      ],
+      "logicalCancelledCount": 1
+    },
+    {
+      "runId": "7d6832c0-e1e9-4ea1-8847-130321643be2",
+      "atUtc": "2026-10-14T13:04:28Z",
+      "input": "Buenos días",
+      "modelSteps": 1,
+      "effects": [],
+      "notices": [],
+      "persistedAssistantContent": "",
+      "deliveredReply": "¿En qué te ayudo con tus tareas, recordatorios o calendario?",
+      "delivery": "accepted"
+    },
+    {
+      "runIds": [
+        "d9a861cc-b1d5-46c0-83e6-cb1b17b74976",
+        "cc411b59-30de-40f1-8077-bf3e663190b7"
+      ],
+      "atUtc": [
+        "2026-10-14T12:20:03Z",
+        "2026-10-14T13:00:48Z"
+      ],
+      "outcome": "Admission rejected before engine",
+      "code": "PRIOR_TURN_RECONCILIATION_REQUIRED",
+      "blockedOwner": "c26c09b8-4857-4bb4-ab2b-55537f4eddad"
+    },
+    {
+      "runId": "0245571c-536d-4f8e-a24e-c1e5d4c5b9c6",
+      "atUtc": "2026-10-14T13:36:45Z",
+      "httpStatus": 429,
+      "providerUsage": null,
+      "modelSteps": 1,
+      "outcome": "No successful fallback attempt in bounded logs"
+    },
+    {
+      "runId": "b455f9e2-65eb-4682-bd5e-94d91bdd9a38",
+      "atUtc": "2026-10-14T13:37:25Z",
+      "outcome": "Reminder create dispatched before final provider step returned 429; committed results must survive provider failure"
+    }
+  ],
+  "blockedThread": {
+    "legacyRootTurns": [
+      {
+        "id": "50d958be-11a9-413f-b187-f74ccb0b5e2a",
+        "sequence": 325
+      },
+      {
+        "id": "35a0e43b-5447-4e62-a5bd-14301d27c2ce",
+        "sequence": 326
+      }
+    ],
+    "error": "VALIDATION_ERROR",
+    "status": "unknown",
+    "delivery": "attempted",
+    "replyCharacters": 4857,
+    "verifiedOperations": [
+      {
+        "tool": "manage_project",
+        "action": "listed_projects",
+        "outcome": "success"
+      },
+      {
+        "tool": "manage_task",
+        "action": "listed_tasks",
+        "outcome": "success"
+      }
+    ],
+    "providerRejection": {
+      "status": 400,
+      "message": "Param text.body must be at most 4096 characters long.",
+      "timesUtc": [
+        "2026-10-13T03:47:16Z",
+        "2026-10-13T03:48:03Z"
+      ],
+      "webhookCorrelations": [
+        "7fb490fb-ed4a-4f13-8de7-f32c652da391",
+        "6629c532-a9d5-4482-a17c-9817a8d0aa65"
+      ]
+    },
+    "laterLegacyGateTurn": {
+      "id": "bba03215-fd47-4431-96c1-bf111a9c1449",
+      "sequence": 376,
+      "lastError": "PRIOR_TURN_RECONCILIATION_REQUIRED",
+      "responseKeys": []
+    },
+    "diagnosis": "The later empty pre-engine rejection is skippable, but the two earlier read-only turns with attempted delivery are not. Explicit transport rejection was not durably classified as rejected. Historical unknown scan therefore continues to block.",
+    "recoveryRequired": "Evidence-based owner/thread/response-fingerprint resolution of both root turns under a valid lease, retaining original facts and rejected-delivery evidence. Existing reminder-V2 resolution RPC does not support these unknown baseline rows. Add an appropriate legacy rejected-delivery recovery boundary; do not use a broad unknown-row bypass.",
+    "currentState": "Still blocked; audit did not change queue status or replay messages."
+  },
+  "findings": [
+    {
+      "id": "conversation_erased",
+      "priority": "P0",
+      "evidence": [
+        {
+          "file": "packages/agent-core/src/agent-loop.ts",
+          "line": 211,
+          "behavior": "Every normalized assistant message stores content: ''."
+        },
+        {
+          "file": "packages/contracts/src/productivity-turn.ts",
+          "behavior": "UI contract contains items and notices, no conversation channel."
+        },
+        {
+          "file": "src/presentation/whatsapp-productivity-presenter.ts",
+          "line": 148,
+          "behavior": "Empty sections become a fixed capability-menu greeting."
+        }
+      ],
+      "effect": "Social replies, explanations, empathy and model-authored clarifications cannot reach WhatsApp or durable dialogue.",
+      "remedy": "Introduce a bounded public conversation/clarification channel distinct from internal/tool reasoning and factual mutation receipts. Preserve admitted user-visible dialogue, ground operation confirmations in verified results, and route empty/invalid outputs explicitly."
+    },
+    {
+      "id": "legacy_rejection_blocks_thread",
+      "priority": "P0",
+      "evidence": [
+        {
+          "file": "src/integrations/whatsapp/kapso-client-core.ts",
+          "line": 99,
+          "behavior": "Text is sent without a length boundary."
+        },
+        {
+          "file": "src/integrations/whatsapp/kapso-dispatch.ts",
+          "line": 63,
+          "behavior": "Explicit HTTP rejection throws without persisting rejected delivery."
+        },
+        {
+          "file": "src/adapters/agent-core/inbound-checkpoint-reader.ts",
+          "behavior": "Historical non-admission unknown rows block continuation."
+        }
+      ],
+      "remedy": "Bound or paginate before dispatch; journal each chunk and acceptance separately. Distinguish explicit rejection from uncertain delivery; resolve these two historical roots with recorded provider evidence."
+    },
+    {
+      "id": "personal_context_missing",
+      "priority": "P1",
+      "evidence": [
+        {
+          "file": "src/adapters/agent-core/canary-productivity-router.ts",
+          "line": 34,
+          "behavior": "Loads subscription and productivity state; no relevant memory, preferences, overview or display-name context."
+        },
+        {
+          "file": "src/http/webhooks/whatsapp-handler.ts",
+          "line": 886,
+          "behavior": "V2-delivered turns bypass existing memory extraction."
+        },
+        {
+          "file": "src/agent/orchestration/router-context-reads.ts",
+          "behavior": "Baseline already loads relevant memories, standing preferences, proactive anchors and daily overview."
+        }
+      ],
+      "remedy": "Owner-scoped bounded personal-context port with provenance/freshness and a safe, idempotent learning hook for explicit user facts. Retain ephemeral-vs-durable boundaries and language adaptation."
+    },
+    {
+      "id": "foreground_proactivity_not_composed",
+      "priority": "P1",
+      "evidence": [
+        {
+          "file": "src/agent/orchestration/next-best-action-core.ts",
+          "behavior": "Baseline has observed-candidate next-best-action advice."
+        },
+        {
+          "file": "src/adapters/agent-core/canary-productivity-router.ts",
+          "behavior": "V2 does not invoke the foreground advice path."
+        }
+      ],
+      "remedy": "Compose one relevant optional suggestion from verified fresh data, respecting user preferences, quiet hours, backoff and duplicate suppression. No unsolicited mutation or invented agenda completeness.",
+      "limit": "Morning briefings and scheduler are running; missing foreground composition is distinct from background service uptime."
+    },
+    {
+      "id": "provider_failures_do_not_fail_over",
+      "priority": "P1",
+      "evidence": [
+        {
+          "file": "packages/ai/src/openrouter-provider.ts",
+          "line": 175,
+          "behavior": "Null usage causes UNVERIFIED_USAGE before non-OK route fallback."
+        },
+        {
+          "file": "src/adapters/agent-core/configured-ai-provider.ts",
+          "line": 28,
+          "behavior": "Last-resort route requires minimum 2800 output tokens, but V2 requests at most 768."
+        },
+        {
+          "file": "src/presentation/whatsapp-productivity-presenter.ts",
+          "line": 146,
+          "behavior": "All notice types are rendered as the same generic actions-not-attempted sentence."
+        }
+      ],
+      "remedy": "Classify explicit non-generation rejections using trusted provider metadata separately from unknown inference spend; allow budgeted fallback only when justified. Align route output requirements with V2. Present provider/rate-limit/context failures distinctly while retaining committed action receipts."
+    },
+    {
+      "id": "product_parity_and_context_quality",
+      "priority": "P1",
+      "evidence": [
+        {
+          "file": "src/adapters/agent-core/canary-productivity-router.ts",
+          "line": 39,
+          "behavior": "Registry includes tasks, reminders, calendar only."
+        },
+        {
+          "file": "packages/agent-core/src/operational-context.ts",
+          "behavior": "Compaction summary retains tool operations, not conversational commitments or personal narrative."
+        }
+      ],
+      "remedy": "Audit projects, entities, memory, subscription/admin and agenda capabilities against actual product needs; add scoped domain adapters incrementally. Include bounded attributed dialogue state in compaction; known preferences are not fresh task observations."
+    },
+    {
+      "id": "acceptance_gap",
+      "priority": "P1",
+      "evidence": [
+        {
+          "file": "tests/unit/agent-core/canary-productivity-router.test.ts",
+          "behavior": "Scripted completions verify operations/budgets; helper prose was intentionally treated as non-public."
+        }
+      ],
+      "remedy": "Retain deterministic safety tests, and add actual product journeys across conversational replies, follow-up context, personalization, provider failures, long outbound messages and recovery. Use capped opt-in live evaluations to measure actual model decisions.",
+      "assessment": "3709 passing tests validated their assertions, not full assistant parity."
+    }
+  ],
+  "implementationOrder": [
+    {
+      "step": 1,
+      "goal": "Restore availability",
+      "files": [
+        "src/integrations/whatsapp/kapso-client-core.ts",
+        "src/integrations/whatsapp/kapso-dispatch.ts",
+        "src/jobs/inbound-turn-worker-core.ts",
+        "src/adapters/agent-core/inbound-checkpoint-reader.ts",
+        "packages/contracts/src/productivity-checkpoint.ts",
+        "new legacy rejected-delivery resolution port and lease-fenced migration"
+      ],
+      "verification": [
+        "4857-character read result produces bounded/paginated messages with distinct receipts.",
+        "Explicit 400 rejection is terminal/recoverable; timeout and attempted unknown deliveries remain protected.",
+        "Both historical roots resolved from matching evidence, original facts retained, no resend or mutation replay.",
+        "Subsequent fresh reminder request by the blocked owner is admitted."
+      ]
+    },
+    {
+      "step": 2,
+      "goal": "Restore conversation end to end",
+      "files": [
+        "packages/contracts/src/productivity-turn.ts",
+        "packages/agent-core/src/agent-loop.ts",
+        "packages/agent-core/src/productivity-turn.ts",
+        "src/adapters/agent-core/durable-productivity-assistant.ts",
+        "src/presentation/whatsapp-productivity-presenter.ts"
+      ],
+      "verification": [
+        "Buenos días, ¿cómo estás?, complaints and clarification produce contextual public replies rather than a repeated menu.",
+        "Public reply persists and survives the next turn.",
+        "Internal instructions and reasoning never become user-visible text.",
+        "A mutation is confirmed only from its verified receipt."
+      ]
+    },
+    {
+      "step": 3,
+      "goal": "Restore bounded personal memory and initiative",
+      "files": [
+        "src/adapters/agent-core/canary-productivity-router.ts",
+        "src/agent/orchestration/router-context-reads.ts",
+        "src/agent/orchestration/next-best-action-core.ts",
+        "src/features/memory/service.ts",
+        "src/http/webhooks/whatsapp-handler.ts",
+        "packages/agent-core/src/operational-context.ts"
+      ],
+      "verification": [
+        "Owned preferences/name/facts shape replies in ES and EN.",
+        "Explicit facts can be learned once under the existing epistemic/admission rules.",
+        "Relevant one-step advice uses observed candidates, respects opt-out and does not repeat.",
+        "Native request envelope stays within the configured budget; optional context is dropped before essential state."
+      ]
+    },
+    {
+      "step": 4,
+      "goal": "Reliability and real product certification",
+      "files": [
+        "packages/ai/src/openrouter-provider.ts",
+        "src/adapters/agent-core/configured-ai-provider.ts",
+        "tests/unit/agent-core",
+        "tests/integration/agent",
+        "scripts/evals"
+      ],
+      "verification": [
+        "Explicit rate-limit rejection can use a justified affordable fallback; unknown inference usage does not silently become zero.",
+        "After a committed write, final-provider failure cannot erase the action or retry it.",
+        "Foreground traces record decision/tool names, stop reason, presentation source and precise failure reason without logging full personal prompts.",
+        "Run strict typecheck, zero-JS inventory, full unit suite, compiled container smoke and capped live journey evaluation before expanding rollout."
+      ]
+    }
+  ],
+  "externalChanges": {
+    "productionDatabaseWrites": false,
+    "paidModelCalls": false,
+    "whatsAppMessagesSent": false,
+    "deploymentPerformed": false,
+    "requiredDeploymentOrigin": "GitHub"
+  },
+  "limitations": [
+    "Original upstream raw greeting content is not available in the durable checkpoint because the loop erased it.",
+    "Historical rejected deliveries were confirmed through Railway HTTP-error logs, not accepted delivery receipts.",
+    "This is an audit and implementation design; runtime fixes and historical recovery remain to be implemented."
+  ]
+}
