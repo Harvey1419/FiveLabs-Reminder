@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "scope": "Owned live personal-context boundary and memory reliability research",
+  "baseCommit": "0182385",
+  "productionCorrection": {
+    "operation": "retire exactly one reporter-owned incorrect-name memory",
+    "affectedRows": 1,
+    "isActiveAfter": false,
+    "validUntilSet": true,
+    "correctNameRetained": true,
+    "otherUsersChanged": false,
+    "otherMemoriesChanged": false
+  },
+  "implemented": [
+    "Require explicit owner and active lifecycle before prompt inclusion",
+    "Separate standing facts from behavioral preferences",
+    "Bound context to two facts and two preferences",
+    "Clarify conflicting identity; assistant replies are not evidence (prompt guidance)"
+  ],
+  "validation": {
+    "unitPassed": 3827,
+    "unitFiles": 300,
+    "conversationIntegrationPassed": 37,
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0
+  },
+  "sources": [
+    "https://github.com/Gentleman-Programming/engram/blob/main/docs/ARCHITECTURE.md",
+    "https://github.com/thedotmack/claude-mem"
+  ],
+  "proposedNotImplemented": [
+    "Persistent source attribution",
+    "Atomic canonical-topic correction/versioning",
+    "Semantic conflict resolver",
+    "Durable learning outbox",
+    "Labeled live semantic evaluation"
+  ],
+  "externalEffects": {
+    "productionMemoryRowsRetired": 1,
+    "paidInferenceCalls": 0,
+    "deployments": 0,
+    "messagesSent": 0
+  },
+  "rollback": "Revert personal-context/prompt/test hardening as one unit. Do not reactivate the corrected production memory automatically."
+}
