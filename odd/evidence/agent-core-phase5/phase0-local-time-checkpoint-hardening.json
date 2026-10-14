@@ -1,0 +1,32 @@
+{
+  "recordedAtUtc": "2026-10-14T16:16:21.892089+00:00",
+  "phase": 0,
+  "scope": "Local dialogue time and empty administrative checkpoint hardening",
+  "changes": [
+    "Inject Intl.DateTimeFormat full date and short local time as userLocalTime; retain referenceTimeIso for tool instants",
+    "Explicit local-time or relative-time conversational guidance with certified card authority",
+    "Skip null/empty PRIOR_TURN_RECONCILIATION_REQUIRED and RECONCILED_ closures in unknown/completed states",
+    "Existing null/missing baseline response guard retained and regression tested"
+  ],
+  "verification": {
+    "typecheckErrors": 0,
+    "unitTestsPassed": 3730,
+    "unitFilesPassed": 293,
+    "conversationIntegrationTestsPassed": 8,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "localeCases": [
+      "es-CO/America-Bogota: 16:05Z becomes 11:05 a. m.",
+      "en-US/America-Bogota: 16:05Z becomes 11:05 AM",
+      "en-US/Asia-Tokyo: 16:05Z becomes 1:05 AM on the following day"
+    ]
+  },
+  "rollbackBoundary": [
+    "productivity-turn local-time context and associated tests",
+    "inbound-checkpoint-reader empty reconciled closure policy and associated tests"
+  ],
+  "limitations": [
+    "Prompt guidance is not deterministic validation of generated factual dialogue; that broader Phase 1 control remains pending.",
+    "No paid inference, WhatsApp send, database mutation or deployment performed in this phase."
+  ]
+}

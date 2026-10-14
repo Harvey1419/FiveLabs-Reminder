@@ -56,6 +56,19 @@ function setup(script: AIResponse[], options: AgentLoopOptions = {}) {
 }
 
 describe('shared productivity observation loop', () => {
+  it.each([
+    ['es', 'America/Bogota', 'miércoles, 14 de octubre de 2026, 11:05 a. m.'],
+    ['en', 'America/Bogota', 'Wednesday, October 14, 2026 at 11:05 AM'],
+    ['en', 'Asia/Tokyo', 'Thursday, October 15, 2026 at 1:05 AM'],
+  ] as const)('injects local reference time for %s in %s', async (language, timezone, expected) => {
+    const s = setup([response()]);
+    await s.runner.run('Hola', { ...context, language, timezone, referenceTimeIso: '2026-10-14T16:05:00Z' });
+    const system = s.provider.requests[0]?.messages.find(message => message.role === 'system');
+    expect(system?.content).toContain(JSON.stringify({ userLocalTime: expected }).slice(1, -1));
+    expect(system?.content).toContain(`local timezone (${timezone})`);
+    expect(system?.content).toContain('Never expose, calculate, or cite raw UTC timestamps');
+    expect(system?.content).toContain('Certified cards render formatted local times');
+  });
   it('reads a task, updates its observed ID and persists each observation before continuing', async () => {
     const update: ToolCall = { id: 'local', name: 'task_update', arguments: { taskId: id, priority: 'urgent' } };
     const s = setup([response([taskRead]), response([update]), response()]);

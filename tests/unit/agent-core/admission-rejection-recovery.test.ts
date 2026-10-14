@@ -25,6 +25,18 @@ function fixture(prior: InboundStoredTurn[]) {
   return { onUnknown, run: () => withTurnLease(lease, () => readPriorInboundTurn(client, context, 'thread', onUnknown)) };
 }
 describe('admission failures do not quarantine effect-free future turns', () => {
+  it.each(['unknown', 'completed'] as const)('skips reconciled %s closures with null or empty responses and preserves the actual conversation', async status => {
+    for (const response of [null, {}]) {
+      const closure = { ...row('reconciled', 95, status, response), last_error: 'RECONCILED_NO_EFFECTS' };
+      const actual = row('actual', 80, 'completed', { confirmation: 'Actual conversation' });
+      const f = fixture([closure, actual]);
+      expect(await f.run()).toEqual(actual); expect(f.onUnknown).not.toHaveBeenCalled();
+    }
+  });
+  it('does not skip a reconciled marker when an execution checkpoint is present', async () => {
+    const f = fixture([{ ...row('unsafe', 95, 'unknown', { agentCoreProductivity: { effects: [] } }), last_error: 'RECONCILED_MANUAL' }]);
+    await expect(f.run()).rejects.toThrow('uncertain prior');
+  });
   it('skips completed legacy gate closures with no checkpoint instead of using them as handoff anchors', async () => {
     const closure = { ...row('805f2116', 95, 'completed', null), last_error: 'PRIOR_TURN_RECONCILIATION_REQUIRED' };
     const actual = row('actual', 80, 'completed', { confirmation: 'Actual conversation' });
