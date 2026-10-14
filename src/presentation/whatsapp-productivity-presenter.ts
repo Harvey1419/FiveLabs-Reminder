@@ -1,3 +1,4 @@
+import { boundWhatsAppText } from '../shared/whatsapp-text-boundary.js';
 import {
   productivityUiPayloadSchema, type ProductivityItem, type ProductivityUiPayload, type TaskRecord,
   type TaskResult, type CalendarEvent,
@@ -44,6 +45,10 @@ export class WhatsAppProductivityPresenter {
     const en = payload.language === 'en';
     const context = { language: payload.language, timezone: payload.timezone };
     const sections: string[] = [];
+    // Only final public dialogue accompanies fully confirmed outcomes. Failures own their wording.
+    if (payload.conversationReply?.trim() && !payload.notices.length && payload.items.every(item => item.status === 'success')) {
+      sections.push(payload.conversationReply.trim());
+    }
     const ctas = new Map<string, WhatsAppPresentation['ctas'][number]>();
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();
     const groups = new Map<string, ProductivityItem[]>();
@@ -143,9 +148,10 @@ export class WhatsAppProductivityPresenter {
       }
       sections.push(...items.flatMap(item => item.result?.presentation.questions ?? []));
     }
-    if (payload.notices.length) sections.push(en ? 'Some requested actions could not be attempted.' : 'Algunas acciones solicitadas no pudieron intentarse.');
-    return { text: [...new Set(sections.filter(Boolean))].join('\n\n')
-      || (en ? 'How can I help with your tasks, reminders or calendar?' : '¿En qué te ayudo con tus tareas, recordatorios o calendario?'),
+    if (payload.notices.includes('provider_unavailable')) sections.push(en ? 'I could not finish the response right now. Confirmed results are shown above.' : 'No pude terminar la respuesta en este momento. Los resultados confirmados están arriba.');
+    else if (payload.notices.length) sections.push(en ? 'I could not finish all of this request. Confirmed results are shown above.' : 'No pude completar toda la solicitud. Los resultados confirmados están arriba.');
+    return { text: boundWhatsAppText([...new Set(sections.filter(Boolean))].join('\n\n')
+      || (en ? 'I could not prepare a useful response. Could you tell me a little more?' : 'No pude preparar una respuesta útil. ¿Me cuentas un poco más?')),
     ctas: [...ctas.values()], flows: [...flows.values()] };
   }
 }

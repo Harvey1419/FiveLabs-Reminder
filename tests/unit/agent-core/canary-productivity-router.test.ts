@@ -5,6 +5,7 @@ import { untrustedResultMock } from '../../support/unit/contract-boundary.js';
 const state = vi.hoisted(() => ({ provider: null as MockAIProvider | null }));
 vi.mock('../../../src/adapters/agent-core/configured-ai-provider.js', () => ({ createConfiguredAIProvider: () => state.provider }));
 vi.mock('../../../src/infrastructure/database/index.js', () => ({ getUserSubscription: vi.fn(async () => null), hasProAccess: vi.fn(() => false) }));
+vi.mock('../../../src/features/memory/service.js', () => ({ retrieveRelevantMemories: vi.fn(async () => []), retrieveStandingPreferences: vi.fn(async () => []) }));
 vi.mock('../../../src/agent/tools/index.js', () => ({ executeTool: vi.fn() }));
 import { routeCanaryProductivity } from '../../../src/adapters/agent-core/canary-productivity-router.js';
 import { v2DeliveryReceipt } from '../../../src/adapters/agent-core/canary-delivery-receipt.js';
@@ -15,7 +16,7 @@ import { createCanaryRouter } from '../../../src/agent/orchestration/canary-rout
 
 const user = { id: 'owner', timezone: 'America/Bogota', locale: 'es-CO' };
 function answer(calls: AIResponse['message']['toolCalls'] = []): AIResponse {
-  return { message: { role: 'assistant', content: 'internal instructions', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 30, outputTokens: 10 } };
+  return { message: { role: 'assistant', content: calls.length ? 'internal instructions' : 'Listo, aquí tienes.', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 30, outputTokens: 10 } };
 }
 function discover(steps: MockCompletion[]): MockCompletion[] {
   let selected: string | undefined;
@@ -138,6 +139,24 @@ describe('canary admission executes actual durable V2 composition', () => {
     await withTurnLease(f.lease, () => route('Completa la primera tarea', user, [], { inputModality: 'text', agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; } }));
     expect(executeTool).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
   });
+  it('greets naturally under the native budget with a large historical ledger and a nullable display name', async () => {
+    const f = fixture();
+    const transferred = { userId: 'owner', history: [], tasks: Array.from({ length: 5 }, (_, index) => ({
+      id: `11111111-1111-4111-8111-11111111111${index}`, title: 'Long historical title '.repeat(90),
+      description: null, priority: null, status: 'pending' as const, dueDateIso: null, entityId: null, entityName: null,
+    })), reminders: [], events: [], handledRequestIds: ['prior-message'] };
+    const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
+    state.provider = new MockAIProvider([{ response: { ...answer(), message: { role: 'assistant', content: '¡Buenos días! ¿Cómo arrancó tu mañana?', toolCalls: [] } } }]);
+    Object.assign(state.provider, { estimateNativeInput: wire.estimateNativeInput.bind(wire) });
+    const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, percentage: 100 as const, userAllowlist: [] }),
+      lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }), handoff: async () => transferred });
+    const result = await withTurnLease(f.lease, () => route('Buenos días', { ...user, display_name: null }, [], { inputModality: 'text', agentCoreDelivery: { send: f.send } }));
+    expect(result.confirmation).toContain('¡Buenos días!'); expect(result.intent).toBe('chat');
+    expect(state.provider.requests).toHaveLength(1);
+    expect(wire.estimateNativeInput(state.provider.requests[0]!)).toBeLessThanOrEqual(1800);
+    expect(state.provider.requests[0]!.messages[0]?.content).not.toContain('Long historical title');
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { conversation: { tasks: transferred.tasks } } } });
+  });
   it('uses the compactor under the 1800 target, exposes one atomic schema and retains durable dialogue', async () => {
     const f = fixture(); const priorHistory = Array.from({ length: 10 }, (_, i) => [
       { role: 'user' as const, content: i < 8 ? `Old ${i} `.repeat(300) : `Recent ${i}` },
@@ -193,7 +212,8 @@ describe('canary admission executes actual durable V2 composition', () => {
     for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(1800);
     if (priorDialogue) {
       expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history } } } });
-      expect(state.provider.requests[2]!.messages.filter(message => message.role === 'user')).toHaveLength(1);
+      expect(state.provider.requests.some(request => request.messages[0]?.role === 'system' && request.messages[0].content.includes('operationalSummary'))).toBe(true);
+      expect(state.provider.requests[2]!.messages.at(-1)?.role).toBe('tool');
     }
     expect(state.provider.requests[2]!.tools.some(tool => tool.name === 'reminder_cancel')).toBe(true);
     const observation = state.provider.requests[2]!.messages.find(message => message.role === 'tool' && typeof message.content === 'object' && message.content && 'observation' in message.content && typeof message.content.observation === 'object');

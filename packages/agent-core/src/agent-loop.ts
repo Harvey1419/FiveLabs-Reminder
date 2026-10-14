@@ -48,6 +48,7 @@ export interface AgentLoopPolicy {
 }
 export interface AgentLoopResult {
   readonly requiresReconciliation: boolean;
+  readonly conversationReply: string | null;
   readonly history: AIMessage[]; readonly notices: LoopNotice[]; readonly usage: AgentLoopUsage;
 }
 
@@ -124,7 +125,8 @@ export class AgentLoop {
     const deadlineMs = this.now() + this.timeoutMs;
     const usage = { accountingComplete: true, modelSteps: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: this.pricing ? 0 : null };
     let reconciliationRequired = false;
-    const finish = (): AgentLoopResult => ({ history, notices: [...new Set(notices)], usage: { ...usage }, requiresReconciliation: reconciliationRequired });
+    let conversationReply: string | null = null;
+    const finish = (): AgentLoopResult => ({ history, conversationReply, notices: [...new Set(notices)], usage: { ...usage }, requiresReconciliation: reconciliationRequired });
     const catalogue = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name)).map(tool => this.discoverTools
       ? { ...tool, inputSchema: compactSchemaHints(tool.inputSchema) as JsonObject } : tool);
     if (catalogue.some(tool => tool.name === 'tools_select')) throw new Error('Reserved tool name');
@@ -208,7 +210,8 @@ export class AgentLoop {
       // Namespacing avoids collisions between provider-local IDs on separate turns.
       const normalizedCalls = calls.map(call => ({ ...call,
         id: `${encodeURIComponent(context.requestId)}:${step === 0 ? '' : `step:${step}:`}${encodeURIComponent(call.id)}` }));
-      history.push({ role: 'assistant', content: '', toolCalls: normalizedCalls });
+      history.push({ role: 'assistant', content: response.message.content, toolCalls: normalizedCalls });
+      if (!calls.length && response.stopReason === 'completed') conversationReply = response.message.content.trim() || null;
       totalCalls += calls.length;
       for (const call of normalizedCalls) {
         if (this.discoverTools && call.name === 'tools_select') {
@@ -281,7 +284,10 @@ export class AgentLoop {
         if (!read && (outcome.status === 'success' || outcome.status === 'partial')) completedWrites.add(writeKey);
         if (outcome.status === 'indeterminate' || policy.requiresReconciliation(call, outcome)) reconciliationRequired = true;
         await policy.afterOutcome(structuredClone(call), outcome);
-        if (this.discoverTools && read && outcome.status === 'success') followups = this.readFollowups[call.name] ?? [];
+        if (this.discoverTools && read && outcome.status === 'success') {
+          followups = this.readFollowups[call.name] ?? [];
+          if (followups.length) selected = undefined;
+        }
         if (this.discoverTools && !read && (outcome.status === 'success' || outcome.status === 'partial')) { selected = call.name; followups = []; }
         const content: JsonObject = { status: outcome.status, observation: outcome.observation };
         history.push({ role: 'tool', toolCallId: call.id, content, isError: outcome.status !== 'success' && outcome.status !== 'partial' });

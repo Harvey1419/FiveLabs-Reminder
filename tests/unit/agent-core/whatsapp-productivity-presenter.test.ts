@@ -79,7 +79,7 @@ describe('verified mixed WhatsApp presentation', () => {
   });
   it('renders the current turn language and rejects invalid timezones', () => {
     const payload: ProductivityUiPayload = { language: 'en', timezone: 'UTC', items: [], notices: [] };
-    expect(new WhatsAppProductivityPresenter().render(payload).text).toContain('How can I help');
+    expect(new WhatsAppProductivityPresenter().render(payload).text).toContain('Could you tell me a little more?');
     expect(() => new WhatsAppProductivityPresenter().render({ ...payload, timezone: 'invalid' })).toThrow();
   });
 });

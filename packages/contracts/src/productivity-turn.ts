@@ -39,7 +39,7 @@ export const productivityConversationSchema = z.strictObject({
   events: z.array(calendarEventSchema).max(50), handledRequestIds: z.array(z.string().min(1)).max(100),
 });
 export const productivityUiPayloadSchema = z.strictObject({
-  language: z.enum(['es', 'en']), timezone: z.string().min(1), items: z.array(productivityItemSchema).max(10),
+  language: z.enum(['es', 'en']), timezone: z.string().min(1), conversationReply: z.string().max(4000).nullable().optional(), items: z.array(productivityItemSchema).max(10),
   notices: z.array(z.enum(['provider_unavailable', 'invalid_response', 'unavailable_tool', 'limit_reached'])).max(10),
 });
 export type ProductivityItem = z.infer<typeof productivityItemSchema>;

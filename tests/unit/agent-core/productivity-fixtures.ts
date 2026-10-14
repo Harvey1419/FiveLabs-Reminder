@@ -20,7 +20,7 @@ export const taskCreate: ToolCall = { id: 'task', name: 'task_create', arguments
 export const calendarRead: ToolCall = { id: 'calendar', name: 'calendar_read', arguments: { scope: 'today' } };
 export const reminderCreate: ToolCall = { id: 'reminder', name: 'reminder_create', arguments: { content: 'Preparar reunión', targetTimeIso: '2026-10-11T21:00:00Z' } };
 export function response(calls: ToolCall[] = []): AIResponse {
-  return { message: { role: 'assistant', content: 'internal instructions', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed',
+  return { message: { role: 'assistant', content: calls.length ? 'internal instructions' : '', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed',
     usage: { inputTokens: 30, outputTokens: 10 } };
 }
 export function setup(script: AIResponse[] = [response([calendarRead]), response([taskCreate]), response([reminderCreate]), response()]) {

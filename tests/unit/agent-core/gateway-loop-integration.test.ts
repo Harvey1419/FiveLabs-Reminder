@@ -11,7 +11,7 @@ import { setup, context, taskId, taskCreate, response } from './productivity-fix
 const routes = [{ id: 'primary', model: 'fixture/primary', providers: ['primary'], timeoutMs: 1000 },
   { id: 'secondary', model: 'fixture/secondary', providers: ['secondary'], timeoutMs: 1000 }];
 function raw(name?: string, args = {}) {
-  return { choices: [{ message: { role: 'assistant', content: name ? null : 'discarded prose',
+  return { choices: [{ message: { role: 'assistant', content: name ? null : 'Listo, quedó completada.',
     ...(name ? { tool_calls: [{ id: 'local', type: 'function', function: { name, arguments: JSON.stringify(args) } }] } : {}) },
   finish_reason: name ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 30, completion_tokens: 10 } };
 }
@@ -21,7 +21,7 @@ function runner(provider: AIProvider, execute: ReturnType<typeof setup>['execute
   }, execute))), { continuation: 'observation_driven', authorizeWrite: async () => true, now: () => 100 });
 }
 describe('native gateway through the shared loop and durable boundary', () => {
-  it('fails over once, reads/completes the observed task and sends only verified cards', async () => {
+  it('fails over once, reads/completes the observed task and sends public dialogue with verified cards', async () => {
     const s = setup();
     const responses = [
       { error: {}, usage: { prompt_tokens: 5, completion_tokens: 2 } },
@@ -44,7 +44,7 @@ describe('native gateway through the shared loop and durable boundary', () => {
     expect(result.usage).toMatchObject({ modelSteps: 3, inputTokens: 95, outputTokens: 32, accountingComplete: true });
     expect(fetch.mock.calls.map(call => JSON.parse(String(call[1]?.body)).model))
       .toEqual(['fixture/primary', 'fixture/secondary', 'fixture/secondary', 'fixture/secondary']);
-    expect(result.reply.text).not.toContain('discarded prose');
+    expect(result.reply.text).toContain('Listo, quedó completada.');
     expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).phase).toBe('completed');
   });
   it('preserves a completed effect when the next provider step loses usage, without another write or resend', async () => {

@@ -1,0 +1,210 @@
+{
+  "artifact": "v2-conversation-restoration",
+  "verifiedAtUtc": "2026-10-14T15:31:27.423132+00:00",
+  "implementation": {
+    "preservedAssistantContent": true,
+    "finalPublicConversationReply": true,
+    "dialogueWithConfirmedCards": true,
+    "intermediateToolProseNotRendered": true,
+    "failureAndPartialOutcomeWordingOwnedByHost": true,
+    "staticCapabilityMenuRemoved": true,
+    "maxWhatsAppUtf16Length": 4000,
+    "graphemeSafeTruncation": true,
+    "fullDomainRecordsDurable": true,
+    "personalContext": {
+      "displayNameMaximumCharacters": 60,
+      "maximumMemories": 2,
+      "maximumPreferences": 2,
+      "maximumRecordCharacters": 160,
+      "optionalReadTimeoutMs": 1500,
+      "ownedReadsOnly": true,
+      "xmlDelimitersEscaped": true,
+      "dropsOptionalPersonalDataBeforeEssentialProtocolState": true
+    },
+    "modelContext": {
+      "nativeInputBudget": 1800,
+      "discoveryDoesNotDumpHistoricalLedger": true,
+      "historicalReferencesLoadedOnlyForSelectedDomains": true,
+      "historicalReferenceTextLimit": 160,
+      "historicalRawRecordsUnchanged": true
+    },
+    "persona": "Executive Personal Assistant and Second Brain; warm, natural, brief, empathetic; at most one relevant context-grounded next step."
+  },
+  "productionRecovery": {
+    "receipt": "odd/evidence/agent-core-phase5/v2-leandryss-rejected-transport-resolution.json",
+    "resolvedTurns": 2,
+    "maintenanceLeaseDurable": true,
+    "originalResponseFieldsAndLastErrorPreserved": true,
+    "http400RejectionEvidenceArchived": true,
+    "unsafeUnknownBlockersAfterRecovery": 0,
+    "domainOperationsReplayed": 0,
+    "whatsAppMessagesReplayed": 0,
+    "serviceOnlyInvokerSecuredRpc": true,
+    "anonymousAndAuthenticatedExecutionAllowed": false
+  },
+  "verification": {
+    "typecheckErrors": 0,
+    "compiler": "TypeScript 7.0.2",
+    "lintCompatibilityApi": "TypeScript 6.0.2",
+    "lintedFiles": 730,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unitPassed": 3715,
+    "unitFailed": 0,
+    "unitFiles": 293,
+    "offlineIntegrationPassed": 7,
+    "offlineIntegrationFailed": 0,
+    "isolatedPostgresRecoveryFixturePassed": true,
+    "typeScriptSources": 730,
+    "maintainedJavaScript": 0,
+    "dockerBuildSucceeded": true,
+    "container": {
+      "image": {
+        "tag": "five-labs-reminder-api:v2-conversation-restoration",
+        "id": "sha256:2bd594c07f7aafd56cfb02a545e243b452453a5e6ae9a05a816f4b479d7db134",
+        "created": "2026-10-14T10:27:18.795660703-05:00",
+        "repoDigests": [
+          "five-labs-reminder-api@sha256:2bd594c07f7aafd56cfb02a545e243b452453a5e6ae9a05a816f4b479d7db134"
+        ],
+        "platform": "linux/arm64",
+        "user": "node",
+        "command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ]
+      },
+      "container": {
+        "id": "a5a8e5bf30f46cb8fe8f892e3d74eaed841a8fc1ac3dd338f723e59eb3cfdd41",
+        "node": "22.23.3",
+        "nodeEnv": "production",
+        "originalImageCommand": true,
+        "pid1Command": [
+          "node",
+          "dist/runtime/app/server.js"
+        ],
+        "health": {
+          "status": 200,
+          "body": "{\"status\":\"ok\"}"
+        },
+        "shutdown": {
+          "signal": "SIGTERM",
+          "exitCode": 0,
+          "elapsedSeconds": 0.054,
+          "oomKilled": false
+        },
+        "network": "none",
+        "syntheticExternalDependencies": true,
+        "runtimeBindMounted": false,
+        "imageRuntimeMatchesWorkspace": true,
+        "verifiedRuntimeArtifacts": 614,
+        "sourcePresent": false,
+        "compilerPresent": false,
+        "tsxPresent": false
+      }
+    },
+    "compiledRouterScenarios": [
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "publicDialogueAndVerifiedCard": true,
+        "textLimit": 4000,
+        "audioAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 2,
+        "providerCalls": 4,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          840,
+          1216,
+          1360,
+          1569
+        ],
+        "maximumWireInputEstimate": 1569,
+        "syntheticCancellationWrites": 1,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:2bd594c07f7aafd56cfb02a545e243b452453a5e6ae9a05a816f4b479d7db134"
+      },
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "naturalGreeting": true,
+        "textLimit": 4000,
+        "textAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 0,
+        "providerCalls": 1,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          829
+        ],
+        "maximumWireInputEstimate": 829,
+        "syntheticCancellationWrites": 0,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:2bd594c07f7aafd56cfb02a545e243b452453a5e6ae9a05a816f4b479d7db134"
+      }
+    ]
+  },
+  "logs": {
+    "typecheck": {
+      "path": "/private/tmp/hermes-conversation-typecheck.log",
+      "sha256": "41069c478796e9d88c059252b9266903d4014fc39443d211af47d12a8237df42"
+    },
+    "lint": {
+      "path": "/private/tmp/hermes-conversation-lint.log",
+      "sha256": "366773114e4ece0c1b7fa794c64c63225b8aa0c2770e4a3b7640b0990f0cce84"
+    },
+    "unit": {
+      "path": "/private/tmp/hermes-conversation-unit.log",
+      "sha256": "11a0ec3c055a7c6d9abb0c530295f4652176edbc9628c79ce8c71afab5bd524e"
+    },
+    "integration": {
+      "path": "/private/tmp/hermes-conversation-integration.log",
+      "sha256": "f31bba21aac437d75ebce2698b19d9e28a632f246810d0dd9d682aac13951f6f"
+    },
+    "inventory": {
+      "path": "/private/tmp/hermes-conversation-inventory.log",
+      "sha256": "2e266ebd9b16312aecbd769888886211af9cfb3bf84ffa2b5107e8fb7aebdb54"
+    },
+    "sqlRecovery": {
+      "path": "/private/tmp/hermes-recovery-sql-test.log",
+      "sha256": "95d47320bb9a6dee6bc8ef35edbfb1319661109295c9527eca89ea4d1b793a89"
+    },
+    "docker": {
+      "path": "/private/tmp/hermes-conversation-docker.log",
+      "sha256": "1009d7628052aad1551ec0ceec005922a5c3d532a5183b77a9dd4bc4e3a77c60"
+    },
+    "compiledDialogue": {
+      "path": "/private/tmp/hermes-conversation-compiled-dialogue.log",
+      "sha256": "47c30d7a6330351ff2e79482eb90228e154fe9eda2cbcf04606680d0234bc2b3"
+    },
+    "historicalLedgerBeforeFix": {
+      "path": "/private/tmp/hermes-conversation-ledger-before.log",
+      "sha256": "329caeb62bfbb78019871b0203b4973f0be4d73893fa28b7d8afa5d51106dc28"
+    }
+  },
+  "externalState": {
+    "productionQueueRecoveryPerformed": true,
+    "productionSchemaMigrationApplied": "20261014145738_hermes_rejected_transport_recovery",
+    "applicationDeploymentPerformed": false,
+    "paidModelEvaluationsPerformed": false,
+    "realWhatsAppMessagesSentByVerification": false,
+    "deploymentMustOriginateFrom": "GitHub"
+  },
+  "limits": [
+    "Conversation integration uses scripted providers and synthetic storage/transport; this does not certify future live model wording or intent selection.",
+    "Personal context retrieval is reconnected; durable memory learning and a separate foreground next-best-action port were outside this requested block.",
+    "Essential current-turn observations may still hit the configured hard input ceiling; no unlimited-context claim is made."
+  ]
+}
