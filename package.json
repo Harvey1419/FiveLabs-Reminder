@@ -31,7 +31,8 @@
     "chat:validate": "pnpm run build:packages && node --import tsx scripts/dev/run-chat-validation.ts",
     "lint": "node --import tsx scripts/checks/lint.ts",
     "test:conversation": "pnpm run build:packages && vitest run --config tests/config/vitest.conversation-integration.ts",
-    "smoke:container": "tsx scripts/checks/container-smoke.ts"
+    "smoke:container": "tsx scripts/checks/container-smoke.ts",
+    "check:v2-boundary": "tsx scripts/checks/v2-domain-boundary.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

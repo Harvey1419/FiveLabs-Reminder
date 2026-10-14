@@ -1,0 +1,148 @@
+{
+  "recordedAtUtc": "2026-10-14T17:00:54.885377+00:00",
+  "scope": "V2 productivity execution independent of V1 generic dispatch",
+  "relocationCommit": "a05a40f",
+  "domainOperations": {
+    "tasks": [
+      "create",
+      "read",
+      "update",
+      "complete",
+      "delete"
+    ],
+    "reminders": [
+      "create",
+      "read",
+      "update",
+      "cancel",
+      "acknowledge"
+    ],
+    "calendar": [
+      "connect",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  },
+  "implementation": {
+    "relocatedModules": 24,
+    "v1CompatibilityEntryPointsRetained": true,
+    "typedServiceInputs": [
+      "TaskRequest",
+      "ReminderRequest",
+      "CalendarRequest"
+    ],
+    "nativeServicesRequireDurableLease": true,
+    "leaseRunAndRequestIdentityChecked": true,
+    "domainOwnerChecked": true,
+    "unknownResultsNeverPromotedToSuccess": true,
+    "sharedTransportCyclesRemoved": [
+      "stripReminderPrefix",
+      "normalizePhoneNumber"
+    ]
+  },
+  "verification": {
+    "typecheckErrors": 0,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "unitTestsPassed": 3761,
+    "unitFilesPassed": 295,
+    "directServiceTestsPassed": 17,
+    "boundaryAdversarialTestsPassed": 8,
+    "conversationIntegrationTestsPassed": 12,
+    "inventory": {
+      "javascript": 0,
+      "typescript": 768
+    },
+    "compiledEntrypointModules": 301,
+    "v2DomainModulesChecked": 160,
+    "forbiddenV1Imports": 0,
+    "productionContainer": {
+      "imageId": "sha256:767fdc42f2c0970c31be073d1baca75d40d5da545c62c0c3c058f5cf8392c285",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 70,
+      "network": "none",
+      "syntheticDependencies": true
+    },
+    "compiledRuntimeMatch": {
+      "imageId": "sha256:767fdc42f2c0970c31be073d1baca75d40d5da545c62c0c3c058f5cf8392c285",
+      "matchedArtifacts": 674,
+      "matchesWorkspace": true
+    },
+    "compiledRouterScenarios": [
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "publicDialogueAndVerifiedCard": true,
+        "textLimit": 4000,
+        "audioAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 2,
+        "providerCalls": 4,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          943,
+          1320,
+          1464,
+          1672
+        ],
+        "maximumWireInputEstimate": 1672,
+        "syntheticCancellationWrites": 1,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:767fdc42f2c0970c31be073d1baca75d40d5da545c62c0c3c058f5cf8392c285"
+      },
+      {
+        "node": "22.23.3",
+        "compiledProductionRouter": true,
+        "naturalGreeting": true,
+        "textLimit": 4000,
+        "textAdmitted": true,
+        "legacyAdmissionCascadeSkipped": true,
+        "priorRowsUnmodified": true,
+        "baselineHandoff": true,
+        "domainSteps": 0,
+        "providerCalls": 1,
+        "inputTarget": 1800,
+        "wireInputEstimates": [
+          932
+        ],
+        "maximumWireInputEstimate": 932,
+        "syntheticCancellationWrites": 0,
+        "sends": 1,
+        "notices": [],
+        "phase": "completed",
+        "realNetwork": false,
+        "tokensReportedAreSynthetic": true,
+        "imageId": "sha256:767fdc42f2c0970c31be073d1baca75d40d5da545c62c0c3c058f5cf8392c285"
+      }
+    ]
+  },
+  "ci": "check:v2-boundary parses compiled ESM imports/re-exports/lazy imports and rejects dispatch/router-core/legacy adapters, missing/escaping modules and unbounded dynamic imports. Module-level literal SDK constants are supported; shadowed variables are rejected.",
+  "externalState": {
+    "productionDatabaseMutations": 0,
+    "paidInferenceCalls": 0,
+    "realWhatsAppMessagesSent": 0,
+    "applicationDeploymentPerformed": false
+  },
+  "rollbackBoundary": "Revert typed-service wiring and native domain boundary commit before reverting implementation relocation; source compatibility entry points remain available.",
+  "remaining": [
+    "Baseline dispatch still serves V1 callers.",
+    "Reusable target-resolution/presentation helpers still live under agent/tools.",
+    "Ingress parity, history recovery and final V1 retirement require subsequent blocks."
+  ],
+  "reviewNote": "Most moved operation bodies are existing behavior with resolved imports; the final suite covers the combined relocation and service-wiring tree. Offline fixtures certify execution mechanics, not live model quality."
+}

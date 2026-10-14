@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockAIProvider, OpenRouterProvider, type MockCompletion, estimateBoundedInput } from '@templelabs/ai';
 import type { JsonObject, AIResponse } from '@templelabs/contracts';
 import { untrustedResultMock } from '../../support/unit/contract-boundary.js';
-const state = vi.hoisted(() => ({ provider: null as MockAIProvider | null }));
+const state = vi.hoisted(() => ({ provider: null as MockAIProvider | null, domainExecute: vi.fn<(input: { domain: string; request: unknown; user: unknown; context: unknown }) => Promise<unknown>>() }));
 vi.mock('../../../src/adapters/agent-core/configured-ai-provider.js', () => ({ createConfiguredAIProvider: () => state.provider }));
 vi.mock('../../../src/infrastructure/database/index.js', () => ({ getUserSubscription: vi.fn(async () => null), hasProAccess: vi.fn(() => false) }));
 vi.mock('../../../src/features/memory/service.js', () => ({ retrieveRelevantMemories: vi.fn(async () => []), retrieveStandingPreferences: vi.fn(async () => []) }));
-vi.mock('../../../src/agent/tools/index.js', () => ({ executeTool: vi.fn() }));
+vi.mock('../../../src/features/tasks/productivity-service.js', () => ({ createTaskService: (user: unknown) => ({ execute: (request: unknown, context: unknown) => state.domainExecute({ domain: 'tasks', request, user, context }) }) }));
+vi.mock('../../../src/features/reminders/productivity-service.js', () => ({ createReminderService: (user: unknown) => ({ execute: (request: unknown, context: unknown) => state.domainExecute({ domain: 'reminders', request, user, context }) }) }));
+vi.mock('../../../src/features/calendar/productivity-service.js', () => ({ createCalendarService: (user: unknown) => ({ execute: (request: unknown, context: unknown) => state.domainExecute({ domain: 'calendar', request, user, context }) }) }));
 import { routeCanaryProductivity } from '../../../src/adapters/agent-core/canary-productivity-router.js';
 import { v2DeliveryReceipt } from '../../../src/adapters/agent-core/canary-delivery-receipt.js';
-import { executeTool } from '../../../src/agent/tools/index.js';
+const domainExecute = state.domainExecute;
 import { createWhatsAppFixture } from '../../support/unit/whatsapp-fixture.js';
 import { withTurnLease, assertTurnLease } from '../../../src/agent/core/turn-lease.js';
 import { createCanaryRouter } from '../../../src/agent/orchestration/canary-router.js';
@@ -42,9 +44,9 @@ function fixture() {
 describe('canary admission executes actual durable V2 composition', () => {
   it('reads through the registered domain adapter, checkpoints and sends exactly once', async () => {
     const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]));
-    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Preparar reporte', status: 'pending' }] } });
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Preparar reporte', status: 'pending' }] } });
     const result = await f.run();
-    expect(f.baseline).not.toHaveBeenCalled(); expect(executeTool).toHaveBeenCalledOnce();
+    expect(f.baseline).not.toHaveBeenCalled(); expect(domainExecute).toHaveBeenCalledOnce();
     expect(result.confirmation).toContain('Preparar reporte'); expect(result.confirmation).not.toContain('internal instructions');
     expect(f.send).toHaveBeenCalledOnce(); expect(v2DeliveryReceipt(result)).toEqual(['wamid.v2']);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', userId: 'owner', runId: 'run', deliveries: [{ status: 'accepted', messageId: 'wamid.v2' }] } });
@@ -56,11 +58,11 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
     ]));
-    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'completed_task', data: { id, title: 'Preparar reporte', status: 'completed' } });
     await f.run(true);
-    expect(executeTool).toHaveBeenCalledTimes(2);
-    expect(executeTool).toHaveBeenLastCalledWith(expect.objectContaining({ params: { action: 'complete', target: id }, user: expect.objectContaining({ id: user.id }) }));
+    expect(domainExecute).toHaveBeenCalledTimes(2);
+    expect(domainExecute).toHaveBeenLastCalledWith(expect.objectContaining({ domain: 'tasks', request: { operation: 'complete', input: { taskId: id } }, user: expect.objectContaining({ id: user.id }) }));
     expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', effects: [
       { call: { name: 'task_read' }, item: { status: 'success' } }, { call: { name: 'task_complete' }, item: { status: 'success' } },
@@ -74,7 +76,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
     ]));
-    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'completed_task', data: { id, title: 'Preparar reporte', status: 'completed' } });
     const baseline = vi.fn(async (): Promise<Awaited<ReturnType<typeof routeCanaryProductivity>>> => ({ intent: 'chat', executionFacts: [], language: 'en', confirmation: 'Baseline' }));
     const globalRoute = createCanaryRouter<Awaited<ReturnType<typeof routeCanaryProductivity>>>({ baseline, v2: routeCanaryProductivity,
@@ -82,8 +84,8 @@ describe('canary admission executes actual durable V2 composition', () => {
     webhook.deps.assertTurnLease.mockImplementation(assertTurnLease);
     untrustedResultMock(webhook.deps.routeMessage).mockImplementation((text, owner, history, options) => globalRoute(text, owner, history, options));
     await withTurnLease(f.lease, () => webhook.processWebhookMessage({ headers: {}, body: { message: { id: 'request', from: '573000000001', text: { body: 'Completa la primera tarea' } } } }));
-    expect(executeTool).toHaveBeenCalledTimes(2);
-    expect(executeTool).toHaveBeenLastCalledWith(expect.objectContaining({ params: { action: 'complete', target: id }, user: expect.objectContaining({ id: 'owner' }) }));
+    expect(domainExecute).toHaveBeenCalledTimes(2);
+    expect(domainExecute).toHaveBeenLastCalledWith(expect.objectContaining({ domain: 'tasks', request: { operation: 'complete', input: { taskId: id } }, user: expect.objectContaining({ id: 'owner' }) }));
     expect(baseline).not.toHaveBeenCalled(); expect(webhook.deps.sendWhatsAppText).toHaveBeenCalledOnce();
     expect(webhook.deps.saveMessage).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'assistant', messageId: 'wamid.text' }));
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', effects: [
@@ -97,9 +99,9 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) },
       { response: answer() },
     ]));
-    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } });
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Preparar reporte', status: 'pending' }] } });
     await f.run();
-    expect(executeTool).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+    expect(domainExecute).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [
       { call: { name: 'task_read' }, item: { status: 'success' } }, { call: { name: 'task_complete' }, item: { status: 'approval_required' } },
     ] } });
@@ -109,7 +111,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     const f = fixture(); state.provider = new MockAIProvider([
       { response: answer([{ id: 'select', name: 'tools_select', arguments: { name } }]) }, { response: answer() },
     ]);
-    await f.run(); expect(executeTool).not.toHaveBeenCalled(); expect(state.provider.requests).toHaveLength(2);
+    await f.run(); expect(domainExecute).not.toHaveBeenCalled(); expect(state.provider.requests).toHaveLength(2);
     const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
     expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', name]);
     expect(wire.estimateNativeInput(state.provider.requests[1]!)).toBeLessThanOrEqual(1800);
@@ -118,7 +120,7 @@ describe('canary admission executes actual durable V2 composition', () => {
   it('retains strict backend date validation after removing generated regexes from model hints', async () => {
     const f = fixture(); state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'create', name: 'calendar_create',
       arguments: { kind: 'timed', summary: 'Invalid leap date', startIso: '2026-02-29T20:00:00Z', endIso: '2026-02-29T21:00:00Z' } }]) }, { response: answer() }]));
-    await f.run(true); expect(executeTool).not.toHaveBeenCalled();
+    await f.run(true); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [{ call: { name: 'calendar_create' }, item: { status: 'validation_failed' } }] } });
     const schema = JSON.stringify(state.provider.requests[1]!.tools.find(tool => tool.name === 'calendar_create')!.inputSchema);
     expect(schema).toContain('date-time'); expect(schema).not.toContain('pattern');
@@ -129,7 +131,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       status: 'pending' as const, dueDateIso: null, entityId: null, entityName: null }], reminders: [], events: [], handledRequestIds: ['prior-message'],
       referenceOrder: [{ domain: 'tasks' as const, id, position: 1 }] };
     state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'complete', name: 'task_complete', arguments: { taskId: id } }]) }, { response: answer() }]));
-    untrustedResultMock(executeTool).mockImplementation(async () => {
+    untrustedResultMock(domainExecute).mockImplementation(async () => {
       expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: transferred }, effects: [{ call: { name: 'task_complete' }, item: null }] } });
       return { success: true, action: 'completed_task', data: { id, title: 'Reporte', status: 'completed' } };
     });
@@ -137,7 +139,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }),
       handoff: async () => transferred });
     await withTurnLease(f.lease, () => route('Completa la primera tarea', user, [], { inputModality: 'text', agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; } }));
-    expect(executeTool).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+    expect(domainExecute).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
   });
   it('greets naturally under the native budget with a large historical ledger and a nullable display name', async () => {
     const f = fixture();
@@ -163,7 +165,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       { role: 'assistant' as const, content: `Reply ${i}`, toolCalls: [] },
     ]).flat();
     state.provider = new MockAIProvider(discover([{ response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'all' } }]) }, { response: answer() }]));
-    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_tasks', data: { tasks: [] } });
     const result = await withTurnLease(f.lease, () => routeCanaryProductivity('Lista mis tareas', user, { agentCoreDelivery: { send: f.send } },
       { context: { userId: 'owner', runId: 'run', requestId: 'request', timezone: user.timezone, language: 'es',
         referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: f.lease.signal }, threadId: 'thread', prior: null,
@@ -186,7 +188,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'cancel', name: 'reminder_cancel', arguments: { reminderId: id } }]) },
       { response: answer() },
     ]);
-    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_reminders', data: { reminders: [
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'listed_reminders', data: { reminders: [
       { id, content: 'Amoxicilina 500 mg', send_at: '2026-10-15T08:25:00Z', recurrence_rule: 'daily' },
       { id: '33333333-3333-4333-8333-333333333333', content: 'Me amo mucho', send_at: '2026-10-15T13:00:00Z', recurrence_rule: 'daily' },
     ] } }).mockResolvedValueOnce({ success: true, complete: true, action: 'cancelled_recurring_reminder_series', data: {
@@ -203,7 +205,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     const result = await withTurnLease(f.lease, () => route('¿Podrías eliminar el recordatorio de la moxicilina, por favor?', user, [], {
       inputModality: 'audio', attachmentOnly: false, agentCoreDelivery: { send: f.send }, agentCoreAuthorizeWrite: async () => { await assertTurnLease(); return true; },
     }));
-    expect(executeTool).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
+    expect(domainExecute).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(result.confirmation).toContain('eliminado'); expect(result.confirmation).not.toContain('Algunas acciones solicitadas');
     expect(result.confirmation).toContain('Me amo mucho');
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, effects: [
@@ -226,9 +228,9 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'read', name: 'task_read', arguments: { status: 'pending' } }]) },
       { response: answer([{ id: 'delete', name: 'task_delete', arguments: { taskId: id } }]) }, { response: answer() },
     ]);
-    untrustedResultMock(executeTool).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Report', status: 'pending' }] } })
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'listed_tasks', data: { tasks: [{ id, title: 'Report', status: 'pending' }] } })
       .mockResolvedValueOnce({ success: true, action: 'deleted_task', data: { id, title: 'Report', status: 'deleted' } });
-    await f.run(true); expect(executeTool).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce();
+    await f.run(true); expect(domainExecute).toHaveBeenCalledTimes(2); expect(f.send).toHaveBeenCalledOnce();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, effects: [
       { call: { name: 'task_read' } }, { call: { name: 'task_delete' }, item: { status: 'success' } },
     ] } });
@@ -240,8 +242,8 @@ describe('canary admission executes actual durable V2 composition', () => {
       { response: answer([{ id: 'read', name: 'reminder_read', arguments: { query: 'amoxicilina' } }]) },
       { response: answer([{ id: 'cancel', name: 'reminder_cancel', arguments: { reminderId: id } }]) }, { response: answer() },
     ]);
-    untrustedResultMock(executeTool).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [{ id, content: 'Amoxicilina' }] } });
-    await f.run(); expect(executeTool).toHaveBeenCalledOnce();
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [{ id, content: 'Amoxicilina' }] } });
+    await f.run(); expect(domainExecute).toHaveBeenCalledOnce();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [{ call: { name: 'reminder_read' } }, { call: { name: 'reminder_cancel' }, item: { status: 'approval_required' } }] } });
   });
   it('blocks an oversized essential turn before inference or domain writes', async () => {
@@ -249,7 +251,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     await withTurnLease(f.lease, () => routeCanaryProductivity('🧬'.repeat(3500), user, { agentCoreDelivery: { send: f.send } },
       { context: { userId: 'owner', runId: 'run', requestId: 'request', timezone: user.timezone, language: 'es',
         referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: f.lease.signal }, threadId: 'thread', prior: null }));
-    expect(state.provider.requests).toHaveLength(0); expect(executeTool).not.toHaveBeenCalled();
+    expect(state.provider.requests).toHaveLength(0); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['limit_reached'] } } } });
   });
   it('denies unadvertised domain calls even when selected in the same batch', async () => {
@@ -257,7 +259,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       { id: 'select', name: 'tools_select', arguments: { name: 'task_read' } },
       { id: 'bypass', name: 'task_read', arguments: { status: 'all' } },
     ]) }, { response: answer() }]);
-    await f.run(true); expect(executeTool).not.toHaveBeenCalled();
+    await f.run(true); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['unavailable_tool'] } } } });
   });
   it('failed delivery is fenced as unknown and never executes baseline', async () => {

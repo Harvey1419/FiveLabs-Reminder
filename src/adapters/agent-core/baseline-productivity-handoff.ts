@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { productivityConversationSchema, taskRecordSchema, reminderRecordSchema, calendarEventSchema,
   type ProductivityConversation, type TaskRecord, type ReminderRecord, type CalendarEvent, type TurnContext } from '@templelabs/contracts';
 import type { InboundStoredTurn, InboundCheckpointClient } from './inbound-checkpoint-reader.js';
-import { normalizeLegacyReminderRecord } from './legacy-reminders.js';
+import { normalizeReminderRecord } from './reminders-domain.js';
 
 const object = z.record(z.string(), z.unknown());
 export interface BaselineHandoffSource {
@@ -94,7 +94,7 @@ export function createBaselineHandoffSource(client: InboundCheckpointClient,
     },
     async readReminder(id, context) {
       const row = await read('reminders', 'id,user_id,content,send_at,recurrence_rule,source,parent_reminder_id,requires_confirmation,acknowledged_at', id, context);
-      return row ? reminderRecordSchema.parse(normalizeLegacyReminderRecord(row)) : null;
+      return row ? reminderRecordSchema.parse(normalizeReminderRecord(row)) : null;
     },
     readEvent,
   };

@@ -42,6 +42,9 @@ jobs:
       - name: Build and typecheck TypeScript packages and tests
         run: pnpm run typecheck
 
+      - name: Enforce V2 domain independence from V1 dispatch
+        run: pnpm run check:v2-boundary
+
       - name: Lint TypeScript syntax and safety
         run: pnpm run lint
 

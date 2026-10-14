@@ -9,9 +9,9 @@ import type { ProductivityConversation } from '@templelabs/contracts';
 import { DurableProductivityAssistant, type ProductivityDeliveryPort } from './durable-productivity-assistant.js';
 import { recoverProductivityStoredTurn } from './productivity-state-recovery.js';
 import { createConfiguredAIProvider } from './configured-ai-provider.js';
-import { createLegacyTaskPort } from './legacy-tasks.js';
-import { createLegacyCalendarPort } from './legacy-calendar.js';
-import { createLegacyReminderPort } from './legacy-reminders.js';
+import { createTaskDomainPort } from './tasks-domain.js';
+import { createCalendarDomainPort } from './calendar-domain.js';
+import { createReminderDomainPort } from './reminders-domain.js';
 import { getUserSubscription, hasProAccess } from '../../infrastructure/database/index.js';
 import { detectLanguageFromText } from '../../shared/language-detection.js';
 import type { CanaryAdmission } from '../../agent/orchestration/canary-router.js';
@@ -40,8 +40,8 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   if (hasProAccess(subscription)) capabilities.add('reminders.pro');
   const context = { ...admission.context, capabilities, language };
   const registry = new ToolRegistry([
-    ...createTaskTools(createLegacyTaskPort(user)), ...createCalendarTools(createLegacyCalendarPort(user)),
-    ...createReminderTools(createLegacyReminderPort(user)),
+    ...createTaskTools(createTaskDomainPort(user)), ...createCalendarTools(createCalendarDomainPort(user)),
+    ...createReminderTools(createReminderDomainPort(user)),
   ]);
   const previous: ProductivityConversation | undefined = admission.handoff ?? (admission.prior
     ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined);
