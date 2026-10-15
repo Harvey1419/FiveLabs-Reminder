@@ -12,7 +12,9 @@ const live = process.argv.includes('--live');
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
 const caseName = process.argv.find(arg => arg.startsWith('--case='))?.slice(7);
 const snapshotPath = process.argv.find(arg => arg.startsWith('--snapshot='))?.slice(11);
-if (snapshotPath && caseName !== 'read_today_long_history') throw new Error('Snapshot replay requires the isolated read-only case');
+const selectedBudget = process.argv.find(arg => arg.startsWith('--budget='))?.slice(9);
+if (selectedBudget && !['1800', '2500'].includes(selectedBudget)) throw new Error('Unsupported evaluation budget');
+if (snapshotPath && !['read_today_long_history', 'two_reminders_after_reads'].includes(caseName ?? '')) throw new Error('Snapshot replay requires an isolated incident case');
 const uuid = (index: number) => `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`;
 const anchor = '2026-10-15T15:00:00Z';
 const answer = (toolCalls: ToolCall[] = []): AIResponse => ({ message: { role: 'assistant', content: toolCalls.length ? '' : 'Listo.', toolCalls }, stopReason: toolCalls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 0, outputTokens: 0 } });
@@ -24,6 +26,7 @@ interface Scenario { name: string; text: string; script: AIResponse[]; writes: n
 const scenarios: Scenario[] = [
   { name: 'read_today_long_history', text: 'Oye, ¿qué recordatorios tengo para hoy?', script: batches([[call('reminder_read', { filter: 'today' }, 1)]]), writes: 0, reads: 1, longHistory: true, live: true },
   { name: 'three_reminders', text: 'Recuérdame salir en 10 minutos, llamar a Ana en 20 minutos y revisar el horno en 30 minutos.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, reminders: 3, tasks: 0, live: true },
+  { name: 'two_reminders_after_reads', text: 'Me puedes recordar que debo salir en 10 minutos y que a las 8 llegaba Lu del aeropuerto.', script: batches([[reminder(1), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, live: true },
   { name: 'mixed_recurring_reminders', text: 'Crea dos recordatorios: caminar mañana a las 8 AM todos los días, y llamar al taller mañana a las 11 AM sólo una vez.', script: batches([[reminder(1, 25, true), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, recurring: 1, live: true },
   { name: 'reminders_and_tasks', text: 'Recuérdame llamar a Ana en 10 minutos y revisar el horno en 20 minutos. Además crea las tareas revisar propuesta y preparar informe.', script: batches([[reminder(1), reminder(2)], [task(3), task(4)]]), writes: 4, reminders: 2, tasks: 2, live: true },
   { name: 'project_grouped_tasks', text: 'Crea tres tareas para el proyecto Atlas: revisar requisitos, preparar presupuesto y enviar propuesta. Añade un recordatorio para llamar al cliente mañana a las 9 AM.', script: batches([[task(1, true), task(2, true), task(3, true)], [reminder(4)]]), writes: 4, reminders: 1, tasks: 3, live: true },
@@ -36,9 +39,9 @@ const scenarios: Scenario[] = [
   { name: 'bounded_steps_negative_control', text: 'Crea tres recordatorios.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, cap: 1 },
 ];
 const results: unknown[] = [];
-for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of [1800, 2500]) {
+for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of selectedBudget ? [Number(selectedBudget)] : [1800, 2500]) {
   const controller = new AbortController();
-  const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: anchor, signal: controller.signal,
+  const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: scenario.name === 'two_reminders_after_reads' ? '2026-10-15T00:55:01Z' : anchor, signal: controller.signal,
     capabilities: new Set(['reminders.read', 'reminders.create', 'reminders.update', 'reminders.cancel', 'reminders.acknowledge', 'reminders.pro',
       'tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete', 'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'memories.read', 'memories.save', 'memories.forget']) };
   const observed: { name: string; input: unknown }[] = [];
@@ -78,18 +81,26 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
   const provider: AIProvider = { capabilities: source.capabilities, complete: async request => { requests.push(request); const result = await source.complete(request); decisions.push({ available: request.tools.map(t=>t.name), calls: result.message.toolCalls.map(c=>({name:c.name,arguments:c.arguments})) }); return result; } };
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const previous = snapshotPath ? productivityConversationSchema.parse({ ...JSON.parse(readFileSync(snapshotPath, 'utf8')), userId: context.userId, handledRequestIds: [] })
+    : scenario.name === 'two_reminders_after_reads' ? productivityConversationSchema.parse({ userId: context.userId,
+      history: [
+        { role: 'user', content: 'Consulta anterior de calendario y recordatorios.' },
+        { role: 'assistant', content: '', toolCalls: [{ id: 'prior-calendar', name: 'calendar_read', arguments: { scope: 'today' } }] },
+        { role: 'tool', toolCallId: 'prior-calendar', content: { status: 'success' }, isError: false },
+        { role: 'assistant', content: '', toolCalls: [{ id: 'prior-reminders', name: 'reminder_read', arguments: { filter: 'today' } }] },
+        { role: 'tool', toolCallId: 'prior-reminders', content: { status: 'success' }, isError: false },
+      ], tasks: [], reminders: [], events: [], handledRequestIds: [] })
     : scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
   const runner = new ProductivityTurnRunner(provider, registry, { ...productivityBudget, maxInputTokens: budget, maxModelSteps: scenario.cap ?? productivityBudget.maxModelSteps,
     initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
     continuation: 'observation_driven', discoverTools: true, compactObservations: true, maxPromptReferences: 5,
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] },
     personalContext: { displayName: 'Juan', preferences: ['Prefiero avisos 20 minutos antes', 'Prefiero reuniones por la mañana'], memories: ['Trabajo en Globant', 'Estoy preparando el proyecto Atlas'] },
-    estimateInputTokens: input => wire.estimateNativeInput(requestSchema.parse(input)), authorizeWrite: async () => true });
+    estimateInputTokens: input => (source instanceof OpenRouterProvider ? source : wire).estimateNativeInput(requestSchema.parse(input)), authorizeWrite: async () => true });
 
   const started = Date.now(); let result; let error: string | null = null;
   try { result = await runner.run(scenario.text, context, previous, { beforeDispatch: async () => {}, afterOutcome: async () => {} }); }
   catch (failure) { error = failure instanceof Error ? failure.message : 'Unknown'; }
-  const estimates = requests.map(request => wire.estimateNativeInput(requestSchema.parse(request)));
+  const estimates = requests.map(request => (source instanceof OpenRouterProvider ? source : wire).estimateNativeInput(requestSchema.parse(request)));
   const writes = observed.filter(o => !o.name.endsWith('_read')).length;
   const folded = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const matches = (word: string, iso: string) => reminders.some(r => folded(r.content).includes(word) && Date.parse(r.sendAt ?? '') === Date.parse(iso));
@@ -98,6 +109,10 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
     && !!o.input && typeof o.input === 'object' && 'filter' in o.input && o.input.filter === 'today');
   if (scenario.name === 'three_reminders') {
     semanticChecks.relativeTimes = matches('sal', '2026-10-15T15:10:00Z') && matches('ana', '2026-10-15T15:20:00Z') && matches('horno', '2026-10-15T15:30:00Z');
+  }
+  if (scenario.name === 'two_reminders_after_reads') {
+    semanticChecks.relativeTime = matches('sal', '2026-10-15T01:05:01Z');
+    semanticChecks.localClock = matches('aeropuerto', '2026-10-15T01:00:00Z');
   }
   if (scenario.name === 'mixed_recurring_reminders') {
     semanticChecks.localTimes = matches('camin', '2026-10-16T13:00:00Z') && matches('taller', '2026-10-16T16:00:00Z');

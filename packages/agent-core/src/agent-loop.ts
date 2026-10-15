@@ -1,6 +1,6 @@
 import { aiResponseSchema, aiTranscriptSchema, turnDispositionSchema, type AIMessage, type JsonObject,
   type ToolCall, type ToolSpecification, type TurnContext } from '@templelabs/contracts';
-import { AIProviderError } from '@templelabs/ai';
+import { AIProviderError, ToolSelectionError } from '@templelabs/ai';
 import type { AIProvider } from '@templelabs/ai';
 import type { ToolRegistry, ToolOutcome } from '@templelabs/tools';
 import { estimateContextTokens, canonicalArguments } from './context-manager.js';
@@ -169,6 +169,7 @@ export class AgentLoop {
     let totalTokens = 0;
     let costUsd = 0;
     let totalCalls = 0;
+    let schemaRecoveryUsed = false;
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
       // Warm schemas bootstrap the first decision. An explicit selection replaces
@@ -229,6 +230,19 @@ export class AgentLoop {
             + error.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
           usage.estimatedCostUsd = this.pricing && usage.accountingComplete ? costUsd : null;
         } else { usage.accountingComplete = false; usage.estimatedCostUsd = null; }
+        if (error instanceof ToolSelectionError && this.discoverTools && !schemaRecoveryUsed
+          && catalogue.some(tool => tool.name === error.toolName) && !availableNames.has(error.toolName)
+          && !context.signal.aborted && this.now() < deadlineMs) {
+          // No call from the rejected decision reached dispatch. Load only the
+          // authorized schema and ask for a fresh decision, at most once per turn.
+          // Unknown spend stays unknown; its entire reservation consumes the cap.
+          totalTokens += error.accountingComplete ? error.usage.inputTokens + error.usage.outputTokens : estimate + availableOutput;
+          if (this.pricing) costUsd += error.accountingComplete ? 0 : reservedCost;
+          schemaRecoveryUsed = true;
+          selected = [error.toolName]; explicitSelections = [error.toolName]; followups = [];
+          if (step + 1 === this.maxModelSteps) { notices.push('limit_reached'); return finish(); }
+          continue;
+        }
         notices.push('provider_unavailable');
         return finish();
       }
@@ -237,7 +251,7 @@ export class AgentLoop {
       totalTokens += response.usage.inputTokens + response.usage.outputTokens;
       if (this.pricing) costUsd += (response.usage.inputTokens * this.pricing.inputUsdPerMillion
         + response.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
-      usage.estimatedCostUsd = this.pricing ? costUsd : null;
+      usage.estimatedCostUsd = this.pricing && usage.accountingComplete ? costUsd : null;
       const calls = response.message.toolCalls;
       if (totalCalls + calls.length > this.maxToolCalls || messages.length + calls.length > this.maxHistoryMessages
         || response.usage.inputTokens > this.maxInputTokens || totalTokens > this.maxTotalTokens

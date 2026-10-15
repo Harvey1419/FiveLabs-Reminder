@@ -9,3 +9,14 @@ export class AIProviderError extends Error {
     this.usage = Object.freeze(aiResponseSchema.shape.usage.parse(usage));
   }
 }
+
+/** The provider rejected the whole decision before returning executable calls.
+ * Only the name is a hint: arguments must be generated again against a loaded schema.
+ */
+export class ToolSelectionError extends AIProviderError {
+  constructor(readonly toolName: string, usage?: AIResponse['usage'], accountingComplete = false) {
+    super('TOOL_SCHEMA_NOT_LOADED', usage, accountingComplete);
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(toolName)) throw new Error('Invalid rejected tool name');
+    this.name = 'ToolSelectionError';
+  }
+}

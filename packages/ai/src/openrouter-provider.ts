@@ -1,5 +1,5 @@
 import { aiTranscriptSchema, mediaAttachmentSchema, type AIResponse, type JsonObject } from '@templelabs/contracts';
-import { AIProviderError } from './provider-error.js';
+import { AIProviderError, ToolSelectionError } from './provider-error.js';
 import type { AIProvider, CompletionRequest, StructuredAIProvider, StructuredCompletionRequest, StructuredCompletionResult, TextAIProvider, TextCompletionRequest, TextCompletionResult, MediaAIProvider, MediaCompletionRequest } from './index.js';
 import { decodeOpenRouterResponse, openRouterPayload, reportedOpenRouterUsage, decodeStructuredOpenRouterResponse, structuredOpenRouterPayload, decodeTextOpenRouterResponse, textOpenRouterPayload, mediaOpenRouterPayload, type OpenRouterRoute } from './openrouter-protocol.js';
 
@@ -13,6 +13,7 @@ export interface OpenRouterAttempt {
   readonly provider: string | null; readonly generationId: string | null;
   readonly inputEstimate: number; readonly usage: AIResponse['usage'] | null;
   readonly status: number | null; readonly outcome: 'response' | 'transport_unknown';
+  readonly providerErrorCode?: number;
 }
 export interface OpenRouterProviderOptions {
   readonly apiKey: string; readonly routes: readonly OpenRouterRoute[];
@@ -175,13 +176,27 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
       this.report({ route: route.id, model: safeLabel(metadata.model) ?? route.model, requestedProviders: route.providers,
         provider: typeof metadata.provider === 'string' && /^[\w ./:()-]{1,200}$/.test(metadata.provider) && metadata.provider.trim()
           ? metadata.provider : null, generationId: safeLabel(metadata.id), inputEstimate,
-        usage: attemptUsage, status: response.status, outcome: 'response' });
+        usage: attemptUsage, status: response.status, outcome: 'response',
+        ...(typeof rejection?.code === 'number' ? { providerErrorCode: rejection.code } : {}) });
       if (attemptUsage) {
         usage.inputTokens += attemptUsage.inputTokens; usage.outputTokens += attemptUsage.outputTokens;
       }
       if (request.signal.aborted) fail('GATEWAY_ABORTED', attemptUsage !== null);
       if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', attemptUsage !== null);
       if (response.status === 401 || response.status === 403) fail('AUTHENTICATION_FAILED', attemptUsage !== null);
+      // Groq can wrap an explicit whole-decision tool validation rejection in
+      // HTTP 200. Never execute failed_generation or infer zero inference spend.
+      // This narrow protocol classification is not user-text intent routing.
+      if (payloadFor === openRouterPayload && rejection?.code === 502 && !Object.hasOwn(metadata, 'choices')
+        && typeof rejection.message === 'string' && rejection.message.startsWith('Upstream error from Groq: Tool call validation failed:')) {
+        const marker = "attempted to call tool '";
+        const tail = rejection.message.split(marker);
+        const name = tail.length === 2 && tail[1]?.endsWith("' which was not in request.tools")
+          ? tail[1].slice(0, -"' which was not in request.tools".length) : null;
+        if (name && /^[a-zA-Z0-9_-]{1,64}$/.test(name) && !request.tools.some(tool => tool.name === name)) {
+          throw new ToolSelectionError(name, usage, attemptUsage !== null);
+        }
+      }
       if (!attemptUsage) fail('UNVERIFIED_USAGE', false);
       if (usage.outputTokens > request.maxOutputTokens || (request.maxInputTokens !== undefined && usage.inputTokens > request.maxInputTokens)
         || (request.maxTotalTokens !== undefined && usage.inputTokens + usage.outputTokens > request.maxTotalTokens)) fail('GATEWAY_BUDGET');

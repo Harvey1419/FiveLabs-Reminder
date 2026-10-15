@@ -133,7 +133,7 @@ export class MockAIProvider implements AIProvider {
 
 export { OpenRouterProvider, GatewayError, type OpenRouterAttempt, type OpenRouterProviderOptions, type GatewayFailureCode } from './openrouter-provider.js';
 export { openRouterPayload, decodeOpenRouterResponse, reportedOpenRouterUsage, structuredOpenRouterPayload, decodeStructuredOpenRouterResponse, type OpenRouterRoute } from './openrouter-protocol.js';
-export { AIProviderError } from './provider-error.js';
+export { AIProviderError, ToolSelectionError } from './provider-error.js';
 export { HttpTranscriptionProvider, OpenRouterEmbeddingProvider } from './endpoint-providers.js';
 export { EndpointError } from './bounded-endpoint.js';
 

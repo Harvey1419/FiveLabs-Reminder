@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-15T01:16:05.200722+00:00",
+  "status": "verified_local_not_deployed",
+  "baseCommit": "2af131dc71f18188dfc6ed96c0afd74e77a048ee",
+  "scope": "Recover an explicit native tool-name validation rejection without introducing a turn plan or replaying rejected arguments.",
+  "productionIncidentRuns": [
+    "57ea5e3f-b4a8-4b8f-8706-0dad4b46e60f",
+    "c721df8a-8a6e-403b-9eab-fd8d27e0c7aa"
+  ],
+  "rootCause": "Recent read schemas displaced reminder_create; Groq rejected a generated call to the unloaded tool inside an HTTP 200 error envelope with missing usage.",
+  "behavior": [
+    "Classify only explicit whole-decision unadvertised-tool rejections; arbitrary 5xx, transport uncertainty and missing usage remain terminal.",
+    "Load a schema only if present in the current authorized catalogue, and regenerate against it once per turn.",
+    "Never parse or execute failed_generation arguments; all regenerated calls retain authorization, schema validation and journal checks.",
+    "Reserve the full opaque attempt token/cost ceiling; measured accounting stays incomplete and estimated cost stays null.",
+    "Preserve native tool calling, discovery, 2500 input target and existing durable effects."
+  ],
+  "verification": {
+    "unit": {
+      "files": 305,
+      "testsPassed": 3874,
+      "recoveryTests": 10
+    },
+    "conversationIntegration": {
+      "files": 4,
+      "testsPassed": 37
+    },
+    "candidateTypecheck": {
+      "errors": 0,
+      "scope": "Versioned source plus the new recovery tests; excludes only the unrelated untracked scripts/reproduce-turn-411.ts via a temporary tsconfig."
+    },
+    "candidateLint": {
+      "lintedFiles": 798,
+      "errors": 0,
+      "warnings": 0
+    },
+    "wholeWorkspaceChecks": {
+      "typecheck": "Blocked by two type errors in unrelated untracked scripts/reproduce-turn-411.ts.",
+      "lint": "Blocked by eight explicit-any errors in that same untracked script. No external files modified or excluded from committed configuration."
+    },
+    "migration": {
+      "maintainedJavaScript": 0,
+      "check": "passed"
+    },
+    "offlineContextBudgetMatrix": "passed including the new cached-read/two-reminder scenario at 2500",
+    "container": {
+      "imageId": "sha256:be3f1cfda9d8ed9197e36391df1a96e1f64c16096ad755b1cc4d3dbc8c141987",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 49,
+      "network": "none",
+      "syntheticDependencies": true
+    },
+    "isolatedLive": {
+      "privateCheckpointReplay": {
+        "passed": true,
+        "writes": 2,
+        "notices": [],
+        "semanticChecks": {
+          "relativeTime": true,
+          "localClock": true
+        },
+        "inputEstimates": [
+          1992,
+          1864,
+          2036
+        ],
+        "modelSteps": 3,
+        "usage": {
+          "accountingComplete": false,
+          "modelSteps": 3,
+          "inputTokens": 2741,
+          "outputTokens": 657,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792026826-mOjLx3TJUiUylXeKtiff",
+          "gen-1792026828-jc5tjB08wLa6FZfl5uj8",
+          "gen-1792026829-qqZZfEdWwQfnSnHLqiIO"
+        ],
+        "explicitSchemaRejections": 1
+      },
+      "publicSyntheticCachedReadFixture": {
+        "passed": true,
+        "writes": 2,
+        "notices": [],
+        "semanticChecks": {
+          "relativeTime": true,
+          "localClock": true
+        },
+        "inputEstimates": [
+          1807,
+          1785,
+          1957,
+          2073
+        ],
+        "modelSteps": 4,
+        "usage": {
+          "accountingComplete": true,
+          "modelSteps": 4,
+          "inputTokens": 4966,
+          "outputTokens": 1331,
+          "estimatedCostUsd": null
+        },
+        "generations": [
+          "gen-1792026871-YQxtHM69iX7OrICl4KD5",
+          "gen-1792026872-Qp0SgMvFGdpr1XW08w0O",
+          "gen-1792026874-nKWpJNe5G3KL3RGAuv0P",
+          "gen-1792026875-7ls1YioT7uULLiNfDiVw"
+        ],
+        "explicitSchemaRejections": 0
+      }
+    },
+    "repeatableCommand": "pnpm exec tsx scripts/evals/v2-complex-budget.ts --live --budget=2500 --case=two_reminders_after_reads",
+    "externalEffects": {
+      "productionWrites": 0,
+      "whatsAppSends": 0,
+      "paidInference": "Configured OpenRouter provider. Missing rejected-attempt usage is not represented as free inference."
+    }
+  },
+  "knownLimitations": [
+    "This closes the explicit unloaded-tool rejection class, not every model/provider failure.",
+    "Broader live evaluation passed read-today, three relative reminders, recurrent/single reminders and reminders/tasks. The project-grouped-tasks case remained incomplete: 3 of 4 requested writes. A subsequent exact-wire-estimator run still omitted a task; semantic completeness remains unresolved.",
+    "The evaluator now uses the configured provider payload estimator, matching production instead of a fixture route without reasoning framing.",
+    "No production deployment or GitHub push performed; deployment ownership remains with Antigravity."
+  ],
+  "rollback": "Revert the recovery error classification, loop handling, tests and evaluation additions together. No database migration or persistent-state change."
+}
