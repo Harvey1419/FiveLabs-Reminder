@@ -23,4 +23,13 @@ describe('active-turn projection at verified tool batch boundaries', () => {
     const copy=structuredClone(history); copy[2]={role:'tool',toolCallId:'foreign-call',isError:false,content:{status:'success'}};
     expect(activeToolContextCandidates(copy,'owner')).toEqual([]);
   });
+  it('folds a confirmed replay without counting or discarding the original receipt', () => {
+    const copy: AIMessage[] = [...structuredClone(history),
+      { role: 'assistant', content: '', toolCalls: [{ id: 'retry', name: 'reminder_create', arguments: {} }] },
+      { role: 'tool', toolCallId: 'retry', isError: false, content: { status: 'success', code: 'WRITE_ALREADY_CONFIRMED', earlierCallId: 'call-1', observation: {} } },
+    ];
+    const result = activeToolContextCandidates(copy, 'owner').at(-1)!;
+    expect(JSON.parse(result.summary).completedActiveTools).toMatchObject({ operationCount: 1 });
+    expect(result.history).toEqual([copy[0]]);
+  });
 });

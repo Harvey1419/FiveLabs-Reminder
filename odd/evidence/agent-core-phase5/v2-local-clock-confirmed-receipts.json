@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-15T02:34:02.504649+00:00",
+  "status": "verified_local_not_deployed",
+  "baseCommit": "9fadf37",
+  "incidentRunId": "50da094e-fd5a-4e9c-b8c8-dc3a1f19a450",
+  "observedFailures": [
+    "Bare 10 was persisted as next morning instead of the earliest future local clock.",
+    "An exact successful write replay was labeled DUPLICATE_WRITE/denied and rendered as missing permission.",
+    "Historical confirmations consumed context while fresh receipts were compacted, allowing a repeated-call loop."
+  ],
+  "changes": [
+    "Add unqualifiedLocalTime with host-owned earliest-future resolution, accepting 12/24-hour numeric representations and handling DST. Domain persistence still receives ISO instants only.",
+    "Reuse successful same-turn receipts without another write, journal effect or UI item; partial/unknown outcomes remain guarded.",
+    "Preserve replay codes, compact resource time and explicit current-turn success status. Fresh creates/reads may omit historical confirmations; unresolved effects are retained.",
+    "Render legacy DUPLICATE_WRITE as an earlier attempt, not missing permission."
+  ],
+  "verification": {
+    "isolatedCandidateTypecheck": {
+      "passed": true,
+      "codeTree": "0ed2a7c70a7d5e655eda2c3f17f2f59e1e26aa9c"
+    },
+    "isolatedFocusedTests": {
+      "files": 4,
+      "passed": 61
+    },
+    "liveRecordedHistory": {
+      "historyMessages": 100,
+      "complete": true,
+      "modelSteps": 3,
+      "writes": 2,
+      "notices": [],
+      "semanticChecks": {
+        "relativeTime": true,
+        "earliestLocalClock": true
+      },
+      "inputEstimates": [
+        2488,
+        2268,
+        2438
+      ],
+      "generations": [
+        "gen-1792031163-CnLqJoQuzbp54dzt0607",
+        "gen-1792031164-yWuhMevOm7dSeQSVGFuw",
+        "gen-1792031166-qMrM5y8PR6X5y625f51r"
+      ]
+    },
+    "productionWrites": 0,
+    "whatsAppSends": 0
+  },
+  "limits": [
+    "The clock resolver is deterministic for the typed unqualified-clock input; interpretation of authored text remains the model responsibility.",
+    "Earlier 1-12 validation and historical-priority prototypes failed and were not accepted; their fixes are covered by the 22-hour and context-projection regressions.",
+    "No existing production reminder was rescheduled. No push or deployment; Antigravity owns deployment."
+  ],
+  "rollback": "Revert this scheduling/idempotency work unit without schema or database migration."
+}

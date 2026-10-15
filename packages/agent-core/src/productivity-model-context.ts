@@ -7,7 +7,7 @@ export function compactModelRecord(raw: Readonly<Record<string, unknown>>): Json
     const value = raw[key];
     if (typeof value === 'string') result[key] = value;
   }
-  const time = raw.sendAt ?? raw.dueDateIso ?? raw.startIso ?? raw.startDate;
+  const time = raw.time ?? raw.sendAt ?? raw.dueDateIso ?? raw.startIso ?? raw.startDate;
   if (typeof time === 'string') result.time = time;
   const end = raw.endIso ?? raw.endDateExclusive;
   if (typeof end === 'string') result.endTime = end;
@@ -23,7 +23,7 @@ export function projectProductivityHistory(history: readonly AIMessage[]): AIMes
     const raw = data as JsonObject;
     const compact: JsonObject = {};
     for (const key of ['operation', 'complete', 'coverage', 'returnedCount', 'shownCount', 'companion', 'connection',
-      'clarificationRequired', 'errorCode', 'questions', 'issues', 'rejectionCount']) {
+      'clarificationRequired', 'errorCode', 'questions', 'issues', 'rejectionCount', 'sources']) {
       const value = raw[key];
       if (value !== undefined && value !== null && value !== false && !(Array.isArray(value) && !value.length)) compact[key] = value;
       // A false completion is material evidence and must survive projection.
@@ -31,6 +31,6 @@ export function projectProductivityHistory(history: readonly AIMessage[]): AIMes
     }
     for (const key of ['records', 'events']) if (Array.isArray(raw[key])) compact[key] = raw[key].map(value =>
       value && typeof value === 'object' && !Array.isArray(value) ? compactModelRecord(value) : value);
-    return { ...message, content: { status: message.content.status ?? 'failed', observation: compact } };
+    return { ...message, content: { ...message.content, status: message.content.status ?? 'failed', observation: compact } };
   });
 }

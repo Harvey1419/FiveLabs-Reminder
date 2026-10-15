@@ -120,6 +120,10 @@ export function prepareReminderContext(history: readonly AIMessage[], userId: st
   return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeReminderOperations);
 }
 export function prepareProductivityContext(history: readonly AIMessage[], userId: string, systemContent: string,
-  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean, minimumRecentTurns = 3, preferRecent = false): PreparedReminderContext {
-  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, summarizeProductivityOperations, minimumRecentTurns, preferRecent);
+  maxMessages: number, fitsBudget: (messages: readonly AIMessage[]) => boolean, minimumRecentTurns = 3, preferRecent = false,
+  includeHistoricalConfirmed = true): PreparedReminderContext {
+  return prepareOperationalContext(history, userId, systemContent, maxMessages, fitsBudget, (source, omitted, owner) => {
+    const summary = summarizeProductivityOperations(source, omitted, owner);
+    return includeHistoricalConfirmed ? summary : { ...summary, recentConfirmed: [] };
+  }, minimumRecentTurns, preferRecent);
 }

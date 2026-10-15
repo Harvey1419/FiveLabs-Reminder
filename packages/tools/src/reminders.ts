@@ -5,6 +5,7 @@ import {
 } from '@templelabs/contracts';
 import type { ToolOutcome } from './index.js';
 import { defineTool } from './define-tool.js';
+import { nextLocalClock } from './local-clock.js';
 
 export interface ReminderDomainPort {
   execute(request: ReminderRequest, context: TurnContext, operationId: string): Promise<ToolOutcome<ReminderResult>>;
@@ -14,11 +15,14 @@ export function createReminderTools(port: ReminderDomainPort) {
   return [
     defineTool({
       name: 'reminder_create', effect: 'write', requiredCapability: 'reminders.create',
-      description: 'For in N minutes use delayMinutes; the host computes the instant. Use targetTimeIso for explicit dates, never both. Omit advanceMinutes when no advance notice is requested; if present it must be positive, never zero. Create one reminder at an explicit ISO instant. Preserve the user timezone when resolving its time. Recurrence and notification policies follow backend entitlements. Report only returned results.',
+      description: 'For in N minutes use delayMinutes. For a clock hour without date or AM/PM use unqualifiedLocalTime; the host chooses the earliest future occurrence. Use targetTimeIso for explicit dates, AM/PM or unambiguous 24-hour times. Omit advanceMinutes unless requested. Create one reminder; recurrence and notification policies follow backend entitlements. Report only returned results.',
       inputSchema: reminderCreateToolInputSchema, outputSchema: reminderResultSchema,
-      handler: (input, context, operationId) => {
-        const { delayMinutes, ...fields } = input;
-        const targetTimeIso = fields.targetTimeIso ?? new Date(Date.parse(context.referenceTimeIso) + delayMinutes! * 60000).toISOString();
+      handler: async (input, context, operationId) => {
+        const { delayMinutes, unqualifiedLocalTime, ...fields } = input;
+        let targetTimeIso: string;
+        try { targetTimeIso = unqualifiedLocalTime ? nextLocalClock(unqualifiedLocalTime, context.referenceTimeIso, context.timezone)
+          : fields.targetTimeIso ?? new Date(Date.parse(context.referenceTimeIso) + delayMinutes! * 60000).toISOString(); }
+        catch { return { status: 'validation_failed' as const, code: 'INVALID_LOCAL_TIME', observation: 'No write dispatched. Check the clock, timezone and temporal anchor.' }; }
         return port.execute({ operation: 'create', input: reminderCreateInputSchema.parse({ ...fields, targetTimeIso }) }, context, operationId);
       },
     }),

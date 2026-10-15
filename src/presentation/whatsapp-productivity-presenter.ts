@@ -17,6 +17,7 @@ function canonical(task: TaskRecord) {
   return { ...task, dueDate: task.dueDateIso };
 }
 function errorText(item: ProductivityItem, en: boolean): string {
+  if (item.code === 'DUPLICATE_WRITE') return en ? 'This operation was already attempted. Check its earlier result.' : 'Esta operación ya se había intentado. Revisa su resultado anterior.';
   if (item.status === 'indeterminate' || item.code === 'EFFECT_RECONCILIATION_REQUIRED') return en
     ? '⚠️ *Outcome not confirmed*\nThis action needs checking before trying again.'
     : '⚠️ *Resultado sin confirmar*\nHay que verificar esta acción antes de volver a intentarla.';

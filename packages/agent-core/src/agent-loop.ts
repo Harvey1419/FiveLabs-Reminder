@@ -165,7 +165,7 @@ export class AgentLoop {
     let selected: readonly string[] = this.initialTools.filter(name => catalogue.some(tool => tool.name === name));
     let explicitSelections: readonly string[] = [];
     let followups: readonly string[] = [];
-    const completedWrites = new Set<string>();
+    const completedWrites = new Map<string, { callId: string; outcome: ToolOutcome<unknown> }>();
     let totalTokens = 0;
     let costUsd = 0;
     let totalCalls = 0;
@@ -304,6 +304,15 @@ export class AgentLoop {
         const journalMissing = !read && !policy.writeJournalAvailable;
         const writeKey = `${call.name}:${canonicalArguments(call.arguments)}`;
         const repeatedWrite = !read && completedWrites.has(writeKey);
+        const priorWrite = completedWrites.get(writeKey);
+        if (priorWrite?.outcome.status === 'success') {
+          // Reuse the receipt as an observation, not another effect or UI item.
+          history.push({ role: 'tool', toolCallId: call.id, content: {
+            status: 'success', code: 'WRITE_ALREADY_CONFIRMED', earlierCallId: priorWrite.callId,
+            observation: priorWrite.outcome.observation,
+          }, isError: false });
+          continue;
+        }
         const writeLimitReached = !read && completedWrites.size >= this.maxWriteOperations;
         let stopped = this.now() >= deadlineMs || context.signal.aborted;
         let permitted = read;
@@ -353,7 +362,7 @@ export class AgentLoop {
         catch { outcome = read
           ? { status: 'failed', code: 'READ_UNAVAILABLE', observation: 'The read was not verified.' }
           : { status: 'indeterminate', operationId: call.id, observation: 'Reconcile this write before retrying.' }; }
-        if (!read && (outcome.status === 'success' || outcome.status === 'partial')) completedWrites.add(writeKey);
+        if (!read && (outcome.status === 'success' || outcome.status === 'partial')) completedWrites.set(writeKey, { callId: call.id, outcome });
         if (outcome.status === 'indeterminate' || policy.requiresReconciliation(call, outcome)) reconciliationRequired = true;
         await policy.afterOutcome(structuredClone(call), outcome);
         if (this.discoverTools && read && outcome.status === 'success') {

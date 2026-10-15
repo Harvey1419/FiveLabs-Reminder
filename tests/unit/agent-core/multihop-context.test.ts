@@ -56,7 +56,8 @@ describe('bounded observation-driven reminder loop', () => {
     const { runner, execute } = setup([response([create]), response([{ ...create, id: 'again',
       arguments: { targetTimeIso: args.targetTimeIso, content: args.content } }]), response()]);
     const result = await runner.run('Crea', context);
-    expect(result.uiPayload.items[1]).toMatchObject({ status: 'denied', code: 'DUPLICATE_WRITE' });
+    expect(result.uiPayload.items).toHaveLength(1);
+    expect(JSON.stringify(result.conversation.history)).toContain('WRITE_ALREADY_CONFIRMED');
     expect(execute).toHaveBeenCalledTimes(1);
   });
 

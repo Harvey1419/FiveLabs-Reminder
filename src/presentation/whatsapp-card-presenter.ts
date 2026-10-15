@@ -31,6 +31,7 @@ function errorText(item: ReminderUiItem, language: 'es' | 'en'): string {
     return questions.length ? questions.join('\n') : en ? 'Which reminder or time did you mean?' : '¿A qué recordatorio u horario te refieres?';
   }
   if (item.code === 'PRO_TIER_REQUIRED') return en ? '✨ This reminder needs Pro.' : '✨ Este recordatorio necesita Pro.';
+  if (item.code === 'DUPLICATE_WRITE') return en ? 'This operation was already attempted. Check its earlier result.' : 'Esta operación ya se había intentado. Revisa su resultado anterior.';
   if (item.status === 'denied') return en ? 'No permission was available for this action.' : 'No había permiso para realizar esta acción.';
   if (item.status === 'approval_required') return en ? 'Please confirm whether you want me to make this change.' : 'Confírmame si quieres que haga este cambio.';
   if (item.status === 'validation_failed') return en ? 'Please clarify the reminder details.' : 'Aclárame los datos del recordatorio.';

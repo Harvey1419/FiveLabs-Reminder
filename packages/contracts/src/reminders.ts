@@ -15,8 +15,12 @@ export const reminderCreateInputSchema = z.strictObject({
 });
 /** Model-facing alternatives; domain persistence still receives one certified ISO instant. */
 export const reminderCreateToolInputSchema = reminderCreateInputSchema.omit({ targetTimeIso: true }).extend({
-  targetTimeIso: instant.optional(), delayMinutes: z.number().int().positive().max(525600).optional(),
-}).refine(value => (value.targetTimeIso !== undefined) !== (value.delayMinutes !== undefined), { message: 'Provide targetTimeIso OR delayMinutes, exactly one', path: ['targetTimeIso'] });
+  targetTimeIso: instant.describe('Only explicit dates, AM/PM or unambiguous 24-hour times. For a bare clock hour use unqualifiedLocalTime.').optional(),
+  delayMinutes: z.number().int().positive().max(525600).optional(),
+  unqualifiedLocalTime: z.strictObject({ hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59) })
+    .describe('Clock without date or AM/PM; 12-hour or 24-hour numeric representation is accepted. The host normalizes the half-day and chooses the earliest future occurrence in the user timezone.').optional(),
+}).refine(value => [value.targetTimeIso, value.delayMinutes, value.unqualifiedLocalTime].filter(value => value !== undefined).length === 1,
+  { message: 'Provide exactly one of targetTimeIso, delayMinutes or unqualifiedLocalTime', path: ['targetTimeIso'] });
 export const reminderReadInputSchema = z.strictObject({
   filter: z.union([
     z.enum(['upcoming', 'all_pending', 'today', 'pending_today', 'remaining_today',

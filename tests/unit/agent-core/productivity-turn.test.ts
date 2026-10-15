@@ -177,7 +177,13 @@ describe('shared productivity observation loop', () => {
 
   it('never repeats successful principal writes with a fresh local call ID', async () => {
     const s = setup([response([calendarCreate]), response([{ ...calendarCreate, id: 'retry' }]), response()]);
-    expect((await s.runner.run('Agenda', context, undefined, s.journal)).uiPayload.items[1]).toMatchObject({ code: 'DUPLICATE_WRITE' });
+    const result = await s.runner.run('Agenda', context, undefined, s.journal);
+    expect(result.uiPayload.items).toHaveLength(1);
+    expect(JSON.stringify(result.conversation.history)).toContain('WRITE_ALREADY_CONFIRMED');
+    expect(result.uiPayload.notices).toEqual([]);
+    expect(result.requiresReconciliation).toBe(false);
+    expect(s.journal.beforeDispatch).toHaveBeenCalledTimes(1);
+    expect(s.journal.afterOutcome).toHaveBeenCalledTimes(1);
     expect(s.execute).toHaveBeenCalledTimes(1);
   });
 
@@ -264,5 +270,22 @@ describe('shared productivity observation loop', () => {
     expect(aiTranscriptSchema.safeParse(prepared.messages).success).toBe(true);
     expect(productivityItemSchema.safeParse({ domain: 'tasks', callId: 'x', toolName: 'calendar_create',
       status: 'success', code: null, result: null }).success).toBe(false);
+  });
+  it('lets fresh reads and creations omit old confirmations while preserving uncertain effects', () => {
+    const history: AIMessage[] = [
+      { role: 'user', content: 'Solicitud histórica' },
+      { role: 'assistant', content: '', toolCalls: [{ ...taskCreate, id: 'confirmed' }, { ...calendarCreate, id: 'uncertain' }] },
+      { role: 'tool', toolCallId: 'confirmed', content: { status: 'success' }, isError: false },
+      { role: 'tool', toolCallId: 'uncertain', content: { status: 'indeterminate' }, isError: true },
+      { role: 'user', content: 'Crea un recordatorio nuevo' },
+    ];
+    const original = structuredClone(history);
+    const fresh = prepareProductivityContext(history, context.userId, '', 2, () => true, 1, true, false);
+    const source = JSON.parse(String(fresh.messages[0]!.content)).operationalSummary;
+    expect(source.recentConfirmed).toEqual([]);
+    expect(source.pending).toMatchObject([{ callId: 'uncertain', status: 'indeterminate' }]);
+    const dependent = prepareProductivityContext(history, context.userId, '', 2, () => true, 1, true);
+    expect(JSON.parse(String(dependent.messages[0]!.content)).operationalSummary.recentConfirmed).toHaveLength(1);
+    expect(history).toEqual(original);
   });
 });
