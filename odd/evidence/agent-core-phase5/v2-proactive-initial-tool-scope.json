@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-15T01:27:56.694814+00:00",
+  "status": "verified_local_not_deployed",
+  "baseCommit": "c35c77c",
+  "scope": "Reserve authorized creation defaults in the first request, retain bounded native rejection recovery, and preserve native tool calling.",
+  "changes": [
+    "Initial scope prioritizes capability-filtered defaults; successful history fills spare slots, with deduplication and a maximum of two schemas.",
+    "The production defaults task_create and reminder_create cannot be displaced by passive historical reads.",
+    "No user-text intent classifier or additional LLM routing call. Other tools remain available through discovery; a read may therefore require selection.",
+    "The existing persona asks for independent loaded operations in one batch and turnDisposition finish on the completing call.",
+    "Explicit unadvertised-tool error parsing accepts varied prefixes, whitespace, quote styles and trailing details. It still requires code 502, no returned choices, one unambiguous missing name, and current host authorization."
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm typecheck",
+      "passed": true,
+      "errors": 0
+    },
+    "lint": {
+      "command": "pnpm lint",
+      "passed": true,
+      "files": 798,
+      "errors": 0,
+      "warnings": 0
+    },
+    "unit": {
+      "command": "pnpm test:unit",
+      "files": 305,
+      "testsPassed": 3882
+    },
+    "focused": {
+      "files": 2,
+      "testsPassed": 24,
+      "nativeBatchRegression": "Two reminders executed in one model step after two cached reads, one HTTP request, two journaled writes, and no recovery."
+    },
+    "offlineCapacity": {
+      "command": "pnpm exec tsx scripts/evals/v2-complex-budget.ts",
+      "passed": true
+    },
+    "maintainedJavaScript": 0,
+    "liveSimpleWithPrivateHistory": {
+      "complete": true,
+      "modelSteps": 1,
+      "writes": 1,
+      "notices": [],
+      "semanticChecks": {
+        "relativeTime": true
+      },
+      "initialTools": [
+        "tools_select",
+        "reminder_create",
+        "task_create"
+      ],
+      "schemaRejections": 0,
+      "generations": [
+        "gen-1792027590-iRoXmKDKjEsX8wCK0J8u"
+      ]
+    },
+    "liveTwoRemindersSyntheticHistory": {
+      "complete": true,
+      "modelSteps": 2,
+      "writes": 2,
+      "notices": [],
+      "semanticChecks": {
+        "relativeTime": true,
+        "localClock": true
+      },
+      "initialTools": [
+        "tools_select",
+        "reminder_create",
+        "task_create"
+      ],
+      "schemaRejections": 0,
+      "generations": [
+        "gen-1792027561-N62gpfbUXR7PcPTLU8KE",
+        "gen-1792027563-n06OgB3fLSCvd27fv5K0"
+      ]
+    },
+    "earlierLiveTwoRemindersPrivateHistory": {
+      "complete": true,
+      "modelSteps": 3,
+      "writes": 2,
+      "notices": [],
+      "semanticChecks": {
+        "relativeTime": true,
+        "localClock": true
+      },
+      "initialTools": [
+        "tools_select",
+        "reminder_create",
+        "task_create"
+      ],
+      "schemaRejections": 0,
+      "generations": [
+        "gen-1792027492-qWWI7ftLAc8VhsTXPT3X",
+        "gen-1792027494-CeLlYxnlsaHmaJW8UVxn",
+        "gen-1792027496-anrTprwbH4JpCXq6rFeV"
+      ]
+    },
+    "livePrivateHistoryUnusableCompletion": {
+      "complete": false,
+      "modelSteps": 2,
+      "writes": 1,
+      "notices": [
+        "provider_unavailable"
+      ],
+      "semanticChecks": {
+        "relativeTime": true,
+        "localClock": false
+      },
+      "initialTools": [
+        "tools_select",
+        "reminder_create",
+        "task_create"
+      ],
+      "schemaRejections": 0,
+      "generations": [
+        "gen-1792027542-GzZwHb8mPdB1nN122Ydk",
+        "gen-1792027544-JwD0ltLlV050aQCfQEw2"
+      ]
+    },
+    "externalEffects": {
+      "productionWrites": 0,
+      "whatsAppSends": 0,
+      "storage": "isolated simulated ports",
+      "inference": "Paid configured provider requests"
+    }
+  },
+  "limitations": [
+    "Proactive schema availability prevents the observed missing-reminder_create first-call mismatch, but does not force the model to batch every multi-action request.",
+    "The real simple creation completed in one model step; the real successful two-reminder run used two model steps without rejection.",
+    "One private-history double-request run received an unusable provider completion after one simulated write and stopped with provider_unavailable. This failure was not a ToolSelectionError and is not declared resolved by this scope fix.",
+    "No production deployment or GitHub push. Antigravity retains deployment ownership."
+  ],
+  "rollback": "Revert this commit as a unit; c35c77c remains the bounded reactive safety net. No database migration or persistent-state change."
+}

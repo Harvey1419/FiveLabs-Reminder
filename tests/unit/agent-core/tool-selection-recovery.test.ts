@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { OpenRouterProvider, type OpenRouterAttempt } from '@templelabs/ai';
+import { z } from 'zod';
+import { OpenRouterProvider, estimateBoundedInput, type OpenRouterAttempt } from '@templelabs/ai';
 import { ProductivityTurnRunner } from '@templelabs/agent-core';
-import { createTaskTools, ToolRegistry } from '@templelabs/tools';
-import { aiTranscriptSchema } from '@templelabs/contracts';
+import { createTaskTools, createReminderTools, createCalendarTools, ToolRegistry, type ReminderDomainPort } from '@templelabs/tools';
+import { aiTranscriptSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { createLegacyTaskPort } from '../../../src/adapters/agent-core/legacy-tasks.js';
 import { setup, context } from './productivity-fixtures.js';
+import { recentToolScope } from '../../../src/adapters/agent-core/recent-tool-scope.js';
+import { productivityBudget } from '../../../src/adapters/agent-core/productivity-budget.js';
 
 function rejection(name: string) {
   return { id: 'gen-rejected', error: { code: 502,
@@ -38,6 +41,26 @@ function harness(responses: unknown[], options: ConstructorParameters<typeof Pro
 }
 
 describe('explicit provider schema rejection recovery', () => {
+  it.each([
+    "Tool call validation failed: attempted to call tool 'task_create' which was not in request.tools.",
+    'Provider returned error: Attempted to call tool "task_create" which was not in request.tools (validation rejected).',
+    "upstream: attempted\n to call tool 'task_create' which was not\n in request.tools; no calls returned",
+  ])('recognizes explicit rejections independently of provider prefix and trailing details: %s', async message => {
+    const rejected = rejection('task_create'); rejected.error.message = message;
+    const h = harness([rejected, created]);
+    expect((await h.run()).uiPayload.notices).toEqual([]);
+    expect(h.fetch).toHaveBeenCalledTimes(2);
+    expect(h.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not guess a selection from ambiguous rejection names', async () => {
+    const rejected = rejection('task_create');
+    rejected.error.message += " attempted to call tool 'task_read' which was not in request.tools";
+    const h = harness([rejected, created]);
+    expect((await h.run()).uiPayload.notices).toEqual(['provider_unavailable']);
+    expect(h.fetch).toHaveBeenCalledTimes(1);
+    expect(h.execute).not.toHaveBeenCalled();
+  });
   it('loads the authorized schema, regenerates arguments, and executes once through authorization and journaling', async () => {
     const h = harness([rejection('task_create'), created], { pricing: { inputUsdPerMillion: 1, outputUsdPerMillion: 1 } });
     const result = await h.run();
@@ -112,5 +135,67 @@ describe('explicit provider schema rejection recovery', () => {
     expect(result.usage).toMatchObject({ accountingComplete: false, estimatedCostUsd: null });
     expect(h.fetch).toHaveBeenCalledTimes(1);
     expect(h.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('proactive initial scope through the native provider', () => {
+  it('executes two reminders in one model step after calendar/reminder reads without recovery', async () => {
+    const s = setup();
+    const scopedContext = { ...context, capabilities: new Set([...context.capabilities, 'reminders.read']) };
+    let recordCount = 0;
+    const execute = vi.fn<ReminderDomainPort['execute']>(async (request, ctx, operationId) => {
+      if (request.operation !== 'create') throw new Error('Unexpected read');
+      const records = [{ id: `22222222-2222-4222-8222-${String(++recordCount).padStart(12, '0')}`,
+        content: request.input.content, sendAt: request.input.targetTimeIso, recurrence: null,
+        isAdvanceNotice: false, parentReminderId: null, requiresConfirmation: false, acknowledgedAt: null }];
+      const data = { operation: 'create' as const, records, complete: true, coverage: 'operation' as const,
+        rejections: [], presentation: { canonicalCard: null, questions: [], cta: null } };
+      return { status: 'success' as const, data, observation: JSON.stringify(data),
+        receipt: { userId: ctx.userId, operationId, toolName: 'reminder_create', resourceIds: records.map(row => row.id) } };
+    });
+    const registry = new ToolRegistry([
+      ...createReminderTools({ execute }),
+      ...createTaskTools(createLegacyTaskPort({ id: context.userId, timezone: context.timezone }, s.execute)),
+      ...createCalendarTools({ execute: async () => { throw new Error('Unexpected calendar action'); } }),
+    ]);
+    const previous = { userId: context.userId, history: [
+      { role: 'user' as const, content: 'Consulta anterior.' },
+      { role: 'assistant' as const, content: '', toolCalls: [
+        { id: 'calendar', name: 'calendar_read', arguments: {} }, { id: 'reminders', name: 'reminder_read', arguments: {} },
+      ] },
+      { role: 'tool' as const, toolCallId: 'calendar', content: { status: 'success' }, isError: false },
+      { role: 'tool' as const, toolCallId: 'reminders', content: { status: 'success' }, isError: false },
+    ], tasks: [], reminders: [], events: [], handledRequestIds: [] };
+    const attempts: OpenRouterAttempt[] = [];
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      expect(payload.tools.map((tool: { function: { name: string } }) => tool.function.name))
+        .toEqual(expect.arrayContaining(['task_create', 'reminder_create']));
+      return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '', tool_calls: [
+        { id: 'leave', type: 'function', function: { name: 'reminder_create', arguments: JSON.stringify({ content: 'Salir', delayMinutes: 10, turnDisposition: 'continue' }) } },
+        { id: 'arrival', type: 'function', function: { name: 'reminder_create', arguments: JSON.stringify({ content: 'Llegada del aeropuerto', targetTimeIso: '2026-10-12T01:00:00Z', turnDisposition: 'finish' }) } },
+      ] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 1000, completion_tokens: 100 } }));
+    });
+    const provider = new OpenRouterProvider({ apiKey: 'fixture-key', routes: [{ id: 'primary', model: 'fixture/model', providers: ['groq'], timeoutMs: 1000 }],
+      fetch, estimateInputTokens: estimateBoundedInput, onAttempt: attempt => attempts.push(attempt) });
+    const journal = { beforeDispatch: vi.fn(async () => {}), afterOutcome: vi.fn(async () => {}) };
+    const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({
+      name: z.string(), description: z.string(), inputSchema: jsonObjectSchema,
+    })) });
+    const result = await new ProductivityTurnRunner(provider, registry, { ...productivityBudget,
+      initialTools: recentToolScope(previous.history, registry.available(scopedContext).map(tool => tool.name), productivityBudget.initialTools),
+      continuation: 'observation_driven', discoverTools: true, compactObservations: true, maxModelSteps: 1,
+      estimateInputTokens: input => provider.estimateNativeInput(requestSchema.parse(input)),
+      authorizeWrite: async () => true,
+    }).run('Recuérdame salir en 10 minutos y la llegada del aeropuerto a las 8.', scopedContext, previous, journal);
+    expect(result.uiPayload.notices).toEqual([]);
+    expect(result.uiPayload.items.map(item => item.status)).toEqual(['success', 'success']);
+    expect(result.usage).toMatchObject({ modelSteps: 1, accountingComplete: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(journal.beforeDispatch).toHaveBeenCalledTimes(2);
+    expect(journal.afterOutcome).toHaveBeenCalledTimes(2);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]?.providerErrorCode).toBeUndefined();
   });
 });

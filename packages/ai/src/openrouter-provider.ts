@@ -188,12 +188,10 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
       // HTTP 200. Never execute failed_generation or infer zero inference spend.
       // This narrow protocol classification is not user-text intent routing.
       if (payloadFor === openRouterPayload && rejection?.code === 502 && !Object.hasOwn(metadata, 'choices')
-        && typeof rejection.message === 'string' && rejection.message.startsWith('Upstream error from Groq: Tool call validation failed:')) {
-        const marker = "attempted to call tool '";
-        const tail = rejection.message.split(marker);
-        const name = tail.length === 2 && tail[1]?.endsWith("' which was not in request.tools")
-          ? tail[1].slice(0, -"' which was not in request.tools".length) : null;
-        if (name && /^[a-zA-Z0-9_-]{1,64}$/.test(name) && !request.tools.some(tool => tool.name === name)) {
+        && typeof rejection.message === 'string') {
+        const matches = [...rejection.message.matchAll(/\battempted\s+to\s+call\s+tool\s+(['"])([a-zA-Z0-9_-]{1,64})\1\s+which\s+was\s+not\s+in\s+request\.tools\b/gi)];
+        const name = matches.length === 1 ? matches[0]?.[2] : null;
+        if (name && !request.tools.some(tool => tool.name === name)) {
           throw new ToolSelectionError(name, usage, attemptUsage !== null);
         }
       }
