@@ -29,7 +29,7 @@ function merge(baseline: ProductivityConversation, effects: ActiveRunEffectEvide
   const events = new Map(baseline.events.map(record => [record.id, record]));
   const received = new Map<string, string>();
   for (const { item } of effects) {
-    if (item) for (const record of item.domain === 'calendar' ? item.result!.events : item.result!.records) {
+    if (item && item.domain !== 'agenda') for (const record of item.domain === 'calendar' ? item.result!.events : item.result!.records) {
       const key = `${item.domain}:${record.id}`, fingerprint = hash(record);
       if (received.has(key) && received.get(key) !== fingerprint) fail('ACTIVE_RUN_RESOLUTION_REFERENCE_CONFLICT');
       received.set(key, fingerprint);

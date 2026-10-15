@@ -1,7 +1,7 @@
 import { boundWhatsAppText } from '../shared/whatsapp-text-boundary.js';
 import {
   productivityUiPayloadSchema, type ProductivityItem, type ProductivityUiPayload, type TaskRecord,
-  type TaskResult, type CalendarEvent,
+  type TaskResult, type CalendarEvent, expandAgendaItem,
 } from '@templelabs/contracts';
 import { WhatsAppCardPresenter, type WhatsAppPresentation } from './whatsapp-card-presenter.js';
 import {
@@ -17,6 +17,10 @@ function canonical(task: TaskRecord) {
   return { ...task, dueDate: task.dueDateIso };
 }
 function errorText(item: ProductivityItem, en: boolean): string {
+  if (item.code === 'AGENDA_SOURCE_UNAVAILABLE') {
+    const label = item.domain === 'calendar' ? 'Google Calendar' : item.domain === 'tasks' ? (en ? 'tasks' : 'tareas') : (en ? 'reminders' : 'recordatorios');
+    return en ? `I could not verify ${label}. The agenda is incomplete.` : `No pude verificar ${label}. La agenda está incompleta.`;
+  }
   if (item.code === 'DUPLICATE_WRITE') return en ? 'This operation was already attempted. Check its earlier result.' : 'Esta operación ya se había intentado. Revisa su resultado anterior.';
   if (item.status === 'indeterminate' || item.code === 'EFFECT_RECONCILIATION_REQUIRED') return en
     ? '⚠️ *Outcome not confirmed*\nThis action needs checking before trying again.'
@@ -46,7 +50,7 @@ function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null 
   const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect');
   if (writes.some(item => item.toolName === 'memory_forget')) return null; // Atomic deletion receipts do not certify whole-profile erasure.
   if (!writes.length || writes.some(item => !item.result
-    || (item.domain === 'calendar' ? !item.result.events.length : !item.result.records.length))) return null;
+    || (item.domain === 'agenda' ? true : item.domain === 'calendar' ? !item.result.events.length : !item.result.records.length))) return null;
   const en = payload.language === 'en';
   const operations = new Set(writes.map(item => item.toolName));
   // Dates, titles, quantities and links are rendered once, in the certified cards.
@@ -59,11 +63,12 @@ function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null 
 /** Renders owned domain facts with existing card vocabulary. Never accepts provider prose. */
 export class WhatsAppProductivityPresenter {
   render(raw: ProductivityUiPayload): ProductivityPresentation {
-    const payload = productivityUiPayloadSchema.parse(raw);
+    const parsed = productivityUiPayloadSchema.parse(raw);
+    const payload = { ...parsed, items: parsed.items.flatMap(expandAgendaItem) };
     new Intl.DateTimeFormat('en', { timeZone: payload.timezone }).format();
     const en = payload.language === 'en';
     const context = { language: payload.language, timezone: payload.timezone };
-    const sections: string[] = [];
+    const sections: string[] = parsed.items.filter(item => item.domain === 'agenda' && !item.result).map(item => errorText(item, en));
     // Model prose is a draft, never evidence for execution, including old stored payloads.
     // A conversation discriminator cannot bypass this guard when domain items exist.
     if (!payload.items.length && !payload.notices.length) {
@@ -76,7 +81,7 @@ export class WhatsAppProductivityPresenter {
     }
     const ctas = new Map<string, WhatsAppPresentation['ctas'][number]>();
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();
-    const groups = new Map<string, ProductivityItem[]>();
+    const groups = new Map<string, ReturnType<typeof expandAgendaItem>>();
     for (let item of payload.items) {
       if (item.toolName.endsWith('_read') && item.status === 'success' && item.result) {
         const ids = item.domain === 'calendar' ? item.result.events.map(event => event.id) : item.result.records.map(record => record.id);

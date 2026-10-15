@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { ProductivityTurnRunner } from '@templelabs/agent-core';
 import { MockAIProvider, OpenRouterProvider, estimateBoundedInput, type AIProvider } from '@templelabs/ai';
 import { aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, type AIResponse, type ToolCall, type TurnContext, type ReminderRecord, type TaskRecord } from '@templelabs/contracts';
-import { createReminderTools, createTaskTools, createCalendarTools, createMemoryTools, ToolRegistry } from '@templelabs/tools';
+import { createReminderTools, createTaskTools, createCalendarTools, createMemoryTools, createAgendaTools, ToolRegistry } from '@templelabs/tools';
+import { WhatsAppProductivityPresenter } from '../../src/presentation/whatsapp-productivity-presenter.js';
 import { createConfiguredAIProvider } from '../../src/adapters/agent-core/configured-ai-provider.js';
 import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
 import { recentToolScope } from '../../src/adapters/agent-core/recent-tool-scope.js';
@@ -14,7 +15,7 @@ const caseName = process.argv.find(arg => arg.startsWith('--case='))?.slice(7);
 const snapshotPath = process.argv.find(arg => arg.startsWith('--snapshot='))?.slice(11);
 const selectedBudget = process.argv.find(arg => arg.startsWith('--budget='))?.slice(9);
 if (selectedBudget && !['1800', '2500'].includes(selectedBudget)) throw new Error('Unsupported evaluation budget');
-if (snapshotPath && !['read_today_long_history', 'single_reminder_after_reads', 'two_reminders_after_reads'].includes(caseName ?? '')) throw new Error('Snapshot replay requires an isolated incident case');
+if (snapshotPath && !['read_today_long_history', 'single_reminder_after_reads', 'two_reminders_after_reads', 'bare_clock_after_relative', 'combined_tomorrow_agenda'].includes(caseName ?? '')) throw new Error('Snapshot replay requires an isolated incident case');
 const uuid = (index: number) => `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`;
 const anchor = '2026-10-15T15:00:00Z';
 const answer = (toolCalls: ToolCall[] = []): AIResponse => ({ message: { role: 'assistant', content: toolCalls.length ? '' : 'Listo.', toolCalls }, stopReason: toolCalls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 0, outputTokens: 0 } });
@@ -28,6 +29,14 @@ const scenarios: Scenario[] = [
   { name: 'three_reminders', text: 'Recuérdame salir en 10 minutos, llamar a Ana en 20 minutos y revisar el horno en 30 minutos.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, reminders: 3, tasks: 0, live: true },
   { name: 'two_reminders_after_reads', text: 'Me puedes recordar que debo salir en 10 minutos y que a las 8 llegaba Lu del aeropuerto.', script: batches([[reminder(1), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, live: true },
   { name: 'single_reminder_after_reads', text: 'Me puedes recordar que debo salir en 10 minutos.', script: batches([[reminder(1)]]), writes: 1, reminders: 1, tasks: 0, live: true },
+  { name: 'bare_clock_after_relative', text: 'Puedes recordarme que en 10 minutos tengo que ir al baño y que a las 10 se está llegando Balú el aeropuerto, por favor.',
+    script: batches([[call('reminder_create', { content: 'Ir al baño', delayMinutes: 10 }, 1), call('reminder_create', { content: 'Llegada al aeropuerto', unqualifiedLocalTime: { hour: 10, minute: 0 } }, 2)]]),
+    writes: 2, reminders: 2, tasks: 0, live: true },
+  { name: 'combined_tomorrow_agenda', text: 'que tenemos para mañana', script: batches([[call('agenda_read', { scope: 'tomorrow', turnDisposition: 'finish' }, 1)]]), writes: 0, reads: 3, live: true },
+  { name: 'confirmed_write_replay', text: 'Recuérdame ir al baño en 10 minutos y la llegada al aeropuerto a las 10.',
+    script: batches([[call('reminder_create', { content: 'Ir al baño', delayMinutes: 10 }, 1), call('reminder_create', { content: 'Llegada al aeropuerto', unqualifiedLocalTime: { hour: 10, minute: 0 } }, 2)]])
+      .slice(0, -1).concat(answer([call('reminder_create', { content: 'Ir al baño', delayMinutes: 10 }, 3)]), answer()),
+    writes: 2, reminders: 2, tasks: 0 },
   { name: 'mixed_recurring_reminders', text: 'Crea dos recordatorios: caminar mañana a las 8 AM todos los días, y llamar al taller mañana a las 11 AM sólo una vez.', script: batches([[reminder(1, 25, true), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, recurring: 1, live: true },
   { name: 'reminders_and_tasks', text: 'Recuérdame llamar a Ana en 10 minutos y revisar el horno en 20 minutos. Además crea las tareas revisar propuesta y preparar informe.', script: batches([[reminder(1), reminder(2)], [task(3), task(4)]]), writes: 4, reminders: 2, tasks: 2, live: true },
   { name: 'project_grouped_tasks', text: 'Crea tres tareas para el proyecto Atlas: revisar requisitos, preparar presupuesto y enviar propuesta. Añade un recordatorio para llamar al cliente mañana a las 9 AM.', script: batches([[task(1, true), task(2, true), task(3, true)], [reminder(4)]]), writes: 4, reminders: 1, tasks: 3, live: true },
@@ -42,13 +51,19 @@ const scenarios: Scenario[] = [
 const results: unknown[] = [];
 for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of selectedBudget ? [Number(selectedBudget)] : [1800, 2500]) {
   const controller = new AbortController();
-  const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: scenario.name === 'two_reminders_after_reads' ? '2026-10-15T00:55:01Z' : anchor, signal: controller.signal,
+  const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: ['bare_clock_after_relative', 'combined_tomorrow_agenda'].includes(scenario.name) ? '2026-10-15T01:47:33Z' : scenario.name === 'two_reminders_after_reads' ? '2026-10-15T00:55:01Z' : anchor, signal: controller.signal,
     capabilities: new Set(['reminders.read', 'reminders.create', 'reminders.update', 'reminders.cancel', 'reminders.acknowledge', 'reminders.pro',
-      'tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete', 'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'memories.read', 'memories.save', 'memories.forget']) };
+      'tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete', 'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'agenda.read', 'memories.read', 'memories.save', 'memories.forget']) };
   const observed: { name: string; input: unknown }[] = [];
   const reminders: ReminderRecord[] = []; const tasks: TaskRecord[] = [];
+  if (scenario.name === 'combined_tomorrow_agenda') {
+    reminders.push({ id: uuid(10), content: 'Llegada al aeropuerto', sendAt: '2026-10-15T15:00:00Z', recurrence: null,
+      isAdvanceNotice: false, parentReminderId: null, requiresConfirmation: false, acknowledgedAt: null });
+    tasks.push({ id: uuid(11), title: 'Enviar propuesta', description: null, priority: null, status: 'pending',
+      dueDateIso: '2026-10-15T16:00:00Z', entityId: null, entityName: null });
+  }
   const presentation = { canonicalCard: null, questions: [], cta: null };
-  const registry = new ToolRegistry([
+  const definitions = [
     ...createReminderTools({ execute: async (request, ctx, operationId) => {
       if (request.operation !== 'create' && request.operation !== 'read') throw new Error('Unexpected reminder mutation');
       observed.push({ name: `reminder_${request.operation}`, input: request.input });
@@ -67,9 +82,18 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
       const data = { operation: request.operation, records, complete: true, coverage: request.operation === 'read' ? 'bounded_list' as const : 'operation' as const, issues: [], presentation, flow: null };
       return { status: 'success', data, receipt: { userId: ctx.userId, operationId, toolName: `task_${request.operation}`, resourceIds: records.map(r => r.id) }, observation: JSON.stringify({ ...data, records: records.map(r => ({ ...r, title: r.title?.slice(0, 80), description: null })) }) };
     } }),
-    ...createCalendarTools({ execute: async () => { throw new Error('Unexpected calendar action'); } }),
+    ...createCalendarTools({ execute: async (request, ctx, operationId) => {
+      if (scenario.name !== 'combined_tomorrow_agenda' || request.operation !== 'read') throw new Error('Unexpected calendar action');
+      observed.push({ name: 'calendar_read', input: request.input });
+      const events = [{ id: 'fixture-event', kind: 'timed' as const, summary: 'Daily', startIso: '2026-10-15T14:00:00Z', endIso: '2026-10-15T15:00:00Z', meetLink: null }];
+      const data = { operation: 'read' as const, complete: true, coverage: 'bounded_list' as const, events,
+        connection: 'connected' as const, companion: 'not_requested' as const, issues: [], presentation };
+      return { status: 'success', data, observation: JSON.stringify(data), receipt: { userId: ctx.userId, operationId,
+        toolName: 'calendar_read', resourceIds: events.map(event => event.id) } };
+    } }),
     ...createMemoryTools({ execute: async () => { throw new Error('Unexpected memory action'); } }),
-  ]);
+  ];
+  const registry = new ToolRegistry([...definitions, ...createAgendaTools(new ToolRegistry(definitions))]);
   const attempts: unknown[] = []; const rawResponses: unknown[] = [];
   const wire = new OpenRouterProvider({ apiKey: 'offline', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 6000 }], estimateInputTokens: estimateBoundedInput });
   const decisions: unknown[] = [];
@@ -104,7 +128,7 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
   const estimates = requests.map(request => (source instanceof OpenRouterProvider ? source : wire).estimateNativeInput(requestSchema.parse(request)));
   const writes = observed.filter(o => !o.name.endsWith('_read')).length;
   const folded = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const matches = (word: string, iso: string) => reminders.some(r => folded(r.content).includes(word) && Date.parse(r.sendAt ?? '') === Date.parse(iso));
+  const matches = (word: string, iso: string) => reminders.some(r => folded(r.content).includes(folded(word)) && Date.parse(r.sendAt ?? '') === Date.parse(iso));
   const semanticChecks: Record<string, boolean> = {};
   if (scenario.name === 'read_today_long_history') semanticChecks.todayFilter = observed.some(o => o.name === 'reminder_read'
     && !!o.input && typeof o.input === 'object' && 'filter' in o.input && o.input.filter === 'today');
@@ -116,8 +140,17 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
     semanticChecks.localClock = matches('aeropuerto', '2026-10-15T01:00:00Z');
   }
   if (scenario.name === 'single_reminder_after_reads') semanticChecks.relativeTime = matches('sal', '2026-10-15T15:10:00Z');
+  if (scenario.name === 'bare_clock_after_relative') {
+    semanticChecks.relativeTime = matches('baño', '2026-10-15T01:57:33Z');
+    semanticChecks.earliestLocalClock = matches('aeropuerto', '2026-10-15T03:00:00Z');
+  }
+  if (scenario.name === 'combined_tomorrow_agenda') {
+    semanticChecks.allSources = ['calendar_read', 'reminder_read', 'task_read'].every(name => observed.some(action => action.name === name));
+    const rendered = result ? new WhatsAppProductivityPresenter().render(result.uiPayload).text : '';
+    semanticChecks.allSourcesRendered = ['Daily', 'Llegada al aeropuerto', 'Enviar propuesta'].every(title => rendered.includes(title));
+  }
   if (scenario.name === 'mixed_recurring_reminders') {
-    semanticChecks.localTimes = matches('camin', '2026-10-16T13:00:00Z') && matches('taller', '2026-10-16T16:00:00Z');
+    semanticChecks.unqualifiedLocalTimes = matches('camin', '2026-10-16T13:00:00Z') && matches('taller', '2026-10-16T16:00:00Z');
   }
   if (scenario.name === 'project_grouped_tasks') semanticChecks.projectBinding = tasks.every(t => folded(t.entityName ?? '').includes('atlas'));
   const reads = observed.filter(o => o.name.endsWith('_read')).length;
@@ -130,6 +163,7 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
     inputEstimates: estimates, maxInputEstimate: Math.max(0, ...estimates), totalInputEstimate: estimates.reduce((a,b) => a+b,0), usage: result?.usage ?? null, attempts, rawResponses, decisions,
     originalHistoryMessages: previous?.history.length ?? 0, durableHistoryMessages: result?.conversation.history.length ?? 0 });
   if (!live && budget === 2500 && !['rich_source_5000','rich_source_6000','bounded_steps_negative_control'].includes(scenario.name) && !semanticComplete) throw new Error('Complex capacity regression: ' + scenario.name);
+  if (scenario.name === 'confirmed_write_replay' && budget === 2500 && result?.uiPayload.items.length !== 2) throw new Error('A confirmed replay must not create another UI item');
   if (!live && estimates.some(n => n > budget)) throw new Error('Input budget regression');
   if (!live && scenario.name === 'bounded_steps_negative_control' && writes) throw new Error('Step fence regression');
   console.error(JSON.stringify({ case: scenario.name, budget, complete: semanticComplete, notices: result?.uiPayload.notices ?? [], writes }));

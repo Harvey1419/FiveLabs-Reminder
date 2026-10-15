@@ -1,8 +1,9 @@
 import { activeToolContextCandidates } from './active-tool-context.js';
 import { projectForgottenMemoryHistory } from './forgotten-memory-context.js';
 import { memoryResultSchema, memoryReadInputSchema } from '@templelabs/contracts';
+import { agendaResultSchema, agendaReadInputSchema, agendaResourceIds, expandAgendaItem } from '@templelabs/contracts';
 import {
-  aiTranscriptSchema, productivityConversationSchema, productivityItemSchema, productivityToolNameSchema,
+  aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, productivityItemSchema, productivityToolNameSchema,
   productivityUiPayloadSchema, reminderResultSchema, taskResultSchema, calendarResultSchema,
   reminderReadInputSchema, taskReadInputSchema, calendarReadInputSchema,
   type ProductivityConversation, type ProductivityItem, type ProductivityUiPayload, type ToolCall, type TurnContext,
@@ -43,12 +44,12 @@ function priorUnverifiedCompanion(history: ProductivityConversation['history']):
 
 function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<unknown> {
   if (!('data' in outcome)) return outcome;
-  const result = call.name.startsWith('task_') ? taskResultSchema.parse(outcome.data)
+  const result = call.name === 'agenda_read' ? agendaResultSchema.parse(outcome.data) : call.name.startsWith('task_') ? taskResultSchema.parse(outcome.data)
     : call.name.startsWith('calendar_') ? calendarResultSchema.parse(outcome.data) : call.name.startsWith('memory_') ? memoryResultSchema.parse(outcome.data) : reminderResultSchema.parse(outcome.data);
   if (call.name !== `${call.name.split('_')[0]}_${result.operation}`) throw new Error('Result operation mismatch');
   if ((outcome.status === 'success' || outcome.status === 'partial')) {
     if (outcome.status === 'success' && !result.complete) throw new Error('Incomplete success');
-    const ids = 'records' in result ? result.records.map(record => record.id) : result.events.map(event => event.id);
+    const ids = 'sections' in result ? agendaResourceIds(result) : 'records' in result ? result.records.map(record => record.id) : result.events.map(event => event.id);
     if (ids.length !== new Set(ids).size || ids.length !== outcome.receipt.resourceIds.length
       || ids.some(id => !outcome.receipt.resourceIds.includes(id))) throw new Error('Resource receipt mismatch');
     if (!call.name.endsWith('_read') && call.name !== 'calendar_connect'
@@ -59,11 +60,11 @@ function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<u
   return { ...outcome, data: result };
 }
 function itemFor(call: ToolCall, outcome: ToolOutcome<unknown>): ProductivityItem {
-  const read = call.name === 'task_read' ? taskReadInputSchema.safeParse(call.arguments)
+  const read = call.name === 'agenda_read' ? agendaReadInputSchema.safeParse(call.arguments) : call.name === 'task_read' ? taskReadInputSchema.safeParse(call.arguments)
     : call.name === 'calendar_read' ? calendarReadInputSchema.safeParse(call.arguments)
     : call.name === 'reminder_read' ? reminderReadInputSchema.safeParse(call.arguments) : call.name === 'memory_read' ? memoryReadInputSchema.safeParse(call.arguments) : null;
   return productivityItemSchema.parse({ callId: call.id, toolName: call.name,
-    domain: call.name.startsWith('task_') ? 'tasks' : call.name.startsWith('calendar_') ? 'calendar' : call.name.startsWith('memory_') ? 'memories' : 'reminders',
+    domain: call.name === 'agenda_read' ? 'agenda' : call.name.startsWith('task_') ? 'tasks' : call.name.startsWith('calendar_') ? 'calendar' : call.name.startsWith('memory_') ? 'memories' : 'reminders',
     status: outcome.status, code: 'code' in outcome ? outcome.code : null,
     result: 'data' in outcome ? outcome.data : null, readScope: read?.success ? read.data : null });
 }
@@ -80,7 +81,7 @@ export class ProductivityTurnRunner {
   private readonly memorySourceText: string | undefined;
   private readonly mediaInput: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean } | undefined;
   private readonly personalContext: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } | undefined;
-  constructor(provider: AIProvider, registry: ToolRegistry, options: AgentLoopOptions & { readonly memorySourceText?: string; readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
+  constructor(provider: AIProvider, private readonly registry: ToolRegistry, options: AgentLoopOptions & { readonly memorySourceText?: string; readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
     this.discoverTools = options.discoverTools === true;
     this.finishWithVerifiedResults = options.finishWithVerifiedResults === true;
     this.compactObservations = options.compactObservations === true;
@@ -112,6 +113,7 @@ export class ProductivityTurnRunner {
     const tasks = new Map(state.tasks.map(record => [record.id, record]));
     const events = new Map(state.events.map(event => [event.id, event]));
     const items: ProductivityItem[] = [];
+    const hasAgenda = this.registry.available(context).some(tool => tool.name === 'agenda_read');
     let referenceOrder = state.referenceOrder;
     let memoryReferenceOrder = state.memoryReferenceOrder;
     const currentReferenceOrder = () => memoryReferenceOrder ? [
@@ -126,6 +128,7 @@ export class ProductivityTurnRunner {
     };
     const result = await this.loop.run(text, context, state.history, {
       acceptsTool: name => productivityToolNameSchema.safeParse(name).success,
+      callCost: call => call.name === 'agenda_read' ? 3 : 1,
       // A model completion request is not proof. Only normalized, journaled
       // outcomes may terminate with certified presentation and no narration call.
       requestSatisfied: () => items.length > 0 && items.every(item => item.status === 'success'
@@ -181,6 +184,7 @@ export class ProductivityTurnRunner {
         + (this.finishWithVerifiedResults ? 'Read calls declare turnDisposition: finish when the user only wants their results; continue for dependent actions or analysis. On the last call of a batch completing the request, declare turnDisposition: finish. The host verifies and renders future results. ' : '')
         + 'Each independent task/reminder requires a separate call; never bundle tasks in one title. Attempt every requested supported action before replying. '
         + 'completedActiveTools certifies successful operations in this current turn. Do not repeat them; fulfill only the remaining requested actions. '
+        + (hasAgenda ? 'General agenda questions require agenda_read: it checks calendar, reminders and due tasks together. Use individual read tools only for explicitly domain-specific questions. ' : '')
         + (this.discoverTools ? 'Call only advertised tools. tools_select loads missing schemas for a subsequent response; never combine selection and execution. When schemas are loaded, emit all independent requested calls together. Do not rediscover loaded tools or reread successful writes. ' : '')
         + (this.personalContext?.preferences.length ? 'Proactively leverage <user_preferences> for relevant habits and schedules; adapt or verify, respecting the current explicit request and host authorization. ' : '')
         + `Dialogue times must use the user's local timezone (${context.timezone}) or relative terms. Never expose, calculate, or cite raw UTC timestamps in dialogue. Certified cards render formatted local times. `
@@ -222,29 +226,35 @@ export class ProductivityTurnRunner {
       },
       requiresReconciliation: (_call, outcome) => outcome.status === 'partial' && unverifiedCompanion(outcome.data),
       normalizeOutcome: normalize,
-      beforeDispatch: async (call, ctx) => { await journal?.beforeDispatch(call, ctx); },
+      // Composite reads have no mutational ambiguity. Persist their individual
+      // verified source receipts below, retaining the existing checkpoint shape.
+      beforeDispatch: async (call, ctx) => { if (call.name !== 'agenda_read') await journal?.beforeDispatch(call, ctx); },
       afterOutcome: async (call, outcome) => {
-        const item = itemFor(call, outcome);
-        items.push(item);
-        await journal?.afterOutcome(structuredClone(call), structuredClone(item), outcome.observation);
-        if ((item.status === 'success' || item.status === 'partial') && item.result) {
-          if (item.toolName.endsWith('_read') || item.toolName === 'memory_save') {
-            const records = item.domain === 'calendar' ? item.result.events : item.result.records;
-            referenceOrder = records.map((record, index) => ({ domain: item.domain, id: record.id, position: index + 1 }));
+        const aggregate = itemFor(call, outcome);
+        for (const atomic of expandAgendaItem(aggregate)) {
+          items.push(atomic);
+          const sourceCall = call.name === 'agenda_read' ? { id: atomic.callId, name: atomic.toolName, arguments: jsonObjectSchema.parse(atomic.readScope ?? {}) } : call;
+          await journal?.afterOutcome(structuredClone(sourceCall), structuredClone(atomic), call.name === 'agenda_read'
+            ? JSON.stringify(atomic.result ?? { code: atomic.code, complete: false }) : outcome.observation);
+          if ((atomic.status !== 'success' && atomic.status !== 'partial') || !atomic.result) continue;
+          if (atomic.toolName.endsWith('_read') || atomic.toolName === 'memory_save') {
+            const records = atomic.domain === 'calendar' ? atomic.result.events : atomic.result.records;
+            const refs = records.map((record, index) => ({ domain: atomic.domain, id: record.id, position: index + 1 }));
+            referenceOrder = aggregate.domain === 'agenda' ? [...(referenceOrder ?? []).filter(ref => ref.domain !== atomic.domain), ...refs].slice(-51) : refs;
           }
-          if (item.domain === 'tasks') for (const record of item.result.records) tasks.set(record.id, record);
-          else if (item.domain === 'reminders') for (const record of item.result.records) reminders.set(record.id, record);
-          else if (item.domain === 'memories') {
-            for (const record of item.result.records) memories.set(record.id, record);
-            if (item.toolName === 'memory_read' || item.toolName === 'memory_save') memoryReferenceOrder = item.result.records.map(record => record.id);
+          if (atomic.domain === 'tasks') for (const record of atomic.result.records) tasks.set(record.id, record);
+          else if (atomic.domain === 'reminders') for (const record of atomic.result.records) reminders.set(record.id, record);
+          else if (atomic.domain === 'memories') {
+            for (const record of atomic.result.records) memories.set(record.id, record);
+            if (atomic.toolName === 'memory_read' || atomic.toolName === 'memory_save') memoryReferenceOrder = atomic.result.records.map(record => record.id);
             // A read followed by a write publishes only remaining read rows. Its
             // next ordinal references must match that new, verified display.
-            if (item.toolName === 'memory_forget' && items.some(value => value.toolName === 'memory_read')) {
+            if (atomic.toolName === 'memory_forget' && items.some(value => value.toolName === 'memory_read')) {
               memoryReferenceOrder = (memoryReferenceOrder ?? []).filter(id => memories.get(id)?.status === 'active');
             }
           }
-          else for (const event of item.result.events) {
-            if (item.toolName === 'calendar_delete') events.delete(event.id); else events.set(event.id, event);
+          else for (const event of atomic.result.events) {
+            if (atomic.toolName === 'calendar_delete') events.delete(event.id); else events.set(event.id, event);
           }
         }
       },

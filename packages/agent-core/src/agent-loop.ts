@@ -42,6 +42,8 @@ export interface AgentLoopUsage {
 export interface AgentLoopPolicy {
   acceptsTool(name: string): boolean;
   requestSatisfied?(): boolean;
+  /** Composite use cases reserve their underlying journal/UI operation count. */
+  callCost?(call: ToolCall): number;
   referenceMissing(call: ToolCall): boolean;
   readonly writeJournalAvailable: boolean;
   prepareContext(history: readonly AIMessage[], maxMessages: number,
@@ -253,7 +255,10 @@ export class AgentLoop {
         + response.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
       usage.estimatedCostUsd = this.pricing && usage.accountingComplete ? costUsd : null;
       const calls = response.message.toolCalls;
-      if (totalCalls + calls.length > this.maxToolCalls || messages.length + calls.length > this.maxHistoryMessages
+      const costs = calls.map(call => policy.callCost?.(call) ?? 1);
+      if (costs.some(cost => !Number.isSafeInteger(cost) || cost < 1)) { notices.push('invalid_response'); return finish(); }
+      const callCost = costs.reduce((total, cost) => total + cost, 0);
+      if (totalCalls + callCost > this.maxToolCalls || messages.length + calls.length > this.maxHistoryMessages
         || response.usage.inputTokens > this.maxInputTokens || totalTokens > this.maxTotalTokens
         || (this.maxCostUsd !== undefined && costUsd > this.maxCostUsd) || this.now() >= deadlineMs || context.signal.aborted) {
         notices.push('limit_reached'); return finish();
@@ -272,7 +277,7 @@ export class AgentLoop {
       history.push({ role: 'assistant', content: response.message.content, toolCalls: normalizedCalls.map((call, index) => ({ ...call,
         arguments: calls[index]!.arguments })) });
       if (!calls.length && response.stopReason === 'completed') conversationReply = response.message.content.trim() || null;
-      totalCalls += calls.length;
+      totalCalls += callCost;
       const finishRequested = this.finishWithVerifiedResults && calls.some(call => call.name !== 'tools_select' && call.arguments.turnDisposition === 'finish');
       for (const call of normalizedCalls) {
         if (this.discoverTools && call.name === 'tools_select') {

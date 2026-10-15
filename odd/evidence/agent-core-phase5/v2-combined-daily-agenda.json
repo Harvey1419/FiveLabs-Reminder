@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-15T02:39:53.844988+00:00",
+  "status": "verified_local_not_deployed",
+  "dependsOnCommit": "7f08594",
+  "incidentRunId": "5ffe743a-0d76-4f8c-b6a0-0a8053877d62",
+  "rootCause": "The model selected calendar_read and finish for a general agenda query; verifying that read did not certify coverage of reminders and due tasks.",
+  "changes": [
+    "Add agenda_read for today, tomorrow or a civil date. Resolve the local date once, then compose the existing authorized calendar, reminder and pending due-task reads.",
+    "Require three distinct source results for complete coverage and validate owner, operation, tool and resource receipts before accepting any source.",
+    "Preserve successful sources when another source fails; render source-specific incompleteness instead of silently omitting it.",
+    "Persist ordinary calendar_read/reminder_read/task_read outcomes and existing UI domains, retaining checkpoint-reader structural compatibility.",
+    "Reserve three underlying operation slots before dispatch and keep references bounded, preventing journal/UI overflow.",
+    "Use the existing presenters and 4000-character transport boundary; no additional model classifier or regex intent routing."
+  ],
+  "verification": {
+    "typecheck": {
+      "command": "pnpm typecheck",
+      "errors": 0
+    },
+    "unit": {
+      "command": "pnpm exec vitest run --config tests/config/vitest.unit.ts",
+      "files": 306,
+      "testsPassed": 3903
+    },
+    "conversation": {
+      "files": 4,
+      "testsPassed": 37
+    },
+    "lint": {
+      "command": "pnpm lint",
+      "files": 802,
+      "errors": 0,
+      "warnings": 0
+    },
+    "maintainedJavaScript": 0,
+    "agendaTests": {
+      "passed": 8,
+      "coverage": [
+        "all three same-date sources and deterministic cards",
+        "durable atomic receipt storage",
+        "partial source failure",
+        "following-turn admission after partial reads",
+        "capability isolation",
+        "foreign receipt rejection",
+        "DST civil date arithmetic",
+        "strict three-source coverage and operation budgeting"
+      ]
+    },
+    "offlineCapacity": "passed; confirmed_write_replay at 2500 performs exactly two writes and produces exactly two UI items without notices",
+    "liveRecordedHistory": {
+      "historyMessages": 107,
+      "modelSteps": 2,
+      "domainReads": 3,
+      "writes": 0,
+      "notices": [],
+      "semanticChecks": {
+        "allSources": true,
+        "allSourcesRendered": true
+      },
+      "inputEstimates": [
+        2080,
+        2047
+      ],
+      "usage": {
+        "accountingComplete": false,
+        "modelSteps": 2,
+        "inputTokens": 1351,
+        "outputTokens": 69,
+        "estimatedCostUsd": null
+      },
+      "generations": [
+        "gen-1792031721-N9qHDc2UKZTS5h9GoLG8",
+        "gen-1792031723-mcOpZf5VX3Mk7ZNR1zA3"
+      ]
+    },
+    "container": {
+      "imageId": "sha256:06b8497dba792d32331d5b57a5dd7c8717470e8c4de27528c3cbb63f977c94fb",
+      "node": "22.23.3",
+      "health": {
+        "status": 200,
+        "body": {
+          "status": "ok"
+        }
+      },
+      "exitCode": 0,
+      "shutdownMs": 52,
+      "network": "none",
+      "syntheticDependencies": true
+    },
+    "containerClockProbe": {
+      "node": "22.23.3",
+      "observed": [
+        "2026-10-15T03:00:00.000Z",
+        "2026-10-15T03:00:00.000Z"
+      ],
+      "externalWrites": 0
+    },
+    "externalEffects": {
+      "productionWrites": 0,
+      "whatsAppSends": 0,
+      "domainPorts": "isolated simulated storage; authenticated production checkpoint audits were read-only",
+      "inference": "paid configured OpenRouter/Groq provider"
+    }
+  },
+  "limits": [
+    "A source is a bounded query, not an exhaustive inventory.",
+    "General-query interpretation remains model-owned; agenda_read deterministically enforces coverage once selected.",
+    "The live model attempted the unloaded agenda_read directly; the bounded c35c77c recovery loaded its schema. The two-step completion includes that failed inference, with incomplete accounting honestly preserved.",
+    "No existing incorrectly scheduled production reminder was altered. No push or deployment; Antigravity retains deployment ownership."
+  ],
+  "review": {
+    "budgetLines": 400,
+    "changedLines": 515,
+    "overageLines": 115,
+    "rationale": "Keep the agenda contract, owner-scoped composition, durable compatibility, presenter wiring and eight integration regressions together; the independent scheduling/idempotency fix is already a separate commit."
+  },
+  "rollback": "Revert this agenda work unit before reverting its prerequisite. No database migration or scheduler/transport deployment change."
+}

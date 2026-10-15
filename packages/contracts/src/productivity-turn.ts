@@ -5,23 +5,25 @@ import { reminderRecordSchema, reminderResultSchema, reminderReadInputSchema } f
 import { reminderToolNameSchema } from './reminder-turn.js';
 import { taskRecordSchema, taskResultSchema, taskReadInputSchema } from './tasks.js';
 import { calendarEventSchema, calendarResultSchema, calendarReadInputSchema } from './calendar.js';
+import { agendaReadInputSchema, agendaResultSchema } from './agenda.js';
 
 export const taskToolNameSchema = z.enum(['task_create', 'task_read', 'task_update', 'task_complete', 'task_delete']);
 export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect', 'calendar_update', 'calendar_delete']);
 export const productivityToolNameSchema = z.enum([...reminderToolNameSchema.options,
-  ...taskToolNameSchema.options, ...calendarToolNameSchema.options, ...memoryToolNameSchema.options]);
+  ...taskToolNameSchema.options, ...calendarToolNameSchema.options, ...memoryToolNameSchema.options, 'agenda_read']);
 const common = {
   callId: z.string().min(1),
   status: z.enum(['success', 'partial', 'validation_failed', 'denied', 'approval_required', 'clarification_required', 'failed', 'indeterminate']),
   code: z.string().max(80).nullable(),
 };
 export const productivityItemSchema = z.discriminatedUnion('domain', [
+  z.strictObject({ ...common, domain: z.literal('agenda'), toolName: z.literal('agenda_read'), result: agendaResultSchema.nullable(), readScope: agendaReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('reminders'), toolName: reminderToolNameSchema, result: reminderResultSchema.nullable(), readScope: reminderReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('tasks'), toolName: taskToolNameSchema, result: taskResultSchema.nullable(), readScope: taskReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('memories'), toolName: memoryToolNameSchema, result: memoryResultSchema.nullable(), readScope: memoryReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('calendar'), toolName: calendarToolNameSchema, result: calendarResultSchema.nullable(), readScope: calendarReadInputSchema.nullable().optional() }),
 ]).superRefine((item, ctx) => {
-  if (item.result && item.toolName !== `${item.domain === 'reminders' ? 'reminder' : item.domain === 'tasks' ? 'task' : item.domain === 'memories' ? 'memory' : 'calendar'}_${item.result.operation}`) {
+  if (item.result && item.toolName !== `${item.domain === 'agenda' ? 'agenda' : item.domain === 'reminders' ? 'reminder' : item.domain === 'tasks' ? 'task' : item.domain === 'memories' ? 'memory' : 'calendar'}_${item.result.operation}`) {
     ctx.addIssue({ code: 'custom', message: 'Tool and result operation must match' });
   }
   if ((item.status === 'success' || item.status === 'partial') && !item.result) {
@@ -59,3 +61,15 @@ export const productivityUiPayloadSchema = z.strictObject({
 export type ProductivityItem = z.infer<typeof productivityItemSchema>;
 export type ProductivityConversation = z.infer<typeof productivityConversationSchema>;
 export type ProductivityUiPayload = z.infer<typeof productivityUiPayloadSchema>;
+
+/** Project aggregate results into the existing atomic UI and journal shapes. */
+export function expandAgendaItem(item: ProductivityItem): Exclude<ProductivityItem, { domain: 'agenda' }>[] {
+  if (item.domain !== 'agenda') return [item];
+  const sections = item.result?.sections ?? (['calendar', 'reminders', 'tasks'] as const)
+    .map(domain => ({ domain, status: item.status, code: item.code, result: null }));
+  return sections.map(section => productivityItemSchema.parse({
+    ...section, toolName: section.domain === 'calendar' ? 'calendar_read' : section.domain === 'tasks' ? 'task_read' : 'reminder_read',
+    callId: `${item.callId}:${section.domain}`, readScope: !item.result ? null : section.domain === 'reminders'
+      ? { filter: item.result.date } : { scope: item.result.date, ...(section.domain === 'tasks' ? { status: 'pending', limit: 5 } : {}) },
+  })).filter((value): value is Exclude<ProductivityItem, { domain: 'agenda' }> => value.domain !== 'agenda');
+}

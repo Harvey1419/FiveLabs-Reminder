@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { estimateBoundedInput, type OpenRouterAttempt } from '@templelabs/ai';
 import { aiTranscriptSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { ProductivityTurnRunner, type AgentLoopOptions } from '@templelabs/agent-core';
-import { createTaskTools, createCalendarTools, createReminderTools, createMemoryTools, ToolRegistry } from '@templelabs/tools';
+import { createTaskTools, createCalendarTools, createReminderTools, createMemoryTools, createAgendaTools, ToolRegistry } from '@templelabs/tools';
 import type { ProductivityConversation } from '@templelabs/contracts';
 import { DurableProductivityAssistant, type ProductivityDeliveryPort } from './durable-productivity-assistant.js';
 import { recoverProductivityStoredTurn } from './productivity-state-recovery.js';
@@ -71,7 +71,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   if (allowed && explicitMemoryIntent(authoredText, 'forget')) { allowed.add('memory_read'); allowed.add('memory_forget'); }
   if (allowed) for (const tool of definitions) if (!allowed.has(tool.specification.name)) capabilities.delete(tool.requiredCapability);
   const context = { ...admission.context, capabilities, language };
-  const registry = new ToolRegistry(definitions);
+  // Composite reads reuse exactly the capability-filtered atomic registry.
+  if (!media && ['calendar.read', 'tasks.read', 'reminders.read'].some(capability => capabilities.has(capability))) capabilities.add('agenda.read');
+  const registry = new ToolRegistry([...definitions, ...createAgendaTools(new ToolRegistry(definitions))]);
   const writePolicy = z.custom<NonNullable<AgentLoopOptions['authorizeWrite']>>(value => typeof value === 'function')
     .safeParse(options.agentCoreAuthorizeWrite);
   const attempts: OpenRouterAttempt[] = [];
