@@ -111,4 +111,33 @@ describe('completed baseline productivity handoff', () => {
     await expect(source.readTask(id, context)).rejects.toThrow('OWNER_MISMATCH');
     expect(eq.mock.calls).toEqual([['id', id], ['user_id', 'owner']]); expect(limit).toHaveBeenCalledWith(1);
   });
+  it('checks hasActiveRun correctly distinguishing active, expired, and absent runs', async () => {
+    const eq = vi.fn(), inFilter = vi.fn(), order = vi.fn(), limit = vi.fn(), abortSignal = vi.fn();
+    const query = { eq, in: inFilter, order, limit, abortSignal, lt: vi.fn(), maybeSingle: vi.fn() };
+    eq.mockReturnValue(query); inFilter.mockReturnValue(query); order.mockReturnValue(query); limit.mockReturnValue(query); abortSignal.mockReturnValue(query);
+    const client = { from: vi.fn(() => ({ select: vi.fn(() => query) })) };
+    const source = createBaselineHandoffSource(client, async () => null);
+
+    // 1. Absent run
+    query.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    expect(await source.hasActiveRun(context)).toBe(false);
+
+    // 2. Expired run (expired 1 hour ago)
+    const expiredIso = new Date(Date.now() - 3600_000).toISOString();
+    query.maybeSingle.mockResolvedValueOnce({ data: { id: 'run-1', user_id: 'owner', status: 'waiting_for_input', expires_at: expiredIso }, error: null });
+    expect(await source.hasActiveRun(context)).toBe(false);
+
+    // 3. Active run with future expiry (expires in 1 hour)
+    const futureIso = new Date(Date.now() + 3600_000).toISOString();
+    query.maybeSingle.mockResolvedValueOnce({ data: { id: 'run-2', user_id: 'owner', status: 'waiting_for_input', expires_at: futureIso }, error: null });
+    expect(await source.hasActiveRun(context)).toBe(true);
+
+    // 4. Active run with null expiry
+    query.maybeSingle.mockResolvedValueOnce({ data: { id: 'run-3', user_id: 'owner', status: 'running', expires_at: null }, error: null });
+    expect(await source.hasActiveRun(context)).toBe(true);
+
+    expect(client.from).toHaveBeenCalledWith('agent_runs');
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(limit).toHaveBeenCalledWith(1);
+  });
 });

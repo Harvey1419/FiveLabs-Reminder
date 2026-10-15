@@ -100,11 +100,15 @@ export function createBaselineHandoffSource(client: InboundCheckpointClient,
   };
   return {
     async hasActiveRun(context) {
-      const result = await client.from('agent_runs').select('id,user_id,status').eq('user_id', context.userId)
-        .in('status', ['waiting_for_input', 'waiting_for_approval', 'running']).limit(1)
+      const result = await client.from('agent_runs').select('id,user_id,status,expires_at').eq('user_id', context.userId)
+        .in('status', ['waiting_for_input', 'waiting_for_approval', 'running']).order('created_at', { ascending: false }).limit(1)
         .abortSignal(AbortSignal.any([context.signal, AbortSignal.timeout(15000)])).maybeSingle();
       if (result.error) throw new Error('HANDOFF_STORAGE_UNAVAILABLE');
-      return result.data !== null;
+      if (!result.data) return false;
+      const row = result.data as { expires_at?: string | null };
+      if (!row.expires_at) return true;
+      const expires = new Date(row.expires_at);
+      return !Number.isNaN(expires.getTime()) && expires.getTime() > Date.now();
     },
     async readTask(id, context) {
       const row = await read('tasks', 'id,user_id,title,description,priority,status,due_date,entity_id', id, context);
