@@ -31,7 +31,7 @@ const cases = [
   ...[1500, 3000, 5000].map(length => ({ name: `long_current_input_${length}_chars`, text: ('Estoy preparando mi semana. Tengo varias reuniones y necesito priorizar los pendientes sin perder el descanso. ').repeat(50).slice(0, length), history: old, script: [dialogue], writes: 0 })),
 ];
 const results = [];
-for (const fixture of cases) for (const budget of [1800, 2500]) {
+for (const fixture of cases) for (const budget of [...new Set([1800, 2500, productivityBudget.maxInputTokens])]) {
   const calls: string[] = [];
   const port: ReminderDomainPort = { async execute(request, scoped, operationId) {
     calls.push(request.operation);

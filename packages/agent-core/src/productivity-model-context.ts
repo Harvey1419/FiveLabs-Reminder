@@ -3,7 +3,7 @@ import type { AIMessage, JsonObject } from '@templelabs/contracts';
 /** Model-only projection. Full records, journals, receipts and dialogue remain durable. */
 export function compactModelRecord(raw: Readonly<Record<string, unknown>>): JsonObject {
   const result: JsonObject = {};
-  for (const key of ['id', 'domain', 'content', 'title', 'summary', 'recurrence', 'status', 'kind']) {
+  for (const key of ['id', 'domain', 'content', 'title', 'name', 'summary', 'recurrence', 'status', 'kind', 'entityId', 'entityName', 'priority']) {
     const value = raw[key];
     if (typeof value === 'string') result[key] = value;
   }
@@ -29,7 +29,7 @@ export function projectProductivityHistory(history: readonly AIMessage[]): AIMes
       // A false completion is material evidence and must survive projection.
       if (key === 'complete' && value === false) compact.complete = false;
     }
-    for (const key of ['records', 'events']) if (Array.isArray(raw[key])) compact[key] = raw[key].map(value =>
+    for (const key of ['records', 'events', 'projects', 'entities']) if (Array.isArray(raw[key])) compact[key] = raw[key].map(value =>
       value && typeof value === 'object' && !Array.isArray(value) ? compactModelRecord(value) : value);
     return { ...message, content: { ...message.content, status: message.content.status ?? 'failed', observation: compact } };
   });

@@ -27,7 +27,7 @@ describe('bounded fluent evaluation (offline only)', () => {
     expect(report.passedTurns).toBe(2);
     expect(report.failedChecks).toBe(0);
     expect(report.incomplete).toBe(false);
-    expect(report.limits).toMatchObject({ userTurns: 2, maxCalls: 6, maxUsd: 0.02, maxInputTokens: 2500, maxOutputTokens: 2048 });
+    expect(report.limits).toMatchObject({ userTurns: 2, maxCalls: 6, maxUsd: 0.02, maxInputTokens: 3500, maxOutputTokens: 2048 });
     expect(report.receipts).toHaveLength(2);
     expect(report.finalRecords).toHaveLength(2);
     expect(report.liveProof).toBe(false);
@@ -159,7 +159,7 @@ describe('bounded fluent evaluation (offline only)', () => {
     expect(report.turns).toHaveLength(20);
     expect(report.degraded).toBe(true);
     expect(report.stoppedReason).toBeNull();
-    expect(report.limits.maxInputTokens).toBe(2500);
+    expect(report.limits.maxInputTokens).toBe(3500);
     expect(report.failedTurns).toBe(20);
     expect(complete).not.toHaveBeenCalled();
   });

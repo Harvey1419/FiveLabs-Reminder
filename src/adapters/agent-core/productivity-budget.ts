@@ -5,6 +5,6 @@ export const productivityDecisionPolicy = Object.freeze({ structuredDecisions: t
 export const productivityBudget = Object.freeze({
   initialTools: ['task_create', 'reminder_create'] as const,
   finishWithVerifiedResults: true,
-  maxInputTokens: 2500, maxTotalTokens: 20000, maxModelSteps: 10, maxToolCalls: 10,
+  maxInputTokens: 3500, maxTotalTokens: 20000, maxModelSteps: 10, maxToolCalls: 10,
   maxOutputTokens: 2048, timeoutMs: 45000, continuationReserveTokens: 256,
 });

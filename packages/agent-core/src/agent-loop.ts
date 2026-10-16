@@ -8,6 +8,7 @@ import { ContextLimitError } from './operational-context.js';
 import { clarificationTool } from './clarification-tool.js';
 import { DecisionSession, decisionTool, pendingQuestion, withDecisionItem } from './decision-control.js';
 import type { ProductivityDecision, ProductivityPending } from '@templelabs/contracts';
+import { nativeToolSchema } from './native-tool-schema.js';
 
 export type LoopLimitReason = 'input_context' | 'model_steps' | 'total_tokens' | 'tool_calls' | 'time' | 'cost' | 'history_messages';
 
@@ -21,6 +22,11 @@ export interface ToolSelectionDiagnostic {
 }
 
 export interface AgentLoopOptions {
+  /** Stable, capability-scoped tools and ordinary tool/result/final-response loop.
+   * Keeps backend validation, authorization, journaling and reconciliation.
+   * Existing pending decision checkpoints retain their resolution contract.
+   */
+  readonly nativeToolCalling?: boolean;
   /** Detached, bounded identifiers only. Observer exceptions never affect execution. */
   readonly onToolSelection?: (diagnostic: ToolSelectionDiagnostic) => void;
   /** Best-effort categorical telemetry only; exceptions cannot affect execution. */
@@ -113,6 +119,7 @@ function withTurnDisposition(schema: JsonObject, required: boolean): JsonObject 
 }
 
 export class AgentLoop {
+  private readonly nativeToolCalling: boolean;
   private readonly onLimit: AgentLoopOptions['onLimit'];
   private readonly onToolSelection: AgentLoopOptions['onToolSelection'];
   private readonly discoverTools: boolean;
@@ -141,9 +148,10 @@ export class AgentLoop {
     if (options.continuation && !['single_decision', 'observation_driven'].includes(options.continuation)) throw new Error('Invalid continuation');
     this.onLimit = options.onLimit;
     this.onToolSelection = options.onToolSelection;
-    this.discoverTools = options.discoverTools === true;
-    this.finishWithVerifiedResults = options.finishWithVerifiedResults === true;
-    this.structuredDecisions = options.structuredDecisions === true;
+    this.nativeToolCalling = options.nativeToolCalling === true;
+    this.discoverTools = !this.nativeToolCalling && options.discoverTools === true;
+    this.finishWithVerifiedResults = !this.nativeToolCalling && options.finishWithVerifiedResults === true;
+    this.structuredDecisions = !this.nativeToolCalling && options.structuredDecisions === true;
     this.initialTools = [...new Set(options.initialTools ?? [])];
     if (this.initialTools.length > 2 || this.initialTools.some(name => !name || name === 'tools_select')) throw new Error('Invalid initial tool scope');
     this.readFollowups = structuredClone(options.readFollowups ?? {});
@@ -199,7 +207,8 @@ export class AgentLoop {
     };
     const useDecisions = this.structuredDecisions || Boolean(policy.pending);
     const catalogue = this.registry.available(context).filter(tool => policy.acceptsTool(tool.name)).map(tool => {
-      let inputSchema = this.discoverTools ? compactSchemaHints(tool.inputSchema) as JsonObject : tool.inputSchema;
+      let inputSchema = this.nativeToolCalling ? nativeToolSchema(tool.inputSchema)
+        : this.discoverTools ? compactSchemaHints(tool.inputSchema) as JsonObject : tool.inputSchema;
       if (this.finishWithVerifiedResults) inputSchema = withTurnDisposition(inputSchema, this.registry.effect(tool.name) === 'read');
       return { ...tool, inputSchema };
     });
@@ -237,7 +246,7 @@ export class AgentLoop {
                   + decisions.remainingReady.filter(item => item.tool === tool.name).map(item => item.key).join(',') + '. Do not reply with text.'
                 : ' Emit fresh tool calls with decisionItem for remaining keys: '
                   + decisions.remainingReady.filter(item => item.tool === tool.name).map(item => item.key).join(',') + '. Prose executes nothing.') } : {}) }) : scopedTools;
-      const clarifiedTools = !reconciliationRequired && policy.canClarify?.() ? [...domainTools, clarificationTool] : domainTools;
+      const clarifiedTools = !this.nativeToolCalling && !reconciliationRequired && policy.canClarify?.() ? [...domainTools, clarificationTool] : domainTools;
       const tools = offerDecision ? [...clarifiedTools, decisionCorrectionUsed
         ? { ...decisionTool, description: decisionTool.description + (policy.pending
             ? ' Previous call lacked decision declaration. You MUST call conversation_decide(resolution:{pendingId:lastPending.id,key:"..."},ready:[{key:"...",tool:"reminder_create"}]) first. No rejected arguments execute.'

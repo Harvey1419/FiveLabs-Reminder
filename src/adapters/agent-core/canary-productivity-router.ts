@@ -1,4 +1,5 @@
 import { productivityBudget, productivityDecisionPolicy } from './productivity-budget.js';
+import { nativeProductivityPolicy } from './native-productivity-policy.js';
 import { recentToolScope } from './recent-tool-scope.js';
 import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
@@ -46,6 +47,9 @@ const userSchema = z.object({ id: z.string().min(1), phone_number: z.string().op
 
 /** The durable V2 composition owns delivery; the webhook must not send its reply a second time. */
 export async function routeCanaryProductivity(text: string, rawUser: unknown, options: Record<string, unknown>, admission: CanaryAdmission): Promise<Result> {
+  const nativeTools = options.agentCoreNativeTools === undefined
+    ? process.env.AGENT_CORE_NATIVE_TOOLS === 'true' : options.agentCoreNativeTools === true;
+  const loopPolicy = nativeTools ? nativeProductivityPolicy : { ...productivityBudget, ...productivityDecisionPolicy };
   const parsed = userSchema.parse(rawUser);
   const user = { id: parsed.id, ...(parsed.phone_number ? { phone_number: parsed.phone_number } : {}),
     ...(parsed.timezone ? { timezone: parsed.timezone } : {}), ...(parsed.locale ? { locale: parsed.locale } : {}) };
@@ -99,7 +103,7 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
     onLimit: diagnostic => telemetry('loop_limit', { runId: context.runId, requestId: context.requestId, ...diagnostic }),
     onToolSelection: diagnostic => telemetry('tool_selection', { runId: context.runId, requestId: context.requestId, ...diagnostic }),
-    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget, ...productivityDecisionPolicy,
+    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...loopPolicy,
     initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'], project_read: ['project_delete', 'project_rename'], subscription_info: ['subscription_checkout', 'subscription_cancel'], entity_read: ['entity_delete', 'entity_update'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
@@ -107,9 +111,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
       && (!allowed || allowed.has(call.name)) && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,
-    inputTarget: productivityBudget.maxInputTokens, accountingScope: 'reasoning_loop; memory_extraction_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
+    inputTarget: loopPolicy.maxInputTokens, accountingScope: 'reasoning_loop; memory_extraction_admission_and_embeddings_reported_separately', ...handled.usage, generations: attempts.map(attempt => attempt.generationId) });
   const result: Result = { confirmation: handled.reply.text, intent: handled.uiPayload.items.length ? 'query' : 'chat', language,
-    entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: productivityBudget.maxInputTokens, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
+    entities: { _agentCoreEngine: 'v2', _agentCoreUsage: { ...handled.usage, inputTarget: loopPolicy.maxInputTokens, attempts: attempts.map(attempt => ({ ...attempt, requestedProviders: [...attempt.requestedProviders] })) } }, executionFacts: [], memoryDisposition: 'skip_operational' };
   recordV2Delivery(result, handled.messageIds);
   // handle returns only after all deliveries are accepted and the durable completion is published.
   // Explicit memory operations own their source and must never be relearned by the background task.

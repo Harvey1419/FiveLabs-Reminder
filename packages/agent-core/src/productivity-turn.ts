@@ -114,6 +114,7 @@ function itemFor(call: ToolCall, outcome: ToolOutcome<unknown>): ProductivityIte
  * Mutations require a host journal as well as explicit authorization; cards require verified receipts.
  */
 export class ProductivityTurnRunner {
+  private readonly nativeToolCalling: boolean;
   private readonly loop: AgentLoop;
   private readonly maxPromptReferences: number;
   private readonly compactObservations: boolean;
@@ -124,9 +125,10 @@ export class ProductivityTurnRunner {
   private readonly mediaInput: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean } | undefined;
   private readonly personalContext: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } | undefined;
   constructor(provider: AIProvider, private readonly registry: ToolRegistry, options: AgentLoopOptions & { readonly memorySourceText?: string; readonly mediaInput?: { readonly userText: string; readonly kind: 'image' | 'document' | 'location'; readonly truncated: boolean }; readonly compactObservations?: boolean; readonly maxPromptReferences?: number; readonly personalContext?: { readonly displayName?: string; readonly preferences: readonly string[]; readonly memories: readonly string[] } } = {}) {
-    this.discoverTools = options.discoverTools === true;
-    this.finishWithVerifiedResults = options.finishWithVerifiedResults === true;
-    this.structuredDecisions = options.structuredDecisions === true;
+    this.nativeToolCalling = options.nativeToolCalling === true;
+    this.discoverTools = !this.nativeToolCalling && options.discoverTools === true;
+    this.finishWithVerifiedResults = !this.nativeToolCalling && options.finishWithVerifiedResults === true;
+    this.structuredDecisions = !this.nativeToolCalling && options.structuredDecisions === true;
     this.compactObservations = options.compactObservations === true;
     this.personalContext = options.personalContext;
     this.mediaInput = options.mediaInput;
@@ -319,7 +321,20 @@ export class ProductivityTurnRunner {
           };
           const hasActiveCommitments = Boolean(promptReferences.reminders?.length || promptReferences.tasks?.length);
           const commitmentGuidance = hasActiveCommitments ? 'References cover working memory only, never unqueried domains. ' : '';
-          return (viewOnly ? executablePersona : persona) + commitmentGuidance + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
+          const nativePersona = 'You are Hermes, an executive personal assistant. Match the user language; be warm and brief. '
+            + 'Fulfill every part of the latest request. All listed tools are callable directly; use several calls for independent operations. '
+            + 'After tool results, inspect what remains and continue until the whole request is fulfilled or explain what is blocked. '
+            + 'A successful operation does not complete other requested operations. Then give a final response; the host renders verified cards. '
+            + 'For current lists, query the corresponding read tools. History is bounded working memory, not a fresh database or authorization. '
+            + 'Do not add date filters unless requested; all pending includes undated tasks. '
+            + 'Use observed owned IDs for mutations, and change only what the current request authorizes. Never repeat successful writes. '
+            + 'Omit optional arguments unless needed; use null only when the schema permits it. '
+            + 'For reminders use delayMinutes for relative delays, relativeDayTime for explicit today/tomorrow and AM/PM, '
+            + 'and unqualifiedLocalTime only for undated clocks without AM/PM. '
+            + `Use ${context.timezone} for local times. Never expose raw UTC in dialogue. `
+            + 'If details are missing, ask a specific question and retain the known facts. Never invent successful execution or unavailable data. ';
+          return (this.nativeToolCalling && !useDecisions ? nativePersona : viewOnly ? executablePersona : persona)
+            + commitmentGuidance + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
             + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
               references: promptReferences,
               referenceOrder: currentReferenceOrder()?.filter(reference => reference.domain === 'memories'

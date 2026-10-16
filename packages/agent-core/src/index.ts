@@ -30,4 +30,5 @@ export * from './reminder-turn.js';
 export * from './context-manager.js';
 export * from './operational-context.js';
 export * from './agent-loop.js';
+export * from './native-tool-schema.js';
 export * from './productivity-turn.js';

@@ -31,7 +31,7 @@ function discover(steps: MockCompletion[]): MockCompletion[] {
     return [{ response: answer([{ id: `select-${name}`, name: 'tools_select', arguments: { name } }]) }, step];
   });
 }
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); });
 function fixture() {
   let persisted: JsonObject = {};
   const lease = { inboundTurn: { id: 'run', messageId: 'request', threadId: 'thread', response: {} as JsonObject }, signal: new AbortController().signal,
@@ -41,9 +41,29 @@ function fixture() {
   const route = createCanaryRouter<Awaited<ReturnType<typeof routeCanaryProductivity>>>({ baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, userAllowlist: ['owner'] }),
     lease: () => lease, readPrior: async () => null });
   return { lease, send, baseline, persisted: () => persisted,
-    run: (authorized = false, text = 'Lista mis tareas') => withTurnLease(lease, () => route(text, user, [], { inputModality: 'text', agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
+    run: (authorized = false, text = 'Lista mis tareas', native?: boolean) => withTurnLease(lease, () => route(text, user, [], { inputModality: 'text', ...(native === undefined ? {} : { agentCoreNativeTools: native }), agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
 }
 describe('canary admission executes actual durable V2 composition', () => {
+  it.each(['option', 'environment'])('opts into stable native tools through the durable host %s', async activation => {
+    if (activation === 'environment') vi.stubEnv('AGENT_CORE_NATIVE_TOOLS', 'true');
+    const f = fixture();
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'read', name: 'reminder_read', arguments: { filter: 'today' } }]) },
+      { response: answer() },
+    ]);
+    untrustedResultMock(domainExecute).mockResolvedValue({ success: true, action: 'listed_reminders', data: { reminders: [] } });
+    const result = await f.run(false, 'Muéstrame los recordatorios de hoy.', activation === 'option' ? true : undefined);
+    expect(state.provider.requests).toHaveLength(2);
+    for (const request of state.provider.requests) {
+      expect(request.maxInputTokens).toBe(8000);
+      expect(request.tools.map(t => t.name)).toEqual(expect.arrayContaining(['task_read', 'project_read', 'reminder_update']));
+      expect(request.tools.map(t => t.name)).not.toContain('tools_select');
+      expect(request.tools.map(t => t.name)).not.toContain('conversation_decide');
+    }
+    expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 8000, accountingComplete: true } });
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { uiPayload: { notices: [] } } } });
+    expect(f.send).toHaveBeenCalledOnce();
+  });
   it.each(['conversation_clarify', 'reminder_read'])('emits safe selection telemetry for %s without changing effects', async name => {
     const f = fixture();
     const log = vi.spyOn(console, 'info').mockImplementation(() => {});
@@ -112,7 +132,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     expect(result.confirmation).toContain('Salir');
     expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', 'reminder_read']);
     expect(JSON.stringify(state.provider.requests[1]!.messages)).not.toContain('Unrelated historical reminder');
-    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(3500);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } }, start: { conversation: { reminders: records, history } } } });
   });
   it('reads through the registered domain adapter, checkpoints and sends exactly once', async () => {
@@ -181,14 +201,14 @@ describe('canary admission executes actual durable V2 composition', () => {
     ] } });
   });
   it.each(['task_read', 'task_create', 'task_update', 'task_complete', 'reminder_read', 'reminder_create', 'reminder_update',
-    'reminder_acknowledge', 'reminder_cancel', 'task_delete', 'calendar_read', 'calendar_create', 'calendar_connect', 'calendar_update', 'calendar_delete'])('loads the atomic %s wire schema within 2500 without performing discovery effects', async name => {
+    'reminder_acknowledge', 'reminder_cancel', 'task_delete', 'calendar_read', 'calendar_create', 'calendar_connect', 'calendar_update', 'calendar_delete'])('loads the atomic %s wire schema within 3500 without performing discovery effects', async name => {
     const f = fixture(); state.provider = new MockAIProvider([
       { response: answer([{ id: 'select', name: 'tools_select', arguments: { name } }]) }, { response: answer() },
     ]);
     await f.run(); expect(domainExecute).not.toHaveBeenCalled(); expect(state.provider.requests).toHaveLength(2);
     const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
     expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', name]);
-    expect(wire.estimateNativeInput(state.provider.requests[1]!)).toBeLessThanOrEqual(2500);
+    expect(wire.estimateNativeInput(state.provider.requests[1]!)).toBeLessThanOrEqual(3500);
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [] } });
   });
   it('retains strict backend date validation after removing generated regexes from model hints', async () => {
@@ -229,11 +249,11 @@ describe('canary admission executes actual durable V2 composition', () => {
     const result = await withTurnLease(f.lease, () => route('Buenos días', { ...user, display_name: null }, [], { inputModality: 'text', agentCoreDelivery: { send: f.send } }));
     expect(result.confirmation).toContain('¡Buenos días!'); expect(result.intent).toBe('chat');
     expect(state.provider.requests).toHaveLength(1);
-    expect(wire.estimateNativeInput(state.provider.requests[0]!)).toBeLessThanOrEqual(2500);
+    expect(wire.estimateNativeInput(state.provider.requests[0]!)).toBeLessThanOrEqual(3500);
     expect(state.provider.requests[0]!.messages[0]?.content).not.toContain('Long historical title');
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { conversation: { tasks: transferred.tasks } } } });
   });
-  it('uses the compactor under the 2500 target, exposes one atomic schema and retains durable dialogue', async () => {
+  it('uses the compactor under the 3500 target, exposes one atomic schema and retains durable dialogue', async () => {
     const f = fixture(); const priorHistory = Array.from({ length: 10 }, (_, i) => [
       { role: 'user' as const, content: i < 8 ? `Old ${i} `.repeat(300) : `Recent ${i}` },
       { role: 'assistant' as const, content: `Reply ${i}`, toolCalls: [] },
@@ -245,15 +265,15 @@ describe('canary admission executes actual durable V2 composition', () => {
         referenceTimeIso: new Date().toISOString(), capabilities: new Set(), signal: f.lease.signal }, threadId: 'thread', prior: null,
         handoff: { userId: 'owner', history: priorHistory, tasks: [], reminders: [], events: [], handledRequestIds: [] } }));
     for (const request of state.provider.requests) {
-      expect(request.maxInputTokens).toBe(2500); expect(request.maxTotalTokens).toBeLessThanOrEqual(20000);
-      expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(2500);
+      expect(request.maxInputTokens).toBe(3500); expect(request.maxTotalTokens).toBeLessThanOrEqual(20000);
+      expect(estimateBoundedInput({ messages: request.messages, tools: request.tools })).toBeLessThanOrEqual(3500);
       expect(request.tools.length).toBeLessThanOrEqual(5);
       expect(request.messages.some(message => typeof message.content === 'string' && message.content.includes('Old 0'))).toBe(false);
       expect(request.messages.filter(message => message.role === 'user').at(-1)).toEqual({ role: 'user', content: 'Lista mis tareas' });
       expect(String(request.messages[0]!.content)).toContain('operationalSummary');
     }
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history: priorHistory } } } });
-    expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 2500, inputTokens: 90, outputTokens: 30, accountingComplete: true } });
+    expect(result.entities).toMatchObject({ _agentCoreUsage: { inputTarget: 3500, inputTokens: 90, outputTokens: 30, accountingComplete: true } });
   });
   it.each([false, true])('reads then cancels within budget with transcribed audio and prior dialogue=%s', async priorDialogue => {
     const f = fixture(), id = '22222222-2222-4222-8222-222222222222';
@@ -290,7 +310,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       { call: { name: 'reminder_read' }, item: { status: 'success' } }, { call: { name: 'reminder_cancel' }, item: { status: 'success' } },
     ] } });
     if (priorDialogue) expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { conversation: { legacyHandoff } } } });
-    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(3500);
     if (priorDialogue) {
       expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { history } } } });
       expect(state.provider.requests.some(request => request.messages[0]?.role === 'system' && (request.messages[0].content.includes('operationalSummary') || request.messages.some(message => message.role === 'user' && message.content === history[0]?.content)))).toBe(true);
@@ -341,7 +361,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     await f.run(true); expect(domainExecute).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: ['unavailable_tool'] } } } });
   });
-  it('creates a fresh voice reminder under 2500 with a large historical reminder ledger and optional personal data', async () => {
+  it('creates a fresh voice reminder under 3500 with a large historical reminder ledger and optional personal data', async () => {
     const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
     const records = Array.from({ length: 5 }, (_, index) => ({ id: `22222222-2222-4222-8222-22222222222${index}`,
       content: 'Historical unrelated reminder '.repeat(20), sendAt: '2026-10-15T20:00:00Z', recurrence: null,
@@ -364,7 +384,7 @@ describe('canary admission executes actual durable V2 composition', () => {
     expect(domainExecute).toHaveBeenCalledOnce(); expect(f.send).toHaveBeenCalledOnce(); expect(f.baseline).not.toHaveBeenCalled();
     expect(result.confirmation).toContain('Salir'); expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { start: { conversation: { reminders: records } } } });
-    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(2500);
+    for (const request of state.provider.requests) expect(wire.estimateNativeInput(request)).toBeLessThanOrEqual(3500);
   });
   it('keeps every schema selected together available for the next compound action batch', async () => {
     const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';

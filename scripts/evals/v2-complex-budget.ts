@@ -14,7 +14,7 @@ const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
 const caseName = process.argv.find(arg => arg.startsWith('--case='))?.slice(7);
 const snapshotPath = process.argv.find(arg => arg.startsWith('--snapshot='))?.slice(11);
 const selectedBudget = process.argv.find(arg => arg.startsWith('--budget='))?.slice(9);
-if (selectedBudget && !['1800', '2500'].includes(selectedBudget)) throw new Error('Unsupported evaluation budget');
+if (selectedBudget && !['1800', '2500', String(productivityBudget.maxInputTokens)].includes(selectedBudget)) throw new Error('Unsupported evaluation budget');
 if (snapshotPath && !['read_today_long_history', 'single_reminder_after_reads', 'two_reminders_after_reads', 'bare_clock_after_relative', 'combined_tomorrow_agenda'].includes(caseName ?? '')) throw new Error('Snapshot replay requires an isolated incident case');
 const uuid = (index: number) => `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`;
 const anchor = '2026-10-15T15:00:00Z';
@@ -59,7 +59,7 @@ const scenarios: Scenario[] = [
   { name: 'bounded_steps_negative_control', text: 'Crea tres recordatorios.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, cap: 1 },
 ];
 const results: unknown[] = [];
-for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of selectedBudget ? [Number(selectedBudget)] : [1800, 2500]) {
+for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || s.name === caseName))) for (const budget of selectedBudget ? [Number(selectedBudget)] : [...new Set([1800, 2500, productivityBudget.maxInputTokens])]) {
   const controller = new AbortController();
   const context: TurnContext = { userId: 'synthetic-owner', runId: scenario.name, requestId: `${scenario.name}-${budget}`, timezone: 'America/Bogota', language: 'es', referenceTimeIso: ['bare_clock_after_relative', 'combined_tomorrow_agenda'].includes(scenario.name) ? '2026-10-15T01:47:33Z' : scenario.name === 'two_reminders_after_reads' ? '2026-10-15T00:55:01Z' : anchor, signal: controller.signal,
     capabilities: new Set(['reminders.read', 'reminders.create', 'reminders.update', 'reminders.cancel', 'reminders.acknowledge', 'reminders.pro',

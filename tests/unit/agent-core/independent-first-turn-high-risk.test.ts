@@ -182,7 +182,7 @@ describe('independent first-turn high-risk specification probes', () => {
     expect(hash(data(s))).toBe(before); expect(s.execute).not.toHaveBeenCalled(); expect(r.uiPayload.items.every(i => i.status !== 'success')).toBe(true);
   });
   it('S5 exact active numeric caps, decision calls count toward unchanged tool/step limits', async () => {
-    expect(productivityBudget).toMatchObject({ maxInputTokens: 2500, maxOutputTokens: 2048, maxModelSteps: 10, maxToolCalls: 10, maxTotalTokens: 20000 });
+    expect(productivityBudget).toMatchObject({ maxInputTokens: 3500, maxOutputTokens: 2048, maxModelSteps: 10, maxToolCalls: 10, maxTotalTokens: 20000 });
     const s = setup([initial()], undefined, { maxToolCalls: 1 }); const before = hash(data(s)); const r = await s.runner.run(opening, ctx, undefined, s.journal);
     expect(r.uiPayload.notices).toContain('limit_reached'); untouched(s, before);
   });

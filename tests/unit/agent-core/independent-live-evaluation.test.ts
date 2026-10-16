@@ -213,7 +213,7 @@ describe('independent S4 eval-only safety probes', () => {
     const report = await runConversation({ forTurn: () => { turn++; step = 0; return provider.forTurn(); }, rates, budgetReport: budget.report });
     console.log('independent20', JSON.stringify({ turns: report.turns.length, passed: report.passedTurns, failed: report.failedTurns, calls: report.budget.calls, degraded: report.degraded, stop: report.stoppedReason, failures: report.turns.filter(t => !t.pass).map(t => ({ n: t.number, notices: t.notices, failed: t.checks.filter(c => !c.pass).map(c => c.name) })) }));
     expect(report.turns).toHaveLength(20); expect(report.incomplete).toBe(false); expect(report.liveProof).toBe(false);
-    expect(report.budget.calls).toBeLessThanOrEqual(60); expect(report.limits.maxInputTokens).toBe(2500);
+    expect(report.budget.calls).toBeLessThanOrEqual(60); expect(report.limits.maxInputTokens).toBe(3500);
     expect(report.turns.every(t => t.checks.find(c => c.name === 'host reply and checkpoint agree')?.pass)).toBe(true);
     expect(report.passedTurns).toBe(20);
     expect(report.receipts.length).toBeGreaterThan(2);

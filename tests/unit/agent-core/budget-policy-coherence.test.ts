@@ -10,7 +10,7 @@ describe('public offline budget evaluators use the active decision policy', () =
     expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.status, child.stderr).toBe(0);
     const report = JSON.parse(child.stdout);
     expect(report.mode).toMatch(/^offline_/);
-    expect(report.productionPolicy).toMatchObject({ structuredDecisions: true, maxInputTokens: 2500,
+    expect(report.productionPolicy).toMatchObject({ structuredDecisions: true, maxInputTokens: 3500,
       maxOutputTokens: 2048, maxTotalTokens: 20000, maxModelSteps: 10, maxToolCalls: 10, continuationReserveTokens: 256 });
     expect(report.results.some((row: { decisionControlAdvertised: boolean }) => row.decisionControlAdvertised)).toBe(true);
     for (const row of report.results) {
@@ -19,17 +19,17 @@ describe('public offline budget evaluators use the active decision policy', () =
     }
     if (script === 'v2-context-budget-comparison') {
       expect(child.stderr).toBe('');
-      expect(report.results.find((row: { case: string; budget: number }) => row.case === 'greeting' && row.budget === 2500)).toMatchObject({ complete: true, writes: 0 });
+      expect(report.results.find((row: { case: string; budget: number }) => row.case === 'greeting' && row.budget === 3500)).toMatchObject({ complete: true, writes: 0 });
     } else {
       expect(report.externalEffects).toEqual({ productionWrites: 0, WhatsAppSends: 0, inference: 'none' });
       const records = child.stderr.trim().split('\n').map(line => JSON.parse(line));
       expect(records).toHaveLength(report.results.length);
       for (const name of ['typed_three_reminders', 'typed_reminders_and_tasks', 'typed_relative_and_clock']) {
-        const row = report.results.find((row: { case: string; budget: number }) => row.case === name && row.budget === 2500);
+        const row = report.results.find((row: { case: string; budget: number }) => row.case === name && row.budget === 3500);
         expect(row).toMatchObject({ complete: true, decisionControlAdvertised: true });
         expect(row.decisions.some((step: { calls: { name: string }[] }) => step.calls.some(call => call.name === 'conversation_decide'))).toBe(true);
       }
-      expect(report.results.find((row: { case: string; budget: number }) => row.case === 'bounded_steps_negative_control' && row.budget === 2500)).toMatchObject({ complete: false, writes: 0 });
+      expect(report.results.find((row: { case: string; budget: number }) => row.case === 'bounded_steps_negative_control' && row.budget === 3500)).toMatchObject({ complete: false, writes: 0 });
     }
   }, 50000);
 });

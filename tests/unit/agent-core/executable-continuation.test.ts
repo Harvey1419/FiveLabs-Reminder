@@ -57,7 +57,7 @@ function harness(script: ReturnType<typeof response>[], options: AgentLoopOption
 }
 function assertWire(h: ReturnType<typeof harness>) {
   for (const wire of h.provider.requests) {
-    expect(h.estimate(wire)).toBeLessThanOrEqual(2500);
+    expect(h.estimate(wire)).toBeLessThanOrEqual(3500);
     expect(aiTranscriptSchema.safeParse(wire.messages).success).toBe(true);
     const system = wire.messages.find(message => message.role === 'system')!.content;
     for (const record of view) expect(system).toContain(record.id);
@@ -146,7 +146,7 @@ describe('executable continuation under the native input ceiling', () => {
     expect(h.journal.beforeDispatch).toHaveBeenCalledOnce();
     expect(h.journal.afterOutcome).toHaveBeenCalledOnce();
     expect(h.provider.requests).toHaveLength(1);
-    expect(h.estimate(h.provider.requests[0]!)).toBeLessThanOrEqual(2500);
+    expect(h.estimate(h.provider.requests[0]!)).toBeLessThanOrEqual(3500);
   });
   it('S3 reports an input-context bound safely even if the diagnostic throws', async () => {
     const onLimit = vi.fn(() => { throw new Error('Telemetry unavailable'); });

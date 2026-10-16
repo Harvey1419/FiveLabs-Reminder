@@ -64,7 +64,7 @@ function harness(script:unknown[], options:RunnerOptions={}, mode='normal', tele
 }
 function assertWire(h:ReturnType<typeof harness>) {
   for(const wire of h.wires) {
-    expect(estimateBoundedInput(wire)).toBeLessThanOrEqual(2500);
+    expect(estimateBoundedInput(wire)).toBeLessThanOrEqual(3500);
     expect(aiTranscriptSchema.safeParse(wire.messages.map(m=>m.role==='assistant'?{role:'assistant',content:m.content??'',toolCalls:(m.tool_calls??[]).map(c=>({id:c.id,name:c.function.name,arguments:JSON.parse(c.function.arguments)}))}:m.role==='tool'?{role:'tool',toolCallId:m.tool_call_id,content:JSON.parse(m.content??'null'),isError:false}:m)).success).toBe(true);
     const text=JSON.stringify(wire.messages);expect(text).toContain(authored);expect(text).toContain(clarification);
     for(const id of listed.map(row=>row.id))expect(text).toContain(id);
@@ -73,7 +73,7 @@ function assertWire(h:ReturnType<typeof harness>) {
 }
 describe('independent public runner / mocked native fetch seam (S1-S3)',()=>{
   it('S1/S2 exact four ordinal IDs survive native selection/read/cancel and journal ordering',async()=>{
-    const h=harness([selection('reminder_read'),envelope([call('reminder_read',{turnDisposition:'continue'},'fresh-read')]),cancellation()]);
+    const h=harness([selection('reminder_read'),envelope([call('reminder_read',{turnDisposition:'continue'},'fresh-read')]),cancellation()], { maxInputTokens: 2500 });
     const prior=state(), before=hash(prior);const result=await h.runner.run(confirmation,h.ctx,prior,h.journal);
     expect(result.uiPayload.notices).toEqual([]);expect(h.wires).toHaveLength(3);assertWire(h);
     for(const id of ids)expect(h.events.slice(h.events.indexOf(`authorize:${id}`),h.events.indexOf(`authorize:${id}`)+4)).toEqual([
