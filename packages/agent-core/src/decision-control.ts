@@ -3,7 +3,7 @@ import { productivityDecisionSchema, type ProductivityDecision, type Productivit
 
 export const decisionTool: ToolSpecification = {
   name: 'conversation_decide',
-  description: 'MANDATORY decision declaration. Clear actions in ready; ambiguous in pending. Must accompany ready calls in SAME step (decide AND reminder_create together). If tool not in tools, call tools_select first; never declare pending for clear requests. When resolving lastPending: OMIT pending. Answering questions, dialogue or no actions: conversation_decide(ready:[], reply:"..."). Do NOT reply with plain text. Never call commentary or json. Never emit markdown blocks. Declarations never execute work.',
+  description: 'MANDATORY decision declaration. Clear actions in ready; ambiguous in pending. Must accompany ready calls in SAME step (decide AND reminder_create together). If tool not in tools, call tools_select first; never declare pending for clear requests. When resolving lastPending: OMIT pending. Loaded data answers, dialogue or no actions: conversation_decide(ready:[], reply:"..."). For unread queries (e.g. project_read), call tools_select first. Do NOT reply with plain text. Never call commentary or json. Never emit markdown blocks. Declarations never execute work.',
   inputSchema: { type: 'object', additionalProperties: false, required: ['ready'], properties: {
     ready: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'tool'], properties: {
       key: { type: 'string' }, tool: { type: 'string' } } } },
