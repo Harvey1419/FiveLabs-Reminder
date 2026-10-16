@@ -23,3 +23,5 @@ export * from './interrupted-active-completion.js';
 export * from './turn-media.js';
 export * from './memories.js';
 export * from './agenda.js';
+export * from './projects.js';
+export * from './subscriptions.js';

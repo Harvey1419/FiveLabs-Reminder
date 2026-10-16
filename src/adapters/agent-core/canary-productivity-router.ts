@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { estimateBoundedInput, type OpenRouterAttempt } from '@templelabs/ai';
 import { aiTranscriptSchema, jsonObjectSchema } from '@templelabs/contracts';
 import { ProductivityTurnRunner, type AgentLoopOptions } from '@templelabs/agent-core';
-import { createTaskTools, createCalendarTools, createReminderTools, createMemoryTools, createAgendaTools, ToolRegistry } from '@templelabs/tools';
+import { createTaskTools, createCalendarTools, createReminderTools, createMemoryTools, createAgendaTools, createProjectTools, createSubscriptionTools, ToolRegistry } from '@templelabs/tools';
 import type { ProductivityConversation } from '@templelabs/contracts';
 import { DurableProductivityAssistant, type ProductivityDeliveryPort } from './durable-productivity-assistant.js';
 import { recoverProductivityStoredTurn } from './productivity-state-recovery.js';
@@ -18,6 +18,8 @@ import { createConfiguredAIProvider } from './configured-ai-provider.js';
 import { createTaskDomainPort } from './tasks-domain.js';
 import { createCalendarDomainPort } from './calendar-domain.js';
 import { createReminderDomainPort } from './reminders-domain.js';
+import { createProjectDomainPort } from './projects-domain.js';
+import { createSubscriptionDomainPort } from './subscriptions-domain.js';
 import { getUserSubscription, hasProAccess } from '../../infrastructure/database/index.js';
 import { detectLanguageFromText } from '../../shared/language-detection.js';
 import type { CanaryAdmission } from '../../agent/orchestration/canary-router.js';
@@ -55,7 +57,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
   const [subscription, personalContext] = await Promise.all([getUserSubscription(user.id),
     readPersonalContext(user.id, authoredText, parsed.display_name ?? undefined, { memories: media && !authoredText.trim() ? async () => [] : retrieveRelevantMemories, preferences: retrieveStandingPreferences })]);
   const capabilities = new Set(['tasks.read', 'tasks.create', 'tasks.update', 'tasks.complete', 'tasks.delete',
-    'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge', 'reminders.cancel', 'memories.read', 'memories.save', 'memories.forget']);
+    'calendar.read', 'calendar.create', 'calendar.connect', 'calendar.update', 'calendar.delete', 'reminders.read', 'reminders.create', 'reminders.update', 'reminders.acknowledge', 'reminders.cancel', 'memories.read', 'memories.save', 'memories.forget',
+    'projects.read', 'projects.create', 'projects.update', 'projects.delete',
+    'subscriptions.read', 'subscriptions.checkout', 'subscriptions.cancel']);
   if (hasProAccess(subscription)) capabilities.add('reminders.pro');
   const previous: ProductivityConversation | undefined = admission.handoff ?? (admission.prior
     ? recoverProductivityStoredTurn(admission.prior, user.id) : undefined);
@@ -65,6 +69,8 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     ...createTaskTools(createTaskDomainPort(user)), ...createCalendarTools(createCalendarDomainPort(user)),
     ...createReminderTools(createReminderDomainPort(user)),
     ...createMemoryTools(createMemoryDomainPort(user, authoredText, { previousRecords: observedMemories })),
+    ...createProjectTools(createProjectDomainPort(user)),
+    ...createSubscriptionTools(createSubscriptionDomainPort(user)),
   ];
   const allowed = media ? new Set(mediaAllowedTools(media)) : null;
   if (allowed && explicitMemoryIntent(authoredText, 'save')) allowed.add('memory_save');
@@ -88,9 +94,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     onToolSelection: diagnostic => telemetry('tool_selection', { runId: context.runId, requestId: context.requestId, ...diagnostic }),
     personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget, ...productivityDecisionPolicy,
     initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
-    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
+    readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'], project_read: ['project_delete', 'project_rename'], subscription_info: ['subscription_checkout', 'subscription_cancel'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),
-    authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete', 'memory_forget'].includes(call.name) && registry.effect(call.name) === 'destructive')
+    authorizeWrite: async (call, scopedContext) => (registry.effect(call.name) === 'write' || ['task_delete', 'reminder_cancel', 'calendar_delete', 'memory_forget', 'project_delete', 'subscription_cancel'].includes(call.name) && registry.effect(call.name) === 'destructive')
       && (!allowed || allowed.has(call.name)) && writePolicy.success && await writePolicy.data(call, scopedContext) === true }), delivery);
   const handled = await assistant.handle(text, context, admission.threadId, previous);
   telemetry('turn_usage', { runId: context.runId, requestId: context.requestId,

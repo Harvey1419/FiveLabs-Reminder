@@ -35,3 +35,5 @@ export * from './tasks.js';
 export * from './calendar.js';
 export * from './memories.js';
 export * from './agenda.js';
+export * from './projects.js';
+export * from './subscriptions.js';
