@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { domainPresentationSchema } from './domain-results.js';
 
+export const adminToolNameSchema = z.enum(['admin_metrics']);
+
 export const adminMetricsInputSchema = z.strictObject({
   scope: z.enum(['overview', 'subscriptions', 'funnel', 'churn']).optional(),
 });

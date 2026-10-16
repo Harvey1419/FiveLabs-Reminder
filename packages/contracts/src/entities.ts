@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { domainIssueSchema, domainPresentationSchema } from './domain-results.js';
 import { jsonObjectSchema } from './provider.js';
 
+export const entityToolNameSchema = z.enum(['entity_read', 'entity_create', 'entity_update', 'entity_merge', 'entity_delete']);
+
 export const entityRecordSchema = z.strictObject({
   id: z.string().max(128),
   name: z.string().trim().min(1).max(200),

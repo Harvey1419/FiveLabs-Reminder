@@ -6,14 +6,27 @@ import { reminderToolNameSchema } from './reminder-turn.js';
 import { taskRecordSchema, taskResultSchema, taskReadInputSchema } from './tasks.js';
 import { calendarEventSchema, calendarResultSchema, calendarReadInputSchema } from './calendar.js';
 import { agendaReadInputSchema, agendaResultSchema } from './agenda.js';
+import { projectToolNameSchema, projectResultSchema, projectReadInputSchema } from './projects.js';
+import { entityToolNameSchema, entityResultSchema, entityReadInputSchema } from './entities.js';
+import { subscriptionToolNameSchema, subscriptionResultSchema, subscriptionInfoInputSchema } from './subscriptions.js';
+import { adminToolNameSchema, adminMetricsResultSchema, adminMetricsInputSchema } from './admin.js';
 import { productivityClarificationSchema, productivityPendingSchema } from './productivity-decision.js';
 export { productivityClarificationSchema, productivityPendingSchema, productivityDecisionSchema, decisionItemKeySchema,
   type ProductivityClarification, type ProductivityPending, type ProductivityDecision } from './productivity-decision.js';
 
 export const taskToolNameSchema = z.enum(['task_create', 'task_read', 'task_update', 'task_complete', 'task_delete']);
 export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect', 'calendar_update', 'calendar_delete']);
-export const productivityToolNameSchema = z.enum([...reminderToolNameSchema.options,
-  ...taskToolNameSchema.options, ...calendarToolNameSchema.options, ...memoryToolNameSchema.options, 'agenda_read']);
+export const productivityToolNameSchema = z.enum([
+  ...reminderToolNameSchema.options,
+  ...taskToolNameSchema.options,
+  ...calendarToolNameSchema.options,
+  ...memoryToolNameSchema.options,
+  ...projectToolNameSchema.options,
+  ...entityToolNameSchema.options,
+  ...subscriptionToolNameSchema.options,
+  ...adminToolNameSchema.options,
+  'agenda_read',
+]);
 const common = {
   callId: z.string().min(1),
   status: z.enum(['success', 'partial', 'validation_failed', 'denied', 'approval_required', 'clarification_required', 'failed', 'indeterminate']),
@@ -25,9 +38,26 @@ export const productivityItemSchema = z.discriminatedUnion('domain', [
   z.strictObject({ ...common, domain: z.literal('tasks'), toolName: taskToolNameSchema, result: taskResultSchema.nullable(), readScope: taskReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('memories'), toolName: memoryToolNameSchema, result: memoryResultSchema.nullable(), readScope: memoryReadInputSchema.nullable().optional() }),
   z.strictObject({ ...common, domain: z.literal('calendar'), toolName: calendarToolNameSchema, result: calendarResultSchema.nullable(), readScope: calendarReadInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('projects'), toolName: projectToolNameSchema, result: projectResultSchema.nullable(), readScope: projectReadInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('entities'), toolName: entityToolNameSchema, result: entityResultSchema.nullable(), readScope: entityReadInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('subscriptions'), toolName: subscriptionToolNameSchema, result: subscriptionResultSchema.nullable(), readScope: subscriptionInfoInputSchema.nullable().optional() }),
+  z.strictObject({ ...common, domain: z.literal('admin'), toolName: adminToolNameSchema, result: adminMetricsResultSchema.nullable(), readScope: adminMetricsInputSchema.nullable().optional() }),
 ]).superRefine((item, ctx) => {
-  if (item.result && item.toolName !== `${item.domain === 'agenda' ? 'agenda' : item.domain === 'reminders' ? 'reminder' : item.domain === 'tasks' ? 'task' : item.domain === 'memories' ? 'memory' : 'calendar'}_${item.result.operation}`) {
-    ctx.addIssue({ code: 'custom', message: 'Tool and result operation must match' });
+  if (item.result) {
+    let expectedToolName: string;
+    if (item.domain === 'agenda') expectedToolName = 'agenda_read';
+    else if (item.domain === 'reminders') expectedToolName = `reminder_${item.result.operation}`;
+    else if (item.domain === 'tasks') expectedToolName = `task_${item.result.operation}`;
+    else if (item.domain === 'memories') expectedToolName = `memory_${item.result.operation}`;
+    else if (item.domain === 'calendar') expectedToolName = `calendar_${item.result.operation}`;
+    else if (item.domain === 'projects') expectedToolName = item.result.operation === 'rename' ? 'project_rename' : `project_${item.result.operation}`;
+    else if (item.domain === 'entities') expectedToolName = `entity_${item.result.operation}`;
+    else if (item.domain === 'subscriptions') expectedToolName = `subscription_${item.result.operation}`;
+    else expectedToolName = 'admin_metrics';
+
+    if (item.toolName !== expectedToolName) {
+      ctx.addIssue({ code: 'custom', message: 'Tool and result operation must match' });
+    }
   }
   if ((item.status === 'success' || item.status === 'partial') && !item.result) {
     ctx.addIssue({ code: 'custom', message: 'Confirmed outcome requires domain evidence' });
@@ -35,7 +65,7 @@ export const productivityItemSchema = z.discriminatedUnion('domain', [
   if (item.status === 'success' && item.result && !item.result.complete) {
     ctx.addIssue({ code: 'custom', message: 'Successful outcome requires complete evidence' });
   }
-  if (item.readScope && !item.toolName.endsWith('_read')) {
+  if (item.readScope && !item.toolName.endsWith('_read') && item.toolName !== 'subscription_info' && item.toolName !== 'admin_metrics') {
     ctx.addIssue({ code: 'custom', message: 'Read scope belongs only to read operations' });
   }
 });

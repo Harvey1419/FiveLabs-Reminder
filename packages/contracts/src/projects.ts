@@ -3,6 +3,8 @@ import { domainIssueSchema, domainPresentationSchema } from './domain-results.js
 
 export const projectStatusSchema = z.enum(['active', 'archived', 'deleted']);
 
+export const projectToolNameSchema = z.enum(['project_read', 'project_create', 'project_rename', 'project_delete']);
+
 export const projectRecordSchema = z.strictObject({
   id: z.string().max(128),
   name: z.string().trim().min(1).max(200),

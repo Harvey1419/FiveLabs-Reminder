@@ -66,13 +66,23 @@ function pendingQuestion(payload: ProductivityUiPayload): string | null {
   }
 }
 
+function extractResourceIds(item: ProductivityItem): string[] {
+  if (!item.result) return [];
+  if (item.domain === 'calendar') return item.result.events.map(event => event.id);
+  if (item.domain === 'projects') return item.result.projects.map(p => p.id);
+  if (item.domain === 'entities') return item.result.entities.map(e => e.id);
+  if (item.domain === 'subscriptions' || item.domain === 'admin') return [];
+  if ('records' in item.result && Array.isArray(item.result.records)) return item.result.records.map(record => record.id);
+  return [];
+}
+
 function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null {
   if (payload.clarification || payload.dialogue?.kind !== 'execution' || payload.notices.length
     || payload.items.some(item => item.status !== 'success' || !item.result?.complete)) return null;
-  const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect');
+  const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect' && !item.toolName.startsWith('subscription_') && item.toolName !== 'admin_metrics');
   if (writes.some(item => item.toolName === 'memory_forget')) return null; // Atomic deletion receipts do not certify whole-profile erasure.
   if (!writes.length || writes.some(item => !item.result
-    || (item.domain === 'agenda' ? true : item.domain === 'calendar' ? !item.result.events.length : !item.result.records.length))) return null;
+    || (item.domain === 'agenda' ? true : item.domain === 'calendar' ? !item.result.events.length : item.domain === 'projects' ? !item.result.projects.length : item.domain === 'entities' ? !item.result.entities.length : !('records' in item.result && item.result.records.length)))) return null;
   const en = payload.language === 'en';
   const operations = new Set(writes.map(item => item.toolName));
   // Dates, titles, quantities and links are rendered once, in the certified cards.
@@ -112,10 +122,9 @@ export class WhatsAppProductivityPresenter {
     const groups = new Map<string, ReturnType<typeof expandAgendaItem>>();
     for (let item of payload.items) {
       if (item.toolName.endsWith('_read') && item.status === 'success' && item.result) {
-        const ids = item.domain === 'calendar' ? item.result.events.map(event => event.id) : item.result.records.map(record => record.id);
+        const ids = extractResourceIds(item);
         const written = new Set(payload.items.filter(other => other.domain === item.domain && !other.toolName.endsWith('_read')
-          && other.status === 'success' && other.result?.complete).flatMap(other => !other.result ? []
-            : other.domain === 'calendar' ? other.result.events.map(event => event.id) : other.result.records.map(record => record.id)));
+          && other.status === 'success' && other.result?.complete).flatMap(other => extractResourceIds(other)));
         if (ids.length && ids.every(id => written.has(id))) continue;
         if (item.domain === 'memories') item = { ...item, result: { ...item.result, records: item.result.records.filter(record => !written.has(record.id)) } };
       }
@@ -148,7 +157,7 @@ export class WhatsAppProductivityPresenter {
       const key = `${item.toolName}:${JSON.stringify(item.readScope ?? {})}`;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     }
-    if (payload.items.some(item => item.toolName === 'memory_read' && item.result?.coverage === 'bounded_list')
+    if (payload.items.some(item => item.domain === 'memories' && item.result?.coverage === 'bounded_list')
       && ![...groups.values()].some(items => items[0]?.toolName === 'memory_read')) sections.push(en
       ? 'The memory lookup returned a limited set of results.' : 'La consulta de recuerdos devolvió una lista limitada de resultados.');
     for (const items of groups.values()) {
@@ -183,7 +192,50 @@ export class WhatsAppProductivityPresenter {
           case 'task_complete': sections.push(...tasks.map(task => formatCanonicalTaskComplete(task, context))); break;
           case 'task_delete': sections.push(...tasks.map(task => formatCanonicalTaskDelete(task, context))); break;
         }
-      } else {
+      } else if (first.domain === 'projects') {
+        if (first.result?.presentation.canonicalCard) {
+          sections.push(first.result.presentation.canonicalCard);
+        } else {
+          const records = new Map<string, string>();
+          for (const item of items) if (item.domain === 'projects') for (const p of item.result?.projects ?? []) records.set(p.id, p.name);
+          const heading = first.toolName === 'project_create' ? (en ? '📁 *Project created*' : '📁 *Proyecto creado*')
+            : first.toolName === 'project_rename' ? (en ? '📁 *Project renamed*' : '📁 *Proyecto renombrado*')
+            : first.toolName === 'project_delete' ? (en ? '🗑️ *Project deleted*' : '🗑️ *Proyecto eliminado*')
+            : (en ? '📁 *Your Projects*' : '📁 *Tus Proyectos*');
+          const lines = [...records.values()].map(name => `• ${name}`);
+          sections.push(heading + '\n\n' + (lines.join('\n') || (en ? 'No projects found.' : 'No tienes proyectos registrados.')));
+        }
+      } else if (first.domain === 'entities') {
+        if (first.result?.presentation.canonicalCard) {
+          sections.push(first.result.presentation.canonicalCard);
+        } else {
+          const records = new Map<string, string>();
+          for (const item of items) if (item.domain === 'entities') for (const e of item.result?.entities ?? []) records.set(e.id, `${e.name}${e.category ? ` (${e.category})` : ''}`);
+          const heading = first.toolName === 'entity_create' ? (en ? '🏷️ *Entity created*' : '🏷️ *Entidad creada*')
+            : first.toolName === 'entity_update' ? (en ? '🏷️ *Entity updated*' : '🏷️ *Entidad actualizada*')
+            : first.toolName === 'entity_merge' ? (en ? '🏷️ *Entities merged*' : '🏷️ *Entidades unificadas*')
+            : first.toolName === 'entity_delete' ? (en ? '🗑️ *Entity deleted*' : '🗑️ *Entidad eliminada*')
+            : (en ? '🏷️ *Entities*' : '🏷️ *Entidades*');
+          const lines = [...records.values()].map(val => `• ${val}`);
+          sections.push(heading + '\n\n' + (lines.join('\n') || (en ? 'No entities found.' : 'No se encontraron entidades.')));
+        }
+      } else if (first.domain === 'subscriptions') {
+        if (first.result?.presentation.canonicalCard) {
+          sections.push(first.result.presentation.canonicalCard);
+        } else {
+          const res = first.result;
+          sections.push(en
+            ? `💳 *Subscription Plan*: ${res?.plan ?? 'Free'}\nStatus: ${res?.status ?? 'active'}\n${res?.isPro ? '✨ Pro activated' : 'Free tier'}`
+            : `💳 *Plan de suscripción*: ${res?.plan ?? 'Free'}\nEstado: ${res?.status ?? 'activo'}\n${res?.isPro ? '✨ Pro activado' : 'Plan gratuito'}`);
+        }
+      } else if (first.domain === 'admin') {
+        if (first.result?.presentation.canonicalCard) {
+          sections.push(first.result.presentation.canonicalCard);
+        } else {
+          const m = first.result;
+          sections.push(`📊 *Admin Metrics (${m?.scope ?? 'overview'})*\n• Users: ${m?.totalUsers ?? 0}\n• Active Subscriptions: ${m?.activeSubscriptions ?? 0}\n• MRR: $${m?.totalMRR ?? 0}\n• Pending Reminders: ${m?.pendingReminders ?? 0}\n• Pending Tasks: ${m?.pendingTasks ?? 0}`);
+        }
+      } else if (first.domain === 'calendar') {
         const events = new Map<string, CalendarEvent>();
         for (const item of items) if (item.domain === 'calendar') {
           for (const event of item.result?.events ?? []) events.set(event.id, event);
@@ -216,7 +268,7 @@ export class WhatsAppProductivityPresenter {
           ? '⚠️ *Partially completed*\nThe confirmed results are shown above. Some requested details remain unconfirmed.'
           : '⚠️ *Completado parcialmente*\nLos resultados confirmados están arriba. Algunos detalles solicitados siguen sin confirmar.');
       }
-      if (items.some(item => item.result?.coverage === 'bounded_list')) {
+      if (items.some(item => item.result && 'coverage' in item.result && item.result.coverage === 'bounded_list')) {
         sections.push(en ? 'This is a limited list of returned results.' : 'Esta es una lista limitada de los resultados devueltos.');
       }
       sections.push(...items.flatMap(item => item.result?.presentation.questions ?? []));

@@ -54,12 +54,16 @@ export function createEntityDomainPort(user: ProductivityUser): EntityDomainPort
           }
 
           const entities = filtered.map(r => normalizeEntity(r, 'read'));
+          const isEn = context.language === 'en';
+          const heading = isEn ? '🏷️ *Entities*' : '🏷️ *Entidades*';
+          const lines = entities.map(e => `• *${e.name}*${e.category ? ` (${e.category})` : ''}`);
+          const canonicalCard = `${heading}\n\n${lines.join('\n') || (isEn ? 'No entities found.' : 'No se encontraron entidades.')}`;
           const data: EntityResult = entityResultSchema.parse({
             operation: 'read',
             entities,
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
 
           return {
@@ -96,12 +100,14 @@ export function createEntityDomainPort(user: ProductivityUser): EntityDomainPort
           }
 
           const entity = normalizeEntity(created, 'create');
+          const isEn = context.language === 'en';
+          const canonicalCard = isEn ? `✅ Entity *${entity.name}* created.` : `✅ Entidad *${entity.name}* creada.`;
           const data: EntityResult = entityResultSchema.parse({
             operation: 'create',
             entities: [entity],
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
 
           return {
@@ -147,13 +153,14 @@ export function createEntityDomainPort(user: ProductivityUser): EntityDomainPort
             name: request.input.newName,
             category: request.input.category,
           }, 'update');
-
+          const isEn = context.language === 'en';
+          const canonicalCard = isEn ? `✅ Entity updated to *${entity.name}*.` : `✅ Entidad actualizada a *${entity.name}*.`;
           const data: EntityResult = entityResultSchema.parse({
             operation: 'update',
             entities: [entity],
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
 
           return {
@@ -196,13 +203,16 @@ export function createEntityDomainPort(user: ProductivityUser): EntityDomainPort
             name: request.input.targetName,
             category: request.input.category,
           }, 'merge');
-
+          const isEn = context.language === 'en';
+          const canonicalCard = isEn
+            ? `✅ Merged *${request.input.sourceName}* into *${request.input.targetName}*.`
+            : `✅ Unificado *${request.input.sourceName}* en *${request.input.targetName}*.`;
           const data: EntityResult = entityResultSchema.parse({
             operation: 'merge',
             entities: [entity],
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
             mergedCount: typeof successRes.mergedCount === 'number' ? successRes.mergedCount : 1,
             tasksMovedCount: typeof successRes.tasksMovedCount === 'number' ? successRes.tasksMovedCount : 0,
           });
@@ -284,13 +294,18 @@ export function createEntityDomainPort(user: ProductivityUser): EntityDomainPort
           }
 
           const deletedEntities = (previewResult.entities ?? []).map(e => normalizeEntity(e, 'delete'));
+          const isEn = context.language === 'en';
+          const count = previewResult.deletedCount ?? deletedEntities.length;
+          const canonicalCard = isEn
+            ? `🗑️ Deleted ${count} entity/entities.`
+            : `🗑️ ${count} entidad(es) eliminada(s).`;
           const data: EntityResult = entityResultSchema.parse({
             operation: 'delete',
             entities: deletedEntities,
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
-            deletedCount: previewResult.deletedCount ?? deletedEntities.length,
+            presentation: { canonicalCard, questions: [], cta: null },
+            deletedCount: count,
           });
 
           return {

@@ -10,6 +10,8 @@ import {
   aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, productivityItemSchema, productivityToolNameSchema,
   productivityUiPayloadSchema, reminderResultSchema, taskResultSchema, calendarResultSchema,
   reminderReadInputSchema, taskReadInputSchema, calendarReadInputSchema,
+  projectResultSchema, projectReadInputSchema, entityResultSchema, entityReadInputSchema,
+  subscriptionResultSchema, subscriptionInfoInputSchema, adminMetricsResultSchema, adminMetricsInputSchema,
   type ProductivityConversation, type ProductivityItem, type ProductivityUiPayload, type ToolCall, type TurnContext,
 } from '@templelabs/contracts';
 import type { AIProvider } from '@templelabs/ai';
@@ -48,27 +50,62 @@ function priorUnverifiedCompanion(history: ProductivityConversation['history']):
 
 function normalize(call: ToolCall, outcome: ToolOutcome<unknown>): ToolOutcome<unknown> {
   if (!('data' in outcome)) return outcome;
-  const result = call.name === 'agenda_read' ? agendaResultSchema.parse(outcome.data) : call.name.startsWith('task_') ? taskResultSchema.parse(outcome.data)
-    : call.name.startsWith('calendar_') ? calendarResultSchema.parse(outcome.data) : call.name.startsWith('memory_') ? memoryResultSchema.parse(outcome.data) : reminderResultSchema.parse(outcome.data);
-  if (call.name !== `${call.name.split('_')[0]}_${result.operation}`) throw new Error('Result operation mismatch');
+  const result = call.name === 'agenda_read' ? agendaResultSchema.parse(outcome.data)
+    : call.name.startsWith('task_') ? taskResultSchema.parse(outcome.data)
+    : call.name.startsWith('calendar_') ? calendarResultSchema.parse(outcome.data)
+    : call.name.startsWith('memory_') ? memoryResultSchema.parse(outcome.data)
+    : call.name.startsWith('project_') ? projectResultSchema.parse(outcome.data)
+    : call.name.startsWith('entity_') ? entityResultSchema.parse(outcome.data)
+    : call.name.startsWith('subscription_') ? subscriptionResultSchema.parse(outcome.data)
+    : call.name === 'admin_metrics' ? adminMetricsResultSchema.parse(outcome.data)
+    : reminderResultSchema.parse(outcome.data);
+
+  const expectedOp = call.name === 'project_rename' ? 'rename'
+    : call.name === 'admin_metrics' ? 'metrics'
+    : call.name.split('_')[1];
+  if (result.operation !== expectedOp) throw new Error('Result operation mismatch');
+
   if ((outcome.status === 'success' || outcome.status === 'partial')) {
     if (outcome.status === 'success' && !result.complete) throw new Error('Incomplete success');
-    const ids = 'sections' in result ? agendaResourceIds(result) : 'records' in result ? result.records.map(record => record.id) : result.events.map(event => event.id);
+    const ids = 'sections' in result ? agendaResourceIds(result)
+      : 'records' in result ? result.records.map(record => record.id)
+      : 'events' in result ? result.events.map(event => event.id)
+      : 'projects' in result ? result.projects.map(p => p.id)
+      : 'entities' in result ? result.entities.map(e => e.id)
+      : [];
     if (ids.length !== new Set(ids).size || ids.length !== outcome.receipt.resourceIds.length
       || ids.some(id => !outcome.receipt.resourceIds.includes(id))) throw new Error('Resource receipt mismatch');
-    if (!call.name.endsWith('_read') && call.name !== 'calendar_connect'
-      && (ids.length < 1 || (!call.name.startsWith('reminder_') && ids.length !== 1))) throw new Error('Missing atomic resource evidence');
-    const target = call.arguments.taskId ?? call.arguments.reminderId ?? call.arguments.memoryId;
+    if (!call.name.endsWith('_read') && call.name !== 'calendar_connect' && !call.name.startsWith('subscription_') && call.name !== 'admin_metrics'
+      && (ids.length < 1 || (!call.name.startsWith('reminder_') && !call.name.startsWith('project_') && !call.name.startsWith('entity_') && ids.length !== 1))) throw new Error('Missing atomic resource evidence');
+    const target = call.arguments.taskId ?? call.arguments.reminderId ?? call.arguments.memoryId ?? call.arguments.projectId ?? call.arguments.entityId;
     if (target !== undefined && (!ids.includes(String(target)) || (call.name.startsWith('task_') && ids.length !== 1))) throw new Error('Target identity mismatch');
   }
   return { ...outcome, data: result };
 }
 function itemFor(call: ToolCall, outcome: ToolOutcome<unknown>): ProductivityItem {
-  const read = call.name === 'agenda_read' ? agendaReadInputSchema.safeParse(call.arguments) : call.name === 'task_read' ? taskReadInputSchema.safeParse(call.arguments)
+  const read = call.name === 'agenda_read' ? agendaReadInputSchema.safeParse(call.arguments)
+    : call.name === 'task_read' ? taskReadInputSchema.safeParse(call.arguments)
     : call.name === 'calendar_read' ? calendarReadInputSchema.safeParse(call.arguments)
-    : call.name === 'reminder_read' ? reminderReadInputSchema.safeParse(call.arguments) : call.name === 'memory_read' ? memoryReadInputSchema.safeParse(call.arguments) : null;
+    : call.name === 'reminder_read' ? reminderReadInputSchema.safeParse(call.arguments)
+    : call.name === 'memory_read' ? memoryReadInputSchema.safeParse(call.arguments)
+    : call.name === 'project_read' ? projectReadInputSchema.safeParse(call.arguments)
+    : call.name === 'entity_read' ? entityReadInputSchema.safeParse(call.arguments)
+    : call.name === 'subscription_info' ? subscriptionInfoInputSchema.safeParse(call.arguments)
+    : call.name === 'admin_metrics' ? adminMetricsInputSchema.safeParse(call.arguments)
+    : null;
+
+  const domain = call.name === 'agenda_read' ? 'agenda'
+    : call.name.startsWith('task_') ? 'tasks'
+    : call.name.startsWith('calendar_') ? 'calendar'
+    : call.name.startsWith('memory_') ? 'memories'
+    : call.name.startsWith('project_') ? 'projects'
+    : call.name.startsWith('entity_') ? 'entities'
+    : call.name.startsWith('subscription_') ? 'subscriptions'
+    : call.name === 'admin_metrics' ? 'admin'
+    : 'reminders';
+
   return productivityItemSchema.parse({ callId: call.id, toolName: call.name,
-    domain: call.name === 'agenda_read' ? 'agenda' : call.name.startsWith('task_') ? 'tasks' : call.name.startsWith('calendar_') ? 'calendar' : call.name.startsWith('memory_') ? 'memories' : 'reminders',
+    domain,
     status: outcome.status, code: 'code' in outcome ? outcome.code : null,
     result: 'data' in outcome ? outcome.data : null, readScope: read?.success ? read.data : null });
 }
@@ -169,27 +206,20 @@ export class ProductivityTurnRunner {
           : agendaSelectable
             ? 'For general agenda questions, select agenda_read through tools_select, then call it only after its schema is advertised. '
             : '';
-        const reminderReadLoaded = tools?.some(tool => tool.name === 'reminder_read') === true;
-        const reminderReadSelectable = !reminderReadLoaded && selectorNames && typeof selectorNames === 'object' && !Array.isArray(selectorNames)
+        const isSelectable = (name: string) => !tools?.some(tool => tool.name === name)
+          && selectorNames && typeof selectorNames === 'object' && !Array.isArray(selectorNames)
           && selectorNames.name && typeof selectorNames.name === 'object' && !Array.isArray(selectorNames.name)
-          && Array.isArray(selectorNames.name.enum) && selectorNames.name.enum.includes('reminder_read');
-        const createLoaded = tools?.some(tool => tool.name === 'reminder_create') === true;
-        const createSelectable = !createLoaded && selectorNames && typeof selectorNames === 'object' && !Array.isArray(selectorNames)
-          && selectorNames.name && typeof selectorNames.name === 'object' && !Array.isArray(selectorNames.name)
-          && Array.isArray(selectorNames.name.enum) && selectorNames.name.enum.includes('reminder_create');
-        const updateLoaded = tools?.some(tool => tool.name === 'reminder_update') === true;
-        const updateSelectable = !updateLoaded && selectorNames && typeof selectorNames === 'object' && !Array.isArray(selectorNames)
-          && selectorNames.name && typeof selectorNames.name === 'object' && !Array.isArray(selectorNames.name)
-          && Array.isArray(selectorNames.name.enum) && selectorNames.name.enum.includes('reminder_update');
-        const cancelLoaded = tools?.some(tool => tool.name === 'reminder_cancel') === true;
-        const cancelSelectable = !cancelLoaded && selectorNames && typeof selectorNames === 'object' && !Array.isArray(selectorNames)
-          && selectorNames.name && typeof selectorNames.name === 'object' && !Array.isArray(selectorNames.name)
-          && Array.isArray(selectorNames.name.enum) && selectorNames.name.enum.includes('reminder_cancel');
+          && Array.isArray(selectorNames.name.enum) && selectorNames.name.enum.includes(name);
+
         const missingTools = [
-          reminderReadSelectable && 'reminder_read',
-          createSelectable && 'reminder_create',
-          updateSelectable && 'reminder_update',
-          cancelSelectable && 'reminder_cancel',
+          isSelectable('reminder_read') && 'reminder_read',
+          isSelectable('reminder_create') && 'reminder_create',
+          isSelectable('reminder_update') && 'reminder_update',
+          isSelectable('reminder_cancel') && 'reminder_cancel',
+          isSelectable('task_read') && 'task_read',
+          isSelectable('task_create') && 'task_create',
+          isSelectable('project_read') && 'project_read',
+          isSelectable('entity_read') && 'entity_read',
         ].filter((name): name is string => typeof name === 'string');
         const missingToolsGuidance = missingTools.length
           ? `Missing schemas (${missingTools.join(', ')}): call tools_select first; never call unadvertised tools directly or declare pending. `
@@ -303,7 +333,7 @@ export class ProductivityTurnRunner {
             events: refs('calendar', [...events.values()], viewOnly),
           };
           const hasActiveCommitments = Boolean(promptReferences.reminders?.length || promptReferences.tasks?.length);
-          const commitmentGuidance = hasActiveCommitments ? 'Active references answer commitment questions directly. ' : '';
+          const commitmentGuidance = hasActiveCommitments ? 'Active references cover only tasks/reminders. Query other domains with their tools (e.g. project_read). ' : '';
           return (viewOnly ? executablePersona : persona) + commitmentGuidance + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
             + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
               references: promptReferences,
@@ -350,24 +380,28 @@ export class ProductivityTurnRunner {
           await journal?.afterOutcome(structuredClone(sourceCall), structuredClone(atomic), call.name === 'agenda_read'
             ? JSON.stringify(atomic.result ?? { code: atomic.code, complete: false }) : outcome.observation);
           if ((atomic.status !== 'success' && atomic.status !== 'partial') || !atomic.result) continue;
-          if (atomic.toolName.endsWith('_read') || atomic.toolName === 'memory_save') {
-            const records = atomic.domain === 'calendar' ? atomic.result.events : atomic.result.records;
-            const refs = records.map((record, index) => ({ domain: atomic.domain, id: record.id, position: index + 1 }));
-            referenceOrder = aggregate.domain === 'agenda' ? [...(referenceOrder ?? []).filter(ref => ref.domain !== atomic.domain), ...refs].slice(-51) : refs;
-          }
-          if (atomic.domain === 'tasks') for (const record of atomic.result.records) tasks.set(record.id, record);
-          else if (atomic.domain === 'reminders') for (const record of atomic.result.records) reminders.set(record.id, record);
-          else if (atomic.domain === 'memories') {
-            for (const record of atomic.result.records) memories.set(record.id, record);
-            if (atomic.toolName === 'memory_read' || atomic.toolName === 'memory_save') memoryReferenceOrder = atomic.result.records.map(record => record.id);
-            // A read followed by a write publishes only remaining read rows. Its
-            // next ordinal references must match that new, verified display.
-            if (atomic.toolName === 'memory_forget' && items.some(value => value.toolName === 'memory_read')) {
-              memoryReferenceOrder = (memoryReferenceOrder ?? []).filter(id => memories.get(id)?.status === 'active');
+          if (atomic.domain === 'calendar' || atomic.domain === 'tasks' || atomic.domain === 'reminders' || atomic.domain === 'memories') {
+            if (atomic.toolName.endsWith('_read') || atomic.toolName === 'memory_save') {
+              const records = atomic.domain === 'calendar' ? atomic.result.events : atomic.result.records;
+              const refs = records.map((record, index) => ({ domain: atomic.domain, id: record.id, position: index + 1 }));
+              referenceOrder = aggregate.domain === 'agenda' ? [...(referenceOrder ?? []).filter(ref => ref.domain !== atomic.domain), ...refs].slice(-51) : refs;
             }
-          }
-          else for (const event of atomic.result.events) {
-            if (atomic.toolName === 'calendar_delete') events.delete(event.id); else events.set(event.id, event);
+            if (atomic.domain === 'tasks') for (const record of atomic.result.records) tasks.set(record.id, record);
+            else if (atomic.domain === 'reminders') for (const record of atomic.result.records) reminders.set(record.id, record);
+            else if (atomic.domain === 'memories') {
+              for (const record of atomic.result.records) memories.set(record.id, record);
+              if (atomic.toolName === 'memory_read' || atomic.toolName === 'memory_save') memoryReferenceOrder = atomic.result.records.map(record => record.id);
+              // A read followed by a write publishes only remaining read rows. Its
+              // next ordinal references must match that new, verified display.
+              if (atomic.toolName === 'memory_forget' && items.some(value => value.toolName === 'memory_read')) {
+                memoryReferenceOrder = (memoryReferenceOrder ?? []).filter(id => memories.get(id)?.status === 'active');
+              }
+            }
+            else if (atomic.domain === 'calendar') {
+              for (const event of atomic.result.events) {
+                if (atomic.toolName === 'calendar_delete') events.delete(event.id); else events.set(event.id, event);
+              }
+            }
           }
         }
       },

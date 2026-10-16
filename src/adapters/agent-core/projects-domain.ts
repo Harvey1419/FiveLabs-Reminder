@@ -36,12 +36,16 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
             limit: request.input.limit ?? 50,
           });
           const projects = rows.map(r => normalizeProject(r, 'read'));
+          const isEn = context.language === 'en';
+          const heading = isEn ? '📁 *Your Projects*' : '📁 *Tus Proyectos*';
+          const lines = projects.map(p => `• *${p.name}*${p.description ? ` — ${p.description}` : ''}`);
+          const canonicalCard = `${heading}\n\n${lines.join('\n') || (isEn ? 'No projects found.' : 'No tienes proyectos registrados.')}`;
           const data: ProjectResult = projectResultSchema.parse({
             operation: 'read',
             projects,
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
           return {
             status: 'success',
@@ -74,12 +78,14 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
             };
           }
           const record = normalizeProject(project, 'create');
+          const isEn = context.language === 'en';
+          const canonicalCard = isEn ? `✅ Project *${record.name}* created.` : `✅ Proyecto *${record.name}* creado.`;
           const data: ProjectResult = projectResultSchema.parse({
             operation: 'create',
             projects: [record],
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
           return {
             status: 'success',
@@ -111,12 +117,14 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
             };
           }
           const record = normalizeProject(res.project, 'rename');
+          const isEn = context.language === 'en';
+          const canonicalCard = isEn ? `✅ Project renamed to *${record.name}*.` : `✅ Proyecto renombrado a *${record.name}*.`;
           const data: ProjectResult = projectResultSchema.parse({
             operation: 'rename',
             projects: [record],
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
+            presentation: { canonicalCard, questions: [], cta: null },
           });
           return {
             status: 'success',
@@ -199,13 +207,18 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
           }
 
           const deletedProjects = (previewResult.projects ?? []).map(p => normalizeProject(p, 'delete'));
+          const isEn = context.language === 'en';
+          const count = previewResult.deletedCount ?? deletedProjects.length;
+          const canonicalCard = isEn
+            ? `🗑️ Deleted ${count} project(s).`
+            : `🗑️ ${count} proyecto(s) eliminado(s).`;
           const data: ProjectResult = projectResultSchema.parse({
             operation: 'delete',
             projects: deletedProjects,
             complete: true,
             issues: [],
-            presentation: { canonicalCard: null, questions: [], cta: null },
-            deletedCount: previewResult.deletedCount ?? deletedProjects.length,
+            presentation: { canonicalCard, questions: [], cta: null },
+            deletedCount: count,
             deletedTaskCount: previewResult.deletedTaskCount ?? 0,
             cancelledReminderCount: previewResult.cancelledReminderCount ?? 0,
           });

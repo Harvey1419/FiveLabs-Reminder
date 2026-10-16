@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { domainIssueSchema, domainPresentationSchema } from './domain-results.js';
 
+export const subscriptionToolNameSchema = z.enum(['subscription_info', 'subscription_checkout', 'subscription_cancel']);
+
 export const subscriptionInfoInputSchema = z.strictObject({});
 export type SubscriptionInfoInput = z.infer<typeof subscriptionInfoInputSchema>;
 
@@ -26,6 +28,7 @@ export const subscriptionResultSchema = z.strictObject({
   price: z.number().nonnegative(),
   currency: z.string().max(10),
   checkoutUrl: z.string().max(2000).nullable().optional(),
+  complete: z.boolean().default(true),
   issues: z.array(domainIssueSchema).max(10),
   presentation: domainPresentationSchema,
 });
