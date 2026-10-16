@@ -26,7 +26,6 @@ const context: TurnContext = {
   userId: 'owner-123',
   runId: 'run-1',
   requestId: 'req-1',
-  threadId: 'thread-1',
   referenceTimeIso: '2026-10-16T12:00:00.000Z',
   timezone: 'America/Bogota',
   language: 'es',
@@ -56,13 +55,19 @@ describe('Subscription domain port and tools', () => {
     const registry = new ToolRegistry([...tools]);
 
     const outcome = await registry.execute('subscription_info', {}, context, 'op-sub-1');
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.isPro).toBe(false);
-      expect(outcome.data.price).toBe(14.99);
-      expect(outcome.data.checkoutUrl).toBe('https://hermes.templelabs.co/pay?ref=test');
-      expect(outcome.data.presentation.cta?.url).toBe('https://hermes.templelabs.co/pay?ref=test');
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        isPro: false,
+        price: 14.99,
+        checkoutUrl: 'https://hermes.templelabs.co/pay?ref=test',
+        presentation: {
+          cta: {
+            url: 'https://hermes.templelabs.co/pay?ref=test',
+          },
+        },
+      },
+    });
   });
 
   it('returns checkout link when free user invokes subscription_checkout', async () => {
@@ -74,11 +79,13 @@ describe('Subscription domain port and tools', () => {
     const registry = new ToolRegistry([...tools]);
 
     const outcome = await registry.execute('subscription_checkout', {}, context, 'op-sub-2');
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.isPro).toBe(false);
-      expect(outcome.data.checkoutUrl).toBe('https://hermes.templelabs.co/pay?ref=test');
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        isPro: false,
+        checkoutUrl: 'https://hermes.templelabs.co/pay?ref=test',
+      },
+    });
   });
 
   it('returns already_pro when pro user invokes subscription_checkout', async () => {
@@ -90,11 +97,13 @@ describe('Subscription domain port and tools', () => {
     const registry = new ToolRegistry([...tools]);
 
     const outcome = await registry.execute('subscription_checkout', {}, context, 'op-sub-3');
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.isPro).toBe(true);
-      expect(outcome.data.checkoutUrl).toBeNull();
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        isPro: true,
+        checkoutUrl: null,
+      },
+    });
   });
 
   it('cancels active subscription successfully', async () => {
@@ -107,10 +116,12 @@ describe('Subscription domain port and tools', () => {
     const registry = new ToolRegistry([...tools]);
 
     const outcome = await registry.execute('subscription_cancel', { confirmed: true }, context, 'op-sub-4');
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.status).toBe('cancelled');
-      expect(mockSubscriptions.cancelUserSubscription).toHaveBeenCalledWith('owner-123');
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        status: 'cancelled',
+      },
+    });
+    expect(mockSubscriptions.cancelUserSubscription).toHaveBeenCalledWith('owner-123');
   });
 });

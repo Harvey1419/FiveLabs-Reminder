@@ -8,12 +8,15 @@ import {
 import type { ProductivityUser } from '../../features/productivity-domain.js';
 import { checkDomainContext } from './domain-outcome.js';
 
-function normalizeProject(row: any, operation: ProjectRequest['operation']): ProjectRecord {
+function normalizeProject(
+  row: { id?: unknown; name?: unknown; description?: unknown; status?: unknown },
+  operation: ProjectRequest['operation'],
+): ProjectRecord {
   return {
     id: String(row.id ?? ''),
     name: String(row.name ?? ''),
     description: row.description ? String(row.description) : null,
-    status: operation === 'delete' ? 'deleted' : (row.status ?? 'active'),
+    status: operation === 'delete' ? 'deleted' : (String(row.status ?? 'active') as 'active' | 'deleted' | 'archived'),
   };
 }
 
@@ -141,19 +144,31 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
             dryRun,
           });
 
-          if (!preview.success) {
+          const previewResult = preview as {
+            success: boolean;
+            errorCode?: string;
+            error?: string;
+            projects?: Array<{ id: string; name: string; description?: string | null; status?: string }>;
+            pendingTaskCount?: number;
+            activeReminderCount?: number;
+            deletedCount?: number;
+            deletedTaskCount?: number;
+            cancelledReminderCount?: number;
+          };
+
+          if (!previewResult.success) {
             return {
               status: 'failed',
-              code: (preview as any).errorCode ?? 'PROJECT_DELETE_FAILED',
-              observation: (preview as any).error ?? 'Could not delete project.',
+              code: previewResult.errorCode ?? 'PROJECT_DELETE_FAILED',
+              observation: previewResult.error ?? 'Could not delete project.',
             };
           }
 
           if (dryRun) {
-            const previewProjects = ((preview as any).projects ?? []).map((p: any) => normalizeProject(p, 'delete'));
+            const previewProjects = (previewResult.projects ?? []).map(p => normalizeProject(p, 'delete'));
             const question = context.language === 'en'
-              ? `Do you want to delete project ${previewProjects.map((p: any) => p.name).join(', ')}? This will delete ${(preview as any).pendingTaskCount ?? 0} associated tasks.`
-              : `¿Deseas eliminar el proyecto ${previewProjects.map((p: any) => p.name).join(', ')}? Esto eliminará ${(preview as any).pendingTaskCount ?? 0} tareas pendientes asociadas.`;
+              ? `Do you want to delete project ${previewProjects.map(p => p.name).join(', ')}? This will delete ${previewResult.pendingTaskCount ?? 0} associated tasks.`
+              : `¿Deseas eliminar el proyecto ${previewProjects.map(p => p.name).join(', ')}? Esto eliminará ${previewResult.pendingTaskCount ?? 0} tareas pendientes asociadas.`;
 
             const data: ProjectResult = projectResultSchema.parse({
               operation: 'delete',
@@ -167,8 +182,8 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
                 cta: null,
               },
               deletedCount: 0,
-              deletedTaskCount: (preview as any).pendingTaskCount ?? 0,
-              cancelledReminderCount: (preview as any).activeReminderCount ?? 0,
+              deletedTaskCount: previewResult.pendingTaskCount ?? 0,
+              cancelledReminderCount: previewResult.activeReminderCount ?? 0,
             });
 
             return {
@@ -177,22 +192,22 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
               data,
               observation: JSON.stringify({
                 status: 'confirmation_required',
-                projects: previewProjects.map((p: any) => p.name),
-                pendingTasks: (preview as any).pendingTaskCount,
+                projects: previewProjects.map(p => p.name),
+                pendingTasks: previewResult.pendingTaskCount,
               }),
             };
           }
 
-          const deletedProjects = ((preview as any).projects ?? []).map((p: any) => normalizeProject(p, 'delete'));
+          const deletedProjects = (previewResult.projects ?? []).map(p => normalizeProject(p, 'delete'));
           const data: ProjectResult = projectResultSchema.parse({
             operation: 'delete',
             projects: deletedProjects,
             complete: true,
             issues: [],
             presentation: { canonicalCard: null, questions: [], cta: null },
-            deletedCount: (preview as any).deletedCount ?? deletedProjects.length,
-            deletedTaskCount: (preview as any).deletedTaskCount ?? 0,
-            cancelledReminderCount: (preview as any).cancelledReminderCount ?? 0,
+            deletedCount: previewResult.deletedCount ?? deletedProjects.length,
+            deletedTaskCount: previewResult.deletedTaskCount ?? 0,
+            cancelledReminderCount: previewResult.cancelledReminderCount ?? 0,
           });
 
           return {
@@ -217,11 +232,11 @@ export function createProjectDomainPort(user: ProductivityUser): ProjectDomainPo
           code: 'UNSUPPORTED_OPERATION',
           observation: 'Unsupported project operation.',
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           status: 'failed',
           code: 'DATABASE_ERROR',
-          observation: err?.message ?? 'Project database error',
+          observation: err instanceof Error ? err.message : 'Project database error',
         };
       }
     },

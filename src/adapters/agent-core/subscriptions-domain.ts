@@ -35,11 +35,13 @@ export function createSubscriptionDomainPort(user: ProductivityUser): Subscripti
               : `Hermes Pro (${upgradeContext.currency} $${upgradeContext.amount}/mes) incluye:\n• ${benefits.join('\n• ')}`);
 
           const checkoutUrl = isPro ? null : (upgradeContext.shortCheckoutUrl || upgradeContext.checkoutUrl);
+          const plan = typeof sub?.plan === 'string' ? sub.plan : (isPro ? 'pro' : 'free');
+          const status = typeof sub?.status === 'string' ? sub.status : (isPro ? 'active' : 'none');
           const data: SubscriptionResult = subscriptionResultSchema.parse({
             operation: 'info',
             isPro,
-            plan: (sub as any)?.plan ?? (isPro ? 'pro' : 'free'),
-            status: (sub as any)?.status ?? (isPro ? 'active' : 'none'),
+            plan,
+            status,
             benefits,
             price: upgradeContext.amount,
             currency: upgradeContext.currency,
@@ -63,7 +65,7 @@ export function createSubscriptionDomainPort(user: ProductivityUser): Subscripti
               userId,
               operationId,
               toolName: 'subscription_info',
-              resourceIds: sub ? [(sub as any).id] : [],
+              resourceIds: sub?.id ? [String(sub.id)] : [],
             },
             observation: JSON.stringify({
               operation: 'info',
@@ -95,7 +97,7 @@ export function createSubscriptionDomainPort(user: ProductivityUser): Subscripti
             return {
               status: 'success',
               data,
-              receipt: { userId, operationId, toolName: 'subscription_checkout', resourceIds: sub ? [(sub as any).id] : [] },
+              receipt: { userId, operationId, toolName: 'subscription_checkout', resourceIds: sub?.id ? [String(sub.id)] : [] },
               observation: JSON.stringify({ isPro: true, status: 'already_pro' }),
             };
           }
@@ -183,7 +185,7 @@ export function createSubscriptionDomainPort(user: ProductivityUser): Subscripti
               userId,
               operationId,
               toolName: 'subscription_cancel',
-              resourceIds: sub ? [(sub as any).id] : [],
+              resourceIds: sub?.id ? [String(sub.id)] : [],
             },
             observation: JSON.stringify({ operation: 'cancel', status: 'cancelled' }),
           };
@@ -194,11 +196,11 @@ export function createSubscriptionDomainPort(user: ProductivityUser): Subscripti
           code: 'UNSUPPORTED_OPERATION',
           observation: 'Unsupported subscription operation.',
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         return {
           status: 'failed',
           code: 'SUBSCRIPTION_ERROR',
-          observation: err?.message ?? 'Subscription service error',
+          observation: err instanceof Error ? err.message : 'Subscription service error',
         };
       }
     },

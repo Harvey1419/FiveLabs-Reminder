@@ -22,7 +22,6 @@ const context: TurnContext = {
   userId: 'owner-123',
   runId: 'run-1',
   requestId: 'req-1',
-  threadId: 'thread-1',
   referenceTimeIso: '2026-10-16T12:00:00.000Z',
   timezone: 'America/Bogota',
   language: 'es',
@@ -47,18 +46,29 @@ describe('Project domain port and tools', () => {
 
     const outcome = await registry.execute('project_read', { query: 'Apar' }, context, 'op-1');
 
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.projects).toHaveLength(2);
-      expect(outcome.data.projects[0]).toEqual({
-        id: 'proj-1',
-        name: 'Apartamento',
-        description: 'Remodelación',
-        status: 'active',
-      });
-      expect(outcome.receipt.toolName).toBe('project_read');
-      expect(outcome.receipt.resourceIds).toEqual(['proj-1', 'proj-2']);
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        projects: [
+          {
+            id: 'proj-1',
+            name: 'Apartamento',
+            description: 'Remodelación',
+            status: 'active',
+          },
+          {
+            id: 'proj-2',
+            name: 'Oficina',
+            description: null,
+            status: 'active',
+          },
+        ],
+      },
+      receipt: {
+        toolName: 'project_read',
+        resourceIds: ['proj-1', 'proj-2'],
+      },
+    });
   });
 
   it('creates project successfully through project_create tool', async () => {
@@ -75,12 +85,17 @@ describe('Project domain port and tools', () => {
 
     const outcome = await registry.execute('project_create', { name: 'Nuevo Proyecto', description: 'Detalle' }, context, 'op-2');
 
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.projects).toHaveLength(1);
-      expect(outcome.data.projects[0]?.name).toBe('Nuevo Proyecto');
-      expect(outcome.receipt.toolName).toBe('project_create');
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        projects: [
+          expect.objectContaining({ name: 'Nuevo Proyecto' }),
+        ],
+      },
+      receipt: {
+        toolName: 'project_create',
+      },
+    });
   });
 
   it('renames project successfully through project_rename tool', async () => {
@@ -95,10 +110,14 @@ describe('Project domain port and tools', () => {
 
     const outcome = await registry.execute('project_rename', { oldName: 'Apartamento', newName: 'Apartamento Niza' }, context, 'op-3');
 
-    expect(outcome.status).toBe('success');
-    if (outcome.status === 'success') {
-      expect(outcome.data.projects[0]?.name).toBe('Apartamento Niza');
-    }
+    expect(outcome).toMatchObject({
+      status: 'success',
+      data: {
+        projects: [
+          expect.objectContaining({ name: 'Apartamento Niza' }),
+        ],
+      },
+    });
   });
 
   it('requires confirmation on dryRun delete and confirms on confirmed delete', async () => {
@@ -115,8 +134,10 @@ describe('Project domain port and tools', () => {
 
     // Unconfirmed -> returns clarification_required
     const dryOutcome = await registry.execute('project_delete', { name: 'Apartamento', confirmed: false }, context, 'op-4');
-    expect(dryOutcome.status).toBe('clarification_required');
-    expect(dryOutcome.code).toBe('CONFIRMATION_REQUIRED');
+    expect(dryOutcome).toMatchObject({
+      status: 'clarification_required',
+      code: 'CONFIRMATION_REQUIRED',
+    });
 
     // Confirmed -> executes deletion
     mockProjects.deleteProjects.mockResolvedValue({
@@ -128,11 +149,13 @@ describe('Project domain port and tools', () => {
     });
 
     const confirmedOutcome = await registry.execute('project_delete', { name: 'Apartamento', confirmed: true }, context, 'op-5');
-    expect(confirmedOutcome.status).toBe('success');
-    if (confirmedOutcome.status === 'success') {
-      expect(confirmedOutcome.data.deletedCount).toBe(1);
-      expect(confirmedOutcome.data.deletedTaskCount).toBe(3);
-    }
+    expect(confirmedOutcome).toMatchObject({
+      status: 'success',
+      data: {
+        deletedCount: 1,
+        deletedTaskCount: 3,
+      },
+    });
   });
 
   it('denies execution when user mismatch occurs', async () => {
