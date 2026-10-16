@@ -1,0 +1,145 @@
+{
+  "mode": "offline_native_wire_measurement",
+  "model": "openai/gpt-oss-120b",
+  "inputEstimator": "estimateBoundedInput: o200k_base tokenizer, 20 percent plus 256 framing reserve",
+  "correction": "Prior version mistakenly used the provider default UTF-8-byte estimator; 21556 was not the production token estimate.",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are Hermes, an executive assistant. Use tools to fulfill the user request; report verified results."
+    },
+    {
+      "role": "user",
+      "content": "¿Qué proyectos tengo y qué tareas tengo pendientes?"
+    }
+  ],
+  "toolCount": 31,
+  "rawCatalogueEstimate": 10323,
+  "nativeCatalogueEstimate": 4689,
+  "perTool": [
+    {
+      "tool": "task_create",
+      "estimateIncludingSharedFraming": 576
+    },
+    {
+      "tool": "task_read",
+      "estimateIncludingSharedFraming": 639
+    },
+    {
+      "tool": "task_update",
+      "estimateIncludingSharedFraming": 574
+    },
+    {
+      "tool": "task_complete",
+      "estimateIncludingSharedFraming": 483
+    },
+    {
+      "tool": "task_delete",
+      "estimateIncludingSharedFraming": 484
+    },
+    {
+      "tool": "reminder_create",
+      "estimateIncludingSharedFraming": 874
+    },
+    {
+      "tool": "reminder_read",
+      "estimateIncludingSharedFraming": 546
+    },
+    {
+      "tool": "reminder_update",
+      "estimateIncludingSharedFraming": 649
+    },
+    {
+      "tool": "reminder_cancel",
+      "estimateIncludingSharedFraming": 530
+    },
+    {
+      "tool": "reminder_acknowledge",
+      "estimateIncludingSharedFraming": 496
+    },
+    {
+      "tool": "project_read",
+      "estimateIncludingSharedFraming": 511
+    },
+    {
+      "tool": "project_create",
+      "estimateIncludingSharedFraming": 477
+    },
+    {
+      "tool": "project_rename",
+      "estimateIncludingSharedFraming": 484
+    },
+    {
+      "tool": "project_delete",
+      "estimateIncludingSharedFraming": 513
+    },
+    {
+      "tool": "calendar_read",
+      "estimateIncludingSharedFraming": 576
+    },
+    {
+      "tool": "calendar_create",
+      "estimateIncludingSharedFraming": 744
+    },
+    {
+      "tool": "calendar_update",
+      "estimateIncludingSharedFraming": 614
+    },
+    {
+      "tool": "calendar_delete",
+      "estimateIncludingSharedFraming": 505
+    },
+    {
+      "tool": "calendar_connect",
+      "estimateIncludingSharedFraming": 460
+    },
+    {
+      "tool": "memory_read",
+      "estimateIncludingSharedFraming": 472
+    },
+    {
+      "tool": "memory_save",
+      "estimateIncludingSharedFraming": 596
+    },
+    {
+      "tool": "memory_forget",
+      "estimateIncludingSharedFraming": 495
+    },
+    {
+      "tool": "subscription_info",
+      "estimateIncludingSharedFraming": 453
+    },
+    {
+      "tool": "subscription_checkout",
+      "estimateIncludingSharedFraming": 452
+    },
+    {
+      "tool": "subscription_cancel",
+      "estimateIncludingSharedFraming": 457
+    },
+    {
+      "tool": "entity_read",
+      "estimateIncludingSharedFraming": 493
+    },
+    {
+      "tool": "entity_create",
+      "estimateIncludingSharedFraming": 594
+    },
+    {
+      "tool": "entity_update",
+      "estimateIncludingSharedFraming": 494
+    },
+    {
+      "tool": "entity_merge",
+      "estimateIncludingSharedFraming": 495
+    },
+    {
+      "tool": "entity_delete",
+      "estimateIncludingSharedFraming": 501
+    },
+    {
+      "tool": "agenda_read",
+      "estimateIncludingSharedFraming": 535
+    }
+  ]
+}

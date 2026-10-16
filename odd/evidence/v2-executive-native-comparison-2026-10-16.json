@@ -1,0 +1,72 @@
+{
+  "methodology": "Same20 turns, synthetic seeded owned state, full non-admin catalogue, configured primary Groq model, fresh conversation per variant, same independent153 checks, same conservative per-HTTP evaluator permitting product recovery. No production writes or WhatsApp.",
+  "limits": "60 HTTP and USD0.25 per variant; all unknown usage remains reserved.",
+  "qualification": "Whole-variant comparison: native also changes prompt/schema exposure and input/whole-turn budgets. One conversation is not a general reliability guarantee.",
+  "variants": {
+    "scoped": {
+      "evidence": "v2-executive-scoped-fair-2026-10-16.json",
+      "passedTurns": 10,
+      "totalTurns": 20,
+      "passedChecks": 128,
+      "totalChecks": 153,
+      "liveProof": false,
+      "calls": 46,
+      "knownCostUsd": 0.01671675,
+      "unknownCostUpperBoundUsd": 0.011776799999999999,
+      "maxInputEstimate": 3495,
+      "maxActualProviderInput": 2596,
+      "averageTurnMs": 2951.7,
+      "schemaRejections": 4,
+      "contextLimits": 1,
+      "evaluationPolicy": {
+        "initialTools": [
+          "task_create",
+          "reminder_create"
+        ],
+        "finishWithVerifiedResults": true,
+        "maxInputTokens": 3500,
+        "maxTotalTokens": 20000,
+        "maxModelSteps": 10,
+        "maxToolCalls": 10,
+        "maxOutputTokens": 2048,
+        "timeoutMs": 45000,
+        "continuationReserveTokens": 256,
+        "structuredDecisions": true
+      }
+    },
+    "native": {
+      "evidence": "v2-executive-native-2026-10-16.json",
+      "passedTurns": 20,
+      "totalTurns": 20,
+      "passedChecks": 153,
+      "totalChecks": 153,
+      "liveProof": true,
+      "calls": 43,
+      "knownCostUsd": 0.033166650000000006,
+      "unknownCostUpperBoundUsd": 0,
+      "maxInputEstimate": 7728,
+      "maxActualProviderInput": 5418,
+      "averageTurnMs": 2693.6,
+      "schemaRejections": 0,
+      "contextLimits": 0,
+      "evaluationPolicy": {
+        "initialTools": [
+          "task_create",
+          "reminder_create"
+        ],
+        "finishWithVerifiedResults": false,
+        "maxInputTokens": 8000,
+        "maxTotalTokens": 40000,
+        "maxModelSteps": 10,
+        "maxToolCalls": 10,
+        "maxOutputTokens": 2048,
+        "timeoutMs": 45000,
+        "continuationReserveTokens": 256,
+        "nativeToolCalling": true,
+        "discoverTools": false,
+        "structuredDecisions": false,
+        "continuation": "observation_driven"
+      }
+    }
+  }
+}
