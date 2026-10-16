@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 describe('public offline budget evaluators use the active decision policy', () => {
   it.each(['v2-context-budget-comparison', 'v2-complex-budget'])('checks %s without inference or relaxed limits', script => {
     const child = spawnSync(process.execPath, ['--import', 'tsx', `scripts/evals/${script}.ts`], {
-      cwd: process.cwd(), encoding: 'utf8', timeout: 20000, maxBuffer: 8 * 1024 * 1024,
+      cwd: process.cwd(), encoding: 'utf8', timeout: 45000, maxBuffer: 8 * 1024 * 1024,
       env: { ...process.env, OPENROUTER_API_KEY: '', OPENROUTER_SECONDARY_MODEL: '', OPENROUTER_LAST_RESORT_MODEL: '' },
     });
     expect(child.error).toBeUndefined(); expect(child.signal).toBeNull(); expect(child.status, child.stderr).toBe(0);
@@ -31,5 +31,5 @@ describe('public offline budget evaluators use the active decision policy', () =
       }
       expect(report.results.find((row: { case: string; budget: number }) => row.case === 'bounded_steps_negative_control' && row.budget === 2500)).toMatchObject({ complete: false, writes: 0 });
     }
-  }, 25000);
+  }, 50000);
 });

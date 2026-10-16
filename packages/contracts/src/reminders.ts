@@ -46,7 +46,14 @@ export const reminderUpdateInputSchema = z.strictObject({
   || value.recurrence !== undefined || value.deliveryPolicy !== undefined, {
   message: 'At least one update is required',
 });
-export const reminderCancelInputSchema = z.strictObject({ reminderId: z.uuid() });
+export const reminderCancelInputSchema = z.strictObject({
+  reminderId: z.uuid().optional(),
+  scope: z.enum(['all', 'elapsed']).optional(),
+  cutoffAt: instant.optional(),
+  confirmed: z.boolean().optional(),
+}).refine(val => val.reminderId !== undefined || val.scope !== undefined, {
+  message: 'Either reminderId or a bulk scope (all, elapsed) is required',
+});
 export const reminderAcknowledgeInputSchema = z.strictObject({ reminderId: z.uuid() });
 
 export const reminderRecordSchema = z.strictObject({

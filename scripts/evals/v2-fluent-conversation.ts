@@ -131,7 +131,7 @@ export function createSyntheticReminders() {
       records.set(record.id, record);
       selected = [record]; op.wrote = true;
     } else if (request.operation === 'update' || request.operation === 'cancel') {
-      const record = records.get(request.input.reminderId);
+      const record = request.input.reminderId ? records.get(request.input.reminderId) : undefined;
       if (!record || record.status !== 'pending') return reject('REMINDER_NOT_FOUND');
       if (request.operation === 'cancel') record.status = 'cancelled';
       else {

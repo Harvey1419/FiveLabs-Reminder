@@ -6,6 +6,7 @@ import {
 import type { ReminderDomainPort, ToolOutcome } from '@templelabs/tools';
 import { createReminderService } from '../../features/reminders/productivity-service.js';
 import type { ProductivityService, ProductivityUser } from '../../features/productivity-domain.js';
+import { supabase } from '../../infrastructure/database/index.js';
 
 const reminderDomainEnvelopeSchema = z.looseObject({
   success: z.boolean(), action: z.string(), outcome: z.literal('unknown').optional(),
@@ -120,6 +121,115 @@ export function createReminderDomainPort(
       try { new Intl.DateTimeFormat('en', { timeZone: context.timezone }).format(); }
       catch { return { status: 'validation_failed', code: 'INVALID_TIMEZONE', observation: 'A valid IANA timezone is required.' }; }
       context.signal.throwIfAborted();
+
+      if (request.operation === 'cancel' && (request.input.scope === 'all' || request.input.scope === 'elapsed')) {
+        const scope = request.input.scope;
+        const cutoffTime = request.input.cutoffAt ? new Date(request.input.cutoffAt) : new Date(context.referenceTimeIso);
+
+        let query = supabase.from('reminders').select('*').eq('user_id', user.id).in('status', ['pending', 'processing']);
+        if (scope === 'elapsed') {
+          query = query.lte('send_at', cutoffTime.toISOString());
+        }
+
+        const { data: candidates, error: fetchError } = await query;
+        if (fetchError) {
+          return { status: 'failed', code: 'DATABASE_ERROR', observation: fetchError.message || 'Database query failed' };
+        }
+
+        const safeCandidates = candidates || [];
+        if (safeCandidates.length === 0) {
+          const card = scope === 'elapsed'
+            ? (context.language === 'en' ? 'There are no elapsed reminders to remove.' : 'No hay recordatorios anteriores para eliminar.')
+            : (context.language === 'en' ? 'There are no active reminders to cancel.' : 'No hay recordatorios activos para cancelar.');
+          const data = reminderResultSchema.parse({
+            operation: 'cancel',
+            records: [],
+            complete: true,
+            coverage: 'operation',
+            rejections: [],
+            presentation: { canonicalCard: card, questions: [], cta: null },
+          });
+          return {
+            status: 'success',
+            data,
+            receipt: { userId: context.userId, operationId, toolName: 'reminder_cancel', resourceIds: [] },
+            observation: JSON.stringify({ operation: 'cancel', cancelledCount: 0, scope }),
+          };
+        }
+
+        if (!request.input.confirmed) {
+          const question = scope === 'elapsed'
+            ? (context.language === 'en'
+              ? `I found ${safeCandidates.length} reminder${safeCandidates.length === 1 ? '' : 's'} whose scheduled time has passed. Do you want me to remove ${safeCandidates.length === 1 ? 'it' : 'them'}?`
+              : `Encontré ${safeCandidates.length} recordatorio(s) cuya hora ya pasó. ¿Deseas que los elimine?`)
+            : (context.language === 'en'
+              ? `Do you want to cancel all ${safeCandidates.length} active reminders?`
+              : `¿Deseas cancelar los ${safeCandidates.length} recordatorios activos?`);
+
+          const data = reminderResultSchema.parse({
+            operation: 'cancel',
+            records: safeCandidates.slice(0, 10).map(r => normalizeReminderRecord(r)),
+            complete: false,
+            coverage: 'operation',
+            rejections: [],
+            presentation: { canonicalCard: question, questions: [question], cta: null },
+          });
+
+          return {
+            status: 'clarification_required',
+            code: 'CONFIRMATION_REQUIRED',
+            data,
+            observation: JSON.stringify({ status: 'confirmation_required', candidateCount: safeCandidates.length, scope }),
+          };
+        }
+
+        const candidateIds = safeCandidates.map((c: { id: string }) => c.id);
+        const { data: updated, error: updateError } = await supabase
+          .from('reminders')
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .in('id', candidateIds)
+          .select('*');
+
+        if (updateError) {
+          return { status: 'failed', code: 'DATABASE_ERROR', observation: updateError.message || 'Database update failed' };
+        }
+
+        const cancelledRecords = (updated || []).map((r: unknown) => normalizeReminderRecord({ ...(r as Record<string, unknown>), status: 'cancelled' }));
+        const card = scope === 'elapsed'
+          ? (context.language === 'en'
+            ? `Removed ${cancelledRecords.length} elapsed reminders.`
+            : `Eliminé ${cancelledRecords.length} recordatorio(s) cuya hora ya había pasado.`)
+          : (context.language === 'en'
+            ? `Cancelled ${cancelledRecords.length} active reminders.`
+            : `Cancelé ${cancelledRecords.length} recordatorio(s) activos.`);
+
+        const data = reminderResultSchema.parse({
+          operation: 'cancel',
+          records: cancelledRecords,
+          complete: true,
+          coverage: 'operation',
+          rejections: [],
+          presentation: { canonicalCard: card, questions: [], cta: null },
+        });
+
+        return {
+          status: 'success',
+          data,
+          receipt: {
+            userId: context.userId,
+            operationId,
+            toolName: 'reminder_cancel',
+            resourceIds: cancelledRecords.map(r => r.id),
+          },
+          observation: JSON.stringify({
+            operation: 'cancel',
+            cancelledCount: cancelledRecords.length,
+            scope,
+          }),
+        };
+      }
+
       const result = await service.execute(request, context);
       return normalizeOutcome(result, request.operation, context, operationId);
     },

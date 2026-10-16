@@ -25,3 +25,5 @@ export * from './memories.js';
 export * from './agenda.js';
 export * from './projects.js';
 export * from './subscriptions.js';
+export * from './entities.js';
+export * from './admin.js';
