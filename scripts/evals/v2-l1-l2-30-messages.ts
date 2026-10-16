@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'dotenv';
-import { OpenRouterProvider, MockAIProvider, estimateBoundedInput, type AIResponse } from '@templelabs/ai';
+import { OpenRouterProvider, MockAIProvider, estimateBoundedInput, type AIProvider, type CompletionRequest } from '@templelabs/ai';
 import { ProductivityTurnRunner } from '@templelabs/agent-core';
 import {
   aiTranscriptSchema, jsonObjectSchema, type ProductivityConversation,
-  type ReminderRecord, type TaskRecord, type TurnContext,
+  type ReminderRecord, type TaskRecord, type TurnContext, type AIResponse, type AIMessage,
 } from '@templelabs/contracts';
 import {
   createReminderTools, createTaskTools, createAgendaTools, ToolRegistry,
@@ -118,11 +118,11 @@ export async function run30MessagesTest(isLive = false) {
     const envFile = resolve(process.cwd(), '.env');
     const env = existsSync(envFile) ? parse(readFileSync(envFile)) : process.env;
     liveProvider = createConfiguredAIProvider({
-      apiKey: env.OPENROUTER_API_KEY,
+      ...(env.OPENROUTER_API_KEY ? { apiKey: env.OPENROUTER_API_KEY } : {}),
       env: { ...env, OPENROUTER_PRIMARY_TIMEOUT_MS: '25000' },
       estimateInputTokens: estimateBoundedInput,
       onAttempt: attempt => {
-        console.log(`[OpenRouter attempt] model: ${attempt.route?.model ?? 'default'}, prompt: ${attempt.promptTokens ?? '?'}, completion: ${attempt.completionTokens ?? '?'}`);
+        console.log(`[OpenRouter attempt] route: ${attempt.route}, model: ${attempt.model}, input: ${attempt.usage?.inputTokens ?? '?'}, output: ${attempt.usage?.outputTokens ?? '?'}`);
       },
     });
   }
@@ -206,9 +206,9 @@ const mockResponses: AIResponse[] = [
     const provider = turnP ? {
       capabilities: turnP.capabilities,
       forTurn() { return this; },
-      estimateNativeInput: (input: any) => turnP.estimateNativeInput?.(input) ?? estimateBoundedInput(input),
-      complete: async (req: any) => {
-        const systemMsg = req.messages.find((m: any) => m.role === 'system');
+      estimateNativeInput: (input: Pick<CompletionRequest, 'messages' | 'tools'>) => turnP.estimateNativeInput?.(input) ?? estimateBoundedInput(input),
+      complete: async (req: CompletionRequest) => {
+        const systemMsg = req.messages.find((m: AIMessage) => m.role === 'system');
         if (systemMsg) {
           for (const line of systemMsg.content.split('\n')) {
             if (line.includes('"references":')) {
@@ -231,8 +231,8 @@ const mockResponses: AIResponse[] = [
     } : {
       capabilities: { toolCalling: true, structuredOutput: true },
       forTurn() { return this; },
-      complete: async (req: any) => {
-        const systemMsg = req.messages.find((m: any) => m.role === 'system');
+      complete: async (req: CompletionRequest) => {
+        const systemMsg = req.messages.find((m: AIMessage) => m.role === 'system');
         if (systemMsg) {
           if (index === 1) console.log('TURN 2 SYSTEM MSG CONTENT:\n', systemMsg.content);
           for (const line of systemMsg.content.split('\n')) {
@@ -269,7 +269,7 @@ const mockResponses: AIResponse[] = [
 
     const scopedTools = recentToolScope(conversation?.history ?? [], registry.available(context).map(t => t.name), productivityBudget.initialTools);
 
-    const runner = new ProductivityTurnRunner(provider as any, registry, {
+    const runner = new ProductivityTurnRunner(provider as unknown as ConstructorParameters<typeof ProductivityTurnRunner>[0], registry, {
       ...productivityBudget,
       ...productivityDecisionPolicy,
       continuation: 'observation_driven',
