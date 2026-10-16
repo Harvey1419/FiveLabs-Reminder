@@ -3,7 +3,7 @@ import type { AIMessage, JsonObject } from '@templelabs/contracts';
 /** Model-only projection. Full records, journals, receipts and dialogue remain durable. */
 export function compactModelRecord(raw: Readonly<Record<string, unknown>>): JsonObject {
   const result: JsonObject = {};
-  for (const key of ['id', 'content', 'title', 'summary', 'recurrence', 'status', 'kind']) {
+  for (const key of ['id', 'domain', 'content', 'title', 'summary', 'recurrence', 'status', 'kind']) {
     const value = raw[key];
     if (typeof value === 'string') result[key] = value;
   }

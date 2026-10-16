@@ -1,7 +1,7 @@
 import { scheduleProactiveMemory } from '../../../src/adapters/agent-core/proactive-memory.js';
 vi.mock('../../../src/adapters/agent-core/proactive-memory.js', () => ({ scheduleProactiveMemory: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MockAIProvider, OpenRouterProvider, type MockCompletion, estimateBoundedInput } from '@templelabs/ai';
+import { MockAIProvider, OpenRouterProvider, ToolSelectionError, type MockCompletion, estimateBoundedInput } from '@templelabs/ai';
 import type { JsonObject, AIResponse } from '@templelabs/contracts';
 import { untrustedResultMock } from '../../support/unit/contract-boundary.js';
 const state = vi.hoisted(() => ({ provider: null as MockAIProvider | null, domainExecute: vi.fn<(input: { domain: string; request: unknown; user: unknown; context: unknown }) => Promise<unknown>>() }));
@@ -44,6 +44,30 @@ function fixture() {
     run: (authorized = false, text = 'Lista mis tareas') => withTurnLease(lease, () => route(text, user, [], { inputModality: 'text', agentCoreDelivery: { send }, ...(authorized ? { agentCoreAuthorizeWrite: async () => true } : {}) })) };
 }
 describe('canary admission executes actual durable V2 composition', () => {
+  it.each(['conversation_clarify', 'reminder_read'])('emits safe selection telemetry for %s without changing effects', async name => {
+    const f = fixture();
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    state.provider = new MockAIProvider([
+      { response: new ToolSelectionError(name) },
+      { response: answer() },
+    ]);
+    try {
+      await f.run(false, 'PRIVATE_USER_DIAGNOSTIC');
+      const events = log.mock.calls.filter(([event]) => event === '[agent-core-v2] tool_selection');
+      expect(events).toHaveLength(1);
+      expect(JSON.parse(String(events[0]![1]))).toEqual({
+        runId: 'run', requestId: 'request', rejectedToolName: name,
+        advertisedToolNames: ['tools_select', 'task_create', 'reminder_create', 'conversation_decide'], advertisedToolsTruncated: false,
+        decision: name === 'reminder_read' ? 'reload_schema' : 'stop',
+        reason: name === 'reminder_read' ? 'authorized_schema' : 'reserved_control', accountingComplete: false,
+      });
+      expect(JSON.stringify(events)).not.toContain('PRIVATE_USER_DIAGNOSTIC');
+      expect(domainExecute).not.toHaveBeenCalled();
+      expect(f.persisted()).toMatchObject({ agentCoreProductivity: { effects: [] } });
+      expect(state.provider.requests).toHaveLength(name === 'reminder_read' ? 2 : 1);
+      expect(f.send).toHaveBeenCalledOnce();
+    } finally { log.mockRestore(); }
+  });
   it('delivers a verified empty today read once without a redundant provider request', async () => {
     const f = fixture(); state.provider = new MockAIProvider([
       { response: answer([{ id: 'select', name: 'tools_select', arguments: { name: 'reminder_read' } }]) },
@@ -198,7 +222,7 @@ describe('canary admission executes actual durable V2 composition', () => {
       description: null, priority: null, status: 'pending' as const, dueDateIso: null, entityId: null, entityName: null,
     })), reminders: [], events: [], handledRequestIds: ['prior-message'] };
     const wire = new OpenRouterProvider({ apiKey: 'fixture', routes: [{ id: 'primary', model: 'openai/gpt-oss-120b', providers: ['groq'], timeoutMs: 1000 }], estimateInputTokens: estimateBoundedInput });
-    state.provider = new MockAIProvider([{ response: { ...answer(), message: { role: 'assistant', content: '¡Buenos días! ¿Cómo arrancó tu mañana?', toolCalls: [] } } }]);
+    state.provider = new MockAIProvider([{ response: answer([{ id: 'greeting', name: 'conversation_decide', arguments: { ready: [], reply: '¡Buenos días! ¿Cómo arrancó tu mañana?' } }]) }]);
     Object.assign(state.provider, { estimateNativeInput: wire.estimateNativeInput.bind(wire) });
     const route = createCanaryRouter({ baseline: f.baseline, v2: routeCanaryProductivity, policy: () => ({ enabled: true, percentage: 100 as const, userAllowlist: [] }),
       lease: () => f.lease, readPrior: async () => ({ id: 'prior', message_id: 'prior-message', thread_id: 'thread', sequence_id: 1, status: 'completed' as const, response: {} }), handoff: async () => transferred });

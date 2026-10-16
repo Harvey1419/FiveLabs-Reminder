@@ -1,4 +1,4 @@
-import { productivityBudget } from './productivity-budget.js';
+import { productivityBudget, productivityDecisionPolicy } from './productivity-budget.js';
 import { recentToolScope } from './recent-tool-scope.js';
 import { scheduleProactiveMemory } from './proactive-memory.js';
 import { explicitMemoryIntent } from '../../features/memory/explicit-intent.js';
@@ -84,7 +84,9 @@ export async function routeCanaryProductivity(text: string, rawUser: unknown, op
     } });
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const assistant = new DurableProductivityAssistant(new ProductivityTurnRunner(provider, registry, { continuation: 'observation_driven',
-    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget,
+    onLimit: diagnostic => telemetry('loop_limit', { runId: context.runId, requestId: context.requestId, ...diagnostic }),
+    onToolSelection: diagnostic => telemetry('tool_selection', { runId: context.runId, requestId: context.requestId, ...diagnostic }),
+    personalContext, memorySourceText: authoredText, ...(media ? { mediaInput: { userText: authoredText, kind: media.attachment.kind, truncated: 'truncated' in media.attachment && media.attachment.truncated } } : {}), discoverTools: true, compactObservations: true, ...productivityBudget, ...productivityDecisionPolicy,
     initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] }, maxPromptReferences: 5, ...(media ? { maxWriteOperations: 1 } : {}),
     estimateInputTokens: input => provider.estimateNativeInput?.(requestSchema.parse(input)) ?? estimateBoundedInput(input),

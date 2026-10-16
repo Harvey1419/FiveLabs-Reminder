@@ -19,7 +19,9 @@ import { handoffBaselineProductivity } from '../../../src/adapters/agent-core/ba
 
 const reminderId = '22222222-2222-4222-8222-222222222222';
 const answer = (content: string, toolCalls: AIResponse['message']['toolCalls'] = []): AIResponse => ({
-  message: { role: 'assistant', content, toolCalls }, stopReason: toolCalls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 30, outputTokens: 10 },
+  message: { role: 'assistant', content: toolCalls.length ? content : '', toolCalls: toolCalls.length ? toolCalls
+    : [{ id: 'dialogue', name: 'conversation_decide', arguments: { ready: [], reply: content } }] },
+  stopReason: 'tool_calls', usage: { inputTokens: 30, outputTokens: 10 },
 });
 function fixture(script: AIResponse[], withLegacyHistory = false) {
   const f = createWhatsAppFixture(); let persisted: JsonObject = {};
@@ -47,19 +49,19 @@ function fixture(script: AIResponse[], withLegacyHistory = false) {
 }
 beforeEach(() => vi.clearAllMocks());
 describe('structured WhatsApp media through production V2 composition', () => {
-  it.each(['image', 'document'] as const)('responds naturally to an attachment-only %s, with no tools or V1 dispatch', async kind => {
+  it.each(['image', 'document'] as const)('responds naturally to an attachment-only %s, with no domain tools or V1 dispatch', async kind => {
     const text = 'I see an Acme invoice for $100. Would you like help organizing it?';
     const f = fixture([answer(text)], true); await f.run(kind);
     expect(f.deps.sendWhatsAppText).toHaveBeenCalledOnce(); expect(f.deps.sendWhatsAppText.mock.calls[0]![0].text).toBe(text);
     expect(state.execute).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
-    expect(state.provider!.requests[0]!.tools).toEqual([]);
+    expect(state.provider!.requests[0]!.tools.map(tool => tool.name)).toEqual(['conversation_decide']);
     expect(f.deps.extractMemoryInBackground).not.toHaveBeenCalled();
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { phase: 'completed', completed: { conversation: { legacyHandoff: { sourceRunId: 'old' } } } } });
   });
   it('handles shared coordinates as data without changing the user timezone or authorizing mutations', async () => {
     const f = fixture([answer('Veo la ubicación de Bogotá. ¿Qué quieres organizar allí?')]); await f.run('location');
     expect(state.execute).not.toHaveBeenCalled(); expect(f.baseline).not.toHaveBeenCalled();
-    expect(state.provider!.requests[0]!.tools).toEqual([]);
+    expect(state.provider!.requests[0]!.tools.map(tool => tool.name)).toEqual(['conversation_decide']);
     expect(JSON.stringify(state.provider!.requests[0]!.messages)).toContain('America/Bogota');
     expect(JSON.stringify(state.provider!.requests[0]!.messages)).toContain('latitude');
     expect(f.deps.processDocumentOrImage).not.toHaveBeenCalled(); expect(f.deps.sendWhatsAppText).toHaveBeenCalledOnce();

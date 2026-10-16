@@ -46,8 +46,10 @@ describe('native gateway through the shared loop and durable boundary', () => {
       .toEqual(['fixture/primary', 'fixture/secondary', 'fixture/secondary', 'fixture/secondary']);
     expect(result.reply.text).toContain('Listo.');
     expect(result.reply.text).not.toContain('Listo, quedó completada.');
-    expect(result.conversation.history.at(-1)?.content).toBe('Listo, quedó completada.');
-    expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).phase).toBe('completed');
+    expect(result.conversation.history.at(-1)?.content).toBe(result.reply.text);
+    const checkpoint = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(checkpoint.completed?.conversation.history).toEqual(result.conversation.history);
+    expect(checkpoint.phase).toBe('completed');
   });
   it('preserves a completed effect when the next provider step loses usage, without another write or resend', async () => {
     const s = setup();

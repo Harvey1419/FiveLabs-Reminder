@@ -2,13 +2,78 @@ import { describe, expect, it, vi } from 'vitest';
 import { MockAIProvider } from '@templelabs/ai';
 import { ReminderTurnRunner } from '@templelabs/agent-core';
 import { ToolRegistry } from '@templelabs/tools';
-import { productivityCheckpointSchema } from '@templelabs/contracts';
+import { aiTranscriptSchema, productivityCheckpointSchema, type ProductivityConversation } from '@templelabs/contracts';
 import { withTurnLease } from '../../../src/agent/core/turn-lease.js';
 import { DurableProductivityAssistant } from '../../../src/adapters/agent-core/durable-productivity-assistant.js';
 import { DurableReminderAssistant } from '../../../src/adapters/agent-core/durable-reminder-assistant.js';
 import { setup, context, taskCreate, response, calendarRead } from './productivity-fixtures.js';
 
+async function followUp(s: ReturnType<typeof setup>, previous: ProductivityConversation, text: string) {
+  const nextContext = { ...context, runId: 'next-run', requestId: 'next-request' };
+  const nextLease = { ...s.lease, inboundTurn: { id: nextContext.runId, messageId: nextContext.requestId,
+    threadId: 'thread', response: {} } };
+  return withTurnLease(nextLease, () => s.assistant.handle(text, nextContext, 'thread', previous));
+}
+
 describe('durable mixed effects and transport acceptance', () => {
+  it('retains the prepared provider-failure reply for a why follow-up without claiming delivery', async () => {
+    const s = setup([response()]);
+    vi.spyOn(s.provider, 'complete').mockRejectedValueOnce(new Error('provider unavailable'));
+    const result = await s.run();
+    const state = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(result.reply.text).not.toBe('');
+    expect(result.conversation.history.at(-1)).toMatchObject({ role: 'assistant', content: result.reply.text });
+    expect(state.completed?.conversation).toEqual(result.conversation);
+    expect(s.execute).not.toHaveBeenCalled();
+    expect(s.send).toHaveBeenCalledTimes(1);
+    expect(s.send.mock.calls[0]?.[0].text).toBe(result.reply.text);
+    expect(state.deliveries.map(entry => entry.status)).toEqual(['accepted']);
+
+    await followUp(s, state.completed!.conversation, 'por que ?');
+    expect(s.provider.requests.at(-1)?.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', content: result.reply.text }),
+      expect.objectContaining({ role: 'user', content: 'por que ?' }),
+    ]));
+    expect(s.execute).not.toHaveBeenCalled();
+  });
+  it('persists the host execution card instead of raw prose and preserves call/result pairs for an ordinal follow-up', async () => {
+    const raw = 'Everything succeeded, including an unverified extra action.';
+    const s = setup([response([taskCreate]), { ...response(), message: { role: 'assistant', content: raw, toolCalls: [] } }, response()]);
+    const result = await s.run();
+    const state = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    const history = result.conversation.history;
+    expect(result.reply.text).toContain('Propuesta');
+    expect(result.reply.text).not.toContain(raw);
+    expect(history.at(-1)).toMatchObject({ role: 'assistant', content: result.reply.text });
+    expect(history.filter(message => message.role === 'assistant' && !message.toolCalls?.length))
+      .toEqual([expect.objectContaining({ content: result.reply.text })]);
+    expect(history.find(message => message.role === 'assistant' && message.toolCalls?.length)).toEqual({
+      ...response([taskCreate]).message, toolCalls: [{ ...taskCreate, id: `${context.requestId}:${taskCreate.id}` }],
+    });
+    expect(history.filter(message => message.role === 'tool')).toHaveLength(1);
+    expect(aiTranscriptSchema.safeParse(history).success).toBe(true);
+    expect(state.completed?.conversation).toEqual(result.conversation);
+    expect(s.send.mock.calls.every(([message]) => !message.text.includes(raw))).toBe(true);
+
+    await followUp(s, state.completed!.conversation, 'El primero');
+    const messages = s.provider.requests.at(-1)!.messages;
+    expect(messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', content: result.reply.text }),
+      expect.objectContaining({ role: 'user', content: 'El primero' }),
+    ]));
+    expect(messages.some(message => message.content === raw)).toBe(false);
+    expect(s.execute).toHaveBeenCalledTimes(1);
+  });
+  it('keeps an already matching conversational reply exactly once', async () => {
+    const text = '¿Cuál tarea quieres crear?';
+    const s = setup([{ ...response(), message: { role: 'assistant', content: text, toolCalls: [] } }]);
+    const result = await s.run();
+    expect(result.reply.text).toBe(text);
+    expect(result.conversation.history.filter(message => message.role === 'assistant'))
+      .toEqual([expect.objectContaining({ content: text })]);
+    expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).completed?.conversation).toEqual(result.conversation);
+    expect(s.execute).not.toHaveBeenCalled();
+  });
   it('persists multihop outcomes before continuation and journals text/flow sends separately', async () => {
     const s = setup();
     const result = await s.run();
@@ -58,14 +123,19 @@ describe('durable mixed effects and transport acceptance', () => {
     const s = setup([response([taskCreate]), response()]);
     s.send.mockResolvedValueOnce({ messageId: 'text-accepted' }).mockRejectedValueOnce(new Error('flow receipt lost'));
     await expect(s.run()).rejects.toMatchObject({ code: 'DELIVERY_OUTCOME_UNKNOWN' });
-    expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).deliveries.map(entry => entry.status)).toEqual(['accepted', 'unknown']);
+    const state = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(state.deliveries.map(entry => entry.status)).toEqual(['accepted', 'unknown']);
+    expect(state.completed?.conversation.history.at(-1)).toMatchObject({ role: 'assistant', content: state.completed?.reply.text });
+    expect(state.phase).toBe('delivering');
     await expect(s.run()).rejects.toMatchObject({ code: 'INBOUND_RECONCILIATION_REQUIRED' });
     expect(s.send).toHaveBeenCalledTimes(2);
   });
   it('keeps attempted delivery after provider acceptance cannot be checkpointed', async () => {
     const s = setup([response([calendarRead]), response()]); s.fail(6);
     await expect(s.run()).rejects.toThrow('storage unavailable');
-    expect(productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity).deliveries[0]?.status).toBe('attempted');
+    const state = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(state.deliveries[0]?.status).toBe('attempted');
+    expect(state.completed?.conversation.history.at(-1)).toMatchObject({ role: 'assistant', content: state.completed?.reply.text });
     expect(s.send).toHaveBeenCalledTimes(1);
   });
   it('requires a lease, matching thread identity and host-owned recovery state', async () => {
@@ -88,6 +158,18 @@ describe('durable mixed effects and transport acceptance', () => {
       await expect(reminder.handle('Otra', context, 'thread')).rejects.toMatchObject({ code: 'INBOUND_RECONCILIATION_REQUIRED' });
       await first;
     });
+  });
+  it('checkpoints prepared dialogue while delivery is still ready, without sending after a checkpoint failure', async () => {
+    const s = setup([response()]);
+    s.fail(3);
+    await expect(s.run()).rejects.toThrow('storage unavailable');
+    const state = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
+    expect(state.phase).toBe('ready');
+    expect(state.deliveries.map(entry => entry.status)).toEqual(['ready']);
+    expect(state.completed?.conversation.history.at(-1)).toMatchObject({ role: 'assistant', content: state.completed?.reply.text });
+    expect(s.send).not.toHaveBeenCalled();
+    await expect(s.run()).rejects.toMatchObject({ code: 'INBOUND_RECONCILIATION_REQUIRED' });
+    expect(s.send).not.toHaveBeenCalled();
   });
   it('honors lease cancellation before transport dispatch', async () => {
     const s = setup([response([calendarRead]), response()]);

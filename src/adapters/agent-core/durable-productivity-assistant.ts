@@ -16,6 +16,17 @@ function boundaryError(code: string) {
   return Object.assign(new Error(code), { code });
 }
 
+/** Prepared dialogue is context, not an execution receipt or proof of handset delivery. */
+function withPreparedReply(conversation: ProductivityConversation, text: string): ProductivityConversation {
+  const history = [...conversation.history];
+  const last = history.at(-1);
+  // Replace only final prose. Tool-call assistants and their observations remain intact.
+  const reply = { role: 'assistant' as const, content: text, toolCalls: [] };
+  if (last?.role === 'assistant' && !last.toolCalls?.length) history[history.length - 1] = reply;
+  else history.push(reply);
+  return productivityConversationSchema.parse({ ...conversation, history });
+}
+
 /** Isolated composition over the existing queue; no replay of interrupted writes or sends. */
 export class DurableProductivityAssistant {
   constructor(private readonly runner: ProductivityTurnRunner, private readonly delivery: ProductivityDeliveryPort,
@@ -63,7 +74,8 @@ export class DurableProductivityAssistant {
     const scopedContext = { ...context, signal: AbortSignal.any([context.signal, lease.signal]) };
     const result = await this.runner.run(text, scopedContext, recovered, journal);
     const reply = this.presenter.render(result.uiPayload);
-    completed = { conversation: result.conversation, uiPayload: result.uiPayload, requiresReconciliation: result.requiresReconciliation, reply };
+    const conversation = withPreparedReply(result.conversation, reply.text);
+    completed = { conversation, uiPayload: result.uiPayload, requiresReconciliation: result.requiresReconciliation, reply };
     const messages: ProductivityDelivery[] = [
       { id: `${encodeURIComponent(context.requestId)}:reply:0`, kind: 'text', text: reply.text },
       ...reply.ctas.map((cta, index): ProductivityDelivery => ({ id: `${encodeURIComponent(context.requestId)}:reply:${index + 1}`,
@@ -101,6 +113,6 @@ export class DurableProductivityAssistant {
     await checkpoint();
     // Deliver the honest warning, then let the queue quarantine the uncertain effect.
     if (uncertainWrite) throw boundaryError('EFFECT_RECONCILIATION_REQUIRED');
-    return { ...result, reply, messageIds: deliveries.map(entry => entry.messageId!) };
+    return { ...result, conversation, reply, messageIds: deliveries.map(entry => entry.messageId!) };
   }
 }

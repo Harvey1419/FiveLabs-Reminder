@@ -27,11 +27,12 @@ describe('V2 public conversation through durable execution and WhatsApp presenta
     expect(result.reply.text).toContain('Listo, te lo recordaré.');
     expect(result.reply.text).not.toContain(draft);
     expect(result.reply.text).not.toContain('16:05');
-    expect(result.conversation.history.at(-1)?.content).toBe(draft);
+    expect(result.conversation.history.at(-1)?.content).toBe(result.reply.text);
     expect(result.uiPayload.dialogue).toEqual({ kind: 'execution', tone: 'neutral' });
     expect(s.execute).toHaveBeenCalledOnce(); expect(s.send.mock.calls[0]?.[0].text).toBe(result.reply.text);
     const checkpoint = productivityCheckpointSchema.parse(s.snapshot().agentCoreProductivity);
     expect(checkpoint.completed?.reply.text).toBe(result.reply.text);
+    expect(checkpoint.completed?.conversation.history).toEqual(result.conversation.history);
     expect(checkpoint.deliveries[0]?.message.text).toBe(result.reply.text);
   });
   it('continues from a pre-generation rate limit to a verified reminder mutation and final dialogue', async () => {

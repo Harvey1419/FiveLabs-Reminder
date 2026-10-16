@@ -1,4 +1,4 @@
-import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
+import { productivityBudget, productivityDecisionPolicy } from '../../src/adapters/agent-core/productivity-budget.js';
 import { z } from 'zod';
 import { writeFileSync } from 'node:fs';
 import { ProductivityTurnRunner, type ProductivityExecutionJournal } from '@templelabs/agent-core';
@@ -22,12 +22,13 @@ const old: ProductivityConversation = { userId: context.userId, history: Array.f
 const cancellation = [reply([{ id: 'select', name: 'tools_select', arguments: { name: 'reminder_read' } }]),
   reply([{ id: 'read', name: 'reminder_read', arguments: { query: 'amoxicilina' } }]),
   reply([{ id: 'cancel', name: 'reminder_cancel', arguments: { reminderId: id } }]), reply()];
+const dialogue = reply([{ id: 'dialogue', name: 'conversation_decide', arguments: { ready: [], reply: 'Aquí estoy. Vamos paso a paso.' } }]);
 const cases = [
-  { name: 'greeting', text: 'Buenos días', history: undefined, script: [reply()], writes: 0 },
-  { name: 'greeting_with_legacy_history_and_gaps', text: 'Buenos días, ¿seguimos organizando el día?', history: old, script: [reply()], writes: 0 },
+  { name: 'greeting', text: 'Buenos días', history: undefined, script: [dialogue], writes: 0 },
+  { name: 'greeting_with_legacy_history_and_gaps', text: 'Buenos días, ¿seguimos organizando el día?', history: old, script: [dialogue], writes: 0 },
   { name: 'read_then_cancel', text: '¿Podrías eliminar el recordatorio de la moxicilina?', history: undefined, script: cancellation, writes: 1 },
   { name: 'read_then_cancel_with_legacy_history_and_gaps', text: '¿Podrías eliminar el recordatorio de la moxicilina?', history: old, script: cancellation, writes: 1 },
-  ...[1500, 3000, 5000].map(length => ({ name: `long_current_input_${length}_chars`, text: ('Estoy preparando mi semana. Tengo varias reuniones y necesito priorizar los pendientes sin perder el descanso. ').repeat(50).slice(0, length), history: old, script: [reply()], writes: 0 })),
+  ...[1500, 3000, 5000].map(length => ({ name: `long_current_input_${length}_chars`, text: ('Estoy preparando mi semana. Tengo varias reuniones y necesito priorizar los pendientes sin perder el descanso. ').repeat(50).slice(0, length), history: old, script: [dialogue], writes: 0 })),
 ];
 const results = [];
 for (const fixture of cases) for (const budget of [1800, 2500]) {
@@ -45,7 +46,7 @@ for (const fixture of cases) for (const budget of [1800, 2500]) {
   const runner = new ProductivityTurnRunner(provider, new ToolRegistry([
     ...createReminderTools(port), ...createTaskTools({ execute: async () => { throw new Error('Unexpected task fixture dispatch'); } }),
     ...createCalendarTools({ execute: async () => { throw new Error('Unexpected calendar fixture dispatch'); } }),
-  ]), { continuation: 'observation_driven', discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
+  ]), { ...productivityDecisionPolicy, continuation: 'observation_driven', discoverTools: true, compactObservations: true, continuationReserveTokens: 256,
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'] },
     maxPromptReferences: 5, maxInputTokens: budget, maxTotalTokens: 12000, maxModelSteps: 6, maxToolCalls: 8, maxOutputTokens: 768,
     estimateInputTokens: input => wire.estimateNativeInput(z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) }).parse(input)), authorizeWrite: async () => true });
@@ -56,7 +57,7 @@ for (const fixture of cases) for (const budget of [1800, 2500]) {
   catch (failure) { if (!(failure instanceof Error) || failure.name !== 'ContextLimitError') throw failure; error = failure.name; }
   const estimates = provider.requests.map(request => wire.estimateNativeInput(request));
   const writes = calls.filter(operation => operation !== 'read').length;
-  results.push({ case: fixture.name, budget, complete: Boolean(result && result.uiPayload.notices.length === 0 && writes === fixture.writes && result.conversationReply),
+  results.push({ case: fixture.name, budget, decisionControlAdvertised: provider.requests.some(request => request.tools.some(tool => tool.name === 'conversation_decide')), complete: Boolean(result && result.uiPayload.notices.length === 0 && writes === fixture.writes && result.conversationReply),
     error, notices: result?.uiPayload.notices ?? [], domainCalls: calls, writes, modelRequests: estimates.length,
     inputEstimates: estimates, maxInputEstimate: Math.max(0, ...estimates), totalInputEstimate: estimates.reduce((a, b) => a + b, 0),
     historicalHintsProjected: provider.requests.some(request => JSON.stringify(request.messages).includes('historicalReferenceGaps')),
@@ -65,7 +66,7 @@ for (const fixture of cases) for (const budget of [1800, 2500]) {
   if (budget === productivityBudget.maxInputTokens && fixture.name !== 'long_current_input_5000_chars' && !results.at(-1)!.complete) throw new Error('Expected fixture completion failed');
   if (estimates.some(estimate => estimate > budget) || writes > fixture.writes) throw new Error('Budget or mutation safety regression');
 }
-const report = { version: 1, productionInputBudget: productivityBudget.maxInputTokens, mode: 'offline_deterministic_capacity_comparison',
+const report = { version: 1, productionPolicy: { ...productivityBudget, ...productivityDecisionPolicy }, productionInputBudget: productivityBudget.maxInputTokens, mode: 'offline_deterministic_capacity_comparison',
   methodology: 'Same scripted responses, core loop options and full atomic registry for each budget; no inference, storage, delivery or deployments. Input estimates include the OpenRouter wire envelope.',
   limits: 'Measures context capacity and protocol completion only. Does not measure intelligence, live model quality, provider token usage, latency or actual cost. Long-input cases are synthetic stress fixtures.', results };
 const output = process.argv[2];

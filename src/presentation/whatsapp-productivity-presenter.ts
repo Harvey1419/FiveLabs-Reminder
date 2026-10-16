@@ -44,8 +44,30 @@ function calendarLine(event: CalendarEvent, timezone: string, language: 'es' | '
   return `• 📅 *${event.summary}* — ${formatHumanFriendlyDateTime(event.startIso, timezone, language)}${meet}`;
 }
 
+function pendingQuestion(payload: ProductivityUiPayload): string | null {
+  if (!payload.clarification || !payload.items.length || payload.notices.length
+    || payload.items.some(item => item.status !== 'success' || !item.result?.complete
+      || (item.domain === 'calendar' && item.result.companion === 'unconfirmed'))) return null;
+  const { domain, missing } = payload.clarification;
+  const en = payload.language === 'en';
+  const subjects = {
+    reminders: ['el recordatorio pendiente', 'the pending reminder'], tasks: ['la tarea pendiente', 'the pending task'],
+    calendar: ['el evento pendiente', 'the pending event'], memories: ['el recuerdo pendiente', 'the pending memory'],
+    general: ['lo pendiente', 'the pending item'],
+  } as const;
+  const subject = subjects[domain][en ? 1 : 0];
+  // Only enum-selected, host-owned questions: no generated prose or execution authority.
+  switch (missing) {
+    case 'today_or_tomorrow': return en ? `Is ${subject} for today or tomorrow?` : `¿${subject[0]!.toUpperCase()}${subject.slice(1)} es para hoy o para mañana?`;
+    case 'date': return en ? `What date is ${subject} for?` : `¿Para qué fecha es ${subject}?`;
+    case 'time': return en ? `What time is ${subject} for?` : `¿A qué hora es ${subject}?`;
+    case 'item': return en ? `Which item do you mean for ${subject}?` : `¿A qué elemento te refieres para ${subject}?`;
+    case 'details': return en ? `What details should I use for ${subject}?` : `¿Qué detalles quieres indicar para ${subject}?`;
+  }
+}
+
 function verifiedAcknowledgement(payload: ProductivityUiPayload): string | null {
-  if (payload.dialogue?.kind !== 'execution' || payload.notices.length
+  if (payload.clarification || payload.dialogue?.kind !== 'execution' || payload.notices.length
     || payload.items.some(item => item.status !== 'success' || !item.result?.complete)) return null;
   const writes = payload.items.filter(item => !item.toolName.endsWith('_read') && item.toolName !== 'calendar_connect');
   if (writes.some(item => item.toolName === 'memory_forget')) return null; // Atomic deletion receipts do not certify whole-profile erasure.
@@ -67,6 +89,12 @@ export class WhatsAppProductivityPresenter {
     const payload = { ...parsed, items: parsed.items.flatMap(expandAgendaItem) };
     new Intl.DateTimeFormat('en', { timeZone: payload.timezone }).format();
     const en = payload.language === 'en';
+    const question = pendingQuestion(payload);
+    // Move only matching presentation questions, never matching record/title text.
+    if (question) payload.items = payload.items.map(item => !item.result ? item : ({ ...item,
+      result: { ...item.result, presentation: { ...item.result.presentation,
+        questions: item.result.presentation.questions.filter(existing => existing.trim() !== question) } },
+    } as (typeof payload.items)[number]));
     const context = { language: payload.language, timezone: payload.timezone };
     const sections: string[] = parsed.items.filter(item => item.domain === 'agenda' && !item.result).map(item => errorText(item, en));
     // Model prose is a draft, never evidence for execution, including old stored payloads.
@@ -95,6 +123,11 @@ export class WhatsAppProductivityPresenter {
       if (cta?.url && /^https:\/\//i.test(cta.url)) {
         const url = new URL(cta.url);
         if (!url.username && !url.password) ctas.set(cta.url, { ...cta, url: cta.url });
+      }
+      if (item.code === 'AGENDA_SOURCE_UNAVAILABLE' && item.status !== 'success' && item.status !== 'partial') {
+        // Aggregate source failures must not become generic reminder errors.
+        sections.push(errorText(item, en));
+        continue;
       }
       if (item.domain === 'reminders') {
         // Preserve the reminder presenter as the canonical implementation.
@@ -196,8 +229,11 @@ export class WhatsAppProductivityPresenter {
     else if (payload.notices.length) sections.push(payload.items.length
       ? (en ? 'I could not finish all of this request. Check the operation results above.' : 'No pude completar toda la solicitud. Revisa los resultados de las operaciones de arriba.')
       : (en ? 'I could not complete your request. I have not made any changes.' : 'No pude completar tu solicitud. No hice cambios.'));
-    return { text: boundWhatsAppText([...new Set(sections.filter(Boolean))].join('\n\n')
-      || (en ? 'I could not prepare a useful response. Could you tell me a little more?' : 'No pude preparar una respuesta útil. ¿Me cuentas un poco más?')),
-    ctas: [...ctas.values()], flows: [...flows.values()] };
+    const body = [...new Set(sections.filter(Boolean))].join('\n\n');
+    // Reserve the suffix budget before truncating cards, so pending input cannot disappear.
+    const text = question ? (body.length + question.length + 2 <= 4000 ? `${body}\n\n${question}`
+      : boundWhatsAppText(`${body}\n\n${question}`, `\n\n…\n\n${question}`))
+      : boundWhatsAppText(body || (en ? 'I could not prepare a useful response. Could you tell me a little more?' : 'No pude preparar una respuesta útil. ¿Me cuentas un poco más?'));
+    return { text, ctas: [...ctas.values()], flows: [...flows.values()] };
   }
 }

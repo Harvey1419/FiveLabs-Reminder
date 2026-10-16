@@ -7,7 +7,7 @@ import { aiTranscriptSchema, jsonObjectSchema, productivityConversationSchema, t
 import { createReminderTools, createTaskTools, createCalendarTools, createMemoryTools, createAgendaTools, ToolRegistry } from '@templelabs/tools';
 import { WhatsAppProductivityPresenter } from '../../src/presentation/whatsapp-productivity-presenter.js';
 import { createConfiguredAIProvider } from '../../src/adapters/agent-core/configured-ai-provider.js';
-import { productivityBudget } from '../../src/adapters/agent-core/productivity-budget.js';
+import { productivityBudget, productivityDecisionPolicy } from '../../src/adapters/agent-core/productivity-budget.js';
 import { recentToolScope } from '../../src/adapters/agent-core/recent-tool-scope.js';
 const live = process.argv.includes('--live');
 const output = process.argv.find(arg => arg.startsWith('--output='))?.slice(9);
@@ -21,10 +21,20 @@ const anchor = '2026-10-15T15:00:00Z';
 const answer = (toolCalls: ToolCall[] = []): AIResponse => ({ message: { role: 'assistant', content: toolCalls.length ? '' : 'Listo.', toolCalls }, stopReason: toolCalls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 0, outputTokens: 0 } });
 const call = (name: string, args: ToolCall['arguments'], index: number): ToolCall => ({ id: `call-${index}`, name, arguments: args });
 const batches = (groups: ToolCall[][]): AIResponse[] => groups.flatMap((group, index) => [answer([call('tools_select', { name: group[0]!.name }, 100 + index)]), answer(group)]).concat(answer());
+const plannedBatches = (groups: ToolCall[][]): AIResponse[] => [
+  answer([call('conversation_decide', { ready: groups.flat().map(item => ({ key: item.id, tool: item.name })) }, 99)]),
+  ...batches(groups.map((group, groupIndex) => group.map((item, itemIndex) => ({ ...item, arguments: { ...item.arguments, decisionItem: item.id,
+    ...(groupIndex === groups.length - 1 && itemIndex === group.length - 1 ? { turnDisposition: 'finish' } : {}) } })))),
+];
 const reminder = (i: number, length = 25, recurring = false) => call('reminder_create', { content: `Recordatorio ${i} ` + 'detalle '.repeat(length).slice(0, length), targetTimeIso: '2026-10-15T15:10:00Z', ...(recurring ? { recurrence: 'daily' } : {}) }, i);
 const task = (i: number, project = false) => call('task_create', { title: `Tarea ${i}`, description: 'Revisar requisitos y entregar el informe al cliente.', ...(project ? { entityName: 'Proyecto Atlas', entityCategory: 'project' } : {}) }, i);
 interface Scenario { name: string; text: string; script: AIResponse[]; writes: number; reads?: number; live?: boolean; reminders?: number; tasks?: number; recurring?: number; longHistory?: boolean; cap?: number }
 const scenarios: Scenario[] = [
+  { name: 'typed_three_reminders', text: 'Crea tres recordatorios independientes.', script: plannedBatches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, reminders: 3 },
+  { name: 'typed_reminders_and_tasks', text: 'Crea dos recordatorios y dos tareas.', script: plannedBatches([[reminder(1), reminder(2)], [task(3), task(4)]]), writes: 4, reminders: 2, tasks: 2 },
+  { name: 'typed_relative_and_clock', text: 'Recuérdame salir en diez minutos y preparar la reunión hoy a las4PM.',
+    script: plannedBatches([[call('reminder_create', { content: 'Salir', delayMinutes: 10 }, 1),
+      call('reminder_create', { content: 'Preparar reunión', relativeDayTime: { day: 'today', hour: 16, minute: 0 } }, 2)]]), writes: 2, reminders: 2 },
   { name: 'read_today_long_history', text: 'Oye, ¿qué recordatorios tengo para hoy?', script: batches([[call('reminder_read', { filter: 'today' }, 1)]]), writes: 0, reads: 1, longHistory: true, live: true },
   { name: 'three_reminders', text: 'Recuérdame salir en 10 minutos, llamar a Ana en 20 minutos y revisar el horno en 30 minutos.', script: batches([[reminder(1), reminder(2), reminder(3)]]), writes: 3, reminders: 3, tasks: 0, live: true },
   { name: 'two_reminders_after_reads', text: 'Me puedes recordar que debo salir en 10 minutos y que a las 8 llegaba Lu del aeropuerto.', script: batches([[reminder(1), reminder(2)]]), writes: 2, reminders: 2, tasks: 0, live: true },
@@ -115,12 +125,19 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
         { role: 'tool', toolCallId: 'prior-reminders', content: { status: 'success' }, isError: false },
       ], tasks: [], reminders: [], events: [], handledRequestIds: [] })
     : scenario.longHistory ? { userId: context.userId, history: Array.from({ length: 100 }, (_, i) => i % 2 ? { role: 'assistant' as const, content: 'Historial largo sin autorización nueva. '.repeat(20), toolCalls: [] } : { role: 'user' as const, content: 'Conversación anterior sobre pendientes. '.repeat(20) }), tasks: [], reminders: [], events: [], handledRequestIds: [] } : undefined;
-  const runner = new ProductivityTurnRunner(provider, registry, { ...productivityBudget, maxInputTokens: budget, maxModelSteps: scenario.cap ?? productivityBudget.maxModelSteps,
+  const limitReports: unknown[] = [];
+  let lastInputProbe: { tokens: number; tools: string[] } | null = null;
+  const runner = new ProductivityTurnRunner(provider, registry, { ...productivityBudget, ...productivityDecisionPolicy, maxInputTokens: budget, maxModelSteps: scenario.cap ?? productivityBudget.maxModelSteps,
     initialTools: recentToolScope(previous?.history ?? [], registry.available(context).map(tool => tool.name), productivityBudget.initialTools),
     continuation: 'observation_driven', discoverTools: true, compactObservations: true, maxPromptReferences: 5,
     readFollowups: { reminder_read: ['reminder_cancel'], task_read: ['task_delete'], calendar_read: ['calendar_delete'], memory_read: ['memory_forget'] },
     personalContext: { displayName: 'Juan', preferences: ['Prefiero avisos 20 minutos antes', 'Prefiero reuniones por la mañana'], memories: ['Trabajo en Globant', 'Estoy preparando el proyecto Atlas'] },
-    estimateInputTokens: input => (source instanceof OpenRouterProvider ? source : wire).estimateNativeInput(requestSchema.parse(input)), authorizeWrite: async () => true });
+    estimateInputTokens: input => {
+      const native = requestSchema.parse(input);
+      const tokens = (source instanceof OpenRouterProvider ? source : wire).estimateNativeInput(native);
+      lastInputProbe = { tokens, tools: native.tools.map(tool => tool.name) };
+      return tokens;
+    }, onLimit: diagnostic => { limitReports.push({ ...diagnostic, modelRequests: requests.length, lastInputProbe }); }, authorizeWrite: async () => true });
 
   const started = Date.now(); let result; let error: string | null = null;
   try { result = await runner.run(scenario.text, context, previous, { beforeDispatch: async () => {}, afterOutcome: async () => {} }); }
@@ -158,17 +175,18 @@ for (const scenario of scenarios.filter(s => (!live || s.live) && (!caseName || 
     && (scenario.reads === undefined || reads === scenario.reads);
   const semanticComplete = structuralComplete && (!live || Object.values(semanticChecks).every(Boolean)) && (scenario.reminders === undefined || reminders.length === scenario.reminders)
     && (scenario.tasks === undefined || tasks.length === scenario.tasks) && (scenario.recurring === undefined || reminders.filter(r => r.recurrence).length === scenario.recurring);
-  results.push({ case: scenario.name, budget, complete: semanticComplete, sourceCharacters: scenario.text.length, error, notices: result?.uiPayload.notices ?? [], writes, expectedWrites: scenario.writes,
+  results.push({ case: scenario.name, budget, limitReports, decisionControlAdvertised: requests.some(request => request.tools.some(tool => tool.name === 'conversation_decide')), complete: semanticComplete, sourceCharacters: scenario.text.length, error, notices: result?.uiPayload.notices ?? [], writes, expectedWrites: scenario.writes,
     reads, reminders: reminders.length, recurring: reminders.filter(r => r.recurrence).length, tasks: tasks.length, semanticChecks, actions: live ? observed : [], steps: requests.length, elapsedMs: Date.now() - started,
     inputEstimates: estimates, maxInputEstimate: Math.max(0, ...estimates), totalInputEstimate: estimates.reduce((a,b) => a+b,0), usage: result?.usage ?? null, attempts, rawResponses, decisions,
     originalHistoryMessages: previous?.history.length ?? 0, durableHistoryMessages: result?.conversation.history.length ?? 0 });
+  console.error(JSON.stringify({ case: scenario.name, budget, complete: semanticComplete, notices: result?.uiPayload.notices ?? [], writes, limitReports }));
   if (!live && budget === 2500 && !['rich_source_5000','rich_source_6000','bounded_steps_negative_control'].includes(scenario.name) && !semanticComplete) throw new Error('Complex capacity regression: ' + scenario.name);
   if (scenario.name === 'confirmed_write_replay' && budget === 2500 && result?.uiPayload.items.length !== 2) throw new Error('A confirmed replay must not create another UI item');
   if (!live && estimates.some(n => n > budget)) throw new Error('Input budget regression');
   if (!live && scenario.name === 'bounded_steps_negative_control' && writes) throw new Error('Step fence regression');
-  console.error(JSON.stringify({ case: scenario.name, budget, complete: semanticComplete, notices: result?.uiPayload.notices ?? [], writes }));
+
 }
-const report = { version: 1, mode: live ? 'bounded_live_isolated_tools' : 'offline_scripted_complex_capacity', productionPolicy: productivityBudget,
+const report = { version: 1, mode: live ? 'bounded_live_isolated_tools' : 'offline_scripted_complex_capacity', productionPolicy: { ...productivityBudget, ...productivityDecisionPolicy },
   externalEffects: { productionWrites: 0, WhatsAppSends: 0, inference: live ? 'paid configured provider requests; see attempts' : 'none' },
   limits: live ? 'One run per case/budget; counts/recurrence grader only, not a complete semantic evaluator. Local ports simulate productivity storage/project grouping, not real integration parity.' : 'Scripted model decisions; measures context/protocol capacity, not live intelligence. Zero mock usage is not measured consumption.', results };
 if (output) writeFileSync(output, JSON.stringify(report, null, 2) + '\n');

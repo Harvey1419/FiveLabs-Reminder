@@ -5,7 +5,7 @@ import {
 } from '@templelabs/contracts';
 import type { ToolOutcome } from './index.js';
 import { defineTool } from './define-tool.js';
-import { nextLocalClock } from './local-clock.js';
+import { nextLocalClock, relativeLocalDayClock } from './local-clock.js';
 
 export interface ReminderDomainPort {
   execute(request: ReminderRequest, context: TurnContext, operationId: string): Promise<ToolOutcome<ReminderResult>>;
@@ -15,20 +15,21 @@ export function createReminderTools(port: ReminderDomainPort) {
   return [
     defineTool({
       name: 'reminder_create', effect: 'write', requiredCapability: 'reminders.create',
-      description: 'For in N minutes use delayMinutes. For a clock hour without date or AM/PM use unqualifiedLocalTime; the host chooses the earliest future occurrence. Use targetTimeIso for explicit dates, AM/PM or unambiguous 24-hour times. Omit advanceMinutes unless requested. Create one reminder; recurrence and notification policies follow backend entitlements. Report only returned results.',
+      description: 'Create one reminder; report only returned results. delayMinutes: in N minutes. relativeDayTime: today/tomorrow, local24h (9 AM=9,9 PM=21); preserve clock when only day is answered. unqualifiedLocalTime: undated without AM/PM, earliest future half-day. targetTimeIso: absolute dates. Omit advanceMinutes unless requested; recurrence/notices follow backend entitlements.',
       inputSchema: reminderCreateToolInputSchema, outputSchema: reminderResultSchema,
       handler: async (input, context, operationId) => {
-        const { delayMinutes, unqualifiedLocalTime, ...fields } = input;
+        const { delayMinutes, unqualifiedLocalTime, relativeDayTime, ...fields } = input;
         let targetTimeIso: string;
-        try { targetTimeIso = unqualifiedLocalTime ? nextLocalClock(unqualifiedLocalTime, context.referenceTimeIso, context.timezone)
-          : fields.targetTimeIso ?? new Date(Date.parse(context.referenceTimeIso) + delayMinutes! * 60000).toISOString(); }
+        try { targetTimeIso = relativeDayTime ? relativeLocalDayClock(relativeDayTime, context.referenceTimeIso, context.timezone)
+          : unqualifiedLocalTime ? nextLocalClock(unqualifiedLocalTime, context.referenceTimeIso, context.timezone)
+            : fields.targetTimeIso ?? new Date(Date.parse(context.referenceTimeIso) + delayMinutes! * 60000).toISOString(); }
         catch { return { status: 'validation_failed' as const, code: 'INVALID_LOCAL_TIME', observation: 'No write dispatched. Check the clock, timezone and temporal anchor.' }; }
         return port.execute({ operation: 'create', input: reminderCreateInputSchema.parse({ ...fields, targetTimeIso }) }, context, operationId);
       },
     }),
     defineTool({
       name: 'reminder_read', effect: 'read', requiredCapability: 'reminders.read',
-      description: 'Read owned reminders using an optional date scope and literal content search. Results are bounded, not a complete historical inventory. Use returned IDs for subsequent changes.',
+      description: 'Read owned reminders using filter ("today", "tomorrow", "all_pending") and optional query. Results are bounded. Use returned IDs for subsequent changes.',
       inputSchema: reminderReadInputSchema, outputSchema: reminderResultSchema,
       handler: (input, context, operationId) => port.execute({ operation: 'read', input }, context, operationId),
     }),

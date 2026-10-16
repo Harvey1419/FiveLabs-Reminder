@@ -14,12 +14,31 @@ export interface OpenRouterAttempt {
   readonly inputEstimate: number; readonly usage: AIResponse['usage'] | null;
   readonly status: number | null; readonly outcome: 'response' | 'transport_unknown';
   readonly providerErrorCode?: number;
+  /** Bounded names from this attempt's wire payload, never execution authority. */
+  readonly advertisedToolNames?: readonly string[];
+  readonly advertisedToolsTruncated?: boolean;
+  /** Present only when the existing native ToolSelectionError predicate matched. */
+  readonly rejectedToolName?: string;
+  /** Safe internal evidence only; never a retry decision or proof of zero spend. */
+  readonly failureClass?: 'unadvertised_tool_rejection' | 'provider_error' | 'missing_usage'
+    | 'invalid_response' | 'transport_uncertainty' | 'authentication' | 'rate_limit';
 }
 export interface OpenRouterProviderOptions {
   readonly apiKey: string; readonly routes: readonly OpenRouterRoute[];
   readonly fetch?: typeof globalThis.fetch; readonly now?: () => number;
   readonly estimateInputTokens?: (payload: unknown) => number;
   readonly onAttempt?: (attempt: OpenRouterAttempt) => void;
+}
+function advertisedToolSnapshot(payload: Record<string, unknown>): Pick<OpenRouterAttempt, 'advertisedToolNames' | 'advertisedToolsTruncated'> {
+  const advertisedToolNames: string[] = [];
+  let advertisedToolsTruncated = false;
+  for (const tool of Array.isArray(payload.tools) ? payload.tools : []) {
+    const fn = tool !== null && typeof tool === 'object' ? (tool as Record<string, unknown>).function : null;
+    const name = fn !== null && typeof fn === 'object' ? (fn as Record<string, unknown>).name : null;
+    if (typeof name === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(name) && advertisedToolNames.length < 64) advertisedToolNames.push(name);
+    else advertisedToolsTruncated = true;
+  }
+  return { advertisedToolNames, advertisedToolsTruncated };
 }
 /** Also races adapters that ignore AbortSignal; no subsequent route starts after host cancellation. */
 async function abortable<T>(work: () => Promise<T>, signal: AbortSignal): Promise<T> {
@@ -141,6 +160,7 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
       const estimatedSpend = request.spendLimit ? ((usage.inputTokens + inputEstimate) * request.spendLimit.inputUsdPerMillion
         + (usage.outputTokens + Number(payload.max_tokens)) * request.spendLimit.outputUsdPerMillion) / 1e6 : 0;
       if (request.spendLimit && estimatedSpend > request.spendLimit.maxUsd) fail('GATEWAY_BUDGET');
+      const advertisedTools = advertisedToolSnapshot(payload);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(route.timeoutMs, remainingMs, 2147483647));
       const signal = AbortSignal.any([request.signal, controller.signal]);
@@ -155,7 +175,8 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
         raw = await abortable(() => response.json() as Promise<unknown>, signal);
       } catch {
         this.report({ route: route.id, model: route.model, requestedProviders: route.providers, provider: null,
-          generationId: null, inputEstimate, usage: null, status: null, outcome: 'transport_unknown' });
+          generationId: null, inputEstimate, usage: null, status: null, outcome: 'transport_unknown',
+          failureClass: 'transport_uncertainty', ...advertisedTools });
         if (request.signal.aborted) fail('GATEWAY_ABORTED', false);
         if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', false);
         // Unknown inference spend must not be silently represented by zero or retried.
@@ -173,42 +194,61 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
       const attemptUsage = reportedOpenRouterUsage(raw)
         ?? (rejectedBeforeGeneration ? { inputTokens: 0, outputTokens: 0 } : null);
       const safeLabel = (value: unknown): string | null => typeof value === 'string' && /^[\w./:-]{1,200}$/.test(value) ? value : null;
-      this.report({ route: route.id, model: safeLabel(metadata.model) ?? route.model, requestedProviders: route.providers,
-        provider: typeof metadata.provider === 'string' && /^[\w ./:()-]{1,200}$/.test(metadata.provider) && metadata.provider.trim()
-          ? metadata.provider : null, generationId: safeLabel(metadata.id), inputEstimate,
-        usage: attemptUsage, status: response.status, outcome: 'response',
-        ...(typeof rejection?.code === 'number' ? { providerErrorCode: rejection.code } : {}) });
-      if (attemptUsage) {
-        usage.inputTokens += attemptUsage.inputTokens; usage.outputTokens += attemptUsage.outputTokens;
-      }
-      if (request.signal.aborted) fail('GATEWAY_ABORTED', attemptUsage !== null);
-      if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', attemptUsage !== null);
-      if (response.status === 401 || response.status === 403) fail('AUTHENTICATION_FAILED', attemptUsage !== null);
-      // Groq can wrap an explicit whole-decision tool validation rejection in
-      // HTTP 200. Never execute failed_generation or infer zero inference spend.
-      // This narrow protocol classification is not user-text intent routing.
-      if (payloadFor === openRouterPayload && rejection?.code === 502 && !Object.hasOwn(metadata, 'choices')
-        && typeof rejection.message === 'string') {
-        const matches = [...rejection.message.matchAll(/\battempted\s+to\s+call\s+tool\s+(['"])([a-zA-Z0-9_-]{1,64})\1\s+which\s+was\s+not\s+in\s+request\.tools\b/gi)];
-        const name = matches.length === 1 ? matches[0]?.[2] : null;
-        if (name && !request.tools.some(tool => tool.name === name)) {
-          throw new ToolSelectionError(name, usage, attemptUsage !== null);
+      // Categories describe observed evidence, not recovery permission. Prefer an
+      // explicit envelope to missing usage; only the existing auth/429 branches
+      // receive HTTP-specific labels. A generic 502 says nothing about safe spend.
+      let failureClass: OpenRouterAttempt['failureClass'] = response.status === 401 || response.status === 403
+        ? 'authentication' : rejectedBeforeGeneration ? 'rate_limit' : rejection ? 'provider_error'
+          : !attemptUsage ? 'missing_usage' : !response.ok ? 'provider_error' : undefined;
+      let rejectedToolName: string | undefined;
+      try {
+        if (attemptUsage) {
+          usage.inputTokens += attemptUsage.inputTokens; usage.outputTokens += attemptUsage.outputTokens;
         }
+        if (request.signal.aborted) fail('GATEWAY_ABORTED', attemptUsage !== null);
+        if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE', attemptUsage !== null);
+        if (response.status === 401 || response.status === 403) fail('AUTHENTICATION_FAILED', attemptUsage !== null);
+        // Groq can wrap an explicit whole-decision tool validation rejection in
+        // HTTP 200. Never execute failed_generation or infer zero inference spend.
+        // This narrow protocol classification is not user-text intent routing.
+        if (payloadFor === openRouterPayload && rejection?.code === 502 && !Object.hasOwn(metadata, 'choices')
+          && typeof rejection.message === 'string') {
+          const matches = [...rejection.message.matchAll(/\battempted\s+to\s+call\s+tool\s+(['"])([a-zA-Z0-9_-]{1,64})\1\s+which\s+was\s+not\s+in\s+request\.tools\b/gi)];
+          const name = matches.length === 1 ? matches[0]?.[2] : null;
+          if (name && !request.tools.some(tool => tool.name === name)) {
+            failureClass = 'unadvertised_tool_rejection';
+            rejectedToolName = name;
+            throw new ToolSelectionError(name, usage, attemptUsage !== null);
+          }
+        }
+        if (!attemptUsage) fail('UNVERIFIED_USAGE', false);
+        if (usage.outputTokens > request.maxOutputTokens || (request.maxInputTokens !== undefined && usage.inputTokens > request.maxInputTokens)
+          || (request.maxTotalTokens !== undefined && usage.inputTokens + usage.outputTokens > request.maxTotalTokens)) fail('GATEWAY_BUDGET');
+        const reportedSpend = request.spendLimit ? (usage.inputTokens * request.spendLimit.inputUsdPerMillion
+          + usage.outputTokens * request.spendLimit.outputUsdPerMillion) / 1e6 : 0;
+        if (request.spendLimit && reportedSpend > request.spendLimit.maxUsd) fail('GATEWAY_BUDGET');
+        if (!response.ok) { this.failedRoutes.add(route.id); continue; }
+        let decoded: T;
+        try { decoded = decode(raw); }
+        catch {
+          failureClass ??= 'invalid_response';
+          this.failedRoutes.add(route.id); continue;
+        }
+        // Local validation may consume time or observe cancellation too.
+        if (request.signal.aborted) fail('GATEWAY_ABORTED');
+        if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE');
+        return { ...decoded, usage };
+      } finally {
+        // Report once, after decoding, including throw/continue exits. report()
+        // detaches the event and swallows telemetry failures as before.
+        this.report({ route: route.id, model: safeLabel(metadata.model) ?? route.model, requestedProviders: route.providers,
+          provider: typeof metadata.provider === 'string' && /^[\w ./:()-]{1,200}$/.test(metadata.provider) && metadata.provider.trim()
+            ? metadata.provider : null, generationId: safeLabel(metadata.id), inputEstimate,
+          usage: attemptUsage, status: response.status, outcome: 'response',
+          ...(typeof rejection?.code === 'number' ? { providerErrorCode: rejection.code } : {}),
+          ...(failureClass ? { failureClass } : {}), ...advertisedTools,
+          ...(rejectedToolName ? { rejectedToolName } : {}) });
       }
-      if (!attemptUsage) fail('UNVERIFIED_USAGE', false);
-      if (usage.outputTokens > request.maxOutputTokens || (request.maxInputTokens !== undefined && usage.inputTokens > request.maxInputTokens)
-        || (request.maxTotalTokens !== undefined && usage.inputTokens + usage.outputTokens > request.maxTotalTokens)) fail('GATEWAY_BUDGET');
-      const reportedSpend = request.spendLimit ? (usage.inputTokens * request.spendLimit.inputUsdPerMillion
-        + usage.outputTokens * request.spendLimit.outputUsdPerMillion) / 1e6 : 0;
-      if (request.spendLimit && reportedSpend > request.spendLimit.maxUsd) fail('GATEWAY_BUDGET');
-      if (!response.ok) { this.failedRoutes.add(route.id); continue; }
-      let decoded: T;
-      try { decoded = decode(raw); }
-      catch { this.failedRoutes.add(route.id); continue; }
-      // Local validation may consume time or observe cancellation too.
-      if (request.signal.aborted) fail('GATEWAY_ABORTED');
-      if (this.now() >= request.deadlineMs) fail('GATEWAY_DEADLINE');
-      return { ...decoded, usage };
     }
     return fail('ROUTES_EXHAUSTED');
   }

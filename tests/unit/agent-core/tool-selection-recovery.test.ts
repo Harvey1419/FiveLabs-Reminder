@@ -77,7 +77,9 @@ describe('explicit provider schema rejection recovery', () => {
     expect(JSON.stringify(h.execute.mock.calls)).not.toContain('Do not execute');
     expect(result.usage).toMatchObject({ modelSteps: 2, inputTokens: 30, outputTokens: 10,
       accountingComplete: false, estimatedCostUsd: null });
-    expect(h.attempts[0]).toMatchObject({ providerErrorCode: 502, usage: null });
+    expect(h.attempts[0]).toMatchObject({ providerErrorCode: 502, usage: null, failureClass: 'unadvertised_tool_rejection' });
+    expect(h.attempts).toHaveLength(2);
+    expect(h.attempts[1]).not.toHaveProperty('failureClass');
     expect(aiTranscriptSchema.safeParse(result.conversation.history).success).toBe(true);
   });
 
@@ -85,9 +87,13 @@ describe('explicit provider schema rejection recovery', () => {
     const h = harness([rejection('task_create'), rejection(name), created]);
     expect((await h.run()).uiPayload.notices).toEqual(['provider_unavailable']);
     expect(h.fetch).toHaveBeenCalledTimes(2);
+    expect(h.attempts.map(attempt => attempt.failureClass)).toEqual([
+      'unadvertised_tool_rejection', name === 'task_create' ? 'provider_error' : 'unadvertised_tool_rejection',
+    ]);
     expect(h.execute).not.toHaveBeenCalled();
     expect(h.authorizeWrite).not.toHaveBeenCalled();
     expect(h.journal.beforeDispatch).not.toHaveBeenCalled();
+    expect(h.journal.afterOutcome).not.toHaveBeenCalled();
   });
 
   it.each(['foreign_tool', 'task_read'])('does not recover unauthorized or already-loaded tools (%s)', async name => {
@@ -99,7 +105,10 @@ describe('explicit provider schema rejection recovery', () => {
 
   it('does not turn an arbitrary 502 or missing usage into a safe retry', async () => {
     const h = harness([{ id: 'gen-unknown', error: { code: 502, message: 'Upstream disconnected' } }, created]);
-    expect((await h.run()).uiPayload.notices).toEqual(['provider_unavailable']);
+    const result = await h.run();
+    expect(result.uiPayload.notices).toEqual(['provider_unavailable']);
+    expect(result.usage.accountingComplete).toBe(false);
+    expect(h.attempts).toMatchObject([{ failureClass: 'provider_error', providerErrorCode: 502, usage: null }]);
     expect(h.fetch).toHaveBeenCalledTimes(1);
     expect(h.execute).not.toHaveBeenCalled();
   });
@@ -113,8 +122,11 @@ describe('explicit provider schema rejection recovery', () => {
   });
 
   it('charges the opaque attempt reservation to the total-token guard before recovery', async () => {
-    const h = harness([rejection('task_create'), created], { maxTotalTokens: 250 });
+    const onLimit = vi.fn();
+    const h = harness([rejection('task_create'), created], { maxTotalTokens: 250, onLimit });
     expect((await h.run()).uiPayload.notices).toEqual(['limit_reached']);
+    expect(onLimit).toHaveBeenCalledExactlyOnceWith({ reason: 'total_tokens' });
+    expect(h.attempts).toMatchObject([{ failureClass: 'unadvertised_tool_rejection', usage: null }]);
     expect(h.fetch).toHaveBeenCalledTimes(1);
     expect(h.execute).not.toHaveBeenCalled();
   });

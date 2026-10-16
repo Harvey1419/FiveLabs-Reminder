@@ -20,7 +20,8 @@ import { routeCanaryProductivity } from '../../../src/adapters/agent-core/canary
 import { createCanaryRouter } from '../../../src/agent/orchestration/canary-router.js';
 import { withTurnLease } from '../../../src/agent/core/turn-lease.js';
 import { readPriorInboundTurn, type InboundCheckpointClient } from '../../../src/adapters/agent-core/inbound-checkpoint-reader.js';
-function answer(calls: AIResponse['message']['toolCalls'] = []): AIResponse { return { message: { role: 'assistant', content: calls.length ? '' : 'Listo.', toolCalls: calls }, stopReason: calls.length ? 'tool_calls' : 'completed', usage: { inputTokens: 30, outputTokens: 10 } }; }
+function answer(calls: AIResponse['message']['toolCalls'] = []): AIResponse { return { message: { role: 'assistant', content: '', toolCalls: calls.length ? calls
+  : [{ id: 'dialogue', name: 'conversation_decide', arguments: { ready: [], reply: 'Listo.' } }] }, stopReason: 'tool_calls', usage: { inputTokens: 30, outputTokens: 10 } }; }
 const text = 'Recuerda que vivo en Bogotá';
 const content = 'vivo en Bogotá';
 const save = { id: 'save', name: 'memory_save', arguments: { content, category: 'fact', evidenceStart: text.indexOf(content), evidenceEnd: text.length } };

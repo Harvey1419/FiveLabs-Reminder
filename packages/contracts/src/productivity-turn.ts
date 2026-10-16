@@ -6,6 +6,9 @@ import { reminderToolNameSchema } from './reminder-turn.js';
 import { taskRecordSchema, taskResultSchema, taskReadInputSchema } from './tasks.js';
 import { calendarEventSchema, calendarResultSchema, calendarReadInputSchema } from './calendar.js';
 import { agendaReadInputSchema, agendaResultSchema } from './agenda.js';
+import { productivityClarificationSchema, productivityPendingSchema } from './productivity-decision.js';
+export { productivityClarificationSchema, productivityPendingSchema, productivityDecisionSchema, decisionItemKeySchema,
+  type ProductivityClarification, type ProductivityPending, type ProductivityDecision } from './productivity-decision.js';
 
 export const taskToolNameSchema = z.enum(['task_create', 'task_read', 'task_update', 'task_complete', 'task_delete']);
 export const calendarToolNameSchema = z.enum(['calendar_create', 'calendar_read', 'calendar_connect', 'calendar_update', 'calendar_delete']);
@@ -38,6 +41,7 @@ export const productivityItemSchema = z.discriminatedUnion('domain', [
 });
 export const productivityConversationSchema = z.strictObject({
   userId: z.string().min(1), history: z.array(aiMessageSchema),
+  pending: productivityPendingSchema.optional(),
   legacyHandoff: z.strictObject({ sourceRunId: z.string().min(1), sourceRequestId: z.string().min(1),
     referenceGaps: z.array(z.strictObject({ id: z.string().min(1).max(128), type: z.string().min(1).max(50),
       position: z.number().int().positive(), title: z.string().max(200).nullable(), reason: z.enum(['missing', 'unsupported']) })).max(51),
@@ -47,6 +51,11 @@ export const productivityConversationSchema = z.strictObject({
   memories: z.array(memoryRecordSchema).max(50).optional(),
   reminders: z.array(reminderRecordSchema).max(50), tasks: z.array(taskRecordSchema).max(50),
   events: z.array(calendarEventSchema).max(50), handledRequestIds: z.array(z.string().min(1)).max(100),
+}).superRefine((conversation, ctx) => {
+  if (conversation.pending && (conversation.pending.userId !== conversation.userId
+    || !conversation.handledRequestIds.includes(conversation.pending.sourceRequestId))) {
+    ctx.addIssue({ code: 'custom', message: 'Pending clarification must belong to an owned handled request' });
+  }
 });
 /** Free dialogue is separate from execution narration, whose facts belong to the presenter. */
 export const productivityDialogueSchema = z.discriminatedUnion('kind', [
@@ -54,6 +63,7 @@ export const productivityDialogueSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('execution'), tone: z.enum(['neutral', 'supportive']) }),
 ]);
 export const productivityUiPayloadSchema = z.strictObject({
+  clarification: productivityClarificationSchema.optional(),
   language: z.enum(['es', 'en']), timezone: z.string().min(1), conversationReply: z.string().max(4000).nullable().optional(), items: z.array(productivityItemSchema).max(10),
   dialogue: productivityDialogueSchema.optional(),
   notices: z.array(z.enum(['provider_unavailable', 'invalid_response', 'unavailable_tool', 'limit_reached'])).max(10),

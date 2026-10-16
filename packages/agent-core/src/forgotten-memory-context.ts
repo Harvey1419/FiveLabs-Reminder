@@ -2,9 +2,9 @@ import { aiMessageSchema, type AIMessage, type MemoryRecord } from '@templelabs/
 
 /** Model projection only. Durable transcripts/receipts remain unchanged for reconciliation.
  * Fresh current-turn user input may explicitly restate a previously forgotten fact. */
-export function projectForgottenMemoryHistory(history: readonly AIMessage[], previousLength: number, memories: readonly MemoryRecord[]): AIMessage[] {
+export function projectForgottenMemoryData(value: unknown, memories: readonly MemoryRecord[]): unknown {
   const forgotten = memories.filter(record => record.status === 'forgotten');
-  if (!forgotten.length) return [...history];
+  if (!forgotten.length) return value;
   const ids = new Set(forgotten.map(record => record.id));
   const scrub = (value: unknown): unknown => {
     if (typeof value === 'string') return forgotten.reduce((text, record) => text.replaceAll(record.content, '[forgotten memory]'), value);
@@ -21,5 +21,10 @@ export function projectForgottenMemoryHistory(history: readonly AIMessage[], pre
     }
     return result;
   };
-  return history.map((message, index) => index < previousLength ? aiMessageSchema.parse(scrub(message)) : message);
+  return scrub(value);
+}
+
+export function projectForgottenMemoryHistory(history: readonly AIMessage[], previousLength: number, memories: readonly MemoryRecord[]): AIMessage[] {
+  if (!memories.some(record => record.status === 'forgotten')) return [...history];
+  return history.map((message, index) => index < previousLength ? aiMessageSchema.parse(projectForgottenMemoryData(message, memories)) : message);
 }

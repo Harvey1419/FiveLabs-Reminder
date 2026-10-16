@@ -36,8 +36,8 @@ function fixture() {
   const registry = new ToolRegistry([tool]);
   return { calendarRead, taskRead, reminderRead, tool, registry };
 }
-function render(data: unknown, status: 'success' | 'partial') {
-  return new WhatsAppProductivityPresenter().render({ language: 'es', timezone: ctx.timezone, notices: [], items: [
+function render(data: unknown, status: 'success' | 'partial', language: 'es' | 'en' = 'es') {
+  return new WhatsAppProductivityPresenter().render({ language, timezone: ctx.timezone, notices: [], items: [
     { domain: 'agenda', toolName: 'agenda_read', callId: 'aggregate', status, code: null,
       readScope: { scope: 'tomorrow' }, result: agendaResultSchema.parse(data) },
   ] }).text;
@@ -82,6 +82,67 @@ describe('combined owned agenda', () => {
     expect(text).toContain('No pude verificar Google Calendar');
     expect(text).toContain('Llegada al aeropuerto'); expect(text).toContain('Enviar propuesta');
     expect(text).not.toContain('Daily');
+  });
+
+  it.each([
+    ['es', 'No pude verificar recordatorios. La agenda está incompleta.'],
+    ['en', 'I could not verify reminders. The agenda is incomplete.'],
+  ] as const)('identifies an unavailable reminder source in %s without discarding healthy sources', async (language, warning) => {
+    const f = fixture(); f.reminderRead.mockRejectedValueOnce(new Error('Disconnected'));
+    const outcome = await f.tool.execute({ scope: 'tomorrow' }, ctx, 'aggregate');
+    expect(outcome.status).toBe('partial');
+    if (!('data' in outcome)) throw new Error('Missing aggregate evidence');
+    expect(outcome.data.complete).toBe(false);
+    expect(outcome.data.sections.find(section => section.domain === 'reminders')).toMatchObject({
+      status: 'failed', code: 'AGENDA_SOURCE_UNAVAILABLE', result: null,
+    });
+    const text = render(outcome.data, 'partial', language);
+    expect(text.split(warning)).toHaveLength(2);
+    expect(text).toContain('Daily');
+    expect(text).toContain('Enviar propuesta');
+    expect(text).not.toContain('Llegada al aeropuerto');
+    expect(text).not.toContain(language === 'es' ? 'No pude completar esta acción.' : 'I could not complete this action.');
+    expect(f.calendarRead).toHaveBeenCalledTimes(1);
+    expect(f.taskRead).toHaveBeenCalledTimes(1);
+    expect(f.reminderRead).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves standalone reminder failure presentation outside the agenda contract', () => {
+    const reply = new WhatsAppProductivityPresenter().render({ language: 'es', timezone: ctx.timezone, notices: [], items: [
+      { domain: 'reminders', toolName: 'reminder_read', callId: 'standalone', status: 'failed', code: 'READ_UNAVAILABLE',
+        result: null, readScope: { filter: 'upcoming' } },
+    ] });
+    expect(reply.text).toBe('No pude completar esta acción.');
+    expect(reply.ctas).toEqual([]);
+    expect(reply.flows).toEqual([]);
+  });
+
+  it('preserves source domains in the next model request after a combined agenda read', async () => {
+    const f = fixture();
+    const response: AIResponse = { message: { role: 'assistant', content: '', toolCalls: [
+      { id: 'agenda', name: 'agenda_read', arguments: { scope: 'tomorrow' } },
+    ] }, stopReason: 'tool_calls', usage: { inputTokens: 100, outputTokens: 20 } };
+    const provider = new MockAIProvider([{ response }, { response: { message: { role: 'assistant', content: '', toolCalls: [] },
+      stopReason: 'completed', usage: { inputTokens: 100, outputTokens: 20 } } }], () => 100);
+    const runner = new ProductivityTurnRunner(provider, f.registry, { compactObservations: true,
+      continuation: 'observation_driven', maxModelSteps: 2, maxToolCalls: 5, now: () => 100 });
+    const result = await runner.run('Consulta mañana y después completa la tarea Enviar propuesta', ctx);
+    expect(provider.requests).toHaveLength(2);
+    const projected = JSON.parse(JSON.stringify(provider.requests[1]!.messages.find(message => message.role === 'tool')?.content));
+    expect(projected.observation.records).toEqual([
+      { id: 'event', domain: 'calendar', title: 'Daily', time: '2026-10-15T14:00:00Z' },
+      { id: reminders.records[0]!.id, domain: 'reminders', title: 'Llegada al aeropuerto', time: '2026-10-15T15:00:00Z' },
+      { id: tasks.records[0]!.id, domain: 'tasks', title: 'Enviar propuesta', time: '2026-10-15T16:00:00Z' },
+    ]);
+    expect(result.uiPayload.items.map(item => [item.domain, item.status])).toEqual([
+      ['calendar', 'success'], ['reminders', 'success'], ['tasks', 'success'],
+    ]);
+    expect(result.conversation.tasks).toEqual(tasks.records);
+    expect(result.conversation.reminders).toEqual(reminders.records);
+    expect(result.conversation.events).toEqual(calendar.events);
+    expect(f.calendarRead).toHaveBeenCalledTimes(1);
+    expect(f.taskRead).toHaveBeenCalledTimes(1);
+    expect(f.reminderRead).toHaveBeenCalledTimes(1);
   });
 
   it('completes a partial read delivery without locking out the following turn', async () => {
