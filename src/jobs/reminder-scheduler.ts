@@ -37,7 +37,7 @@ const worker = createReminderScheduler({
   computeNextRecurringSendAt: ((...args: Parameters<typeof computeNextRecurringSendAt>) => computeNextRecurringSendAt(...args)) as unknown as Parameters<typeof createReminderScheduler>[0]['computeNextRecurringSendAt'],
   detectLocaleFromPhone: ((...args: Parameters<typeof detectLocaleFromPhone>) => detectLocaleFromPhone(...args)) as unknown as Parameters<typeof createReminderScheduler>[0]['detectLocaleFromPhone'],
   isAdvanceNoticeContent: ((...args: Parameters<typeof isAdvanceNoticeContent>) => isAdvanceNoticeContent(...args)) as unknown as Parameters<typeof createReminderScheduler>[0]['isAdvanceNoticeContent'],
-  getNow: () => new Date(), getNowMs: () => Date.now(), sleep: ms => new Promise(resolve => setTimeout(resolve, ms)), workerId: process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`, logger: console});
+  getNow: () => new Date(), getNowMs: () => Date.now(), sleep: ms => new Promise(resolve => setTimeout(resolve, ms)), workerId: process.env.WORKER_ID || `worker-${process.pid}-${Math.random().toString(36).slice(2, 7)}`, logger: console, checkIntervalMs: 30 * 1000});
 export function resolveReminderLocale(...args: Parameters<typeof worker.resolveReminderLocale>) { return worker.resolveReminderLocale(...args); }
 export function isEnglishReminder(...args: Parameters<typeof worker.isEnglishReminder>) { return worker.isEnglishReminder(...args); }
 export function isNudgeDue(...args: Parameters<typeof worker.isNudgeDue>) { return worker.isNudgeDue(...args); }

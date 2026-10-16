@@ -199,6 +199,16 @@ export class ProductivityTurnRunner {
         const withDialogue = conversationalContinuity(redacted.slice(0, state.history.length));
         const starts = projected.flatMap((message, index) => message.role === 'user' ? [index] : []);
         const recent = projected.slice(starts[Math.max(0, starts.length - (this.compactObservations ? 1 : 3))] ?? 0);
+        const previousStarts = starts.slice(0, -1);
+        const l1Recent = previousStarts.length ? projected.slice(previousStarts[Math.max(0, previousStarts.length - 3)] ?? 0, starts.at(-1) ?? projected.length) : [];
+        const l1EntityIds = new Set<string>();
+        for (const message of l1Recent) {
+          if (message.role !== 'tool' || !message.content || typeof message.content !== 'object' || Array.isArray(message.content)) continue;
+          const observation = message.content.observation;
+          if (!observation || typeof observation !== 'object' || Array.isArray(observation)) continue;
+          for (const key of ['records', 'events']) if (Array.isArray(observation[key])) for (const record of observation[key])
+            if (record && typeof record === 'object' && !Array.isArray(record) && typeof record.id === 'string') l1EntityIds.add(record.id);
+        }
         const activeRead = recent.some(message => message.role === 'assistant'
           && message.toolCalls.some(call => call.name.endsWith('_read')));
         const visible = new Set<string>();
@@ -216,13 +226,17 @@ export class ProductivityTurnRunner {
           && !tool.name.endsWith('_create') && !tool.name.endsWith('_read')
           && tool.name !== 'memory_save' && tool.name !== 'calendar_connect')
           .map(tool => tool.name.split('_')[0]) ?? [];
+        const readToolsActive = tools?.some(tool => tool.name.endsWith('_read') || tool.name === 'agenda_read');
         const refs = (domain: 'tasks' | 'reminders' | 'calendar' | 'memories', records: { id: string }[], viewOnly = false) => {
-          if (this.compactObservations && !domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : domain === 'memories' ? 'memory' : 'calendar')) return [];
-          // Under pressure, the owned ordinal view takes priority over unrelated
-          // inventory. This is a wire projection only; policy retains full records.
-          // The schema-independent referenceOrder already contains every bounded
-          // view identity. Avoid duplicating those rows when executable protocol
-          // needs the space; a model needing other fields must read them.
+          const matchesDomain = domains.includes(domain === 'tasks' ? 'task' : domain === 'reminders' ? 'reminder' : domain === 'memories' ? 'memory' : 'calendar');
+          if (this.compactObservations && !matchesDomain) {
+            if (readToolsActive) return [];
+            const active = records.filter(r => l1EntityIds.has(r.id) && (!('status' in r) || r.status === 'pending' || r.status === 'active'));
+            const recentActive = active.slice(-3);
+            if (!recentActive.length) return [];
+            return recentActive.map(record => Object.fromEntries(Object.entries(compactModelRecord(record)).filter(([k]) => k !== 'id' && k !== 'status').map(([key, value]) =>
+              [key, ['content', 'title', 'summary'].includes(key) && typeof value === 'string' && value.length > 160 ? value.slice(0, 160) + '…' : value])));
+          }
           if (viewOnly) return [];
           return promptRecords(domain, records).filter(record => !visible.has(record.id)).map(record => this.compactObservations
             ? Object.fromEntries(Object.entries(compactModelRecord(record)).map(([key, value]) =>
@@ -281,16 +295,24 @@ export class ProductivityTurnRunner {
             : '';
         const pendingContext = state.pending ? '\n' + JSON.stringify({ lastPending: projectForgottenMemoryData({ id: state.pending.id, tool: state.pending.tool,
           missing: state.pending.missing, knownArguments: state.pending.knownArguments }, [...memories.values()]) }).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e') : '';
-        const systemContent = (viewOnly = false) =>
-        (viewOnly ? executablePersona : persona) + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
-        + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
-          references: viewOnly ? {} : { ...(memories.size ? { memories: refs('memories', [...memories.values()].filter(record => record.status === 'active'), viewOnly) } : {}), reminders: refs('reminders', [...reminders.values()], viewOnly),
-          tasks: refs('tasks', [...tasks.values()], viewOnly), events: refs('calendar', [...events.values()], viewOnly) },
-          referenceOrder: currentReferenceOrder()?.filter(reference => reference.domain === 'memories'
-            ? memories.get(reference.id)?.status === 'active' : reference.domain === 'tasks' ? tasks.has(reference.id)
-              : reference.domain === 'reminders' ? reminders.has(reference.id) : events.has(reference.id))
-            .slice(0, this.maxPromptReferences) ?? [],
-          ...(viewOnly ? {} : { referenceCoverage: 'bounded_historical_references_read_to_resolve_other_resources', referenceFreshness: 'historical_or_current_tool_observation' }) });
+        const systemContent = (viewOnly = false) => {
+          const promptReferences = {
+            ...(memories.size ? { memories: refs('memories', [...memories.values()].filter(record => record.status === 'active'), viewOnly) } : {}),
+            reminders: refs('reminders', [...reminders.values()], viewOnly),
+            tasks: refs('tasks', [...tasks.values()], viewOnly),
+            events: refs('calendar', [...events.values()], viewOnly),
+          };
+          const hasActiveCommitments = Boolean(promptReferences.reminders?.length || promptReferences.tasks?.length);
+          const commitmentGuidance = hasActiveCommitments ? 'Active references answer commitment questions directly. ' : '';
+          return (viewOnly ? executablePersona : persona) + commitmentGuidance + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
+            + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
+              references: promptReferences,
+              referenceOrder: currentReferenceOrder()?.filter(reference => reference.domain === 'memories'
+                ? memories.get(reference.id)?.status === 'active' : reference.domain === 'tasks' ? tasks.has(reference.id)
+                  : reference.domain === 'reminders' ? reminders.has(reference.id) : events.has(reference.id))
+                .slice(0, this.maxPromptReferences) ?? [],
+              ...(viewOnly ? {} : { referenceCoverage: 'bounded_historical_references_read_to_resolve_other_resources', referenceFreshness: 'historical_or_current_tool_observation' }) });
+        };
         const gaps = state.legacyHandoff?.referenceGaps
           .filter(gap => !visible.has(gap.id) && !tasks.has(gap.id) && !reminders.has(gap.id) && !events.has(gap.id) && !memories.has(gap.id))
           .slice(0, this.maxPromptReferences).map(gap => ({ ...gap, title: gap.title?.slice(0, 80) ?? null })) ?? [];

@@ -236,3 +236,33 @@ describe('typed finalization publication boundary',()=>{
     } finally {vi.useRealTimers();}
   });
 });
+
+describe('startInboundTurnWorker lifecycle and event-driven wake', () => {
+  it('subscribes to onEnqueued and ticks immediately on notification', async () => {
+    const row = { id: 'evt-1', thread_id: 't', status: 'queued' };
+    const s = store([row]);
+    let listener: (() => void) | undefined;
+    const unsubscribe = vi.fn();
+    (s as any).onEnqueued = vi.fn((cb: () => void) => {
+      listener = cb;
+      return unsubscribe;
+    });
+
+    const processed: string[] = [];
+    const { startInboundTurnWorker } = await import('../../../src/jobs/inbound-turn-worker-core.js');
+    const runner = startInboundTurnWorker(async (req) => {
+      processed.push(String(req.id));
+    }, s as any, 60000);
+
+    await new Promise(r => setTimeout(r, 20));
+    expect(processed).toEqual(['evt-1']);
+
+    s.claim.mockResolvedValueOnce({ id: 'evt-2', message_id: 'm2', thread_id: 't2', lease_token: 'tok', request: { id: 'evt-2' } });
+    listener!();
+    await new Promise(r => setTimeout(r, 20));
+    expect(processed).toEqual(['evt-1', 'evt-2']);
+
+    await runner.stop();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+});

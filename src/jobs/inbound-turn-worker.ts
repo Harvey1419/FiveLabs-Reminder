@@ -6,4 +6,4 @@ type OptionalStorage<T> = T extends unknown ? Omit<T, 'storage'> & { storage?: I
 export function createInboundTurnWorker(options: OptionalStorage<InboundTurnWorkerOptions>) {
   return createWorker({ ...options, storage: options.storage === undefined ? inboundTurnStorage : options.storage } as InboundTurnWorkerOptions);
 }
-export function startInboundTurnWorker(processTurn: Parameters<typeof startWorker>[0], storage: InboundTurnWorkerStorage = inboundTurnStorage) { return startWorker(processTurn, storage); }
+export function startInboundTurnWorker(processTurn: Parameters<typeof startWorker>[0], storage: InboundTurnWorkerStorage = inboundTurnStorage, idlePollIntervalMs?: number) { return startWorker(processTurn, storage, idlePollIntervalMs); }

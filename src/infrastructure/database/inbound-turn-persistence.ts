@@ -21,6 +21,16 @@ function unavailable(cause: unknown): never {
 }
 /** Typed, bounded queue adapter. The host owns the client and its ambient lease-aware transport. */
 export function createInboundTurnPersistence(getClient: () => InboundTurnPersistenceClient) {
+  const listeners = new Set<() => void>();
+  function notifyEnqueued(): void {
+    for (const listener of listeners) {
+      try { listener(); } catch {}
+    }
+  }
+  function onEnqueued(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }
   async function observed(query: InboundPersistenceQuery): Promise<unknown> {
     const { data, error } = await query.abortSignal(AbortSignal.timeout(15000));
     if (error) unavailable(error);
@@ -37,9 +47,11 @@ export function createInboundTurnPersistence(getClient: () => InboundTurnPersist
       .upsert({ message_id: messageId, thread_id: threadId, request },{ onConflict: 'message_id', ignoreDuplicates: true }).select('id'));
     const rows = z.array(z.object({ id: z.string().min(1) })).max(1).safeParse(data);
     if (!rows.success) unavailable(rows.error);
+    if (rows.data.length > 0) notifyEnqueued();
     return { inserted: rows.data.length > 0 };
   }
-  const inboundTurnStorage: Omit<InboundTurnWorkerStorage,'claim' | 'finish'> & { claim(threadId?: string | null): Promise<ClaimedInboundTurn | null>; finish(turn: ClaimedInboundTurn,status: 'completed' | 'unknown',error?: string | null): Promise<boolean> } = {
+  const inboundTurnStorage: Omit<InboundTurnWorkerStorage,'claim' | 'finish'> & { claim(threadId?: string | null): Promise<ClaimedInboundTurn | null>; finish(turn: ClaimedInboundTurn,status: 'completed' | 'unknown',error?: string | null): Promise<boolean>; onEnqueued(listener: () => void): () => void } = {
+    onEnqueued,
     async claim(threadId: string | null = null) {
       const data = await observed(getClient().rpc('claim_hermes_inbound_turn',{ p_thread_id: threadId }));
       const rows = z.array(claimedTurnSchema).max(1).safeParse(data);
@@ -61,5 +73,5 @@ export function createInboundTurnPersistence(getClient: () => InboundTurnPersist
     const version = await observed(getClient().rpc('hermes_inbound_queue_version'));
     if (version !== 1) throw new Error('Unsupported inbound queue schema; migration required.');
   }
-  return { enqueueInboundTurn,inboundTurnStorage,assertInboundQueueReady };
+  return { enqueueInboundTurn,inboundTurnStorage,assertInboundQueueReady,onEnqueued };
 }

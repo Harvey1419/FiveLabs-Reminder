@@ -14,6 +14,7 @@ export interface InboundTurnWorkerStorage {
   resolvePrior?(turn: ClaimedInboundTurn, runId: string, expected: JsonObject, resolution: JsonObject): Promise<boolean>;
   /** True only for a closed completion published under this exact retired token. */
   observeFinalization?(turn: ClaimedInboundTurn): Promise<boolean>;
+  onEnqueued?(listener: () => void): () => void;
 }
 export interface InboundTurnWorkerOwner { readonly id: string; readonly token: string }
 interface WorkerPolicy {
@@ -38,7 +39,7 @@ async function bounded<T>(work: () => Promise<T>): Promise<T> {
 /** Pure typed worker; the legacy compatibility module supplies the existing database adapter. */
 export function createInboundTurnWorker({ processTurn, processOwnedTurn, storage, heartbeatMs = 15000, concurrency = 2, logger = console }: InboundTurnWorkerOptions) {
   if ((!processTurn && !processOwnedTurn) || (processTurn && processOwnedTurn) || !Number.isSafeInteger(concurrency) || concurrency < 1 || !Number.isFinite(heartbeatMs) || heartbeatMs <= 0) throw fail('INVALID_INBOUND_WORKER_OPTIONS');
-  let stopped = false, polling = false;
+  let stopped = false, polling = false, rerunRequested = false;
   const active = new Set<Promise<void>>();
   let pollFinished = Promise.resolve();
   async function execute(turn: ClaimedInboundTurn): Promise<void> {
@@ -121,24 +122,47 @@ export function createInboundTurnWorker({ processTurn, processOwnedTurn, storage
     } finally { clearInterval(interval); await pendingRenewal()?.catch(() => {}); }
   }
   async function tick(): Promise<void> {
-    if (stopped || polling) return;
+    if (stopped) return;
+    if (polling) {
+      rerunRequested = true;
+      return;
+    }
     polling = true;
     let finishPoll: () => void = () => {};
     pollFinished = new Promise<void>(resolve => { finishPoll = resolve; });
     try {
-      while (!stopped && active.size < concurrency) {
-        const turn = await bounded(() => storage.claim());
-        if (!turn) break;
-        const task = execute(turn); active.add(task);
-        task.finally(() => active.delete(task)).catch(() => {});
-      }
+      do {
+        rerunRequested = false;
+        while (!stopped && active.size < concurrency) {
+          const turn = await bounded(() => storage.claim());
+          if (!turn) break;
+          const task = execute(turn); active.add(task);
+          task.finally(() => {
+            active.delete(task);
+            if (!stopped) void tick();
+          }).catch(() => {});
+        }
+      } while (rerunRequested && !stopped && active.size < concurrency);
     } catch (error) { logger.error(`[inbound] queue unavailable code=${errorCode(error,'STORAGE_ERROR')}`); }
     finally { polling = false; finishPoll(); }
   }
   return { tick, async stop() { stopped = true; await pollFinished; await Promise.allSettled([...active]); }, get activeCount() { return active.size; } };
 }
-export function startInboundTurnWorker(processTurn: (request: JsonObject) => Promise<unknown>, storage: InboundTurnWorkerStorage) {
+export function startInboundTurnWorker(
+  processTurn: (request: JsonObject) => Promise<unknown>,
+  storage: InboundTurnWorkerStorage,
+  idlePollIntervalMs = 30000,
+) {
   const worker = createInboundTurnWorker({processTurn,storage});
-  const interval = setInterval(() => { void worker.tick(); },500); interval.unref(); void worker.tick();
-  return { async stop() { clearInterval(interval); await worker.stop(); } };
+  const unsubscribe = storage.onEnqueued?.(() => { void worker.tick(); });
+  const interval = setInterval(() => { void worker.tick(); }, idlePollIntervalMs);
+  interval.unref();
+  void worker.tick();
+  return {
+    async stop() {
+      unsubscribe?.();
+      clearInterval(interval);
+      await worker.stop();
+    },
+  };
 }

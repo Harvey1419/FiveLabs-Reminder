@@ -42,10 +42,11 @@ export interface SchedulerDependencies {
   sleep(ms: number): Promise<void>;
   workerId: string;
   logger: Pick<Console, 'log' | 'warn' | 'error'>;
+  checkIntervalMs?: number;
 }
 
-export function createReminderScheduler({ claimNextDueReminder, getNextPendingReminder, markReminderAsDispatched, markReminderAsFailed, markReminderAsMissed, getRemindersDueForNudge, incrementReminderNudge, getLatestInboundPhoneNumberId, saveMessage, supabase, getReminderDispatchPolicy, sendReminderMessage, stripReminderPrefix, saveWorkingMemory, computeNextRecurringSendAt, detectLocaleFromPhone, isAdvanceNoticeContent, getNow, getNowMs, sleep, workerId: WORKER_ID, logger }: SchedulerDependencies) {
-  const CHECK_INTERVAL_MS = 15 * 1000;
+export function createReminderScheduler({ claimNextDueReminder, getNextPendingReminder, markReminderAsDispatched, markReminderAsFailed, markReminderAsMissed, getRemindersDueForNudge, incrementReminderNudge, getLatestInboundPhoneNumberId, saveMessage, supabase, getReminderDispatchPolicy, sendReminderMessage, stripReminderPrefix, saveWorkingMemory, computeNextRecurringSendAt, detectLocaleFromPhone, isAdvanceNoticeContent, getNow, getNowMs, sleep, workerId: WORKER_ID, logger, checkIntervalMs }: SchedulerDependencies) {
+  const CHECK_INTERVAL_MS = checkIntervalMs ?? 15 * 1000;
   const NUDGE_CHECK_INTERVAL_MS = 60 * 1000; // Check nudges every 60s (nudges are spaced 10-15m)
   const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // Reconcile recurring schedules every 5m
   const MAX_STALE_MS = 2 * 60 * 60 * 1000;

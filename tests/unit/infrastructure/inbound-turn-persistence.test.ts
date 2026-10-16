@@ -26,6 +26,21 @@ describe('typed inbound persistence', () => {
     expect(f.query.upsert).toHaveBeenCalledWith({ message_id: 'message',thread_id: 'thread',request: input.request },{ onConflict: 'message_id',ignoreDuplicates: true });
     expect(f.query.select).toHaveBeenCalledWith('id');
   });
+  it('notifies enqueued listeners on insert and allows unregistering', async () => {
+    const f = fixture();
+    f.abort.mockResolvedValueOnce({ data: [{ id: 'new' }], error: null }).mockResolvedValueOnce({ data: [], error: null });
+    const listener = vi.fn();
+    const unsubscribe = f.store.inboundTurnStorage.onEnqueued(listener);
+    const input = { messageId: 'm1', threadId: 't1', request: { text: 'Hi' } };
+    await f.store.enqueueInboundTurn(input);
+    expect(listener).toHaveBeenCalledOnce();
+    await f.store.enqueueInboundTurn(input);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    f.abort.mockResolvedValueOnce({ data: [{ id: 'new2' }], error: null });
+    await f.store.enqueueInboundTurn({ messageId: 'm2', threadId: 't2', request: { text: 'Hi 2' } });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
   it.each([null,{},[{ id: 'one' },{ id: 'two' }],[{}]])('rejects invalid enqueue response %j without retry', async data => {
     const f = fixture(); f.abort.mockResolvedValueOnce({ data,error: null });
     await expect(f.store.enqueueInboundTurn({ messageId: 'm',threadId: 't',request: {} })).rejects.toMatchObject({ code: 'INBOUND_STORAGE_UNAVAILABLE' });
