@@ -3,8 +3,8 @@ import { productivityDecisionSchema, type ProductivityDecision, type Productivit
 
 export const decisionTool: ToolSpecification = {
   name: 'conversation_decide',
-  description: 'MANDATORY decision declaration. Declare clear actions in ready; ambiguous item in pending. Must accompany ready calls in the SAME step (emit conversation_decide AND reminder_create together). NEVER pass reply when ready has items (reply is ONLY for ready:[]). When resolving lastPending: OMIT pending, emit decide AND reminder_create together in the same step. Dialogue or no actions: conversation_decide(ready:[], reply:"..."). Do NOT reply with plain text. Never call commentary or json. Never emit markdown blocks. Declarations never execute work.',
-  inputSchema: { type: 'object', additionalProperties: false, required: ['ready'], properties: {
+  description: 'MANDATORY decision declaration. Clear actions in ready; ambiguous in pending. Must accompany ready calls in SAME step (decide AND reminder_create together). If tool not in tools, call tools_select first; never declare pending for clear requests. When resolving lastPending: OMIT pending. Answering questions, dialogue or no actions: conversation_decide(ready:[], reply:"..."). Do NOT reply with plain text. Never call commentary or json. Never emit markdown blocks. Declarations never execute work.',
+  inputSchema: { type: 'object', additionalProperties: false, properties: {
     ready: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'tool'], properties: {
       key: { type: 'string' }, tool: { type: 'string' } } } },
     pending: { type: 'object', additionalProperties: false, required: ['tool', 'missing'], properties: {
@@ -18,7 +18,7 @@ export const decisionTool: ToolSpecification = {
       } } } },
     resolution: { type: 'object', additionalProperties: false, required: ['pendingId', 'key'], properties: {
       pendingId: { type: 'string', description: 'Exact id from lastPending. When resolving: OMIT pending.' }, key: { type: 'string' } } },
-    reply: { type: 'string', description: 'Dialogue ONLY when ready:[]. NEVER provide reply when ready is not empty.' },
+    reply: { type: ['string', 'null'], description: 'Dialogue ONLY when ready:[]. Pass null or omit when ready has items.' },
   } },
 };
 
@@ -139,9 +139,17 @@ export class DecisionSession {
     const controls = calls.filter(call => call.name === decisionTool.name);
     if (controls.length > 1 || controls.length && !this.canDeclare) return false;
     const controlArgs = controls[0]?.arguments;
-    const normalizedArgs = controlArgs && typeof controlArgs === 'object' && Array.isArray(controlArgs.ready) && controlArgs.ready.length === 0
-      && !controlArgs.pending && !controlArgs.resolution && controlArgs.reply === undefined
-      ? { ...controlArgs, reply: this.context.language === 'en' ? 'Done, no changes made.' : 'Listo, no realicé ningún cambio.' }
+    const hasReady = controlArgs && typeof controlArgs === 'object' && Array.isArray(controlArgs.ready) && controlArgs.ready.length > 0;
+    const rawReply = controlArgs && typeof controlArgs === 'object' && typeof controlArgs.reply === 'string' && controlArgs.reply.trim() ? controlArgs.reply : undefined;
+    const normalizedArgs = controlArgs && typeof controlArgs === 'object'
+      ? {
+          ...controlArgs,
+          reply: hasReady
+            ? undefined
+            : (rawReply ?? (Array.isArray(controlArgs.ready) && controlArgs.ready.length === 0 && !controlArgs.pending && !controlArgs.resolution
+                ? (this.context.language === 'en' ? 'Done, no changes made.' : 'Listo, no realicé ningún cambio.')
+                : undefined)),
+        }
       : controlArgs;
     const parsed = normalizedArgs ? productivityDecisionSchema.safeParse(normalizedArgs) : undefined;
     if (parsed && !parsed.success) return false;

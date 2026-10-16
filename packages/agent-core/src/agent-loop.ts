@@ -241,7 +241,7 @@ export class AgentLoop {
       const tools = offerDecision ? [...clarifiedTools, decisionCorrectionUsed
         ? { ...decisionTool, description: decisionTool.description + (policy.pending
             ? ' Previous call lacked decision declaration. You MUST call conversation_decide(resolution:{pendingId:lastPending.id,key:"..."},ready:[{key:"...",tool:"reminder_create"}]) first. No rejected arguments execute.'
-            : ' Previous response was not accepted. Submit a fresh decision preserving known content/hour/minute in pending. For dialogue or no actions, emit conversation_decide(ready:[],reply:"..."). Never call commentary or json. No rejected arguments execute.') }
+            : ' Previous response was not accepted. Do NOT use plain text. For dialogue, answers or no actions, emit conversation_decide(ready:[],reply:"..."). Never call commentary or json. No rejected arguments execute.') }
         : decisionTool] : clarifiedTools;
       const availableNames = new Set(tools.map(tool => tool.name));
       const inputCeiling = this.maxInputTokens - (tools.some(tool => this.registry.effect(tool.name) === 'read') ? this.continuationReserveTokens : 0);
