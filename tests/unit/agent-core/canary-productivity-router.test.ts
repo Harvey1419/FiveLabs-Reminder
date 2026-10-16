@@ -380,6 +380,22 @@ describe('canary admission executes actual durable V2 composition', () => {
     expect(domainExecute).toHaveBeenCalledTimes(2); expect(result.confirmation).toContain('Salir'); expect(result.confirmation).toContain('Preparar informe');
     expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
   });
+  it('supports batch selection of multiple schemas using names array in a single tools_select call', async () => {
+    const f = fixture(); const id = '11111111-1111-4111-8111-111111111111';
+    state.provider = new MockAIProvider([
+      { response: answer([{ id: 'select-batch', name: 'tools_select', arguments: { names: ['reminder_create', 'task_create'] } }]) },
+      { response: answer([{ id: 'create-reminder', name: 'reminder_create', arguments: { content: 'Salir', targetTimeIso: '2026-10-15T20:00:00Z' } }, { id: 'create-task', name: 'task_create', arguments: { title: 'Preparar informe' } }]) },
+      { response: answer() },
+    ]);
+    untrustedResultMock(domainExecute).mockResolvedValueOnce({ success: true, action: 'created_reminders_batch', data: [{ id, content: 'Salir', sendAt: '2026-10-15T20:00:00Z' }] })
+      .mockResolvedValueOnce({ success: true, action: 'created_tasks_batch', data: [{ id, title: 'Preparar informe', status: 'pending' }] });
+    const result = await f.run(true);
+    expect(state.provider.requests[1]!.tools.map(tool => tool.name)).toEqual(['tools_select', 'task_create', 'reminder_create']);
+    expect(domainExecute).toHaveBeenCalledTimes(2);
+    expect(result.confirmation).toContain('Salir');
+    expect(result.confirmation).toContain('Preparar informe');
+    expect(f.persisted()).toMatchObject({ agentCoreProductivity: { completed: { uiPayload: { notices: [] } } } });
+  });
   it('retains consecutive explicit selections and permits idempotent rediscovery', async () => {
     const f = fixture(), id = '11111111-1111-4111-8111-111111111111';
     state.provider = new MockAIProvider([

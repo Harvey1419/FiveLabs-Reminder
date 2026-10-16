@@ -208,7 +208,7 @@ export class AgentLoop {
     let decisionCorrectionUsed = false;
     let executionCorrectionUsed = false;
     const discovery = { name: 'tools_select', description: 'Select an unadvertised operation to load its input schema. Do NOT select tools already present in tools. Use the returned schema on the next step.',
-      inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) } }, required: ['name'], additionalProperties: false } };
+      inputSchema: { type: 'object', properties: { name: { type: 'string', enum: catalogue.map(tool => tool.name) }, names: { type: 'array', items: { type: 'string' } } }, additionalProperties: false } };
     let selected: readonly string[] = this.initialTools.filter(name => catalogue.some(tool => tool.name === name));
     let explicitSelections: readonly string[] = [];
     let followups: readonly string[] = [];
@@ -430,20 +430,36 @@ export class AgentLoop {
           continue;
         }
         if (this.discoverTools && call.name === 'tools_select') {
-          const name = call.arguments.name;
-          const valid = availableNames.has(call.name) && Object.keys(call.arguments).length === 1
-            && typeof name === 'string' && catalogue.some(tool => tool.name === name);
-          const alreadyLoaded = typeof name === 'string' && availableNames.has(name);
+          const rawNames: string[] = [
+            ...(Array.isArray(call.arguments.names) ? call.arguments.names.filter((n): n is string => typeof n === 'string') : []),
+            ...(typeof call.arguments.name === 'string' ? [call.arguments.name] : []),
+          ];
+          const uniqueNames = [...new Set(rawNames)];
+          const valid = availableNames.has(call.name) && uniqueNames.length > 0
+            && uniqueNames.every(n => catalogue.some(tool => tool.name === n));
+          const allAlreadyLoaded = valid && uniqueNames.every(n => availableNames.has(n));
           if (valid) {
-            explicitSelections = [...new Set([...explicitSelections, ...normalizedCalls.filter(candidate => candidate.name === 'tools_select'
-            && Object.keys(candidate.arguments).length === 1 && typeof candidate.arguments.name === 'string'
-            && catalogue.some(tool => tool.name === candidate.arguments.name)).map(candidate => String(candidate.arguments.name))])];
+            const batchFromCalls = normalizedCalls
+              .filter(candidate => candidate.name === 'tools_select')
+              .flatMap(candidate => {
+                const itemNames = [
+                  ...(Array.isArray(candidate.arguments.names) ? candidate.arguments.names.filter((n): n is string => typeof n === 'string') : []),
+                  ...(typeof candidate.arguments.name === 'string' ? [candidate.arguments.name] : []),
+                ];
+                return itemNames.filter(n => catalogue.some(tool => tool.name === n));
+              });
+            explicitSelections = [...new Set([...explicitSelections, ...batchFromCalls])];
             selected = explicitSelections;
           }
+          const primaryName = uniqueNames[0] ?? '';
           history.push({ role: 'tool', toolCallId: call.id, content: valid
-            ? { status: 'success', selectedTool: name, alreadyLoaded, observation: alreadyLoaded
-              ? `Schema already loaded. Call ${name} directly next; do not select it again. No domain action executed.`
-              : 'Schema loaded for the next step. No domain action executed.' }
+            ? { status: 'success', selectedTool: primaryName, selectedTools: uniqueNames, alreadyLoaded: allAlreadyLoaded, observation: allAlreadyLoaded
+              ? (uniqueNames.length > 1
+                ? `Schemas already loaded. Call ${uniqueNames.join(', ')} directly next; do not select them again. No domain action executed.`
+                : `Schema already loaded. Call ${primaryName} directly next; do not select it again. No domain action executed.`)
+              : (uniqueNames.length > 1
+                ? `Schemas loaded for ${uniqueNames.join(', ')} for the next step. No domain action executed.`
+                : 'Schema loaded for the next step. No domain action executed.') }
             : { status: 'denied', code: 'TOOL_UNAVAILABLE' }, isError: !valid });
           continue;
         }
