@@ -1,4 +1,4 @@
-/** Real primary model + production calendar stack; Google/storage/delivery are isolated. */
+/** Real configured model + production calendar stack; Google/storage/delivery are isolated. */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { OpenRouterProvider, estimateBoundedInput, type CompletionRequest } from '@templelabs/ai';
@@ -36,7 +36,8 @@ async function main() {
   const env = { ...parse(readFileSync('.env')), ...process.env };
   const key = createGatewayRouting({ getEnvironment: () => env }).getOpenRouterApiKey();
   if (!key) throw new Error('Missing configured key');
-  const routes = configuredRoutes(env).slice(0, 1), route = routes[0]!;
+  const routeIndex = process.argv.includes('--secondary') ? 1 : 0;
+  const routes = configuredRoutes(env).slice(routeIndex, routeIndex + 1), route = routes[0]!;
   const pricing = await fetch(`https://openrouter.ai/api/v1/models/${route.model}/endpoints`);
   if (!pricing.ok) throw new Error('Pricing verification failed');
   const endpoints = (await pricing.json() as { data: { endpoints: { provider_name: string; tag?: string; pricing: Record<string, string> }[] } }).data.endpoints
@@ -83,7 +84,7 @@ async function main() {
     const check = (name: string, pass: boolean) => checks.push({ name, pass });
     check('no failed outcomes or limit notices', !result.uiPayload.notices.length && result.uiPayload.items.every(i => i.status === 'success'));
     check('no unrelated reminder writes', reminderWrites.length === (turn.action === 'reminder_create' ? 1 : 0));
-    if (turn.action === 'reminder_create') check('exact relative reminder time', reminders.snapshot().some(r => r.sendAt === '2026-10-17T16:50:00.000Z'));
+    if (turn.action === 'reminder_create') check('exact relative reminder time', reminders.snapshot().some(r => !!r.sendAt && Date.parse(r.sendAt) === Date.parse('2026-10-17T16:50:00.000Z')));
     if (turn.action === 'create' || turn.action === 'update') check('exact requested calendar write', calendarWrites.length === 1 && calendarWrites[0]?.operation === turn.action);
     else check('no calendar creation/deletion or unrelated write', calendarWrites.every(w => turn.date && w.operation === 'update') && calendarWrites.length <= (turn.date ? 1 : 0));
     if (turn.date) {

@@ -65,8 +65,9 @@ async function main() {
   const env = { ...parse(readFileSync('.env')), ...process.env };
   const key = createGatewayRouting({ getEnvironment: () => env }).getOpenRouterApiKey();
   if (!key) throw new Error('Missing configured key');
-  // Evaluate the production primary route as configured; no substitute model or retries.
-  const routes = configuredRoutes(env).slice(0, 1);
+  // Compare configured routes explicitly; never substitute a model during a run.
+  const routeIndex = process.argv.includes('--secondary') ? 1 : 0;
+  const routes = configuredRoutes(env).slice(routeIndex, routeIndex + 1);
   const route = routes[0]!;
   const publicReply = await fetch(`https://openrouter.ai/api/v1/models/${route.model}/endpoints`);
   if (!publicReply.ok) throw new Error('Pricing preflight failed');
@@ -159,7 +160,7 @@ async function main() {
   const requestSchema = z.object({ messages: aiTranscriptSchema, tools: z.array(z.object({ name: z.string(), description: z.string(), inputSchema: jsonObjectSchema })) });
   const snapshot = () => structuredClone({ tasks, projects, reminders: reminders.snapshot() });
   const report = { mode: native ? 'local_live_native_executive_conversation' : 'local_live_scoped_executive_conversation', liveProof: false, productionPolicy: productivityBudget, evaluationPolicy: loopPolicy, routes, rates,
-    scope: { syntheticData: true, productionWrites: 0, WhatsAppSends: 0, primaryRouteOnly: true,
+    scope: { syntheticData: true, productionWrites: 0, WhatsAppSends: 0, primaryRouteOnly: route.id === 'primary',
       accountingLimitation: 'Unknown HTTP usage remains reserved globally; native product recovery is permitted without evaluator retries.',
       priorBudgetEvidence: previousBudgetArg ?? null, catalogue: registry.available({ userId: SYNTHETIC_USER, capabilities,
       runId: 'executive-catalogue', requestId: 'executive-catalogue', timezone: 'America/Bogota', language: 'es', referenceTimeIso: anchor,
