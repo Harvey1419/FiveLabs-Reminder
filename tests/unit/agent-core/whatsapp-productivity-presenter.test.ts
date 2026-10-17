@@ -5,6 +5,26 @@ import { formatCanonicalTaskCreate } from '../../../src/shared/task-presentation
 import { context, setup, taskCreate, response, taskId } from './productivity-fixtures.js';
 
 describe('verified mixed WhatsApp presentation', () => {
+  it.each(['es', 'en'] as const)('shows confirmed results before a specific failed calendar operation in %s', language => {
+    const success = productivityItemSchema.parse({ callId: 'created', toolName: 'calendar_create', domain: 'calendar', status: 'success', code: null,
+      result: { operation: 'create', complete: true, coverage: 'operation', connection: null, companion: 'not_requested', issues: [],
+        events: [{ id: 'new-event', summary: 'Cumpleaños de Trina', kind: 'all_day', startDate: '2027-01-02', endDateExclusive: '2027-01-03' }],
+        presentation: { canonicalCard: null, questions: [], cta: null } } });
+    const failure = productivityItemSchema.parse({ callId: 'failed', toolName: 'calendar_update', domain: 'calendar', status: 'failed', code: 'NOT_FOUND', result: null });
+    const reply = new WhatsAppProductivityPresenter().render({ language, timezone: context.timezone, items: [failure, success], notices: [] });
+    const failedText = language === 'es' ? 'No pude actualizar el evento' : 'I could not update the event';
+    expect(reply.text).toContain(failedText);
+    expect(reply.text.indexOf('Cumpleaños de Trina')).toBeLessThan(reply.text.indexOf(failedText));
+    expect(reply.text).not.toMatch(/No pude completar esta acción|I could not complete this action|Listo\.|All set\./);
+  });
+
+  it('preserves a real interruption notice without contradicting a confirmed creation', async () => {
+    const result = await setup([response([taskCreate]), response()]).run();
+    const reply = new WhatsAppProductivityPresenter().render({ ...result.uiPayload, notices: ['provider_unavailable'] });
+    expect(reply.text).toContain('Tarea creada');
+    expect(reply.text).toContain('Los resultados de arriba están confirmados');
+    expect(reply.text).not.toMatch(/No pude completar|No hice cambios/);
+  });
   it.each(['old payload', 'forged conversation discriminator'] as const)('ignores contradictory execution prose from %s', async variant => {
     const s = setup([response([taskCreate]), response()]);
     const result = await s.run();

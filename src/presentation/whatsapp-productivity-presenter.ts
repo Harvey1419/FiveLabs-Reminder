@@ -33,6 +33,14 @@ function errorText(item: ProductivityItem, en: boolean): string {
   if (item.code === 'PRO_TIER_REQUIRED') return en ? '✨ This action needs Pro.' : '✨ Esta acción necesita Pro.';
   if (item.status === 'denied') return en ? 'No permission was available for this action.' : 'No había permiso para realizar esta acción.';
   if (item.status === 'validation_failed') return en ? 'Please clarify the action details.' : 'Aclárame los datos de la acción.';
+  const verbs: Record<string, [string, string]> = { create: ['crear', 'create'], read: ['consultar', 'read'],
+    update: ['actualizar', 'update'], delete: ['eliminar', 'delete'], complete: ['completar', 'complete'],
+    rename: ['renombrar', 'rename'], save: ['guardar', 'save'], forget: ['eliminar', 'delete'] };
+  const subjects: Record<string, [string, string]> = { calendar: ['el evento', 'the event'], tasks: ['la tarea', 'the task'],
+    memories: ['el recuerdo', 'the memory'], projects: ['el proyecto', 'the project'], entities: ['el elemento', 'the item'] };
+  const verb = verbs[item.toolName.split('_').at(-1) ?? ''], subject = subjects[item.domain];
+  if (verb && subject) return (en ? `⚠️ I could not ${verb[1]} ${subject[1]}.` : `⚠️ No pude ${verb[0]} ${subject[0]}.`)
+    + (item.code === 'NOT_FOUND' ? (en ? ' It was not found.' : ' No se encontró.') : '');
   return en ? 'I could not complete this action.' : 'No pude completar esta acción.';
 }
 function calendarLine(event: CalendarEvent, timezone: string, language: 'es' | 'en'): string {
@@ -118,6 +126,7 @@ export class WhatsAppProductivityPresenter {
       if (acknowledgement) sections.push(acknowledgement);
     }
     const ctas = new Map<string, WhatsAppPresentation['ctas'][number]>();
+    const failures: string[] = [];
     const flows = new Map<string, NonNullable<TaskResult['flow']>>();
     const groups = new Map<string, ReturnType<typeof expandAgendaItem>>();
     for (let item of payload.items) {
@@ -135,7 +144,7 @@ export class WhatsAppProductivityPresenter {
       }
       if (item.code === 'AGENDA_SOURCE_UNAVAILABLE' && item.status !== 'success' && item.status !== 'partial') {
         // Aggregate source failures must not become generic reminder errors.
-        sections.push(errorText(item, en));
+        failures.push(errorText(item, en));
         continue;
       }
       if (item.domain === 'reminders') {
@@ -147,7 +156,7 @@ export class WhatsAppProductivityPresenter {
         sections.push(en ? '🔒 Connect Google Calendar to continue.' : '🔒 Conecta Google Calendar para continuar.');
       }
       if (item.status !== 'success' && item.status !== 'partial') {
-        if (item.domain !== 'calendar' || item.result?.connection !== 'authorization_required') sections.push(errorText(item, en));
+        if (item.domain !== 'calendar' || item.result?.connection !== 'authorization_required') failures.push(errorText(item, en));
         continue;
       }
       if (item.domain === 'tasks' && item.result?.flow) {
@@ -265,13 +274,14 @@ export class WhatsAppProductivityPresenter {
       }
       sections.push(...items.flatMap(item => item.result?.presentation.questions ?? []));
     }
+    sections.push(...failures);
     if (payload.notices.includes('provider_unavailable')) sections.push(payload.items.some(item => item.status === 'success')
-      ? (en ? 'I could not finish the response right now. Confirmed results are shown above.' : 'No pude terminar la respuesta en este momento. Los resultados confirmados están arriba.')
+      ? (en ? '⚠️ The results above are confirmed; the response is incomplete.' : '⚠️ Los resultados de arriba están confirmados; la respuesta quedó incompleta.')
       : !payload.items.length
         ? (en ? 'I could not process your request right now. I have not made any changes. Please try again in a moment.' : 'No pude procesar tu solicitud en este momento. No hice cambios. Inténtalo de nuevo en un momento.')
         : (en ? 'I could not finish the response. Please check the operation status shown above.' : 'No pude terminar la respuesta. Revisa el estado de las operaciones indicado arriba.'));
     else if (payload.notices.length) sections.push(payload.items.length
-      ? (en ? 'I could not finish all of this request. Check the operation results above.' : 'No pude completar toda la solicitud. Revisa los resultados de las operaciones de arriba.')
+      ? (en ? '⚠️ These are the verified operation results. Part of your request remains unresolved.' : '⚠️ Estos son los resultados verificados. Quedó parte de tu solicitud sin resolver.')
       : (en ? 'I could not complete your request. I have not made any changes.' : 'No pude completar tu solicitud. No hice cambios.'));
     const body = [...new Set(sections.filter(Boolean))].join('\n\n');
     // Reserve the suffix budget before truncating cards, so pending input cannot disappear.
