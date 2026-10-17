@@ -1,0 +1,4242 @@
+{
+  "policy": {
+    "initialTools": [
+      "task_create",
+      "reminder_create"
+    ],
+    "finishWithVerifiedResults": false,
+    "maxInputTokens": 8000,
+    "maxTotalTokens": 40000,
+    "maxModelSteps": 10,
+    "maxToolCalls": 10,
+    "maxOutputTokens": 2048,
+    "timeoutMs": 45000,
+    "continuationReserveTokens": 256,
+    "nativeToolCalling": true,
+    "discoverTools": false,
+    "structuredDecisions": false,
+    "continuation": "observation_driven"
+  },
+  "routes": [
+    {
+      "id": "secondary",
+      "model": "z-ai/glm-5.3-flash",
+      "providers": [
+        "baseten/fp8"
+      ],
+      "timeoutMs": 15000,
+      "temperature": 0,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
+    }
+  ],
+  "rates": {
+    "z-ai/glm-5.3-flash": {
+      "prompt": 1.5e-7,
+      "completion": 5e-7
+    }
+  },
+  "productionWrites": 0,
+  "WhatsAppSends": 0,
+  "boundary": "Real calendar domain port, service and executor; synthetic authenticated Google API",
+  "catalogue": [
+    "task_create",
+    "task_read",
+    "task_update",
+    "task_complete",
+    "task_delete",
+    "calendar_read",
+    "calendar_create",
+    "calendar_update",
+    "calendar_delete",
+    "calendar_connect",
+    "reminder_create",
+    "reminder_read",
+    "reminder_update",
+    "reminder_cancel",
+    "reminder_acknowledge",
+    "memory_read",
+    "memory_save",
+    "memory_forget",
+    "project_read",
+    "project_create",
+    "project_rename",
+    "project_delete",
+    "subscription_info",
+    "subscription_checkout",
+    "subscription_cancel",
+    "entity_read",
+    "entity_create",
+    "entity_update",
+    "entity_merge",
+    "entity_delete"
+  ],
+  "turns": [
+    {
+      "number": 1,
+      "text": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora.",
+      "reply": "Listo, te lo recordaré.\n\n✅ *Recordatorio programado*\n\n⏰ *Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora*\n🗓️ Hoy a las 11:50 AM",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact relative reminder time",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "name": "reminder_create",
+              "arguments": {
+                "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                "targetTimeIso": "2026-10-17T11:50:00-05:00"
+              }
+            }
+          ],
+          "inputEstimate": 5499,
+          "userTurns": 2,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. \n{\"currentTurn\":{\"userText\":\"Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[],\"tasks\":[],\"events\":[]},\"referenceOrder\":[],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n"
+            },
+            {
+              "role": "user",
+              "content": "Pon en mi calendar y recuérdame que el 29 de noviembre es el cumpleaños de Lucho."
+            },
+            {
+              "role": "assistant",
+              "content": "No pude completar esa solicitud.",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 5760,
+          "userTurns": 2,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. \n{\"currentTurn\":{\"userText\":\"Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora.\",\"verifiedOperations\":[{\"tool\":\"reminder_create\",\"resourceIds\":[\"33333333-3333-4333-8333-000000000001\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[],\"tasks\":[],\"events\":[]},\"referenceOrder\":[],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n"
+            },
+            {
+              "role": "user",
+              "content": "Pon en mi calendar y recuérdame que el 29 de noviembre es el cumpleaños de Lucho."
+            },
+            {
+              "role": "assistant",
+              "content": "No pude completar esa solicitud.",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+                  "name": "reminder_create",
+                  "arguments": {
+                    "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                    "targetTimeIso": "2026-10-17T11:50:00-05:00"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "records": [
+                    {
+                      "id": "33333333-3333-4333-8333-000000000001",
+                      "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                      "status": "pending",
+                      "time": "2026-10-17T11:50:00-05:00"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "text": "¿Qué eventos tengo en mi Google Calendar próximos?",
+      "reply": "📅 *Google Calendar*\npróximos días\n\n• 📅 *Cumpleaños de Lucho* — 29/11/2026 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "date in scope without accidental text filter",
+          "pass": true
+        },
+        {
+          "name": "correct rendered names",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "name": "calendar_read",
+              "arguments": {
+                "scope": "upcoming"
+              }
+            }
+          ],
+          "inputEstimate": 5896,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"¿Qué eventos tengo en mi Google Calendar próximos?\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[]},\"referenceOrder\":[],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n"
+            },
+            {
+              "role": "user",
+              "content": "Pon en mi calendar y recuérdame que el 29 de noviembre es el cumpleaños de Lucho."
+            },
+            {
+              "role": "assistant",
+              "content": "No pude completar esa solicitud.",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+                  "name": "reminder_create",
+                  "arguments": {
+                    "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                    "targetTimeIso": "2026-10-17T11:50:00-05:00"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "records": [
+                    {
+                      "id": "33333333-3333-4333-8333-000000000001",
+                      "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                      "status": "pending",
+                      "time": "2026-10-17T11:50:00-05:00"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo, te lo recordaré.\n\n✅ *Recordatorio programado*\n\n⏰ *Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora*\n🗓️ Hoy a las 11:50 AM",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6079,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"¿Qué eventos tengo en mi Google Calendar próximos?\",\"verifiedOperations\":[{\"tool\":\"calendar_read\",\"resourceIds\":[\"old-lucho\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n"
+            },
+            {
+              "role": "user",
+              "content": "Pon en mi calendar y recuérdame que el 29 de noviembre es el cumpleaños de Lucho."
+            },
+            {
+              "role": "assistant",
+              "content": "No pude completar esa solicitud.",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+                  "name": "reminder_create",
+                  "arguments": {
+                    "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                    "targetTimeIso": "2026-10-17T11:50:00-05:00"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "records": [
+                    {
+                      "id": "33333333-3333-4333-8333-000000000001",
+                      "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                      "status": "pending",
+                      "time": "2026-10-17T11:50:00-05:00"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo, te lo recordaré.\n\n✅ *Recordatorio programado*\n\n⏰ *Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora*\n🗓️ Hoy a las 11:50 AM",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "upcoming"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "old-lucho",
+                      "summary": "Cumpleaños de Lucho",
+                      "kind": "all_day",
+                      "time": "2026-11-29"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "text": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena.",
+      "reply": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Trena* — 02/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact requested calendar write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+              "name": "calendar_create",
+              "arguments": {
+                "endDateExclusive": "2027-01-03",
+                "kind": "all_day",
+                "startDate": "2027-01-02",
+                "summary": "Cumpleaños de Trena"
+              }
+            }
+          ],
+          "inputEstimate": 6225,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Para el 2 de enero, añadirlo al calendario, cumpleaños, trena.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":2,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+                  "name": "reminder_create",
+                  "arguments": {
+                    "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                    "targetTimeIso": "2026-10-17T11:50:00-05:00"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "records": [
+                    {
+                      "id": "33333333-3333-4333-8333-000000000001",
+                      "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                      "status": "pending",
+                      "time": "2026-10-17T11:50:00-05:00"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo, te lo recordaré.\n\n✅ *Recordatorio programado*\n\n⏰ *Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora*\n🗓️ Hoy a las 11:50 AM",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "upcoming"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "old-lucho",
+                      "summary": "Cumpleaños de Lucho",
+                      "kind": "all_day",
+                      "time": "2026-11-29"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\npróximos días\n\n• 📅 *Cumpleaños de Lucho* — 29/11/2026 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6439,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Para el 2 de enero, añadirlo al calendario, cumpleaños, trena.\",\"verifiedOperations\":[{\"tool\":\"calendar_create\",\"resourceIds\":[\"hermesfixture1\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":2,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Hola, Hermes. Recuérdame, por favor, en 15 minutos, tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+                  "name": "reminder_create",
+                  "arguments": {
+                    "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                    "targetTimeIso": "2026-10-17T11:50:00-05:00"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-0:chatcmpl-tool-b46ad3bd81024d2eb3f98bee9a5788d3",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "records": [
+                    {
+                      "id": "33333333-3333-4333-8333-000000000001",
+                      "content": "Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora",
+                      "status": "pending",
+                      "time": "2026-10-17T11:50:00-05:00"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo, te lo recordaré.\n\n✅ *Recordatorio programado*\n\n⏰ *Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora*\n🗓️ Hoy a las 11:50 AM",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "upcoming"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "old-lucho",
+                      "summary": "Cumpleaños de Lucho",
+                      "kind": "all_day",
+                      "time": "2026-11-29"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\npróximos días\n\n• 📅 *Cumpleaños de Lucho* — 29/11/2026 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "endDateExclusive": "2027-01-03",
+                    "kind": "all_day",
+                    "startDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trena"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trena",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [
+        {
+          "operation": "create",
+          "id": "hermesfixture1"
+        }
+      ],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trena",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "text": "Trina no trena",
+      "reply": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact requested calendar write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "stable ID and unchanged dates",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+              "name": "calendar_update",
+              "arguments": {
+                "eventId": "hermesfixture1",
+                "lookupDate": "2027-01-02",
+                "summary": "Cumpleaños de Trina"
+              }
+            }
+          ],
+          "inputEstimate": 6165,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Trina no trena\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trena\",\"kind\":\"all_day\",\"time\":\"2027-01-02\",\"endTime\":\"2027-01-03\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":6,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "upcoming"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "old-lucho",
+                      "summary": "Cumpleaños de Lucho",
+                      "kind": "all_day",
+                      "time": "2026-11-29"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\npróximos días\n\n• 📅 *Cumpleaños de Lucho* — 29/11/2026 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "endDateExclusive": "2027-01-03",
+                    "kind": "all_day",
+                    "startDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trena"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trena",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Trena* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Trina no trena"
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6319,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Trina no trena\",\"verifiedOperations\":[{\"tool\":\"calendar_update\",\"resourceIds\":[\"hermesfixture1\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":6,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "¿Qué eventos tengo en mi Google Calendar próximos?"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "upcoming"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-1:chatcmpl-tool-084d1804e8c84de3bf9879fea73903bc",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "old-lucho",
+                      "summary": "Cumpleaños de Lucho",
+                      "kind": "all_day",
+                      "time": "2026-11-29"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\npróximos días\n\n• 📅 *Cumpleaños de Lucho* — 29/11/2026 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "endDateExclusive": "2027-01-03",
+                    "kind": "all_day",
+                    "startDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trena"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trena",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Trena* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Trina no trena"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [
+        {
+          "operation": "update",
+          "id": "hermesfixture1",
+          "changes": {
+            "eventId": "hermesfixture1",
+            "summary": "Cumpleaños de Trina",
+            "timezone": "America/Bogota",
+            "allDay": false,
+            "startDate": null,
+            "endDate": null,
+            "recurrence": null,
+            "clearRecurrence": false
+          }
+        }
+      ],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "text": "Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena.",
+      "reply": "Ya está corregido: el evento del 2 de enero dice **Cumpleaños de Trina**. 👍",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "stable ID and unchanged dates",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6235,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\",\"endTime\":\"2027-01-03\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":10,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Para el 2 de enero, añadirlo al calendario, cumpleaños, trena."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "endDateExclusive": "2027-01-03",
+                    "kind": "all_day",
+                    "startDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trena"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-2:chatcmpl-tool-2c127853adae47f79651dc3646f8c07d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trena",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Trena* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Trina no trena"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena."
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "text": "El evento del 2 de enero es trina, no trena.",
+      "reply": "Ya está corregido desde antes: el evento del 2 de enero se llama **Cumpleaños de Trina**. No hay nada más que cambiar. 😊",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "stable ID and unchanged dates",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6002,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"El evento del 2 de enero es trina, no trena.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\",\"endTime\":\"2027-01-03\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":14,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Trina no trena"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-3:chatcmpl-tool-51e5c9d50257457183c5dcd09ba924fb",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido: el evento del 2 de enero dice **Cumpleaños de Trina**. 👍",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "El evento del 2 de enero es trina, no trena."
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "text": "Muéstrame qué eventos tengo para el 2 de enero.",
+      "reply": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "date in scope without accidental text filter",
+          "pass": true
+        },
+        {
+          "name": "correct rendered names",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "name": "calendar_read",
+              "arguments": {
+                "scope": "2027-01-02"
+              }
+            }
+          ],
+          "inputEstimate": 5806,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame qué eventos tengo para el 2 de enero.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\",\"endTime\":\"2027-01-03\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"old-lucho\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":18,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido: el evento del 2 de enero dice **Cumpleaños de Trina**. 👍",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "El evento del 2 de enero es trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido desde antes: el evento del 2 de enero se llama **Cumpleaños de Trina**. No hay nada más que cambiar. 😊",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 5929,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame qué eventos tengo para el 2 de enero.\",\"verifiedOperations\":[{\"tool\":\"calendar_read\",\"resourceIds\":[\"hermesfixture1\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":18,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Eso que pusiste ahí para el 2 de enero es cumpleaños trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido: el evento del 2 de enero dice **Cumpleaños de Trina**. 👍",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "El evento del 2 de enero es trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido desde antes: el evento del 2 de enero se llama **Cumpleaños de Trina**. No hay nada más que cambiar. 😊",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "text": "Añade también el cumpleaños de Rosa el 30 de enero.",
+      "reply": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Rosa* — 30/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact requested calendar write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "name": "calendar_create",
+              "arguments": {
+                "kind": "all_day",
+                "startDate": "2027-01-30",
+                "endDateExclusive": "2027-01-31",
+                "summary": "Cumpleaños de Rosa"
+              }
+            }
+          ],
+          "inputEstimate": 5972,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Añade también el cumpleaños de Rosa el 30 de enero.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":20,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "El evento del 2 de enero es trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido desde antes: el evento del 2 de enero se llama **Cumpleaños de Trina**. No hay nada más que cambiar. 😊",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6183,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Añade también el cumpleaños de Rosa el 30 de enero.\",\"verifiedOperations\":[{\"tool\":\"calendar_create\",\"resourceIds\":[\"hermesfixture2\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":20,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "El evento del 2 de enero es trina, no trena."
+            },
+            {
+              "role": "assistant",
+              "content": "Ya está corregido desde antes: el evento del 2 de enero se llama **Cumpleaños de Trina**. No hay nada más que cambiar. 😊",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "kind": "all_day",
+                    "startDate": "2027-01-30",
+                    "endDateExclusive": "2027-01-31",
+                    "summary": "Cumpleaños de Rosa"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rosa",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [
+        {
+          "operation": "create",
+          "id": "hermesfixture2"
+        }
+      ],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture2",
+          "summary": "Cumpleaños de Rosa",
+          "start": "2027-01-30",
+          "end": "2027-01-31",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "text": "Rita, no Rosa.",
+      "reply": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact requested calendar write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "stable ID and unchanged dates",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "name": "calendar_update",
+              "arguments": {
+                "eventId": "hermesfixture2",
+                "lookupDate": "2027-01-30",
+                "summary": "Cumpleaños de Rita"
+              }
+            }
+          ],
+          "inputEstimate": 6211,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Rita, no Rosa.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rosa\",\"kind\":\"all_day\",\"time\":\"2027-01-30\",\"endTime\":\"2027-01-31\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":22,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "kind": "all_day",
+                    "startDate": "2027-01-30",
+                    "endDateExclusive": "2027-01-31",
+                    "summary": "Cumpleaños de Rosa"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rosa",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Rosa* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6363,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Rita, no Rosa.\",\"verifiedOperations\":[{\"tool\":\"calendar_update\",\"resourceIds\":[\"hermesfixture2\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":22,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-6:chatcmpl-tool-46283282989443628bdd85c696d5b983",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "kind": "all_day",
+                    "startDate": "2027-01-30",
+                    "endDateExclusive": "2027-01-31",
+                    "summary": "Cumpleaños de Rosa"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rosa",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Rosa* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture2",
+                    "lookupDate": "2027-01-30",
+                    "summary": "Cumpleaños de Rita"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [
+        {
+          "operation": "update",
+          "id": "hermesfixture2",
+          "changes": {
+            "eventId": "hermesfixture2",
+            "summary": "Cumpleaños de Rita",
+            "timezone": "America/Bogota",
+            "allDay": false,
+            "startDate": null,
+            "endDate": null,
+            "recurrence": null,
+            "clearRecurrence": false
+          }
+        }
+      ],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture2",
+          "summary": "Cumpleaños de Rita",
+          "start": "2027-01-30",
+          "end": "2027-01-31",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "text": "Muéstrame los del 30 de enero.",
+      "reply": "📅 *Google Calendar*\n2027-01-30\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "date in scope without accidental text filter",
+          "pass": true
+        },
+        {
+          "name": "correct rendered names",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "name": "calendar_read",
+              "arguments": {
+                "scope": "2027-01-30"
+              }
+            }
+          ],
+          "inputEstimate": 6241,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame los del 30 de enero.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rita\",\"kind\":\"all_day\",\"time\":\"2027-01-30\",\"endTime\":\"2027-01-31\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":26,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "kind": "all_day",
+                    "startDate": "2027-01-30",
+                    "endDateExclusive": "2027-01-31",
+                    "summary": "Cumpleaños de Rosa"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rosa",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Rosa* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture2",
+                    "lookupDate": "2027-01-30",
+                    "summary": "Cumpleaños de Rita"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6362,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame los del 30 de enero.\",\"verifiedOperations\":[{\"tool\":\"calendar_read\",\"resourceIds\":[\"hermesfixture2\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture2\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":26,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Añade también el cumpleaños de Rosa el 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+                  "name": "calendar_create",
+                  "arguments": {
+                    "kind": "all_day",
+                    "startDate": "2027-01-30",
+                    "endDateExclusive": "2027-01-31",
+                    "summary": "Cumpleaños de Rosa"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-7:chatcmpl-tool-fdd5798c831b417cabb4a474a737466d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "create",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rosa",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✅ *Evento creado*\n\n• 📅 *Cumpleaños de Rosa* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture2",
+                    "lookupDate": "2027-01-30",
+                    "summary": "Cumpleaños de Rita"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-30"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture2",
+          "summary": "Cumpleaños de Rita",
+          "start": "2027-01-30",
+          "end": "2027-01-31",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "text": "Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez.",
+      "reply": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina Pérez* — 02/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "exact requested calendar write",
+          "pass": true
+        },
+        {
+          "name": "one event with corrected name on original civil date",
+          "pass": true
+        },
+        {
+          "name": "birthday title preserved",
+          "pass": true
+        },
+        {
+          "name": "stable ID and unchanged dates",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+              "name": "calendar_update",
+              "arguments": {
+                "eventId": "hermesfixture1",
+                "lookupDate": "2027-01-02",
+                "summary": "Cumpleaños de Trina Pérez"
+              }
+            }
+          ],
+          "inputEstimate": 6223,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rita\",\"kind\":\"all_day\",\"time\":\"2027-01-30\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina\",\"kind\":\"all_day\",\"time\":\"2027-01-02\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture2\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":30,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture2",
+                    "lookupDate": "2027-01-30",
+                    "summary": "Cumpleaños de Rita"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-30"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-30\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6391,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez.\",\"verifiedOperations\":[{\"tool\":\"calendar_update\",\"resourceIds\":[\"hermesfixture1\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rita\",\"kind\":\"all_day\",\"time\":\"2027-01-30\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture2\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":30,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Rita, no Rosa."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture2",
+                    "lookupDate": "2027-01-30",
+                    "summary": "Cumpleaños de Rita"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-8:chatcmpl-tool-a3b0c3b5a2bf421f9e1186139e94baaf",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30",
+                      "endTime": "2027-01-31"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-30"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-30\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina Pérez"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina Pérez",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [
+        {
+          "operation": "update",
+          "id": "hermesfixture1",
+          "changes": {
+            "eventId": "hermesfixture1",
+            "summary": "Cumpleaños de Trina Pérez",
+            "timezone": "America/Bogota",
+            "allDay": false,
+            "startDate": null,
+            "endDate": null,
+            "recurrence": null,
+            "clearRecurrence": false
+          }
+        }
+      ],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina Pérez",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture2",
+          "summary": "Cumpleaños de Rita",
+          "start": "2027-01-30",
+          "end": "2027-01-31",
+          "isAllDay": true
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "text": "Muéstrame qué eventos tengo para el 2 de enero.",
+      "reply": "📅 *Google Calendar*\n2027-01-02\n\n• 📅 *Cumpleaños de Trina Pérez* — 02/01/2027 (Todo el día)",
+      "checks": [
+        {
+          "name": "no failed outcomes or limit notices",
+          "pass": true
+        },
+        {
+          "name": "no unrelated reminder writes",
+          "pass": true
+        },
+        {
+          "name": "no calendar creation/deletion or unrelated write",
+          "pass": true
+        },
+        {
+          "name": "date in scope without accidental text filter",
+          "pass": true
+        },
+        {
+          "name": "correct rendered names",
+          "pass": true
+        },
+        {
+          "name": "unrelated calendar events unchanged",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "requests": [
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [
+            {
+              "id": "chatcmpl-tool-25ff68a870454aa98937ef72a83983b0",
+              "name": "calendar_read",
+              "arguments": {
+                "scope": "2027-01-02"
+              }
+            }
+          ],
+          "inputEstimate": 6240,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame qué eventos tengo para el 2 de enero.\",\"verifiedOperations\":[]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rita\",\"kind\":\"all_day\",\"time\":\"2027-01-30\"},{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture1\",\"summary\":\"Cumpleaños de Trina Pérez\",\"kind\":\"all_day\",\"time\":\"2027-01-02\",\"endTime\":\"2027-01-03\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture2\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":34,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-30"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-30\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina Pérez"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina Pérez",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina Pérez* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            }
+          ]
+        },
+        {
+          "tools": [
+            "task_create",
+            "task_read",
+            "task_update",
+            "task_complete",
+            "task_delete",
+            "calendar_read",
+            "calendar_create",
+            "calendar_update",
+            "calendar_delete",
+            "calendar_connect",
+            "reminder_create",
+            "reminder_read",
+            "reminder_update",
+            "reminder_cancel",
+            "reminder_acknowledge",
+            "memory_read",
+            "memory_save",
+            "memory_forget",
+            "project_read",
+            "project_create",
+            "project_rename",
+            "project_delete",
+            "subscription_info",
+            "subscription_checkout",
+            "subscription_cancel",
+            "entity_read",
+            "entity_create",
+            "entity_update",
+            "entity_merge",
+            "entity_delete",
+            "agenda_read"
+          ],
+          "calls": [],
+          "inputEstimate": 6361,
+          "userTurns": 3,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. References identify resources; historical observations are context for follow-ups, not current list results. Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. Use America/Bogota for local dates and times. Never claim an operation succeeded without its tool result. References cover working memory only, never unqueried domains. \n{\"currentTurn\":{\"userText\":\"Muéstrame qué eventos tengo para el 2 de enero.\",\"verifiedOperations\":[{\"tool\":\"calendar_read\",\"resourceIds\":[\"hermesfixture1\"]}]},\"language\":\"es\",\"timezone\":\"America/Bogota\",\"referenceTimeIso\":\"2026-10-17T16:35:00Z\",\"userLocalTime\":\"sábado, 17 de octubre de 2026, 11:35 a. m.\",\"references\":{\"reminders\":[{\"id\":\"33333333-3333-4333-8333-000000000001\",\"content\":\"Tratar de adelantar la entrega de aire, la entrega de escritorio y la entrega de lavadora\",\"status\":\"pending\",\"time\":\"2026-10-17T11:50:00-05:00\"}],\"tasks\":[],\"events\":[{\"id\":\"old-lucho\",\"summary\":\"Cumpleaños de Lucho\",\"kind\":\"all_day\",\"time\":\"2026-11-29\"},{\"id\":\"hermesfixture2\",\"summary\":\"Cumpleaños de Rita\",\"kind\":\"all_day\",\"time\":\"2027-01-30\"}]},\"referenceOrder\":[{\"domain\":\"calendar\",\"id\":\"hermesfixture1\",\"position\":1}],\"referenceCoverage\":\"bounded_historical_references_read_to_resolve_other_resources\",\"referenceFreshness\":\"historical_or_current_tool_observation\"}\n\n{\"operationalSummary\":{\"version\":1,\"userId\":\"fluent-eval-synthetic-owner-suite2\",\"provenance\":\"host_owned_tool_transcript\",\"freshness\":\"historical\",\"grantsAuthorization\":false,\"omittedMessages\":34,\"pending\":[],\"recentConfirmed\":[]}}"
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame los del 30 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-30"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-9:chatcmpl-tool-a9b700cff38a4b4ebe8329b0730f3715",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture2",
+                      "summary": "Cumpleaños de Rita",
+                      "kind": "all_day",
+                      "time": "2027-01-30"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "📅 *Google Calendar*\n2027-01-30\n\n• 📅 *Cumpleaños de Rita* — 30/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Al cumpleaños de Trina del 2 de enero cámbiale solo el título a Cumpleaños de Trina Pérez."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+                  "name": "calendar_update",
+                  "arguments": {
+                    "eventId": "hermesfixture1",
+                    "lookupDate": "2027-01-02",
+                    "summary": "Cumpleaños de Trina Pérez"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-10:chatcmpl-tool-1df5dbdf032947c7a1a245aa0dd54b7d",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "update",
+                  "complete": true,
+                  "coverage": "operation",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina Pérez",
+                      "kind": "all_day",
+                      "time": "2027-01-02",
+                      "endTime": "2027-01-03"
+                    }
+                  ]
+                },
+                "freshness": "historical",
+                "currentTurnEvidence": false
+              },
+              "isError": false
+            },
+            {
+              "role": "assistant",
+              "content": "Listo.\n\n✏️ *Evento actualizado*\n\n• 📅 *Cumpleaños de Trina Pérez* — 02/01/2027 (Todo el día)",
+              "toolCalls": []
+            },
+            {
+              "role": "user",
+              "content": "Muéstrame qué eventos tengo para el 2 de enero."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "id": "calendar-11:chatcmpl-tool-25ff68a870454aa98937ef72a83983b0",
+                  "name": "calendar_read",
+                  "arguments": {
+                    "scope": "2027-01-02"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "toolCallId": "calendar-11:chatcmpl-tool-25ff68a870454aa98937ef72a83983b0",
+              "content": {
+                "status": "success",
+                "observation": {
+                  "operation": "read",
+                  "complete": true,
+                  "coverage": "bounded_list",
+                  "returnedCount": 1,
+                  "companion": "not_requested",
+                  "events": [
+                    {
+                      "id": "hermesfixture1",
+                      "summary": "Cumpleaños de Trina Pérez",
+                      "kind": "all_day",
+                      "time": "2027-01-02"
+                    }
+                  ]
+                }
+              },
+              "isError": false
+            }
+          ]
+        }
+      ],
+      "calendarWrites": [],
+      "notices": [],
+      "events": [
+        {
+          "id": "old-lucho",
+          "summary": "Cumpleaños de Lucho",
+          "start": "2026-11-29",
+          "end": "2026-11-30",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture1",
+          "summary": "Cumpleaños de Trina Pérez",
+          "start": "2027-01-02",
+          "end": "2027-01-03",
+          "isAllDay": true
+        },
+        {
+          "id": "hermesfixture2",
+          "summary": "Cumpleaños de Rita",
+          "start": "2027-01-30",
+          "end": "2027-01-31",
+          "isAllDay": true
+        }
+      ]
+    }
+  ],
+  "passed": 12,
+  "failed": 0,
+  "budget": {
+    "calls": 22,
+    "chargedUsd": 0.01147237,
+    "reservedUsd": 0,
+    "blockedReason": null,
+    "attempts": [
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257333-ODCZEK9dxoMKymqWGIyi",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5645,
+          "completionTokens": 63,
+          "cachedTokens": 5376,
+          "reasoningTokens": 8
+        },
+        "costUsd": 0.00023313
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257334-drG82DceYRIPF3EE9dKO",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5824,
+          "completionTokens": 41,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00024898
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257336-3bPK8wpKBHJX53Jw4xTC",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5928,
+          "completionTokens": 13,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.0008957
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257337-xpxX8whHGGM8faOeGiOu",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6039,
+          "completionTokens": 33,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00092235
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257338-m8qk1SFk3LYzOp4F8urm",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6162,
+          "completionTokens": 69,
+          "cachedTokens": 5376,
+          "reasoningTokens": 21
+        },
+        "costUsd": 0.00031368
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257339-N0epHHkSFTbOF6InDGiR",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6301,
+          "completionTokens": 42,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00032103
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257341-dVQj74k0IdOz9B2O0RJ0",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6112,
+          "completionTokens": 69,
+          "cachedTokens": 5376,
+          "reasoningTokens": 31
+        },
+        "costUsd": 0.00030618
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257342-MrYLmRC1tctX1W49o3oK",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6202,
+          "completionTokens": 34,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00030218
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257344-kNu2In6JzP5kj8U7gKua",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6176,
+          "completionTokens": 31,
+          "cachedTokens": 5376,
+          "reasoningTokens": 3
+        },
+        "costUsd": 0.00029678
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257345-xvEr0cPqrLA3ROu8rto1",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6015,
+          "completionTokens": 43,
+          "cachedTokens": 5376,
+          "reasoningTokens": 5
+        },
+        "costUsd": 0.00027863
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257346-b0u6Bu4cCXarm6VrQ7pL",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5893,
+          "completionTokens": 17,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00024733
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257347-QnfEpjCgMfHvtjoRmHLR",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5953,
+          "completionTokens": 30,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00090795
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257348-xIahmctVWN6JW1f6nZjK",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 5990,
+          "completionTokens": 47,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.000922
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257349-17Tow01kUECYiT4GA0YT",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6127,
+          "completionTokens": 31,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00028943
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257350-qEws00vcedntFBYNWbrV",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6144,
+          "completionTokens": 37,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.0009401
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257352-QmPiDvnaC0vXTXA1Vbjy",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6233,
+          "completionTokens": 33,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00030633
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257353-cKtK68pHYPz4uNHKu7lB",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6172,
+          "completionTokens": 17,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00028918
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257354-4xD5eJ5nZhyxfCYEVgv7",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6232,
+          "completionTokens": 33,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.0009513
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257356-tRrRYKDPGLsJvP61ofT7",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6157,
+          "completionTokens": 40,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00094355
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257357-nvXkLengn3qRreZavJN0",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6258,
+          "completionTokens": 40,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00031358
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257358-3oIOMNCqkqesicELUlWS",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6167,
+          "completionTokens": 17,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00093355
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257360-OAMUjH50twGRK9tgYv2g",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6227,
+          "completionTokens": 41,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00030943
+      }
+    ],
+    "accountingComplete": true
+  }
+}

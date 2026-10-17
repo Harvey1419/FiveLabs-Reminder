@@ -1,0 +1,114 @@
+{
+  "scope": "Production checkpoint replay; synthetic Google and delivery; no production writes",
+  "turns": [
+    {
+      "number": 1,
+      "pass": true,
+      "stableTarget": true,
+      "writeTypes": [
+        "update"
+      ],
+      "tools": [
+        "calendar_update"
+      ],
+      "reply": "Listo.\n\n\u270f\ufe0f *Evento actualizado*\n\n\u2022 \ud83d\udcc5 *Cumplea\u00f1os de Trina* \u2014 02/01/2027 (Todo el d\u00eda)"
+    },
+    {
+      "number": 2,
+      "pass": true,
+      "stableTarget": true,
+      "writeTypes": [],
+      "tools": [
+        "calendar_read"
+      ],
+      "reply": "\ud83d\udcc5 *Google Calendar*\n2027-01-02\n\n\u2022 \ud83d\udcc5 *Cumplea\u00f1os de Trina* \u2014 02/01/2027 (Todo el d\u00eda)"
+    },
+    {
+      "number": 3,
+      "pass": true,
+      "stableTarget": true,
+      "writeTypes": [],
+      "tools": [],
+      "reply": "\u00a1Ya est\u00e1 corregido! El evento del 2 de enero dice **\"Cumplea\u00f1os de Trina\"** \u2014 lo actualic\u00e9 en tu solicitud anterior. \u00bfNecesitas algo m\u00e1s?"
+    }
+  ],
+  "budget": {
+    "calls": 5,
+    "chargedUsd": 0.0031318400000000003,
+    "reservedUsd": 0,
+    "blockedReason": null,
+    "attempts": [
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257349-mz6g5kep1jCQ8GCa0ze7",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6662,
+          "completionTokens": 80,
+          "cachedTokens": 5376,
+          "reasoningTokens": 26
+        },
+        "costUsd": 0.00039418
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257350-X1JlWo844mRuRYWmPGB6",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6784,
+          "completionTokens": 34,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.0010346
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257352-TVMMJJvCb830tf3e9WNR",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6576,
+          "completionTokens": 17,
+          "cachedTokens": 0,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.0009949
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257353-fcmJeRUrfmZdwpXYUj3c",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6589,
+          "completionTokens": 29,
+          "cachedTokens": 5376,
+          "reasoningTokens": 0
+        },
+        "costUsd": 0.00035773
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "accounting": "known",
+        "status": 200,
+        "id": "gen-1792257354-1oPs0VwXdhsjPAnOhQro",
+        "responseModel": "z-ai/glm-5.3-flash",
+        "usage": {
+          "promptTokens": 6477,
+          "completionTokens": 48,
+          "cachedTokens": 5376,
+          "reasoningTokens": 3
+        },
+        "costUsd": 0.00035043
+      }
+    ],
+    "accountingComplete": true
+  }
+}

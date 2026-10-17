@@ -1,0 +1,322 @@
+{
+  "purpose": "Calendar correction and native conversation continuity release",
+  "runtimeSourceHead": "fca2dff",
+  "productionDataWrites": 0,
+  "WhatsAppTestSends": 0,
+  "rootCauses": [
+    "Dated calendar mutations passed event IDs to Google q text search, producing NOT_FOUND for an observed owned event.",
+    "Native context did not clearly separate the current request and confirmed active operations from historical context.",
+    "Model final prose could contain historical lists, while the presenter only displays current-turn receipts.",
+    "Explicit provider argument-schema rejection ended the turn instead of allowing one bounded fresh decision.",
+    "The old primary route continued omitting fresh reads and sometimes overwrote more of a corrected title than requested."
+  ],
+  "fixes": [
+    "Resolve dated event references within authenticated civil-day candidates without text-searching IDs.",
+    "Preserve recent dialogue, mark historical observations, identify current request and verified current operations.",
+    "Explain the receipt-only presentation contract to the model and preserve unfiltered all-pending semantics.",
+    "Recover exactly one explicit advertised-tool argument rejection with trusted schema feedback and conservative unknown-spend reservation.",
+    "Show confirmed result cards before operation-specific failures; retain honest partial/interruption notices."
+  ],
+  "routeComparison": {
+    "scope": "Same source, policies, catalogue and executive corpus; model/provider/reasoning route bundle changes together.",
+    "previous": {
+      "evidence": "v2-executive-final-continuity-2026-10-17.json",
+      "routes": [
+        {
+          "id": "primary",
+          "model": "openai/gpt-oss-120b",
+          "providers": [
+            "groq"
+          ],
+          "timeoutMs": 9000,
+          "temperature": 0,
+          "reasoning": {
+            "effort": "medium",
+            "exclude": true
+          }
+        }
+      ],
+      "result": {
+        "passed": 19,
+        "failed": 1,
+        "turns": 20,
+        "checks": 153,
+        "calls": 43,
+        "knownCostUsd": 0.032006400000000004,
+        "reservedUnknownCostUsd": 0,
+        "accountingComplete": true
+      }
+    },
+    "selected": {
+      "evidence": "v2-executive-secondary-comparison-2026-10-17.json",
+      "routes": [
+        {
+          "id": "secondary",
+          "model": "z-ai/glm-5.3-flash",
+          "providers": [
+            "baseten/fp8"
+          ],
+          "timeoutMs": 15000,
+          "temperature": 0,
+          "reasoning": {
+            "effort": "low",
+            "exclude": true
+          }
+        }
+      ],
+      "result": {
+        "passed": 20,
+        "failed": 0,
+        "turns": 20,
+        "checks": 153,
+        "calls": 41,
+        "knownCostUsd": 0.034899200000000005,
+        "reservedUnknownCostUsd": 0,
+        "accountingComplete": true
+      }
+    },
+    "costIncreasePercent": 9.04
+  },
+  "calendarVerification": {
+    "evidence": "v2-calendar-secondary-verified-2026-10-17.json",
+    "result": {
+      "passed": 12,
+      "failed": 0,
+      "turns": 12,
+      "checks": 76,
+      "calls": 22,
+      "knownCostUsd": 0.01147237,
+      "reservedUnknownCostUsd": 0,
+      "accountingComplete": true
+    },
+    "oracleNote": "Timestamps compare parsed instants, so an ISO offset and UTC representation of the same moment are equivalent."
+  },
+  "ownedCheckpointReplay": {
+    "evidence": "v2-owned-checkpoint-replay-2026-10-17.json",
+    "passed": 3,
+    "turns": 3,
+    "privateSourceTranscriptCommitted": false
+  },
+  "automatedValidation": {
+    "unitSuite": {
+      "files": 339,
+      "passed": 4482,
+      "command": "pnpm exec vitest run --config tests/config/vitest.unit.ts"
+    },
+    "additionalMeteredUsageCase": {
+      "focusedFilePassed": 9,
+      "command": "pnpm exec vitest run --config tests/config/vitest.unit.ts tests/unit/agent-core/tool-arguments-recovery.test.ts"
+    },
+    "typecheck": "passed",
+    "buildAndRuntimeGraph": "passed; 316 compiled runtime modules",
+    "lint": "passed; zero errors or warnings",
+    "v2Boundary": "passed; 178 checked modules, zero forbidden imports",
+    "migrationInventory": "passed"
+  },
+  "routingBefore": {
+    "OPENROUTER_PRIMARY_MODEL": "openai/gpt-oss-120b",
+    "OPENROUTER_PRIMARY_PROVIDERS": "groq",
+    "OPENROUTER_PRIMARY_TIMEOUT_MS": "9000",
+    "OPENROUTER_PRIMARY_REASONING_EFFORT": "medium",
+    "OPENROUTER_SECONDARY_MODEL": "z-ai/glm-5.3-flash",
+    "OPENROUTER_SECONDARY_PROVIDERS": "baseten/fp8",
+    "OPENROUTER_SECONDARY_TIMEOUT_MS": "15000",
+    "OPENROUTER_SECONDARY_REASONING_EFFORT": "low",
+    "AGENT_CORE_NATIVE_TOOLS": "true",
+    "AGENT_CORE_V2": "true"
+  },
+  "routingAfter": {
+    "OPENROUTER_PRIMARY_MODEL": "z-ai/glm-5.3-flash",
+    "OPENROUTER_PRIMARY_PROVIDERS": "baseten/fp8",
+    "OPENROUTER_PRIMARY_TIMEOUT_MS": "15000",
+    "OPENROUTER_PRIMARY_REASONING_EFFORT": "low",
+    "OPENROUTER_SECONDARY_MODEL": "openai/gpt-oss-120b",
+    "OPENROUTER_SECONDARY_PROVIDERS": "groq",
+    "OPENROUTER_SECONDARY_TIMEOUT_MS": "9000",
+    "OPENROUTER_SECONDARY_REASONING_EFFORT": "medium",
+    "AGENT_CORE_NATIVE_TOOLS": "true",
+    "AGENT_CORE_V2": "true"
+  },
+  "earlierCalendarIterations": [
+    {
+      "file": "v2-calendar-correction-2026-10-17.json",
+      "passed": 11,
+      "failed": 1,
+      "failedChecks": [
+        {
+          "turn": 4,
+          "checks": [
+            "exact requested calendar write",
+            "one event with corrected name on original civil date"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-correction-active-turn-2026-10-17.json",
+      "passed": 9,
+      "failed": 3,
+      "failedChecks": [
+        {
+          "turn": 8,
+          "checks": [
+            "one event with corrected name on original civil date"
+          ]
+        },
+        {
+          "turn": 9,
+          "checks": [
+            "one event with corrected name on original civil date",
+            "unrelated calendar events unchanged"
+          ]
+        },
+        {
+          "turn": 10,
+          "checks": [
+            "date in scope without accidental text filter"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-correction-continuity-2026-10-17.json",
+      "passed": 10,
+      "failed": 2,
+      "failedChecks": [
+        {
+          "turn": 1,
+          "checks": [
+            "no calendar creation/deletion or unrelated write"
+          ]
+        },
+        {
+          "turn": 4,
+          "checks": [
+            "exact requested calendar write",
+            "one event with corrected name on original civil date"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-correction-current-evidence-2026-10-17.json",
+      "passed": 7,
+      "failed": 5,
+      "failedChecks": [
+        {
+          "turn": 3,
+          "checks": [
+            "one event with corrected name on original civil date"
+          ]
+        },
+        {
+          "turn": 4,
+          "checks": [
+            "exact requested calendar write",
+            "one event with corrected name on original civil date"
+          ]
+        },
+        {
+          "turn": 5,
+          "checks": [
+            "one event with corrected name on original civil date"
+          ]
+        },
+        {
+          "turn": 6,
+          "checks": [
+            "one event with corrected name on original civil date",
+            "birthday title preserved"
+          ]
+        },
+        {
+          "turn": 7,
+          "checks": [
+            "correct rendered names"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-correction-history-boundary-2026-10-17.json",
+      "passed": 10,
+      "failed": 2,
+      "failedChecks": [
+        {
+          "turn": 4,
+          "checks": [
+            "exact requested calendar write",
+            "one event with corrected name on original civil date"
+          ]
+        },
+        {
+          "turn": 6,
+          "checks": [
+            "birthday title preserved"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-correction-presentation-contract-2026-10-17.json",
+      "passed": 12,
+      "failed": 0,
+      "failedChecks": []
+    },
+    {
+      "file": "v2-calendar-correction-simple-context-2026-10-17.json",
+      "passed": 12,
+      "failed": 0,
+      "failedChecks": []
+    },
+    {
+      "file": "v2-calendar-correction-verified-2026-10-17.json",
+      "passed": 11,
+      "failed": 1,
+      "failedChecks": [
+        {
+          "turn": 6,
+          "checks": [
+            "birthday title preserved"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-final-continuity-2026-10-17.json",
+      "passed": 11,
+      "failed": 1,
+      "failedChecks": [
+        {
+          "turn": 6,
+          "checks": [
+            "birthday title preserved"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-secondary-comparison-2026-10-17.json",
+      "passed": 11,
+      "failed": 1,
+      "failedChecks": [
+        {
+          "turn": 1,
+          "checks": [
+            "exact relative reminder time"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "v2-calendar-secondary-verified-2026-10-17.json",
+      "passed": 12,
+      "failed": 0,
+      "failedChecks": []
+    }
+  ],
+  "limitations": [
+    "These real-model evaluations use isolated owned data and a synthetic Google boundary; they do not send WhatsApp messages or alter customer calendars.",
+    "Passing the evaluated conversations does not prove universal model reliability. Existing erroneous calendar entries require separate state repair."
+  ]
+}
