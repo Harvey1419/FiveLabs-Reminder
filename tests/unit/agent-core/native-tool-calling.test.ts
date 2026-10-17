@@ -31,6 +31,22 @@ function fixture(script: AIResponse[], authorize = false) {
 }
 
 describe('native tool loop', () => {
+  it('prioritizes the recent exchanges and keeps the current request separate from old incomplete work', async () => {
+    const f = fixture([say('Entendido.')]);
+    const history = ['OLD REQUEST DO NOT RESUME', 'Consulta anterior', 'Crea una tarea llamada Trena', 'Trina no Trena'].flatMap(content => [
+      { role: 'user' as const, content }, { role: 'assistant' as const, content: 'Respuesta anterior', toolCalls: [] },
+    ]);
+    await f.runner.run('Muéstrame mis tareas.', f.ctx, { userId: f.ctx.userId, history, reminders: [], tasks: [], events: [], handledRequestIds: [] });
+    const messages = f.provider.requests[0]!.messages;
+    const rendered = JSON.stringify(messages);
+    expect(rendered).not.toContain('OLD REQUEST DO NOT RESUME');
+    expect(messages.filter(m => m.role === 'user').map(m => m.content)).toEqual([
+      'Crea una tarea llamada Trena',
+      'Trina no Trena', 'Muéstrame mis tareas.']);
+    const data = messages.find(m => m.role === 'system')!.content.split('\n').find(line => line.startsWith('{"currentTurn":'))!;
+    expect(JSON.parse(data).currentTurn).toEqual({ userText: 'Muéstrame mis tareas.', verifiedOperations: [] });
+    expect(f.taskExecute).not.toHaveBeenCalled();
+  });
   it('keeps all authorized tools available and returns to the model between partial reads', async () => {
     const f = fixture([response([{ id: 'projects', name: 'project_read', arguments: {} }]),
       response([{ id: 'tasks', name: 'task_read', arguments: { status: 'pending' } }]), say('Revisé proyectos y tareas.')]);

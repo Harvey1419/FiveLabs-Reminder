@@ -212,7 +212,7 @@ export class ProductivityTurnRunner {
           ? 'For unadvertised queries, call tools_select first; references cover recent items only. Never claim 0 records without reading. '
           : '';
         const redacted = projectForgottenMemoryHistory(history, state.history.length, [...memories.values()]);
-        const projected = this.compactObservations ? projectProductivityHistory(redacted) : [...redacted];
+        const projected = this.compactObservations ? projectProductivityHistory(redacted, this.nativeToolCalling ? state.history.length : 0) : [...redacted];
         const withDialogue = conversationalContinuity(redacted.slice(0, state.history.length));
         const starts = projected.flatMap((message, index) => message.role === 'user' ? [index] : []);
         const recent = projected.slice(starts[Math.max(0, starts.length - (this.compactObservations ? 1 : 3))] ?? 0);
@@ -321,21 +321,24 @@ export class ProductivityTurnRunner {
           };
           const hasActiveCommitments = Boolean(promptReferences.reminders?.length || promptReferences.tasks?.length);
           const commitmentGuidance = hasActiveCommitments ? 'References cover working memory only, never unqueried domains. ' : '';
-          const nativePersona = 'You are Hermes, an executive personal assistant. Match the user language; be warm and brief. '
-            + 'Fulfill every part of the latest request. All listed tools are callable directly; use several calls for independent operations. '
-            + 'After tool results, inspect what remains and continue until the whole request is fulfilled or explain what is blocked. '
-            + 'A successful operation does not complete other requested operations. Then give a final response; the host renders verified cards. '
-            + 'For current lists, query the corresponding read tools. History is bounded working memory, not a fresh database or authorization. '
-            + 'Do not add date filters unless requested; all pending includes undated tasks. '
-            + 'Use observed owned IDs for mutations, and change only what the current request authorizes. Never repeat successful writes. '
-            + 'Omit optional arguments unless needed; use null only when the schema permits it. '
-            + 'For reminders use delayMinutes for relative delays, relativeDayTime for explicit today/tomorrow and AM/PM, '
-            + 'and unqualifiedLocalTime only for undated clocks without AM/PM. '
-            + `Use ${context.timezone} for local times. Never expose raw UTC in dialogue. `
-            + 'If details are missing, ask a specific question and retain the known facts. Never invent successful execution or unavailable data. ';
+          const nativePersona = 'You are Hermes, an executive personal assistant. Continue the conversation naturally in the user language, warmly and briefly. '
+            + 'currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. '
+            + 'A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. '
+            + 'All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. '
+            + 'After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. '
+            + 'The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. '
+            + 'Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. '
+            + 'Do not resume old requests, repeat or undo completed operations, or substitute creation/deletion for a failed update. '
+            + 'References identify resources; historical observations are context for follow-ups, not current list results. '
+            + 'Omit unneeded optional arguments. If a required detail cannot be resolved from the conversation, ask one specific question. '
+            + `Use ${context.timezone} for local dates and times. Never claim an operation succeeded without its tool result. `;
           return (this.nativeToolCalling && !useDecisions ? nativePersona : viewOnly ? executablePersona : persona)
             + commitmentGuidance + mediaGuidance + decisionGuidance(viewOnly) + pendingContext + '\n'
-            + JSON.stringify({ ...(tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
+            + JSON.stringify({ ...(this.nativeToolCalling ? { currentTurn: { userText: text,
+              verifiedOperations: items.filter(item => item.status === 'success' && item.result?.complete)
+                .map(item => ({ tool: item.toolName, resourceIds: item.domain === 'calendar' ? item.result?.events.map(event => event.id)
+                  : item.result && 'records' in item.result ? item.result.records.map(record => record.id) : [] })) } } : {}),
+              ...(!this.nativeToolCalling && tools?.some(tool => tool.name === 'memory_save') ? { memorySourceText: this.memorySourceText ?? text } : {}), language: context.language, timezone: context.timezone, referenceTimeIso: context.referenceTimeIso, userLocalTime,
               references: promptReferences,
               referenceOrder: currentReferenceOrder()?.filter(reference => reference.domain === 'memories'
                 ? memories.get(reference.id)?.status === 'active' : reference.domain === 'tasks' ? tasks.has(reference.id)
@@ -355,12 +358,13 @@ export class ProductivityTurnRunner {
         for (const candidate of candidates)
           for (const extra of new Set([personal + historical, personal, historical, '']))
           for (const viewOnly of this.compactObservations ? [false, true] : [false])
-          for (const minimumRecentTurns of this.compactObservations ? [2, 1] : [3]) {
+          for (const minimumRecentTurns of this.compactObservations ? this.nativeToolCalling ? [3, 2, 1] : [2, 1] : [3]) {
           try {
             const prepared = prepareProductivityContext(candidate.history, context.userId,
               systemContent(viewOnly) + '\n' + candidate.summary + extra, maxMessages,
               messages => fitsBudget(withDialogue(messages)), minimumRecentTurns,
-              this.compactObservations && activeRead, !viewOnly && (!this.compactObservations || domains.length > 0)).messages;
+              this.nativeToolCalling || this.compactObservations && activeRead,
+              !this.nativeToolCalling && !viewOnly && (!this.compactObservations || domains.length > 0)).messages;
             const continuous = withDialogue(prepared);
             if (fitsBudget(continuous)) return continuous;
           } catch (error) { if (!(error instanceof ContextLimitError)) throw error; }

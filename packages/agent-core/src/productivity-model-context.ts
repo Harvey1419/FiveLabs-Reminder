@@ -13,8 +13,8 @@ export function compactModelRecord(raw: Readonly<Record<string, unknown>>): Json
   if (typeof end === 'string') result.endTime = end;
   return result;
 }
-export function projectProductivityHistory(history: readonly AIMessage[]): AIMessage[] {
-  return history.map(message => {
+export function projectProductivityHistory(history: readonly AIMessage[], historicalMessages = 0): AIMessage[] {
+  return history.map((message, index) => {
     if (message.role !== 'tool' || !message.content || typeof message.content !== 'object' || Array.isArray(message.content)
       || typeof message.content.observation !== 'string') return structuredClone(message);
     let data: unknown;
@@ -31,6 +31,7 @@ export function projectProductivityHistory(history: readonly AIMessage[]): AIMes
     }
     for (const key of ['records', 'events', 'projects', 'entities']) if (Array.isArray(raw[key])) compact[key] = raw[key].map(value =>
       value && typeof value === 'object' && !Array.isArray(value) ? compactModelRecord(value) : value);
-    return { ...message, content: { ...message.content, status: message.content.status ?? 'failed', observation: compact } };
+    return { ...message, content: { ...message.content, status: message.content.status ?? 'failed', observation: compact,
+      ...(index < historicalMessages ? { freshness: 'historical', currentTurnEvidence: false } : {}) } };
   });
 }

@@ -4,7 +4,8 @@ import { domainIssueSchema, domainPresentationSchema, temporalScopeSchema } from
 const summary = z.string().trim().min(1).max(2000);
 const common = {
   summary, description: z.string().max(10000).optional(),
-  recurrence: z.enum(['yearly', 'monthly', 'weekly', 'daily', 'weekdays']).optional(),
+  recurrence: z.enum(['yearly', 'monthly', 'weekly', 'daily', 'weekdays']).optional()
+    .describe('Set only when the user requests recurrence; a birthday title alone does not request a repeating event.'),
 };
 export const calendarCreateInputSchema = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -13,16 +14,21 @@ export const calendarCreateInputSchema = z.discriminatedUnion('kind', [
     advanceMinutes: z.number().int().positive().max(525600).optional(),
   }).refine(value => Date.parse(value.endIso) > Date.parse(value.startIso), { message: 'End must follow start' }),
   z.strictObject({
-    ...common, kind: z.literal('all_day'), startDate: z.iso.date(), endDateExclusive: z.iso.date(),
+    ...common, kind: z.literal('all_day'), startDate: z.iso.date()
+      .describe('Civil date YYYY-MM-DD. If the user omits the year, schedule the next occurrence relative to the current local date, unless they explicitly mean the past.'),
+    endDateExclusive: z.iso.date(),
   }).refine(value => value.endDateExclusive > value.startDate, { message: 'Exclusive end date must follow start date' }),
 ]);
 export const calendarReadInputSchema = z.strictObject({
-  scope: z.union([temporalScopeSchema, z.literal('next_event'), z.iso.date()]).optional(),
-  query: z.string().trim().min(1).max(200).optional(),
+  scope: z.union([temporalScopeSchema, z.literal('next_event'), z.iso.date()]).optional()
+    .describe('Date window. For a specific civil date use YYYY-MM-DD here, without also putting that date in query.'),
+  query: z.string().trim().min(1).max(200).optional()
+    .describe('Optional words to match in event text, such as a person or title. Omit when listing all events on a date; dates belong in scope.'),
 });
 export const calendarUpdateInputSchema = z.strictObject({
   eventId: z.string().min(1).max(1024), lookupDate: z.iso.date(),
-  summary: summary.optional(), description: z.string().max(10000).nullable().optional(),
+  summary: summary.optional().describe('New title. For a name/spelling correction replace only the mistaken part of the observed title; retain all other wording unless a full replacement was requested.'),
+  description: z.string().max(10000).nullable().optional(),
   startDate: z.iso.date().optional(), endDateExclusive: z.iso.date().optional(),
   startIso: z.iso.datetime({ offset: true }).optional(), endIso: z.iso.datetime({ offset: true }).optional(),
   recurrence: common.recurrence.optional(),
