@@ -27,7 +27,7 @@ describe('verified mixed WhatsApp presentation', () => {
   it('does not narrate an unbounded inventory from a successful bounded read', async () => {
     const result = await setup([response([{ id: 'read', name: 'task_read', arguments: {} }]), response()]).run();
     const text = new WhatsAppProductivityPresenter().render({ ...result.uiPayload, conversationReply: 'Estas son absolutamente todas tus tareas, sin excepciones.' }).text;
-    expect(text).toContain('lista limitada'); expect(text).not.toContain('absolutamente todas');
+    expect(text).not.toContain('lista limitada'); expect(text).not.toContain('absolutamente todas');
   });
   it('does not claim there are confirmed results above when the provider failed before any tool', () => {
     const reply = new WhatsAppProductivityPresenter().render({ language: 'es', timezone: context.timezone, items: [], notices: ['provider_unavailable'] });
@@ -51,7 +51,7 @@ describe('verified mixed WhatsApp presentation', () => {
     expect(result.reply.flows).toHaveLength(1);
     expect(result.uiPayload.items[0]).toMatchObject({ readScope: { scope: 'today' } });
     expect(result.reply.text).toContain('hoy');
-    expect(result.reply.text).toContain('lista limitada');
+    expect(result.reply.text).not.toContain('lista limitada');
   });
   it('deduplicates same-operation task cards while retaining the canonical format and interactive flow', async () => {
     const s = setup([response([taskCreate]), response()]);
@@ -72,7 +72,7 @@ describe('verified mixed WhatsApp presentation', () => {
       readScope: { scope }, result: { ...item.result, operation: 'read', coverage: 'bounded_list', records: [] } });
     const reply = new WhatsAppProductivityPresenter().render({ ...result.uiPayload, items: [make('today'), make('tomorrow')] });
     expect(reply.text).toContain('hoy'); expect(reply.text).toContain('mañana');
-    expect(reply.text).toContain('lista limitada');
+    expect(reply.text).not.toContain('lista limitada');
   });
   it('ignores embedded canonical prose, warns about a partial principal effect and preserves questions', async () => {
     const s = setup([response([taskCreate]), response()]);

@@ -157,9 +157,6 @@ export class WhatsAppProductivityPresenter {
       const key = `${item.toolName}:${JSON.stringify(item.readScope ?? {})}`;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     }
-    if (payload.items.some(item => item.domain === 'memories' && item.result?.coverage === 'bounded_list')
-      && ![...groups.values()].some(items => items[0]?.toolName === 'memory_read')) sections.push(en
-      ? 'The memory lookup returned a limited set of results.' : 'La consulta de recuerdos devolvió una lista limitada de resultados.');
     for (const items of groups.values()) {
       const first = items[0]!;
       if (first.domain === 'reminders') {
@@ -169,8 +166,6 @@ export class WhatsAppProductivityPresenter {
             result: item.result, readFilter: item.readScope?.filter ?? null, readQuery: item.readScope?.query ?? null };
         }) });
         sections.push(reply.text);
-        if (items.some(item => item.domain === 'reminders' && item.result?.coverage === 'bounded_list' && item.result.records.length > 0)) sections.push(en
-          ? 'This is a limited list of returned results.' : 'Esta es una lista limitada de los resultados devueltos.');
         continue;
       }
       if (first.domain === 'memories') {
@@ -267,9 +262,6 @@ export class WhatsAppProductivityPresenter {
         sections.push(en
           ? '⚠️ *Partially completed*\nThe confirmed results are shown above. Some requested details remain unconfirmed.'
           : '⚠️ *Completado parcialmente*\nLos resultados confirmados están arriba. Algunos detalles solicitados siguen sin confirmar.');
-      }
-      if (items.some(item => item.result && 'coverage' in item.result && item.result.coverage === 'bounded_list')) {
-        sections.push(en ? 'This is a limited list of returned results.' : 'Esta es una lista limitada de los resultados devueltos.');
       }
       sections.push(...items.flatMap(item => item.result?.presentation.questions ?? []));
     }
