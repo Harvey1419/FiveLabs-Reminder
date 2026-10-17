@@ -1,6 +1,6 @@
 import { aiResponseSchema, aiTranscriptSchema, turnDispositionSchema, productivityClarificationSchema, type ProductivityClarification, type AIMessage, type JsonObject,
   type ToolCall, type ToolSpecification, type TurnContext } from '@templelabs/contracts';
-import { AIProviderError, ToolSelectionError } from '@templelabs/ai';
+import { AIProviderError, ToolSelectionError, ToolArgumentsError } from '@templelabs/ai';
 import type { AIProvider } from '@templelabs/ai';
 import type { ToolRegistry, ToolOutcome } from '@templelabs/tools';
 import { estimateContextTokens, canonicalArguments } from './context-manager.js';
@@ -226,6 +226,10 @@ export class AgentLoop {
     let costUsd = 0;
     let totalCalls = 0;
     let schemaRecoveryUsed = false;
+    let argumentsRecoveryUsed = false;
+    let argumentsFeedback = '';
+    const withArgumentsFeedback = (messages: readonly AIMessage[]): AIMessage[] => messages.map(message =>
+      argumentsFeedback && message.role === 'system' ? { ...message, content: message.content + argumentsFeedback } : message);
     const provider = this.provider.forTurn?.() ?? this.provider;
     for (let step = 0; step < this.maxModelSteps; step++) {
       // Warm schemas bootstrap the first decision. An explicit selection replaces
@@ -255,7 +259,7 @@ export class AgentLoop {
       const availableNames = new Set(tools.map(tool => tool.name));
       const inputCeiling = this.maxInputTokens - (tools.some(tool => this.registry.effect(tool.name) === 'read') ? this.continuationReserveTokens : 0);
       const estimateRequest = (messages: readonly AIMessage[]): number => {
-        const tokens = this.estimateInputTokens({ messages, tools });
+        const tokens = this.estimateInputTokens({ messages: withArgumentsFeedback(messages), tools });
         if (!Number.isSafeInteger(tokens) || tokens < 0) throw new Error('Invalid input token estimate');
         return tokens;
       };
@@ -279,8 +283,8 @@ export class AgentLoop {
         }
         throw error;
       }
-      const messages = aiTranscriptSchema.parse(prepared.messages);
-      const estimate = estimateRequest(messages);
+      const messages = aiTranscriptSchema.parse(withArgumentsFeedback(prepared.messages));
+      const estimate = estimateRequest(prepared.messages);
       const availableOutput = Math.min(this.maxOutputTokens, this.maxTotalTokens - totalTokens - estimate);
       const reservedCost = this.pricing ? (estimate * this.pricing.inputUsdPerMillion
         + Math.max(0, availableOutput) * this.pricing.outputUsdPerMillion) / 1e6 : 0;
@@ -309,6 +313,20 @@ export class AgentLoop {
             + error.usage.outputTokens * this.pricing.outputUsdPerMillion) / 1e6;
           usage.estimatedCostUsd = this.pricing && usage.accountingComplete ? costUsd : null;
         } else { usage.accountingComplete = false; usage.estimatedCostUsd = null; }
+        if (error instanceof ToolArgumentsError && this.nativeToolCalling && !argumentsRecoveryUsed
+          && availableNames.has(error.toolName) && !context.signal.aborted && this.now() < deadlineMs) {
+          // The rejected inference returned no calls. Reserve unknown spend and
+          // request new arguments; never execute provider failed_generation data.
+          totalTokens += error.accountingComplete ? error.usage.inputTokens + error.usage.outputTokens : estimate + availableOutput;
+          if (this.pricing) costUsd += error.accountingComplete ? 0 : reservedCost;
+          argumentsRecoveryUsed = true;
+          argumentsFeedback = '\nThe provider rejected the previous inference before returning executable calls. '
+            + `Arguments for ${error.toolName} did not match its input schema. Generate a fresh valid decision for the current request. `
+            + 'Tool results (status, observation, records) are not tool input arguments. Prior confirmed operations remain completed. '
+            + JSON.stringify({ rejectedTool: error.toolName, inputSchema: tools.find(tool => tool.name === error.toolName)!.inputSchema });
+          if (step + 1 === this.maxModelSteps) { recordLimit('model_steps'); return finish(); }
+          continue;
+        }
         // Preserve the recovery predicate's order and short-circuiting, including
         // its single clock observation. Diagnostics cannot grant retry authority.
         let selectionReason: ToolSelectionDiagnostic['reason'] | undefined;

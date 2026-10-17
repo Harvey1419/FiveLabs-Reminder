@@ -325,6 +325,7 @@ export class ProductivityTurnRunner {
             + 'currentTurn.userText is the current request; use the preceding dialogue to resolve short follow-ups and corrections. '
             + 'A correction edits the existing item: keep its ID, date and all wording except the corrected part. If already corrected, acknowledge it. '
             + 'All advertised tools are directly callable. Perform every requested operation. Current lists require fresh read calls, even if a historical list is visible. '
+            + 'Read the requested scope literally: all pending includes undated tasks. Do not add a date filter unless requested. '
             + 'After tool results, check currentTurn.verifiedOperations and fulfill only the remaining parts of the current request. '
             + 'The user sees operation results ONLY from tools executed in THIS turn. Your final prose cannot add missing lists or other operation results. '
             + 'Call every requested read tool now, even when its historical results look unchanged. Then respond briefly; the host renders result cards. '

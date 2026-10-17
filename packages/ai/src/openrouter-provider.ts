@@ -1,5 +1,5 @@
 import { aiTranscriptSchema, mediaAttachmentSchema, type AIResponse, type JsonObject } from '@templelabs/contracts';
-import { AIProviderError, ToolSelectionError } from './provider-error.js';
+import { AIProviderError, ToolSelectionError, ToolArgumentsError } from './provider-error.js';
 import type { AIProvider, CompletionRequest, StructuredAIProvider, StructuredCompletionRequest, StructuredCompletionResult, TextAIProvider, TextCompletionRequest, TextCompletionResult, MediaAIProvider, MediaCompletionRequest } from './index.js';
 import { decodeOpenRouterResponse, openRouterPayload, reportedOpenRouterUsage, decodeStructuredOpenRouterResponse, structuredOpenRouterPayload, decodeTextOpenRouterResponse, textOpenRouterPayload, mediaOpenRouterPayload, type OpenRouterRoute } from './openrouter-protocol.js';
 
@@ -17,10 +17,10 @@ export interface OpenRouterAttempt {
   /** Bounded names from this attempt's wire payload, never execution authority. */
   readonly advertisedToolNames?: readonly string[];
   readonly advertisedToolsTruncated?: boolean;
-  /** Present only when the existing native ToolSelectionError predicate matched. */
+  /** Present only for an explicit whole-decision tool schema rejection. */
   readonly rejectedToolName?: string;
   /** Safe internal evidence only; never a retry decision or proof of zero spend. */
-  readonly failureClass?: 'unadvertised_tool_rejection' | 'provider_error' | 'missing_usage'
+  readonly failureClass?: 'unadvertised_tool_rejection' | 'tool_arguments_rejection' | 'provider_error' | 'missing_usage'
     | 'invalid_response' | 'transport_uncertainty' | 'authentication' | 'rate_limit';
 }
 export interface OpenRouterProviderOptions {
@@ -219,6 +219,13 @@ export class OpenRouterProvider implements StructuredAIProvider, TextAIProvider,
             failureClass = 'unadvertised_tool_rejection';
             rejectedToolName = name;
             throw new ToolSelectionError(name, usage, attemptUsage !== null);
+          }
+          const argumentMatches = [...rejection.message.matchAll(/\bparameters\s+for\s+tool\s+['"]?([a-zA-Z0-9_-]{1,64})['"]?\s+did\s+not\s+match\s+schema\b/gi)];
+          const argumentTool = argumentMatches.length === 1 ? argumentMatches[0]?.[1] : null;
+          if (argumentTool && request.tools.some(tool => tool.name === argumentTool)) {
+            failureClass = 'tool_arguments_rejection';
+            rejectedToolName = argumentTool;
+            throw new ToolArgumentsError(argumentTool, usage, attemptUsage !== null);
           }
         }
         if (!attemptUsage) fail('UNVERIFIED_USAGE', false);

@@ -20,3 +20,12 @@ export class ToolSelectionError extends AIProviderError {
     this.name = 'ToolSelectionError';
   }
 }
+
+/** Whole inference rejected before any executable tool calls were returned. */
+export class ToolArgumentsError extends AIProviderError {
+  constructor(readonly toolName: string, usage?: AIResponse['usage'], accountingComplete = false) {
+    super('TOOL_ARGUMENTS_REJECTED', usage, accountingComplete);
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(toolName)) throw new Error('Invalid rejected tool name');
+    this.name = 'ToolArgumentsError';
+  }
+}
