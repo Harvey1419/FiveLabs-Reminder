@@ -31,7 +31,7 @@ function calendarFixture() {
     cancelCalendarCompanionReminders: vi.fn(async () => ({ cancelled: 0 })),
     rescheduleCalendarCompanionReminders: vi.fn(async () => ({ rescheduled: 0 })),
     getGoogleConnectUrl: () => 'https://example.test/google', revokeGoogleIntegration: vi.fn(async () => null),
-    listCalendarEvents: vi.fn(async (): Promise<CalendarEventRow[]> => [{ id: 'sept-9', summary: 'Cita previa con proveedor', start: '2026-09-09T10:00:00-05:00', end: '2026-09-09T11:00:00-05:00' }]), createCalendarEvent,
+    listCalendarEvents: vi.fn(async (_userId: string | undefined, _options: Record<string, unknown>): Promise<CalendarEventRow[]> => [{ id: 'sept-9', summary: 'Cita previa con proveedor', start: '2026-09-09T10:00:00-05:00', end: '2026-09-09T11:00:00-05:00' }]), createCalendarEvent,
     updateCalendarEvent: vi.fn(async () => ({ id: 'updated' })), deleteCalendarEvent: vi.fn(async () => null),
     parseTargetTime: time.parseTargetTime, getDayBounds: time.getDayBounds,
     resolveCalendarTemporalScope: time.resolveCalendarTemporalScope, formatLocalDateTime: time.formatLocalDateTime,
@@ -45,6 +45,19 @@ function calendarFixture() {
 
 
 describe('dated Calendar mutation lookup', () => {
+  it('resolves an observed event ID even when Google text search cannot find IDs', async () => {
+    const f = calendarFixture();
+    const event = { id: 'hermes0089a71e6816e940805798cc25', summary: 'Cumpleaños de Trena', start: '2027-01-02', end: '2027-01-03' };
+    f.listCalendarEvents.mockImplementation(async (_owner, options) => options.q ? [] : [event]);
+    const result = await f.executeCalendarTool({ action: 'update_event', params: {
+      target: event.id, lookupDate: '2027-01-02', summary: 'Cumpleaños de Trina',
+    }, user, referenceTime });
+    expect(result.success).toBe(true);
+    expect(f.updateCalendarEvent).toHaveBeenCalledExactlyOnceWith(user.id, expect.objectContaining({ eventId: event.id, summary: 'Cumpleaños de Trina' }));
+    expect(f.createCalendarEvent).not.toHaveBeenCalled();
+    expect(f.deleteCalendarEvent).not.toHaveBeenCalled();
+  });
+
   it('preserves strict wire shape and separates lookup date from patch schedule', () => {
     const result = call();
     expect(result).toMatchObject({ toolName: 'manage_google_calendar', params: { action: 'update_event', lookupDate: '2026-09-09', target: 'cita' } });
@@ -58,7 +71,7 @@ describe('dated Calendar mutation lookup', () => {
     const result = await f.executeCalendarTool({ action: 'update_event', params: call().params, user, referenceTime });
     expect(result.success).toBe(true);
     expect(f.listCalendarEvents).toHaveBeenCalledExactlyOnceWith(user.id, expect.objectContaining({
-      timeMin: new Date('2026-09-09T05:00:00Z'), timeMax: new Date('2026-09-10T05:00:00Z'), q: 'cita', timezone: user.timezone,
+      timeMin: new Date('2026-09-09T05:00:00Z'), timeMax: new Date('2026-09-10T05:00:00Z'), q: null, maxResults: 50, timezone: user.timezone,
     }));
     expect(f.updateCalendarEvent).toHaveBeenCalledExactlyOnceWith(user.id, expect.objectContaining({
       eventId: 'sept-9', summary: 'Reunión en Ceramica italia de barranquilla', startDateTime: undefined, endDateTime: undefined, allDay: false,

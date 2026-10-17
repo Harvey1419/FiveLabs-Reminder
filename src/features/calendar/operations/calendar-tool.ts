@@ -202,7 +202,9 @@ async function resolveCalendarMutationTarget({ target, user, phoneNumber, userId
       domainCandidates = await listCalendarEvents(userId, {
         timeMin: bounds?.timeMin || getNow(),
         timeMax: bounds?.timeMax || null,
-        q: targetRef,
+        // Google q searches event text, not IDs. Resolve locally within the owned civil day.
+        q: bounds ? null : targetRef,
+        ...(bounds ? { maxResults: 50 } : {}),
         timezone,
       });
       if (bounds) domainCandidates = domainCandidates.filter(event => {
